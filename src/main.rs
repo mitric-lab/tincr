@@ -1,5 +1,6 @@
 use std::ptr::eq;
-use ndarray::{Array, Axis, Ix1, Ix2, Ix3, Slice};
+use ndarray::*;
+use ndarray_linalg::*;
 
 fn main() {
     println!("Hello, world!");
@@ -23,25 +24,24 @@ impl Atom {
             norb: 0,
             symbol: 'X',
             valorbs: vec![0, 0, 0]
-
         };
         return atom;
     }
 }
-fn distance_matrix(atomlist: Vec<Atom>) -> (Array<f64, Ix2>, Array<f64, Ix3>) {
-    let n_atoms: usize = 1;
+fn distance_matrix(coordinates: Array<f64, Ix2>) -> (Array<f64, Ix2>, Array<f64, Ix3>) {
+    let n_atoms: usize = coordinates.cols();
     let mut dist_matrix: Array<f64,Ix2> = Array::zeros((n_atoms, n_atoms));
     let mut directions_matrix: Array<f64,Ix3> = Array::zeros((n_atoms, n_atoms, 3));
-    for i in 0..n_atoms {
-        for j in i..n_atoms {
-            let r = 0.0;
-            let r_ij = 0.0;
+    for (i, pos_i) in coordinates.outer_iter().enumerate() {
+        for (j, pos_j) in coordinates.slice(s![i.., ..]).outer_iter().enumerate() {
+            let r = &pos_i - &pos_j;
+            let r_ij = r.norm();
             dist_matrix[[i, j]] = r_ij;
-            directions_matrix[[i, j]] = r/r_ij;
+            //directions_matrix[[i, j]] = &r/&r_ij;
         }
     }
-    let dist_matrix = dist_matrix + dist_matrix.t();
-    let directions_matrix = directions_matrix - directions_matrix.t();
+    let dist_matrix = &dist_matrix + &dist_matrix.t();
+    //let directions_matrix = directions_matrix - directions_matrix.t();
     return (dist_matrix, directions_matrix);
 }
 
@@ -70,12 +70,12 @@ fn h0_and_s_ab(dim_a:usize, dim_b:usize, atomlist_a:Vec<Atom>, atomlist_b:Vec<At
     let mu = 0;
     for (i, atom_a) in atomlist_a.iter().enumerate() {
         // iterate over orbitals on center i
-        for (ni, li, mi) in atom_a.valorbs {
+        for _ in atom_a.valorbs.iter() {
             // iterate over atoms
             let nu = 0;
             for (j, atom_b) in atomlist_b.iter().enumerate() {
                 // iterate over orbitals on center j
-                for (nj, lj, mj) in atom_b.valorbs {
+                for _ in atom_b.valorbs.iter() {
                     if mu == nu && a_is_b == true {
                         assert_eq!(atom_a.number, atom_b.number);
                         // use the true single particle orbitals energies
