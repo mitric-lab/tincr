@@ -1,6 +1,6 @@
-use std::ptr::eq;
 use ndarray::*;
 use ndarray_linalg::*;
+use std::ptr::eq;
 
 fn main() {
     println!("Hello, world!");
@@ -16,43 +16,49 @@ struct Atom {
 }
 
 impl Atom {
-    fn new(number:u64, coords:[f64; 3]) -> Atom {
+    fn new(number: u64, coords: [f64; 3]) -> Atom {
         let atom = Atom {
             number,
             coords,
             charge: 0.0,
             norb: 0,
             symbol: 'X',
-            valorbs: vec![0, 0, 0]
+            valorbs: vec![0, 0, 0],
         };
         return atom;
     }
 }
-fn distance_matrix(coordinates: Array<f64, Ix2>) -> (Array<f64, Ix2>, Array<f64, Ix3>) {
+
+fn distance_matrix(
+    coordinates: Array<f64, Ix2>,
+) -> (Array<f64, Ix2>, Array<f64, Ix3>, Array<usize, Ix2>) {
+    let cutoff = 2.0;
     let n_atoms: usize = coordinates.cols();
-    let mut dist_matrix: Array<f64,Ix2> = Array::zeros((n_atoms, n_atoms));
-    let mut directions_matrix: Array<f64,Ix3> = Array::zeros((n_atoms, n_atoms, 3));
+    let mut dist_matrix: Array<f64, Ix2> = Array::zeros((n_atoms, n_atoms));
+    let mut directions_matrix: Array<f64, Ix3> = Array::zeros((n_atoms, n_atoms, 3));
+    let mut prox_matrix: Array<usize, Ix2> = Array::zeros((n_atoms, n_atoms));
     for (i, pos_i) in coordinates.outer_iter().enumerate() {
         for (j, pos_j) in coordinates.slice(s![i.., ..]).outer_iter().enumerate() {
             let r = &pos_i - &pos_j;
             let r_ij = r.norm();
             dist_matrix[[i, j]] = r_ij;
             //directions_matrix[[i, j]] = &r/&r_ij;
+            if r <= cutoff { prox_matrix[[i, j]] = 1; }
         }
     }
     let dist_matrix = &dist_matrix + &dist_matrix.t();
+    let prox_matrix = &prox_matrix + &prox_matrix.t();
     //let directions_matrix = directions_matrix - directions_matrix.t();
-    return (dist_matrix, directions_matrix);
+    return (dist_matrix, directions_matrix, prox_matrix);
 }
 
-/*fn proximity_matrix(atomlist: Vec<Atom>) -> Array<f64, Ix2> {
-    let cutoff = 2.0;
-    let n_atoms: usize = 1;
-    let mut prox_matrix: Array<f64,Ix2> = Array::zeros((n_atoms, n_atoms));
-}*/
-
-fn h0_and_s_ab(dim_a:usize, dim_b:usize, atomlist_a:Vec<Atom>, atomlist_b:Vec<Atom>,
-                         a_is_b:bool) -> (Array<f64, Ix2>, Array<f64, Ix2>) {
+fn h0_and_s_ab(
+    dim_a: usize,
+    dim_b: usize,
+    atomlist_a: Vec<Atom>,
+    atomlist_b: Vec<Atom>,
+    a_is_b: bool,
+) -> (Array<f64, Ix2>, Array<f64, Ix2>) {
     /*
     compute Hamiltonian and overlap matrix elements between two sets of atoms. If the sets
     A and B contain exactly the same structure AisB should be set to True to ensure that
@@ -64,8 +70,8 @@ fn h0_and_s_ab(dim_a:usize, dim_b:usize, atomlist_a:Vec<Atom>, atomlist_b:Vec<At
     dim_b:  ''                                 in set B
     atomlist_a, atomlist_b: list of (Zi,(xi,yi,zi)) for each atom
     */
-    let mut h0: Array<f64,Ix2> = Array::zeros((dim_a, dim_b));
-    let mut s: Array<f64,Ix2> = Array::zeros((dim_a, dim_b));
+    let mut h0: Array<f64, Ix2> = Array::zeros((dim_a, dim_b));
+    let mut s: Array<f64, Ix2> = Array::zeros((dim_a, dim_b));
     // iterate over atoms
     let mu = 0;
     for (i, atom_a) in atomlist_a.iter().enumerate() {
@@ -79,14 +85,13 @@ fn h0_and_s_ab(dim_a:usize, dim_b:usize, atomlist_a:Vec<Atom>, atomlist_b:Vec<At
                     if mu == nu && a_is_b == true {
                         assert_eq!(atom_a.number, atom_b.number);
                         // use the true single particle orbitals energies
-                        h0[[mu,nu]] = 0.0; //orbital_energies[Zi][(ni,li)];
-                        // orbitals are normalized to 1
-                        s[[mu,nu]] = 1.0;
-                    }
-                    else {
+                        h0[[mu, nu]] = 0.0; //orbital_energies[Zi][(ni,li)];
+                                            // orbitals are normalized to 1
+                        s[[mu, nu]] = 1.0;
+                    } else {
                         // initialize matrix elements of S and H0
-                        let mut s_mu_nu:f64 = 0.0;
-                        let mut h0_mu_nu:f64 = 0.0;
+                        let mut s_mu_nu: f64 = 0.0;
+                        let mut h0_mu_nu: f64 = 0.0;
                         if atom_a.number <= atom_b.number {
                             // the first atom given to getHamiltonian() or getOverlap()
                             // has to be always the one with lower atomic number
@@ -94,23 +99,21 @@ fn h0_and_s_ab(dim_a:usize, dim_b:usize, atomlist_a:Vec<Atom>, atomlist_b:Vec<At
                                 assert!(mu != nu);
                                 s_mu_nu = 0.0;
                                 h0_mu_nu = 0.0;
-                            }
-                            else {
+                            } else {
                                 // let s = SKT[(Zi,Zj)].getOverlap(li,mi,posi, lj,mj,posj);
                                 // let h0 = SKT[(Zi,Zj)].getHamiltonian0(li,mi,posi, lj,mj,posj);
                                 s_mu_nu = 0.0;
                                 h0_mu_nu = 0.0;
                             }
-                        }
-                        else {
+                        } else {
                             // swap atoms if Zj > Zi
                             // let s  = SKT[(Zj,Zi)].getOverlap(lj,mj,posj, li,mi,posi);
                             // let h0 = SKT[(Zj,Zi)].getHamiltonian0(lj,mj,posj, li,mi,posi);
                             s_mu_nu = 0.0;
                             h0_mu_nu = 0.0;
                         }
-                        h0[[mu,nu]] = h0_mu_nu;
-                        s[[mu,nu]] = s_mu_nu;
+                        h0[[mu, nu]] = h0_mu_nu;
+                        s[[mu, nu]] = s_mu_nu;
                     }
                     let nu = nu + 1;
                 }
@@ -118,19 +121,21 @@ fn h0_and_s_ab(dim_a:usize, dim_b:usize, atomlist_a:Vec<Atom>, atomlist_b:Vec<At
             let mu = mu + 1;
         }
     }
-    return (s, h0)
+    return (s, h0);
 }
 
-fn read_xyz (path: &str) -> Vec<Atom> {
-    let mut trajectory = chemfiles::Trajectory::open(path,'r').unwrap();
+fn read_xyz(path: &str) -> Vec<Atom> {
+    let mut trajectory = chemfiles::Trajectory::open(path, 'r').unwrap();
     let mut frame = chemfiles::Frame::new();
     trajectory.read(&mut frame).unwrap();
-    let natom : u64 = frame.size();
+    let natom: u64 = frame.size();
     let atomcoords = frame.positions();
-    let atomnos: Vec<u64> = (0..natom).map(|i: u64 | frame.atom(i).atomic_number()).collect();
+    let atomnos: Vec<u64> = (0..natom)
+        .map(|i: u64| frame.atom(i).atomic_number())
+        .collect();
     let mut molecule = Vec::new();
     for i in 0..natom {
         molecule.push(Atom::new(5, [0.0, 0.0, 0.0]));
     }
-    return molecule
+    return molecule;
 }
