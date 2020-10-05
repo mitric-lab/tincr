@@ -10,3 +10,4 @@ edition = "2018"
 chemfiles = "0.9"
 ndarray = "0.12"
 ndarray-linalg = { version = "0.11" }
+phf = { version = "0.8.0", features = ["macros"] }

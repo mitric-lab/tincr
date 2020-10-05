@@ -10,9 +10,12 @@ implementiert werden (FMO Methode).
 
 Folgende Anforderungen sollte das Programm haben:
 - möglichst wenig OOP, nur absolut notwendige Klassen/structs implementieren
-(eventuell für Moleküle und Atome)
+(eventuell für Moleküle und Atome). Vielleicht würde es Sinn machen die 
+Atom-Klasse aus ASE vom Design her zu übernehmen und selber zu implementieren. 
 - bisher ist mir nicht klar wie man die Parameter am besten zur Verfügung
-stellen sollte
+stellen sollte. Zurzeit denke ich, dass es am besten wäre alle Parameter 
+zur Compile-Zeit als globale Daten vorliegen zu haben. 
+Dieser Artikel hat dazu ganz interessante Infos: https://github.com/paulkernfeld/global-data-in-rust
 - es sollte ein einfaches und einheitliches Format für den Input geben,
 dabei könnte das Q-Chem Format vielleicht als Vorbild dienen
 - zu jedem Abschnitt sollten unit-tests implementiert werden, um die Ergebnisse

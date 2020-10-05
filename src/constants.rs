@@ -1,5 +1,4 @@
 use phf::{phf_map, phf_set};
-use std::collections::HashMap;
 
 pub const BOHR_TO_ANGS: f64 = 0.529177249;
 pub const HARTREE_TO_EV: f64 = 27.211396132;
@@ -23,7 +22,7 @@ pub const ATOM_NAMES: [&str; 86] = [
 ];
 
 // I believe these masses are averaged over isotopes weighted with their abundances
-static ATOMIC_MASSES: phf::Map<&'static str, f64> = phf_map! {
+pub static ATOMIC_MASSES: phf::Map<&'static str, f64> = phf_map! {
     "h"  => 1.837362128065067E+03, "he" => 7.296296732461748E+03,
     "li" => 1.265266834424631E+04, "be" => 1.642820197435333E+04,
     "b"  => 1.970724642985837E+04, "c"  => 2.189416563639810E+04,
@@ -68,3 +67,32 @@ static ATOMIC_MASSES: phf::Map<&'static str, f64> = phf_map! {
     "bi" => 3.809479476012968E+05, "po" => 3.828065627851500E+05,
     "at" => 3.828065627851500E+05, "rn" => 4.010354467273000E+05
 };
+
+
+//  occupation numbers of valence orbitals
+//  which are used to assign the correct occupation to orbitals loaded from hotbit .elm files
+pub static OCCUPATION_NUMBERS: phf::Map<&'static str, f64> = phf_map! {
+"h" => {"1s": 1},
+"he" => {"1s": 2},
+"li" => {"2s": 1},
+"be" => {"2s": 2},
+"b" => {"2s": 2, "2p": 1},
+"c" => {"2s": 2, "2p": 2},
+"n" => {"2s": 2, "2p": 3},
+"o" => {"2s": 2, "2p": 4},
+"f" => {"2s": 2, "2p": 5},
+"ne" => {"2s": 2, "2p": 6},
+"na" => {"3s": 1}, "mg": {"3s": 2},
+"al" => {"3s": 2, "3p": 1},
+"si" => {"3s": 2, "3p": 2},
+"p": {"3s": 2, "3p": 3},
+"s": {"3s": 2, "3p": 4},
+"cl": {"3s": 2, "3p": 5},
+"ar": {"3s": 2, "3p": 6},
+"ti": {"3d": 2, "4s": 2},
+"zn": {"3d": 10, "4s": 2},
+"br": {"4s": 2, "4p": 5},
+"ru": {"4d": 7, "5s": 1},
+"i": {"5s": 2, "5p": 5},
+"au": {"4f": 14, "5d": 10, "6s": 1}
+}
