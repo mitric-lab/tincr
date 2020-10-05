@@ -2,7 +2,6 @@
   <img src="https://github.com/hochej/tincr/blob/master/tincr.svg" height="110"/>
 </div>
 
-### tincr
 Idee dieses Projekts ist das DFTBaby-Programmpaket von A. Humeniuk 
 in Rust zu portieren. Die Vorteile dabei wären, dass die Effizienz deutlich
 verbessert werden könnte und das Programm einfacher zu parallelisieren wäre.
