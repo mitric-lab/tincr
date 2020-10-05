@@ -20,3 +20,22 @@ Dieser Artikel hat dazu ganz interessante Infos: https://github.com/paulkernfeld
 dabei könnte das Q-Chem Format vielleicht als Vorbild dienen
 - zu jedem Abschnitt sollten unit-tests implementiert werden, um die Ergebnisse
 der Funktionen zu testen 
+
+
+### Einstieg in Rust
+Anbei ein paar nützliche Seiten um Rust zu lernen (neben dem offiziellen Buch):
+
+
+1. Amos Wegner's A half-hour to learn Rust: https://fasterthanli.me/articles/a-half-hour-to-learn-rust
+2. Richard Anaya's Tour of Rust: https://tourofrust.com/00_en.html
+3. Rustlings debugging Aufgaben: https://github.com/rust-lang/rustlings
+4. Auf Excercism.io gibt es sehr viele Aufgaben zu Rust (leicht, mittel, schwer): https://exercism.io/tracks/rust. 
+5. Tutorial um einen eigenen vim-artigen Text-Editor in Rust zu schreiben: https://www.philippflenker.com/hecto/
+
+Sehr ausführliche Übersicht zu Rust: https://github.com/Dhghomon/easy_rust/blob/master/README.md 
+
+Infos zu Rust Modulen: http://www.sheshbabu.com/posts/rust-module-system/
+Infos zu Lifetimes: https://github.com/pretzelhammer/rust-blog/blob/master/posts/common-rust-lifetime-misconceptions.md
+Infos zu Sizedness: https://github.com/pretzelhammer/rust-blog/blob/master/posts/sizedness-in-rust.md
+ 
+All diese Vorschläge sind aus dem offiziellen Rust-Forum entnommen: https://users.rust-lang.org/t/best-way-to-learn-rust-programming/47522/3
