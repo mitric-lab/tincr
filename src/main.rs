@@ -1,5 +1,6 @@
 mod constants;
 
+mod param;
 use ndarray::*;
 use ndarray_linalg::*;
 use std::ptr::eq;
@@ -45,7 +46,7 @@ fn distance_matrix(
             let r_ij = r.norm();
             dist_matrix[[i, j]] = r_ij;
             //directions_matrix[[i, j]] = &r/&r_ij;
-            if r <= cutoff { prox_matrix[[i, j]] = 1; }
+            if r_ij <= cutoff { prox_matrix[[i, j]] = 1; }
         }
     }
     let dist_matrix = &dist_matrix + &dist_matrix.t();
