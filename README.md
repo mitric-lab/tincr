@@ -8,7 +8,7 @@ verbessert werden könnte und das Programm einfacher zu parallelisieren wäre.
 Zudem sollen fragment-orbital basierende Rechnungen auf Basis von DFTB
 implementiert werden (FMO Methode).
 
-### Ein paar Ideen zur technischen Aufbau des Programms
+### Ein paar Ideen zum technischen Aufbau des Programms
 - wenig OOP => Code sollte gut lesbar und leicht verständlich bleiben
 - Atom-Klasse aus ASE könnte man vom Design übernehmen und selber implementieren.
  (siehe https://gitlab.com/ase/ase/-/blob/master/ase/atoms.py)
