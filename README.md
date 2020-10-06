@@ -8,7 +8,7 @@ verbessert werden könnte und das Programm einfacher zu parallelisieren wäre.
 Zudem sollen fragment-orbital basierende Rechnungen auf Basis von DFTB
 implementiert werden (FMO Methode).
 
-### Ein paar Ideen zur technischen Aufbaue des Programms
+### Ein paar Ideen zur technischen Aufbau des Programms
 - wenig OOP => Code sollte gut lesbar und leicht verständlich bleiben
 - Atom-Klasse aus ASE könnte man vom Design übernehmen und selber implementieren.
  (siehe https://gitlab.com/ase/ase/-/blob/master/ase/atoms.py)
@@ -31,7 +31,7 @@ von ASE übernehmen
 - bisher ist mir nicht klar wie man die Parameter am besten zur Verfügung
 stellen sollte. Zurzeit denke ich, dass es am besten wäre alle Parameter 
 zur Compile-Zeit als globale Daten vorliegen zu haben. 
-Dieser Artikel hat dazu ganz interessante Infos: https://github.com/paulkernfeld/global-data-in-rus
+Dieser Artikel hat dazu ganz interessante Infos: https://github.com/paulkernfeld/global-data-in-rust
 Vielleicht bietet sich auch sowas an: https://crates.io/crates/quote
  - es würde eventuell zusätzlich Sinn machen, das Programm direkt kompatibel zu den DFTB+ Paramtern zu machen,
  damit man automatisch auch auf diese Parameter zugreifen kann.
