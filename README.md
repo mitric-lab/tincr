@@ -8,31 +8,35 @@ verbessert werden könnte und das Programm einfacher zu parallelisieren wäre.
 Zudem sollen fragment-orbital basierende Rechnungen auf Basis von DFTB
 implementiert werden (FMO Methode).
 
-Folgende Anforderungen sollte das Programm haben:
-- möglichst wenig OOP, nur absolut notwendige Klassen/structs implementieren
-(eventuell für Moleküle und Atome). Vielleicht würde es Sinn machen die 
-Atom-Klasse aus ASE vom Design her zu übernehmen und selber zu implementieren. (siehe https://gitlab.com/ase/ase/-/blob/master/ase/atoms.py)
-- auch die Verwaltung der Einheiten (https://gitlab.com/ase/ase/-/blob/master/ase/units.py) sieht bei ASE ganz interessant aus. 
-- zudem ist das .traj Format von ASE sehr praktisch und könnte man als output Format
-für Optimierung/Dynamik übernehmen (https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py)
+### Ein paar Ideen zur technischen Aufbaue des Programms
+- wenig OOP => Code sollte gut lesbar und leicht verständlich bleiben
+- Atom-Klasse aus ASE könnte man vom Design übernehmen und selber implementieren.
+ (siehe https://gitlab.com/ase/ase/-/blob/master/ase/atoms.py)
 
+
+#### Input/Output-Format
 - es sollte ein einfaches und einheitliches Format für den Input geben,
 dabei könnte das Q-Chem Format vielleicht als Vorbild dienen
-- zu jedem Abschnitt sollten unit-tests implementiert werden, um die Ergebnisse
-der Funktionen zu testen
-- Output sollte vielleicht einen allgemeinen Logger geschrieben werden. 
-dabei scheint das Paket https://docs.rs/log/0.4.11/log/ passend zu sein. 
+- das .traj Format von ASE wäre eventuell praktisch als Output-Format
+für Optimierung/Dynamik (https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py)
+- der normale Output sollte vielleicht mit einem allgemeinen Logger geschrieben werden. 
+Das Paket https://docs.rs/log/0.4.11/log/ könnte dafür passend sein.  
 
-#### Notizen zur Parametrisierung
+#### Parameter
+##### Einheiten und Konstanten
+- die Verwaltung der Einheiten (https://gitlab.com/ase/ase/-/blob/master/ase/units.py) könnte man vom Konzept
+von ASE übernehmen
+- andere Konstanten könnte man als `const` oder `static` mit (statischer Lebenszeit) definieren 
+##### DFTB Parameter
 - bisher ist mir nicht klar wie man die Parameter am besten zur Verfügung
 stellen sollte. Zurzeit denke ich, dass es am besten wäre alle Parameter 
 zur Compile-Zeit als globale Daten vorliegen zu haben. 
 Dieser Artikel hat dazu ganz interessante Infos: https://github.com/paulkernfeld/global-data-in-rus
 Vielleicht bietet sich auch sowas an: https://crates.io/crates/quote
-- es würde eventuell zusätzlich Sinn machen, das Programm direkt kompatibel zu den DFTB+ Paramtern zu machen,
-damit man automatisch auch auf diese Parameter zugreifen kann. 
+ - es würde eventuell zusätzlich Sinn machen, das Programm direkt kompatibel zu den DFTB+ Paramtern zu machen,
+ damit man automatisch auch auf diese Parameter zugreifen kann.
 
-#### Notizen zur Effizienz
+#### Effizienz
 - vielleicht sollte dies Paket berücksichtigt werden: https://crates.io/crates/smallvec 
 -----------------------------------
 ### Einstieg in Rust
