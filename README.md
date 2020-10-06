@@ -37,6 +37,7 @@ Vielleicht bietet sich auch sowas an: https://crates.io/crates/quote
  damit man automatisch auch auf diese Parameter zugreifen kann.
 
 #### Effizienz
+- zum Arbeiten mit Arrays und linearer Algebra scheint das ndarray Paket gut geeignet zu sein (siehe https://docs.rs/ndarray/0.13.1/ndarray/)
 - vielleicht sollte dies Paket berücksichtigt werden: https://crates.io/crates/smallvec 
 -----------------------------------
 ### Einstieg in Rust
@@ -49,7 +50,7 @@ Anbei ein paar nützliche Seiten um Rust zu lernen (neben dem offiziellen Buch):
 4. Auf Excercism.io gibt es sehr viele Aufgaben zu Rust (leicht, mittel, schwer): https://exercism.io/tracks/rust. 
 5. Tutorial um einen eigenen vim-artigen Text-Editor in Rust zu schreiben: https://www.philippflenker.com/hecto/
 
-Sehr ausführliche Übersicht zu Rust: https://github.com/Dhghomon/easy_rust/blob/master/README.md 
+Sehr ausführliche Übersicht zu Rust (quasi ein Buch auf Github): https://github.com/Dhghomon/easy_rust/blob/master/README.md 
 
 Infos zu Rust Modulen: http://www.sheshbabu.com/posts/rust-module-system/
 Infos zu Lifetimes: https://github.com/pretzelhammer/rust-blog/blob/master/posts/common-rust-lifetime-misconceptions.md
