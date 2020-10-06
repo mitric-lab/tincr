@@ -15,10 +15,7 @@ Atom-Klasse aus ASE vom Design her zu übernehmen und selber zu implementieren. 
 - auch die Verwaltung der Einheiten (https://gitlab.com/ase/ase/-/blob/master/ase/units.py) sieht bei ASE ganz interessant aus. 
 - zudem ist das .traj Format von ASE sehr praktisch und könnte man als output Format
 für Optimierung/Dynamik übernehmen (https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py)
-- bisher ist mir nicht klar wie man die Parameter am besten zur Verfügung
-stellen sollte. Zurzeit denke ich, dass es am besten wäre alle Parameter 
-zur Compile-Zeit als globale Daten vorliegen zu haben. 
-Dieser Artikel hat dazu ganz interessante Infos: https://github.com/paulkernfeld/global-data-in-rust
+
 - es sollte ein einfaches und einheitliches Format für den Input geben,
 dabei könnte das Q-Chem Format vielleicht als Vorbild dienen
 - zu jedem Abschnitt sollten unit-tests implementiert werden, um die Ergebnisse
@@ -26,6 +23,17 @@ der Funktionen zu testen
 - Output sollte vielleicht einen allgemeinen Logger geschrieben werden. 
 dabei scheint das Paket https://docs.rs/log/0.4.11/log/ passend zu sein. 
 
+#### Notizen zur Parametrisierung
+- bisher ist mir nicht klar wie man die Parameter am besten zur Verfügung
+stellen sollte. Zurzeit denke ich, dass es am besten wäre alle Parameter 
+zur Compile-Zeit als globale Daten vorliegen zu haben. 
+Dieser Artikel hat dazu ganz interessante Infos: https://github.com/paulkernfeld/global-data-in-rus
+Vielleicht bietet sich auch sowas an: https://crates.io/crates/quote
+- es würde eventuell zusätzlich Sinn machen, das Programm direkt kompatibel zu den DFTB+ Paramtern zu machen,
+damit man automatisch auch auf diese Parameter zugreifen kann. 
+
+#### Notizen zur Effizienz
+- vielleicht sollte dies Paket berücksichtigt werden: https://crates.io/crates/smallvec 
 -----------------------------------
 ### Einstieg in Rust
 Anbei ein paar nützliche Seiten um Rust zu lernen (neben dem offiziellen Buch):
