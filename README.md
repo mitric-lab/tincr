@@ -21,6 +21,9 @@ dabei könnte das Q-Chem Format vielleicht als Vorbild dienen
 für Optimierung/Dynamik (https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py)
 - der normale Output sollte vielleicht mit einem allgemeinen Logger geschrieben werden. 
 Das Paket https://docs.rs/log/0.4.11/log/ könnte dafür passend sein.  
+- zusätzlicher Quantenchemie-Output könnte in ein .fchk-File geschrieben werden. Der Vorteil wäre hier,
+dass das Format einfach zu schreiben ist und von vielen Programmen bereits gelesen werden kann
+- Orbital-Informationen können auch gut in .molden-Files geschrieben werden wie das in DFTBaby bereits der Fall ist
 
 #### Parameter
 ##### Einheiten und Konstanten
