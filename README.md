@@ -55,8 +55,8 @@ Vielleicht bietet sich das [quote](https://crates.io/crates/quote) Paket an
 
 #### Schnittstelle (API) zu Python
 Ein Interface zu Python lässt sich recht einfach mit dem Modul [PyO3](https://github.com/PyO3/pyo3) implementieren. Ein konkretes Beispiel 
-in Kombination mit numpy findet sich hier: https://github.com/PyO3/rust-numpy/tree/master/examples/simple-extension
-Ein eigenes Beispiel von mir für solch ein Interface zu Python findet sich hier: https://github.com/hochej/tincr/README.md
+in Kombination mit numpy findet sich hier: https://github.com/PyO3/rust-numpy/tree/master/examples/simple-extension <br>
+Ein eigenes Beispiel von mir für solch ein Interface zu Python findet sich hier: https://github.com/hochej/tincr/blob/master/PyO3_Beispiel.md
 
 -----------------------------------
 ### Einstieg in Rust
