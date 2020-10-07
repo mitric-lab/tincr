@@ -141,4 +141,5 @@ fn read_xyz(path: &str) -> Vec<Atom> {
         molecule.push(Atom::new(5, [0.0, 0.0, 0.0]));
     }
     return molecule;
+
 }

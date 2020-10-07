@@ -21,8 +21,9 @@ implementiert werden (FMO Methode).
 
 ### Ein paar Ideen zum technischen Aufbau des Programms
 - wenig OOP => Code sollte gut lesbar und leicht verständlich bleiben
-- Atom-Klasse aus ASE könnte man vom Design übernehmen und selber implementieren.
- (siehe https://gitlab.com/ase/ase/-/blob/master/ase/atoms.py)
+- [Atoms-Klasse aus ASE](https://gitlab.com/ase/ase/-/blob/master/ase/atoms.py) oder [mole-Klasse aus PySCF](https://github.com/pyscf/pyscf/blob/532842f439cd1cffc7fa61749fffb9879bbc92c9/pyscf/gto/mole.py#L1899)
+ könnte man vom Design übernehmen und selber implementieren.
+ 
 
 
 #### Input/Output-Format
