@@ -1,12 +1,16 @@
 mod constants;
 
 mod param;
+mod SlakoTransformations;
+mod spline;
+
 use ndarray::*;
 use ndarray_linalg::*;
 use std::ptr::eq;
 
 fn main() {
     println!("Hello, world!");
+    //let atom = param::slaterkoster::free_pseudo_atom::c;
 }
 
 struct Atom {
