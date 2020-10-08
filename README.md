@@ -1,5 +1,5 @@
 <div align="left">
-  <img src="https://github.com/hochej/tincr/blob/master/tincr.svg" height="110"/>
+  <img src="https://github.com/hochej/tincr/blob/master/tincr.png" height="120"/>
 </div>
 
 Idee dieses Projekts ist das DFTBaby-Programmpaket von Alexander Humeniuk 
