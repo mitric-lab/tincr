@@ -54,7 +54,7 @@ fn splev_uniform(
         l = k;
     }
     // evaluate the non-zero b-splines at x.
-    // call fpbspl(t,n,k,arg,l,h)
+    let h: [f64; 6] = fpbspl(t, n, k, arg, l);
     //  find the value of s(x) at x
     let mut sp: f64 = 0.0;
     let mut ll: usize = l - k;
