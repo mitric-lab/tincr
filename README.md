@@ -1,7 +1,7 @@
 <div align="left">
   <img src="https://github.com/hochej/tincr/blob/master/tincr.png" height="120"/>
 </div>
-[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://github.com/hochej/tincr/blob/master/COPYING)
+[![License: LGPL v3](https://img.shields.io/github/license/hochej/tincr)](https://github.com/hochej/tincr/blob/master/COPYING)
 Idee dieses Projekts ist das DFTBaby-Programmpaket von Alexander Humeniuk 
 in Rust zu portieren. Die Vorteile dabei wären, dass die Effizienz deutlich
 verbessert werden könnte und das Programm einfacher zu parallelisieren wäre.
