@@ -65,20 +65,20 @@ Ein eigenes Beispiel von mir für solch ein Interface zu Python findet sich hier
 Anbei ein paar nützliche Seiten um Rust zu lernen (neben dem offiziellen [Buch](https://doc.rust-lang.org/book/)):
 
 
-1. Amos Wegner's A half-hour to learn Rust: https://fasterthanli.me/articles/a-half-hour-to-learn-rust
-2. Richard Anaya's Tour of Rust: https://tourofrust.com/00_en.html
-3. Rustlings debugging Aufgaben: https://github.com/rust-lang/rustlings
-4. Auf Excercism.io gibt es sehr viele Aufgaben zu Rust (leicht, mittel, schwer): https://exercism.io/tracks/rust. 
-5. Tutorial um einen eigenen vim-artigen Text-Editor in Rust zu schreiben: https://www.philippflenker.com/hecto/
+1. [Amos Wegner's A half-hour to learn Rust](https://fasterthanli.me/articles/a-half-hour-to-learn-rust)
+2. [Richard Anaya's Tour of Rust](https://tourofrust.com/00_en.html)
+3. [Rustlings debugging Aufgaben](https://github.com/rust-lang/rustlings)
+4. Auf [Excercism.io](https://exercism.io/tracks/rust.) gibt es sehr viele Aufgaben zu Rust (leicht, mittel, schwer)  
+5. [Tutorial](https://www.philippflenker.com/hecto/) um einen eigenen vim-artigen Text-Editor in Rust zu schreiben
 
-Sehr ausführliche Übersicht zu Rust (quasi ein Buch auf Github): https://github.com/Dhghomon/easy_rust/blob/master/README.md 
+Sehr ausführliche [Übersicht](https://github.com/Dhghomon/easy_rust/blob/master/README.md ) zu Rust (quasi ein Buch auf Github)
 
-Infos zu Rust Modulen: http://www.sheshbabu.com/posts/rust-module-system/
-Infos zu Lifetimes: https://github.com/pretzelhammer/rust-blog/blob/master/posts/common-rust-lifetime-misconceptions.md
-Infos zu Sizedness: https://github.com/pretzelhammer/rust-blog/blob/master/posts/sizedness-in-rust.md
+[Infos zu Rust Modulen](http://www.sheshbabu.com/posts/rust-module-system/) 
+[Infos zu Lifetimes](https://github.com/pretzelhammer/rust-blog/blob/master/posts/common-rust-lifetime-misconceptions.md) 
+[Infos zu Sizedness](https://github.com/pretzelhammer/rust-blog/blob/master/posts/sizedness-in-rust.md) 
  
-All diese Vorschläge sind aus dem offiziellen Rust-Forum entnommen: https://users.rust-lang.org/t/best-way-to-learn-rust-programming/47522/3
-
+All diese Vorschläge sind aus dem offiziellen [Rust-Forum](https://users.rust-lang.org/t/best-way-to-learn-rust-programming/47522/3
+) entnommen.
 #### Editor/IDE für Rust
 Die IDE [CLion](https://www.jetbrains.com/clion/) von Jetbrains bietet eine sehr gute Unterstützung für Rust (durch ein Plugin). Zusätzlich kann man darüber
 die git Versionierung sehr einfach durchführen. Für Angestellte an der Uni und Studierende ist das Paket [kostenlos](https://www.jetbrains.com/de-de/community/education/#students). 
