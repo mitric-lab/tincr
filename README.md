@@ -76,3 +76,7 @@ Infos zu Lifetimes: https://github.com/pretzelhammer/rust-blog/blob/master/posts
 Infos zu Sizedness: https://github.com/pretzelhammer/rust-blog/blob/master/posts/sizedness-in-rust.md
  
 All diese Vorschläge sind aus dem offiziellen Rust-Forum entnommen: https://users.rust-lang.org/t/best-way-to-learn-rust-programming/47522/3
+
+#### Editor/IDE für Rust
+Die IDE [CLion](https://www.jetbrains.com/clion/) von Jetbrains bietet eine sehr gute Unterstützung für Rust (durch ein Plugin). Zusätzlich kann man darüber
+die git Versionierung sehr einfach durchführen. Für Angestellte an der Uni und Studierende ist das Paket [kostenlos](https://www.jetbrains.com/de-de/community/education/#students). 
