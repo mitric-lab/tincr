@@ -62,7 +62,7 @@ Ein eigenes Beispiel von mir für solch ein Interface zu Python findet sich hier
 
 -----------------------------------
 ### Einstieg in Rust
-Anbei ein paar nützliche Seiten um Rust zu lernen (neben dem offiziellen Buch):
+Anbei ein paar nützliche Seiten um Rust zu lernen (neben dem offiziellen [Buch](https://doc.rust-lang.org/book/)):
 
 
 1. Amos Wegner's A half-hour to learn Rust: https://fasterthanli.me/articles/a-half-hour-to-learn-rust
