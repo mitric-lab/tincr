@@ -9,8 +9,10 @@ implementiert werden (FMO Methode).
 
 ### Ideen zu den quantenchemischen Features
 - Vorbild ist zunächst DFTBaby
-- evtl. auch Gauss- (statt Slater)- Funktionen implementieren, um die DFTB+ Parameter nutzen zu können
+- sowohl Gauss- als auch Slater-Funktionen implementieren, um die DFTB+ Parameter nutzen zu können
 - spin-unrestricted DFTB würde Beschreibung der Tripletts verbessern
+- könnte man eine Parametrisierung anhand des ANI-Datensatzes durchführen?
+- https://aip.scitation.org/doi/pdf/10.1063/5.0020545
 - FMO-Methode auf Basis von DFTB-Monomer Rechnungen 
     - siehe FMO-DFTB: https://pubs.acs.org/doi/10.1021/ct500489d
     - siehe FMO-LC-DFTB: https://pubs.acs.org/doi/pdf/10.1021/acs.jctc.9b00108
