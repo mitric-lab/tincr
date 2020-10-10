@@ -44,10 +44,11 @@ dass das Format einfach zu schreiben ist und von vielen Programmen bereits geles
 - andere Konstanten könnte man als `const` oder `static` mit (statischer Lebenszeit) definieren 
 ##### DFTB Parameter
 Dieser Absatz betrifft folgende Parameter: 
-    - confined pseudo atoms
-    - free pseudo atoms 
-    - pairwise Slater-Koster tables
-    - pairwise Repulsive-Potential tables
+ - confined pseudo atoms
+ - free pseudo atoms 
+ - pairwise Slater-Koster tables
+ - pairwise Repulsive-Potential tables
+    
 In DFTBaby werden die "homegrown" Parameter als Python Dateien (Modul) zur 
 Verfügung gestellt und es gibt die Möglichkeit die Parameterdateien aus
 DFTB+ oder Hotbit einzulesen. Da es in Rust wenig Sinn ergibt, Python Dateien 
