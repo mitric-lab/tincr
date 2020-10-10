@@ -79,27 +79,27 @@
 
 </td><td>
 
-| Attribute       | Type            |
-|-----------------|-----------------|
+| Attribute       | Type                       |
+|-----------------|----------------------------|
 | dipole          | object{str: array[number]} |
 | h               | object{str: array[number]} |
 | s               | object{str: array[number]} |
-| z1              | number             |
-| z2              | number             |
-| d               | list[float]     |
-| index_to_symbol | object{number: string}  |
+| z1              | number                     |
+| z2              | number                     |
+| d               | list[float]                |
+| index_to_symbol | object{number: string}     |
 
 </td><td>
 
-| Attribute    | Type             |
-|--------------|------------------|
-| Dipole       | dict             |
-| H            | dict             |
-| S            | dict             |
-| Z1           | u8              |
-| Z2           | u8              |
-| d            | ndarray[float64] |
-| index2symbol | dict             |
+| Attribute       | Type             |
+|-----------------|------------------|
+| dipole          | dict             |
+| h               | dict             |
+| s               | dict             |
+| z1              | u8               |
+| z2              | u8               |
+| d               | ndarray[float64] |
+| index_to_symbol | dict             |
 
 </td></tr> </table>
 
