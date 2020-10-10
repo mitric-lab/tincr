@@ -28,15 +28,18 @@ implementiert werden (FMO Methode).
 
 
 #### Input/Output-Format
-- es sollte ein einfaches und einheitliches Format für den Input geben,
-dabei könnte das Q-Chem Format vielleicht als Vorbild dienen
-- das .traj Format von ASE wäre eventuell praktisch als Output-Format
-für Optimierung/Dynamik (https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py)
-- der normale Output sollte vielleicht mit einem allgemeinen Logger geschrieben werden. 
+##### Input
+- Command line input für xyz für Optimierung oder Single point Rechnung (simple Rechnungen)
+- für alles andere Q-Chme-Input Format
+
+##### Ouput
+- der normale Output sollte mit einem allgemeinen Logger geschrieben werden. 
 Das Paket [log](https://docs.rs/log/0.4.11/log/) könnte dafür passend sein.  
+- das .traj Format von ASE wäre praktisch als Output-Format
+für Optimierung/Dynamik (https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py)
 - zusätzlicher Quantenchemie-Output könnte in ein .fchk-File geschrieben werden. Der Vorteil wäre hier,
 dass das Format einfach zu schreiben ist und von vielen Programmen bereits gelesen werden kann
-- Orbital-Informationen können auch gut in .molden-Files geschrieben werden wie das in DFTBaby bereits der Fall ist
+- Orbital-Informationen können in .molden-Files geschrieben werden wie das in DFTBaby bereits der Fall ist
 
 #### Parameter
 ##### Einheiten und Konstanten
@@ -74,6 +77,12 @@ zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen.
 #### Effizienz
 - zum Arbeiten mit Arrays und linearer Algebra scheint das [ndarray](https://docs.rs/ndarray/0.13.1/ndarray/) Paket gut geeignet zu sein
 - vielleicht sollte auch das [smallvec](https://crates.io/crates/smallvec) Paket auch berücksichtigt werden 
+
+#### Speicherverwaltung 
+- es müsste ein Check stattfinden, wie groß das Molekül ist und ob die Matrizen noch in den RAM passen,
+ansonsten müssen die Arrays auf die Festplatte geschrieben werden
+- anonsten könnte versucht werden viele Arrays nicht im gesamten zu Berechnen, sondern nur die Elemente 
+sequentiell 
 
 #### Schnittstelle (API) zu Python
 Ein Interface zu Python lässt sich recht einfach mit dem Modul [PyO3](https://github.com/PyO3/pyo3) implementieren. Ein konkretes Beispiel 
