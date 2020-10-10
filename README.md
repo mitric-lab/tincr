@@ -70,12 +70,6 @@ mit JSON Dateien fand ich dieses [Video](https://www.youtube.com/watch?v=hIi_Uly
 Die DFTB+ und Hotbit Parameter müsste man dann entweder manuell einlesen oder man konvertiert diese
 zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen. 
 
-#####  
-Dieser Artikel hat dazu ganz interessante Infos: 
-Vielleicht bietet sich das [quote](https://crates.io/crates/quote) Paket an 
- - es würde eventuell zusätzlich Sinn machen, das Programm direkt kompatibel zu den [DFTB+ Parametern](https://dftb.org/parameters) zu machen,
- damit man automatisch auch auf diese Parameter zugreifen kann.
-
 #### Effizienz
 - zum Arbeiten mit Arrays und linearer Algebra scheint das [ndarray](https://docs.rs/ndarray/0.13.1/ndarray/) Paket gut geeignet zu sein
 - vielleicht sollte auch das [smallvec](https://crates.io/crates/smallvec) Paket auch berücksichtigt werden 
