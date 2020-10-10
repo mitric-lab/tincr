@@ -66,15 +66,15 @@
 <table>
 <tr><th> Python (DFTBaby) </th><th> JSON (new) </th><th> Rust (new) </th></tr>
 <tr><td>
-| Attribute    | Type                 |
-|--------------|----------------------|
+| Attribute    | Type                        |
+|--------------|-----------------------------|
 | Dipole       | dict{tuple: ndarray[float]} |
 | H            | dict{tuple: ndarray[float]} |
 | S            | dict{tuple: ndarray[float]} |
-| Z1           | int                  |
-| Z2           | int                  |
-| d            | ndarray[float]     |
-| index2symbol | dict{int: str}       |
+| Z1           | int                         |
+| Z2           | int                         |
+| d            | ndarray[float]              |
+| index2symbol | dict{int: str}              |
 
 </td><td>
 
