@@ -59,6 +59,7 @@ das Aufrufen der Daten dann etwas umständlich.  Es gibt auch zwei
 ganz nützliche Artikel auf Github über das Speichern von Daten in Rust: 
 [Global Data in Rust](https://github.com/paulkernfeld/global-data-in-rust)
 und [Contiguous Data in Rust](https://github.com/paulkernfeld/contiguous-data-in-rust)
+
 Aktuell halte ich es am für am sinnvollsten die Parameter zu Beginn der Laufzeit zu laden,
 da die Datenmengen nicht sehr groß sind und dies effizient gehen sollte. Das Package
 [serde](https://serde.rs) scheint dafür sehr gut geeignet zu sein. Dies erlaubt es effizient Daten 
