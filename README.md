@@ -8,7 +8,7 @@ Zudem sollen fragment-orbital basierende Rechnungen auf Basis von DFTB
 implementiert werden (FMO Methode).
 
 ### Ideen zu den quantenchemischen Features
-- Vorbild ist zunächst DFTBaby
+- **Vorbild ist DFTBaby**
 - sowohl Gauss- als auch Slater-Funktionen implementieren, um die DFTB+ Parameter nutzen zu können
 - spin-unrestricted DFTB würde Beschreibung der Tripletts verbessern
 - könnte man eine Parametrisierung anhand des ANI-Datensatzes durchführen?
