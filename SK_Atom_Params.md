@@ -1,26 +1,24 @@
-### Free Pseudo Atoms
-
-#### Python types saved as json
+### Free and Confined Pseudo Atoms
 <table>
 <tr><th> Python (DFTBaby) </th><th> JSON (new) </th><th> Rust (new) </th></tr>
 <tr><td>
 
-| Attribute            | Type              |
-|----------------------|-------------------|
-| Z                    | int               |
-| Nelec               | int               |
-| R0                   | float             |
-| R                    | list[float]       |
-| radial_density       | list[float]       |
-| occupation           | list[tuple[int]]  |
-| effective_potential  | list[float]       |
-| orbital_names        | list[str]         |
-| energies             | list[float]       |
-| radial_wavefunctions | list[list[float]] |
-| angular_momenta      | list[int]         |
-| valence_orbitals     | list[int]         |
-| energy_1s            | float             |
-| orbital_1s           | list[float]       |
+| Attribute            | Type             |
+|----------------------|------------------|
+| Z                    | int              |
+| Nelec                | int              |
+| r0                   | float            |
+| r                    | ndarray          |
+| radial_density       | ndarray          |
+| occupation           | list[tuple[int]] |
+| effective_potential  | ndarray          |
+| orbital_names        | list[str]        |
+| energies             | list[float]      |
+| radial_wavefunctions | list[ndarray]    |
+| angular_momenta      | list[int]        |
+| valence_orbitals     | list[int]        |
+| energy_1s            | float            |
+| orbital_1s           | ndarray          |
 
 </td><td>
 
@@ -62,38 +60,47 @@
 
 </td></tr> </table>
 
-
-### Confined Pseudo Atoms
-
-| Attribute            | Type              |
-|----------------------|-------------------|
-| z                    | int               |
-| n_elec               | int               |
-| r0                   | float             |
-| r                    | list[float]       |
-| radial_density       | list[float]       |
-| occupation           | list[tuple[int]]  |
-| effective_potential  | list[float]       |
-| orbital_names        | list[str]         |
-| energies             | list[float]       |
-| radial_wavefunctions | list[list[float]] |
-| angular_momenta      | list[int]         |
-| valence_orbitals     | list[int]         |
-| energy_1s            | float             |
-| orbital_1s           | list[float]       |
-
-
 ### Slater-Koster tables
 
-| Attribute    | Type   | Type (depth=1)   |
-|--------------|--------|------------------|
-| dipole       | dict   | str: list        |
-| h            | dict   | str: list        |
-| s            | dict   | str: list        |
-| z1           | int    |                  |
-| z2           | int    |                  |
-| d            | list   | float            |
-| index2symbol | dict   | int: str         |
+
+<table>
+<tr><th> Python (DFTBaby) </th><th> JSON (new) </th><th> Rust (new) </th></tr>
+<tr><td>
+| Attribute    | Type                 |
+|--------------|----------------------|
+| Dipole       | dict{tuple: ndarray[float]} |
+| H            | dict{tuple: ndarray[float]} |
+| S            | dict{tuple: ndarray[float]} |
+| Z1           | int                  |
+| Z2           | int                  |
+| d            | ndarray[float]     |
+| index2symbol | dict{int: str}       |
+
+</td><td>
+
+| Attribute       | Type            |
+|-----------------|-----------------|
+| dipole          | object{str: array[number]} |
+| h               | object{str: array[number]} |
+| s               | object{str: array[number]} |
+| z1              | number             |
+| z2              | number             |
+| d               | list[float]     |
+| index_to_symbol | object{number: string}  |
+
+</td><td>
+
+| Attribute    | Type             |
+|--------------|------------------|
+| Dipole       | dict             |
+| H            | dict             |
+| S            | dict             |
+| Z1           | u8              |
+| Z2           | u8              |
+| d            | ndarray[float64] |
+| index2symbol | dict             |
+
+</td></tr> </table>
 
 
 ### Repulsive Pair Potential
