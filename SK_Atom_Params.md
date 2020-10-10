@@ -66,6 +66,7 @@
 <table>
 <tr><th> Python (DFTBaby) </th><th> JSON (new) </th><th> Rust (new) </th></tr>
 <tr><td>
+
 | Attribute    | Type                        |
 |--------------|-----------------------------|
 | Dipole       | dict{tuple: ndarray[float]} |
