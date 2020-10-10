@@ -106,9 +106,34 @@
 
 ### Repulsive Pair Potential
 
-| Attribute   | Type   | Type (depth=1)   |
-|-------------|--------|------------------|
-| vrep        | list   | float            |
-| z1          | int    |                  |
-| z2          | int    |                  |
-| d           | list   | float            |
+<table>
+<tr><th> Python (DFTBaby) </th><th> JSON (new) </th><th> Rust (new) </th></tr>
+<tr><td>
+
+
+| Attribute   | Type          |
+|-------------|---------------|
+| Vrep        | ndarray[float]|
+| Z1          | int           |
+| Z2          | int           |
+| d           | ndarray[float]|
+
+</td><td>
+
+| Attribute   | Type          | 
+|-------------|---------------|
+| vrep        | array[number] | 
+| z1          | number        | 
+| z2          | number        | 
+| d           | array[number] | 
+
+</td><td>
+
+| Attribute   | Type                |
+|-------------|---------------------|
+| vrep        | [f64]                |
+| z1          | u8                 |
+| z2          | u8                 |
+| d           | [f64]                |
+
+</td></tr> </table>
