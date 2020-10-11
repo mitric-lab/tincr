@@ -1,9 +1,10 @@
 mod constants;
 
 mod param;
-mod SlakoTransformations;
-mod spline;
-mod slako_transformations_lmax2;
+//mod SlakoTransformations;
+//mod spline;
+//mod slako_transformations_lmax2;
+mod pseudo_atom;
 
 use ndarray::*;
 use ndarray_linalg::*;

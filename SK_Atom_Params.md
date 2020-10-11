@@ -10,7 +10,7 @@
 | r0                   | float            |
 | r                    | ndarray          |
 | radial_density       | ndarray          |
-| occupation           | list[tuple[int]] |
+| occupation           | list[tuple(int, int, int)] |
 | effective_potential  | ndarray          |
 | orbital_names        | list[str]        |
 | energies             | list[float]      |
@@ -93,13 +93,13 @@
 
 | Attribute       | Type             |
 |-----------------|------------------|
-| dipole          | dict             |
-| h               | dict             |
-| s               | dict             |
+| dipole          | HashMap<(u8, u8, u8), Array1<f64>>             |
+| h               | HashMap<(u8, u8, u8), Array1<f64>>             |
+| s               | HashMap<(u8, u8, u8), Array1<f64>>            |
 | z1              | u8               |
 | z2              | u8               |
-| d               | ndarray[float64] |
-| index_to_symbol | dict             |
+| d               | Array1<f64> |
+| index_to_symbol | HashMap<u8, String>            |
 
 </td></tr> </table>
 
@@ -131,9 +131,9 @@
 
 | Attribute   | Type                |
 |-------------|---------------------|
-| vrep        | [f64]                |
+| vrep        | Array1<f64>                |
 | z1          | u8                 |
 | z2          | u8                 |
-| d           | [f64]                |
+| d           | Array<f64>           |
 
 </td></tr> </table>
