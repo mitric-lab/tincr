@@ -46,33 +46,7 @@ dass das Format einfach zu schreiben ist und von vielen Programmen bereits geles
 - die Verwaltung der Einheiten  könnte man vom Konzept von ASE übernehmen, siehe https://gitlab.com/ase/ase/-/blob/master/ase/units.py
 - andere Konstanten könnte man als `const` oder `static` mit (statischer Lebenszeit) definieren 
 ##### DFTB Parameter
-Dieser Absatz betrifft folgende Parameter: 
- - confined pseudo atoms
- - free pseudo atoms 
- - pairwise Slater-Koster tables
- - pairwise Repulsive-Potential tables
-    
-In DFTBaby werden die "homegrown" Parameter als Python Dateien (Modul) zur 
-Verfügung gestellt und es gibt die Möglichkeit die Parameterdateien aus
-DFTB+ oder Hotbit einzulesen. Da es in Rust wenig Sinn ergibt, Python Dateien 
-zum Speichern von Daten zu benutzen, muss hier eine andere Lösung her. Ich hatte
-zunächst auch  überlegt alle Parameter als Rust-Dateien zu schreiben und
-zur Compile-Zeit vorliegen zu haben und in die Binary zu "backen". Allerdings ist
-das Aufrufen der Daten dann etwas umständlich.  Es gibt auch zwei
-ganz nützliche Artikel auf Github über das Speichern von Daten in Rust: 
-[Global Data in Rust](https://github.com/paulkernfeld/global-data-in-rust)
-und [Contiguous Data in Rust](https://github.com/paulkernfeld/contiguous-data-in-rust)
-
-Aktuell halte ich es am für am sinnvollsten die Parameter zu Beginn der Laufzeit zu laden,
-da die Datenmengen nicht sehr groß sind und dies effizient gehen sollte. Das Package
-[serde](https://serde.rs) scheint dafür sehr gut geeignet zu sein. Dies erlaubt es effizient Daten 
-aus verschiedenen Dateiformaten in Rust ´structs´ zu laden. Ich halte ein
-Format wie JSON dafür am geeignetsten, da es sehr leicht zu schreiben und auch 
-lesbar im nachhinein ist. Als Einstieg für die Benutzung von serde in Kombination
-mit JSON Dateien fand ich dieses [Video](https://www.youtube.com/watch?v=hIi_UlyIPMg) hilfreich.  
-
-Die DFTB+ und Hotbit Parameter müsste man dann entweder manuell einlesen oder man konvertiert diese
-zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen. 
+Die Beschreibung des Umgangs mit den Paramteren befindet sich auf der [extra Seite](https://github.com/hochej/tincr/blob/master/Parameter.md)
 
 #### Effizienz
 - zum Arbeiten mit Arrays und linearer Algebra scheint das [ndarray](https://docs.rs/ndarray/0.13.1/ndarray/) Paket gut geeignet zu sein

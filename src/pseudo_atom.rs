@@ -105,5 +105,6 @@ fn test_slako_tables() {
     let path: &Path = Path::new("./src/param/slaterkoster/slako_tables/h_h.json");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
     let slako_table : SlaterKosterTable = serde_json::from_str(&data).expect("JSON was not well-formatted");
-    assert_eq! {slako_table.z, 1};
+    assert_eq! {slako_table.z1, 1};
+    assert_eq! {slako_table.z2, 1};
 }
