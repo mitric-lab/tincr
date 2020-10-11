@@ -42,11 +42,11 @@ dass das Format einfach zu schreiben ist und von vielen Programmen bereits geles
 - Orbital-Informationen können in .molden-Files geschrieben werden wie das in DFTBaby bereits der Fall ist
 
 #### Parameter
-##### Einheiten und Konstanten
+Die Beschreibung des Umgangs mit den Paramteren befindet sich auf der [extra Seite](https://github.com/hochej/tincr/blob/master/Parameter.md)
+
+#### Einheiten und Konstanten
 - die Verwaltung der Einheiten  könnte man vom Konzept von ASE übernehmen, siehe https://gitlab.com/ase/ase/-/blob/master/ase/units.py
 - andere Konstanten könnte man als `const` oder `static` mit (statischer Lebenszeit) definieren 
-##### DFTB Parameter
-Die Beschreibung des Umgangs mit den Paramteren befindet sich auf der [extra Seite](https://github.com/hochej/tincr/blob/master/Parameter.md)
 
 #### Effizienz
 - zum Arbeiten mit Arrays und linearer Algebra scheint das [ndarray](https://docs.rs/ndarray/0.13.1/ndarray/) Paket gut geeignet zu sein
