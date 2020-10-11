@@ -110,4 +110,74 @@ All diese Vorschläge sind aus dem offiziellen [Rust-Forum](https://users.rust-l
 ) entnommen.
 #### Editor/IDE für Rust
 Die IDE [CLion](https://www.jetbrains.com/clion/) von Jetbrains bietet eine sehr gute Unterstützung für Rust (durch ein Plugin). Zusätzlich kann man darüber
-die git Versionierung sehr einfach durchführen. Für Angestellte an der Uni und Studierende ist das Paket [kostenlos](https://www.jetbrains.com/de-de/community/education/#students). 
+die git Versionierung sehr einfach durchführen. Für Angestellte an der Uni und Studierende ist das Paket [kostenlos](https://www.jetbrains.com/de-de/community/education/#students).
+
+#### Rust naming conventions  
+
+<p>In general, Rust tends to use <code>CamelCase</code> for &quot;type-level&quot; constructs
+(types and traits) and <code>snake_case</code> for &quot;value-level&quot; constructs. More
+precisely:</p>
+
+<table><thead>
+<tr>
+<th>Item</th>
+<th>Convention</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>Crates</td>
+<td><code>snake_case</code> (but prefer single word)</td>
+</tr>
+<tr>
+<td>Modules</td>
+<td><code>snake_case</code></td>
+</tr>
+<tr>
+<td>Types</td>
+<td><code>CamelCase</code></td>
+</tr>
+<tr>
+<td>Traits</td>
+<td><code>CamelCase</code></td>
+</tr>
+<tr>
+<td>Enum variants</td>
+<td><code>CamelCase</code></td>
+</tr>
+<tr>
+<td>Functions</td>
+<td><code>snake_case</code></td>
+</tr>
+<tr>
+<td>Methods</td>
+<td><code>snake_case</code></td>
+</tr>
+<tr>
+<td>General constructors</td>
+<td><code>new</code> or <code>with_more_details</code></td>
+</tr>
+<tr>
+<td>Conversion constructors</td>
+<td><code>from_some_other_type</code></td>
+</tr>
+<tr>
+<td>Local variables</td>
+<td><code>snake_case</code></td>
+</tr>
+<tr>
+<td>Static variables</td>
+<td><code>SCREAMING_SNAKE_CASE</code></td>
+</tr>
+<tr>
+<td>Constant variables</td>
+<td><code>SCREAMING_SNAKE_CASE</code></td>
+</tr>
+<tr>
+<td>Type parameters</td>
+<td>concise <code>CamelCase</code>, usually single uppercase letter: <code>T</code></td>
+</tr>
+<tr>
+<td>Lifetimes</td>
+<td>short, lowercase: <code>&#39;a</code></td>
+</tr>
+</tbody></table>
