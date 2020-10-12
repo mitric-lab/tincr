@@ -4,7 +4,7 @@ mod param;
 //mod SlakoTransformations;
 //mod spline;
 //mod slako_transformations_lmax2;
-mod pseudo_atom;
+mod parameters;
 
 use ndarray::*;
 use ndarray_linalg::*;

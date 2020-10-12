@@ -1,9 +1,8 @@
+use ron::de::from_str;
 use serde::{Deserialize, Serialize};
-//use serde_json::from_str;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use ron::de::from_str;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -19,7 +18,7 @@ fn get_inf_value() -> f64 {
 
 ///
 #[derive(Serialize, Deserialize)]
-struct PseudoAtom {
+pub struct PseudoAtom {
     z: u8,
     n_elec: u8,
     #[serde(default = "get_inf_value")]
@@ -68,7 +67,7 @@ struct PseudoAtom {
 }
 
 #[derive(Serialize, Deserialize)]
-struct SlaterKosterTable {
+pub struct SlaterKosterTable {
     dipole: HashMap<(u8, u8, u8), Vec<f64>>,
     h: HashMap<(u8, u8, u8), Vec<f64>>,
     s: HashMap<(u8, u8, u8), Vec<f64>>,
@@ -90,18 +89,60 @@ struct SlaterKosterTable {
 /// atoms that are far apart. Therefore you should check visually the tails of
 /// the repulsive potential and check that the additional energy is not negligible.
 #[derive(Serialize, Deserialize)]
-struct RepulsivePotentialTable {
+pub struct RepulsivePotentialTable {
     vrep: Vec<f64>,
     z1: u8,
     z2: u8,
     d: Vec<f64>,
 }
 
+pub fn get_free_pseudo_atom(element: &str) -> PseudoAtom {
+    let filename: String = format!("./src/param/slaterkoster/free_pseudo_atom/{}.ron", element);
+    let path: &Path = Path::new(&filename);
+    let data: String = fs::read_to_string(path).expect("Unable to read file");
+    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
+    return pseudo_atom;
+}
+
+pub fn get_confined_pseudo_atom(element: &str) -> PseudoAtom {
+    let filename: String = format!(
+        "./src/param/slaterkoster/confined_pseudo_atom/{}.ron",
+        element
+    );
+    let path: &Path = Path::new(&filename);
+    let data: String = fs::read_to_string(path).expect("Unable to read file");
+    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
+    return pseudo_atom;
+}
+
+pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
+    let filename: String = format!(
+        "./src/param/slaterkoster/slako-tables/{}_{}.ron",
+        element1, element2
+    );
+    let path: &Path = Path::new(&filename);
+    let data: String = fs::read_to_string(path).expect("Unable to read file");
+    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
+    return slako_table;
+}
+
+pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTable {
+    let filename: String = format!(
+        "./src/param/repulsive_potential/reppot-tables/{}_{}.ron",
+        element1, element2
+    );
+    let path: &Path = Path::new(&filename);
+    let data: String = fs::read_to_string(path).expect("Unable to read file");
+    let reppot_table: RepulsivePotentialTable =
+        from_str(&data).expect("RON file was not well-formatted");
+    return reppot_table;
+}
+
 #[test]
 fn test_free_pseudo_atom() {
     let path: &Path = Path::new("./src/param/slaterkoster/free_pseudo_atom/h.ron");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON was not well-formatted");
+    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
     assert_eq! {pseudo_atom.z, 1};
 }
 
@@ -109,7 +150,7 @@ fn test_free_pseudo_atom() {
 fn test_confined_pseudo_atom() {
     let path: &Path = Path::new("./src/param/slaterkoster/confined_pseudo_atom/h.ron");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON was not well-formatted");
+    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
     assert_eq! {pseudo_atom.z, 1};
 }
 
@@ -117,7 +158,7 @@ fn test_confined_pseudo_atom() {
 fn test_slako_tables() {
     let path: &Path = Path::new("./src/param/slaterkoster/slako_tables/h_h.ron");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let slako_table : SlaterKosterTable = from_str(&data).expect("RON was not well-formatted");
+    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
     assert_eq! {slako_table.z1, 1};
     assert_eq! {slako_table.z2, 1};
 }
@@ -126,7 +167,8 @@ fn test_slako_tables() {
 fn test_repulsive_potential_tables() {
     let path: &Path = Path::new("./src/param/repulsive_potential/reppot_tables/h_h.ron");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let reppot_table : RepulsivePotentialTable = from_str(&data).expect("RON was not well-formatted");
+    let reppot_table: RepulsivePotentialTable =
+        from_str(&data).expect("RON file was not well-formatted");
     assert_eq! {reppot_table.z1, 1};
     assert_eq! {reppot_table.z2, 1};
 }
