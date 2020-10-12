@@ -1,6 +1,4 @@
 mod constants;
-
-mod param;
 //mod SlakoTransformations;
 //mod spline;
 //mod slako_transformations_lmax2;
