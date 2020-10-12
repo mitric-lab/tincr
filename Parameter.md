@@ -81,7 +81,7 @@ zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen.
 
 
 <table>
-<tr><th> Python (DFTBaby) </th><th> JSON (new) </th><th> Rust (new) </th></tr>
+<tr><th> Python (DFTBaby) </th><th> Rust (new) </th></tr>
 <tr><td>
 
 | Attribute    | Type                        |
