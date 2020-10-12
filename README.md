@@ -76,9 +76,9 @@ Anbei ein paar nützliche Seiten um Rust zu lernen (neben dem offiziellen [Buch]
 
 Sehr ausführliche [Übersicht](https://github.com/Dhghomon/easy_rust/blob/master/README.md ) zu Rust (quasi ein Buch auf Github)
 
-[Infos zu Rust Modulen](http://www.sheshbabu.com/posts/rust-module-system/) 
-[Infos zu Lifetimes](https://github.com/pretzelhammer/rust-blog/blob/master/posts/common-rust-lifetime-misconceptions.md) 
-[Infos zu Sizedness](https://github.com/pretzelhammer/rust-blog/blob/master/posts/sizedness-in-rust.md) 
+[Infos zu Rust Modulen](http://www.sheshbabu.com/posts/rust-module-system/) <br>
+[Infos zu Lifetimes](https://github.com/pretzelhammer/rust-blog/blob/master/posts/common-rust-lifetime-misconceptions.md) <br> 
+[Infos zu Sizedness](https://github.com/pretzelhammer/rust-blog/blob/master/posts/sizedness-in-rust.md) <br>
  
 All diese Vorschläge sind aus dem offiziellen [Rust-Forum](https://users.rust-lang.org/t/best-way-to-learn-rust-programming/47522/3
 ) entnommen.

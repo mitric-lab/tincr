@@ -35,7 +35,7 @@ zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen.
 
 ### Free and Confined Pseudo Atoms
 <table>
-<tr><th> Python (DFTBaby) </th><th> JSON (new) </th><th> Rust (new) </th></tr>
+<tr><th> Python (DFTBaby) </th><th> Rust (new) </th></tr>
 <tr><td>
 
 | Attribute            | Type             |
@@ -59,38 +59,20 @@ zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen.
 
 | Attribute            | Type              |
 |----------------------|-------------------|
-| z                    | number               |
-| n_elec               | number               |
-| r0                   | number             |
-| r                    | array[number]       |
-| radial_density       | array[number]       |
-| occupation           | array[array[number]]  |
-| effective_potential  | array[number]       |
-| orbital_names        | array[string]         |
-| energies             | array[number]       |
-| radial_wavefunctions | array[array[number]] |
-| angular_momenta      | array[number]         |
-| valence_orbitals     | array[number]         |
-| energy_1s            | number             |
-| orbital_1s           | array[number]       |
-</td><td>
-
-| Attribute            | Type              |
-|----------------------|-------------------|
 | z                    | u8               |
 | n_elec               | u8               |
 | r0                   | f64             |
-| r                    | array[f64]       |
-| radial_density       | array[f64]       |
-| occupation           | array[array[f64]]  |
-| effective_potential  | array[f64]       |
-| orbital_names        | array[str]         |
-| energies             | array[f64]       |
-| radial_wavefunctions | array[array[f64]] |
-| angular_momenta      | array[u8]         |
-| valence_orbitals     | array[u8]         |
-| energy_1s            | number             |
-| orbital_1s           | array[f64]       |
+| r                    | Vec[f64]       |
+| radial_density       | Vec[f64]       |
+| occupation           | Vec[array[f64]]  |
+| effective_potential  | Vec[f64]       |
+| orbital_names        | Vec[str]         |
+| energies             | Vec[f64]       |
+| radial_wavefunctions | Vec[Vec[f64]] |
+| angular_momenta      | Vec[u8]         |
+| valence_orbitals     | Vec[u8]         |
+| energy_1s            | f64             |
+| orbital_1s           | Vec[f64]       |
 </td><td>
 
 </td></tr> </table>
@@ -114,27 +96,15 @@ zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen.
 
 </td><td>
 
-| Attribute       | Type                       |
-|-----------------|----------------------------|
-| dipole          | object{str: array[number]} |
-| h               | object{str: array[number]} |
-| s               | object{str: array[number]} |
-| z1              | number                     |
-| z2              | number                     |
-| d               | list[float]                |
-| index_to_symbol | object{number: string}     |
-
-</td><td>
-
 | Attribute       | Type             |
 |-----------------|------------------|
-| dipole          | HashMap<(u8, u8, u8), Array1<f64>>             |
-| h               | HashMap<(u8, u8, u8), Array1<f64>>             |
-| s               | HashMap<(u8, u8, u8), Array1<f64>>            |
+| dipole          | HashMap<(u8, u8, u8), Vec<f64>> |
+| h               | HashMap<(u8, u8, u8), Vec<f64>> |
+| s               | HashMap<(u8, u8, u8), Vec<f64>> |
 | z1              | u8               |
 | z2              | u8               |
-| d               | Array1<f64> |
-| index_to_symbol | HashMap<u8, String>            |
+| d               | Vec<f64>         |
+| index_to_symbol | HashMap<u8, String>  |
 
 </td></tr> </table>
 
@@ -142,7 +112,7 @@ zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen.
 ### Repulsive Pair Potential
 
 <table>
-<tr><th> Python (DFTBaby) </th><th> JSON (new) </th><th> Rust (new) </th></tr>
+<tr><th> Python (DFTBaby) </th><th> Rust (new) </th></tr>
 <tr><td>
 
 
@@ -155,20 +125,11 @@ zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen.
 
 </td><td>
 
-| Attribute   | Type          | 
-|-------------|---------------|
-| vrep        | array[number] | 
-| z1          | number        | 
-| z2          | number        | 
-| d           | array[number] | 
-
-</td><td>
-
 | Attribute   | Type                |
 |-------------|---------------------|
-| vrep        | Array1<f64>                |
+| vrep        | Vec<f64>                |
 | z1          | u8                 |
 | z2          | u8                 |
-| d           | Array<f64>           |
+| d           | Vec<f64>           |
 
 </td></tr> </table>
