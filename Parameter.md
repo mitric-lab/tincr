@@ -33,6 +33,13 @@ Infos zu Serdes default Deklaration, die ich oft benutze, finden sich hier: [Lin
 Die DFTB+ und Hotbit Parameter müsste man dann entweder manuell einlesen oder man konvertiert diese
 zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen. 
 
+Die Spline-Interpolation der Potentiale sollte wahrscheinlich am besten mit dem
+Package Peroxide gemacht werden. In DFTBaby wird das Fitten der an kubische Splines
+über SciPy gemacht. Die Implementation in SciPy wiederum ist ein Wrapper des Fortran77
+Pakets Fitpack von Pier Dierckxx. Da ich denke, dass es den Aufwand zunächst nicht Wert ist 
+das Fitten von Splines selbst zu implementieren, wäre es am einfachsten 
+das Peroxide Paket zu benutzen. 
+
 ### Free and Confined Pseudo Atoms
 <table>
 <tr><th> Python (DFTBaby) </th><th> Rust (new) </th></tr>

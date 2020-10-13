@@ -3,6 +3,7 @@ mod constants;
 //mod spline;
 //mod slako_transformations_lmax2;
 mod parameters;
+mod splrep;
 
 use ndarray::*;
 use ndarray_linalg::*;
