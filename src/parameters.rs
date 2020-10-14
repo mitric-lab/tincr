@@ -1,3 +1,4 @@
+use peroxide::numerical::spline::CubicSpline;
 use ron::de::from_str;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -14,6 +15,10 @@ fn get_nan_value() -> f64 {
 
 fn get_inf_value() -> f64 {
     f64::INFINITY
+}
+
+fn init_hashmap() -> HashMap<u8, CubicSpline> {
+    HashMap::new()
 }
 
 ///
@@ -75,21 +80,46 @@ pub struct SlaterKosterTable {
     z2: u8,
     d: Vec<f64>,
     index_to_symbol: HashMap<u8, String>,
+    #[serde(default = "init_hashmap")]
+    s_spline: HashMap<u8, CubicSpline>,
+    #[serde(default = "init_hashmap")]
+    h_spline: HashMap<u8, CubicSpline>,
 }
 
-/// RepulsivePotentialTable should be a struct with the following members
-///
-/// z1,z2: atomic numbers of atom pair
-/// d: Vec, distance between atoms
-/// vrep: repulsive potential on the grid d
-///
-/// smooth_decay controls whether vrep and its derivatives are set abruptly to
-/// 0 after the cutoff radius or whether a smoothing function is added.
-/// WARNING: the smooting function can change the nuclear repulsion energy between
-/// atoms that are far apart. Therefore you should check visually the tails of
-/// the repulsive potential and check that the additional energy is not negligible.
+impl SlaterKosterTable {
+    fn spline_overlap(&self) -> bool {
+        let mut splines: HashMap<u8, CubicSpline> = HashMap::new();
+        for ((l1, l2, i), value) in self.s {
+            let x: Vec<f64> = self.d.clone();
+            let y: Vec<f64> = value.clone();
+            splines.insert(i, CubicSpline::from_nodes(x, y));
+        }
+        return true;
+    }
+    fn spline_hamiltonian(&self) -> bool {
+        let mut splines: HashMap<u8, CubicSpline> = HashMap::new();
+        for ((l1, l2, i), value) in self.h {
+            let x: Vec<f64> = self.d.clone();
+            let y: Vec<f64> = value.clone();
+            splines.insert(i, CubicSpline::from_nodes(x, y));
+        }
+        return true;
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct RepulsivePotentialTable {
+    /// RepulsivePotentialTable should be a struct with the following members
+    ///
+    /// z1,z2: atomic numbers of atom pair
+    /// d: Vec, distance between atoms
+    /// vrep: repulsive potential on the grid d
+    ///
+    /// smooth_decay controls whether vrep and its derivatives are set abruptly to
+    /// 0 after the cutoff radius or whether a smoothing function is added.
+    /// WARNING: the smooting function can change the nuclear repulsion energy between
+    /// atoms that are far apart. Therefore you should check visually the tails of
+    /// the repulsive potential and check that the additional energy is not negligible.
     vrep: Vec<f64>,
     z1: u8,
     z2: u8,

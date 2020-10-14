@@ -3,15 +3,24 @@ mod constants;
 //mod spline;
 //mod slako_transformations_lmax2;
 mod parameters;
-mod splrep;
 
 use ndarray::*;
 use ndarray_linalg::*;
 use std::ptr::eq;
+use peroxide::fuga::*;
+
 
 fn main() {
     println!("Hello, world!");
     //let atom = param::slaterkoster::free_pseudo_atom::c;
+    let x:Vec<f64> = vec![0.9, 1.3, 1.9, 2.1];
+    let y: Vec<f64> = vec![1.3, 1.5, 1.85, 2.1];
+
+    let s:CubicSpline = CubicSpline::from_nodes(x, y);
+
+    for i in 0 .. 4 {
+        println!("{}", s.eval(i as f64 / 2.0));
+    }
 }
 
 struct Atom {
@@ -146,5 +155,4 @@ fn read_xyz(path: &str) -> Vec<Atom> {
         molecule.push(Atom::new(5, [0.0, 0.0, 0.0]));
     }
     return molecule;
-
 }
