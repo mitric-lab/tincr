@@ -63,6 +63,9 @@ Ein Interface zu Python lässt sich recht einfach mit dem Modul [PyO3](https://g
 in Kombination mit numpy findet sich hier: https://github.com/PyO3/rust-numpy/tree/master/examples/simple-extension <br>
 Ein eigenes Beispiel von mir für solch ein Interface zu Python findet sich hier: https://github.com/hochej/tincr/blob/master/PyO3_Beispiel.md
 
+#### Dokumentation
+Ein paar Hinweise zur Dokumentation des Codes sind auf dieser [extra Seite](https://github.com/hochej/tincr/blob/master/Documentation.md) gegeben.
+
 -----------------------------------
 ### Einstieg in Rust
 Anbei ein paar nützliche Seiten um Rust zu lernen (neben dem offiziellen [Buch](https://doc.rust-lang.org/book/)):
