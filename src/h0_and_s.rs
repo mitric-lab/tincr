@@ -1,21 +1,17 @@
-use std::HashMap;
-mod parameters;
+use crate::molecule;
 use ndarray::{ArrayView1, Array};
-
-/// has to be fixed
-fn count_orbitals(atomlist:f64, valorbs: f64) -> u64 {
-    let norb: u64= 0;
-
-    return norb;
-}
+use crate::parameters::*;
+use crate::slako_transformations::*;
+use std::collections::HashMap;
 
 
 pub fn h0_and_s_ab(
-    atomlist_a: Vec<Atom>,
-    atomlist_b: Vec<Atom>,
+    molecule_a: Molecule,
+    molecule_b: Molecule,
+    valorbs: HashMap<u8, (u8, u8, u8)>,
     skt: HashMap<(u8, u8), SlaterKosterTable>,
     orbital_energies: HashMap<u8, HashMap<(u8, u8), f64>>,
-    m_proximity: ArrayView1,
+    m_proximity: ArrayView1<u8>,
 ) -> (Array<f64, Ix2>, Array<f64, Ix2>) {
     ///
     /// compute Hamiltonian and overlap matrix elements between two sets of atoms. If the sets
@@ -32,52 +28,41 @@ pub fn h0_and_s_ab(
     let mut h0: Array<f64, Ix2> = Array::zeros((dim_a, dim_b));
     let mut s: Array<f64, Ix2> = Array::zeros((dim_a, dim_b));
     // iterate over atoms
-    let mu = 0;
-    for (i, atom_a) in atomlist_a.iter().enumerate() {
+    let mu: u32 = 0;
+    for (i, (zi, posi)) in molecule_a.iter_atomlist().enumerate() {
         // iterate over orbitals on center i
-        for _ in atom_a.valorbs.iter() {
+        for (ni, li, mi) in valorbs[zi] {
             // iterate over atoms
-            let nu = 0;
-            for (j, atom_b) in atomlist_b.iter().enumerate() {
+            let nu: u32 = 0;
+            for (j, (zj, posj)) in molecule_b.iter_atomlist().enumerate() {
                 // iterate over orbitals on center j
-                for _ in atom_b.valorbs.iter() {
-                    if mu == nu && a_is_b == true {
-                        assert_eq!(atom_a.number, atom_b.number);
-                        // use the true single particle orbitals energies
-                        h0[[mu, nu]] = orbital_energies[Zi][(ni,li)];
-                        // orbitals are normalized to 1
-                        s[[mu, nu]] = 1.0;
-                    } else {
-                        // initialize matrix elements of S and H0
-                        let mut s_mu_nu: f64 = 0.0;
-                        let mut h0_mu_nu: f64 = 0.0;
-                        if atom_a.number <= atom_b.number {
-                            // the first atom given to getHamiltonian() or getOverlap()
-                            // has to be always the one with lower atomic number
-                            if i == j && a_is_b == true {
-                                assert!(mu != nu);
-                                s_mu_nu = 0.0;
-                                h0_mu_nu = 0.0;
+                for (nj, lj, mj) in valorbs[zj] {
+                    if m_proximity[[i, j]] == 1 {
+                        if mu < nu {
+                            if zi <= zj {
+                                if i != j {
+                                    let (r, x, y, z): (f64, f64, f64, f64) = directional_cosines(&posi, &posj);
+                                    s[[mu, nu]] = slako_transformation(r, x, y, z, skt[(zi, zj)].s_spline, li, mi, lj, mj);
+                                    h0[[mu, nu]] = slako_transformation(r, x, y, z, skt[(zi, zj)].h_spline, li, mi, lj, mj);
+                                }
                             } else {
-                                // let s = SKT[(Zi,Zj)].getOverlap(li,mi,posi, lj,mj,posj);
-                                // let h0 = SKT[(Zi,Zj)].getHamiltonian0(li,mi,posi, lj,mj,posj);
-                                s_mu_nu = 0.0;
-                                h0_mu_nu = 0.0;
+                                let (r, x, y, z): (f64, f64, f64, f64) = directional_cosines(&posj, &posi);
+                                s[[mu, nu]] = slako_transformation(r, x, y, z, skt[(zj, zi)].s_spline, lj, mj, li, mi);
+                                h0[[mu, nu]] = slako_transformation(r, x, y, z, skt[(zj, zi)].h_spline, lj, mj, li, mi);
                             }
+                        } else if mu == nu {
+                            assert_eq!(zi, zj);
+                            s[[mu, nu]] = orbital_energies[zi][(ni, li)];
+                            h0[[mu, nu]] = 1.0;
                         } else {
-                            // swap atoms if Zj > Zi
-                            // let s  = SKT[(Zj,Zi)].getOverlap(lj,mj,posj, li,mi,posi);
-                            // let h0 = SKT[(Zj,Zi)].getHamiltonian0(lj,mj,posj, li,mi,posi);
-                            s_mu_nu = 0.0;
-                            h0_mu_nu = 0.0;
+                            s[[mu, nu]] = s[[nu, mu]];
+                            h0[[mu, nu]] = h0[[nu, mu]];
                         }
-                        h0[[mu, nu]] = h0_mu_nu;
-                        s[[mu, nu]] = s_mu_nu;
                     }
-                    let nu = nu + 1;
+                    let nu: u32 = nu + 1;
                 }
             }
-            let mu = mu + 1;
+            let mu: u32 = mu + 1;
         }
     }
     return (s, h0);

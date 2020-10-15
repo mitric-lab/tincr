@@ -1,4 +1,20 @@
+use crate::parameters::*;
+
 const SQRT3: f64 = 1.7320508075688772;
+pub fn get_h0_and_s_mu_nu(
+    skt: SlaterKosterTable,
+    li: u8,
+    mi: u8,
+    posi: ArrayView1<f64>,
+    lj: u8,
+    mj: u8,
+    posj: ArrayView1<f64>,
+) -> (f64, f64) {
+    let (r, x, y, z): (f64, f64, f64, f64) = directional_cosines(&posi, &posj);
+    let s: f64 = slako_transformation(r, x, y, z, skt.s_spline, li, mi, lj, mj);
+    let h: f64 = slako_transformation(r, x, y, z, skt.h_spline, li, mi, lj, mj);
+    return (s, h);
+}
 
 /// compute directional cosines for the vector going from
 /// pos1 to pos2
@@ -6,7 +22,7 @@ const SQRT3: f64 = 1.7320508075688772;
 /// ========
 /// r: length of vector
 /// x,y,z: directional cosines
-pub fn directional_cosines(pos1: &[f64; 3], pos2: &[f64; 3]) -> (f64, f64, f64, f64) {
+fn directional_cosines(pos1: ArrayView1<f64>, pos2: ArrayView1<f64>) -> (f64, f64, f64, f64) {
     let xc: f64 = pos2[0] - pos1[0];
     let yc: f64 = pos2[1] - pos1[1];
     let zc: f64 = pos2[2] - pos1[2];
@@ -28,7 +44,7 @@ pub fn directional_cosines(pos1: &[f64; 3], pos2: &[f64; 3]) -> (f64, f64, f64, 
 }
 
 /// transformation rules for matrix elements
-pub fn slako_transformation(
+fn slako_transformation(
     r: f64,
     x: f64,
     y: f64,
