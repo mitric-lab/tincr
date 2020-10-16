@@ -1,5 +1,6 @@
 use crate::constants::ATOM_NAMES;
 use crate::parameters::*;
+use combinations::Combinations;
 use ndarray::prelude::*;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -14,6 +15,7 @@ struct Molecule {
     atomtypes: HashMap<u8, String>,
     orbital_energies: HashMap<u8, HashMap<(u8, u8), f64>>,
     skt: HashMap<(u8, u8), SlaterKosterTable>,
+    v_rep: HashMap<(u8, u8), RepulsivePotentialTable>,
 }
 
 impl Molecule {
@@ -56,6 +58,21 @@ impl Molecule {
                 energies_zi.insert((*n - 1, *l), en);
             }
             orbital_energies.insert(*zi, energies_zi);
+        }
+        // find unique atom pairs and initialize Slater-Koster tables
+        let atompairs: Vec<Vec<u8>> = Combinations::new(numbers, 2).collect();
+        let mut skt: HashMap<(u8, u8), SlaterKosterTable> = HashMap::new();
+        let mut v_rep: HashMap<(u8, u8), RepulsivePotentialTable> = HashMap::new();
+        for (zi, zj) in atompairs {
+            assert!(zi <= zj);
+            // load precalculated slako table
+            let slako_module: SlaterKosterTable =
+                get_slako_table(ATOM_NAMES[zi], ATOM_NAMES[zj]);
+            // load repulsive potential table
+            let reppot_module: RepulsivePotentialTable =
+                get_reppot_table(ATOM_NAMES[zi], ATOM_NAMES[zj]);
+            skt.insert((zi, zj), slako_module);
+            v_rep.insert((zi, zj), reppot_module);
         }
     }
 
