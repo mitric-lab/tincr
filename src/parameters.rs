@@ -30,13 +30,15 @@ pub struct PseudoAtom {
     r0: f64,
     r: Vec<f64>,
     radial_density: Vec<f64>,
-    occupation: Vec<(u8, u8, u8)>,
+    pub occupation: Vec<(u8, u8, u8)>,
     effective_potential: Vec<f64>,
     orbital_names: Vec<String>,
-    energies: Vec<f64>,
+    pub energies: Vec<f64>,
     radial_wavefunctions: Vec<Vec<f64>>,
-    angular_momenta: Vec<u8>,
-    valence_orbitals: Vec<u8>,
+    pub angular_momenta: Vec<u8>,
+    pub valence_orbitals: Vec<u8>,
+    pub nshell: Vec<u8>,
+    pub orbital_occupation: Vec<u8>;
     #[serde(default = "get_nan_value")]
     energy_1s: f64,
     #[serde(default = "get_nan_value")]

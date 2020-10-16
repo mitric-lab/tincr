@@ -1,5 +1,5 @@
 use crate::molecule;
-use ndarray::{ArrayView1, Array};
+use ndarray::{ArrayView2, Array};
 use crate::parameters::*;
 use crate::slako_transformations::*;
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ pub fn h0_and_s_ab(
     valorbs: HashMap<u8, (u8, u8, u8)>,
     skt: HashMap<(u8, u8), SlaterKosterTable>,
     orbital_energies: HashMap<u8, HashMap<(u8, u8), f64>>,
-    m_proximity: ArrayView1<u8>,
+    m_proximity: ArrayView2<u8>,
 ) -> (Array<f64, Ix2>, Array<f64, Ix2>) {
     ///
     /// compute Hamiltonian and overlap matrix elements between two sets of atoms. If the sets
