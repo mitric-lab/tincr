@@ -5,6 +5,7 @@ mod constants;
 mod parameters;
 mod molecule;
 mod h0_and_s;
+mod gamma_approximation;
 
 use ndarray::*;
 use ndarray_linalg::*;

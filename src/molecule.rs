@@ -74,6 +74,9 @@ impl Molecule {
             skt.insert((zi, zj), slako_module);
             v_rep.insert((zi, zj), reppot_module);
         }
+        // initialize gamma matrix
+        
+
     }
 
     fn iter_atomlist(
