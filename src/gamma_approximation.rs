@@ -1,5 +1,6 @@
 use libm;
 use std::collections::HashMap;
+use std::collections::hash_map::RandomState;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -13,7 +14,7 @@ const PI_SQRT: f64 = 1.7724538509055159;
 /// where l is the angular momentum of the highest valence orbital
 ///
 /// see "Implementation and benchmark of a long-range corrected functional
-///          in the DFTB method" by V. Lutsker, B. Aradi and Th. Niehaus
+///      in the DFTB method" by V. Lutsker, B. Aradi and Th. Niehaus
 ///
 /// Here, this equation is solved for sigmaA, the decay constant
 /// of a gaussian.
@@ -49,38 +50,97 @@ enum SwitchingFunction {
     NoSwitching,
 }
 
-fn switching(s_func: SwitchingFunction, r: f64, r_lr: f64) -> f64 {
-    let result: f64 = match s_func {
-        SwitchingFunction::ErrorFunction => libm::erf(r / r_lr),
-        SwitchingFunction::ErrorFunctionGaussian => {
-            if r < 1.0e-8 {
-                0.0
-            } else {
-                libm::erf(r / lr) / r
-                    - 2.0 / (PI_SQRT * r_lr) * (-1.0 / 3.0 * (r / r_lr).pow(2)).exp()
+impl SwitchingFunction {
+    fn eval(&self, r: f64, r_lr: f64) -> f64 {
+        let result: f64 = match self {
+            SwitchingFunction::ErrorFunction => libm::erf(r / r_lr),
+            SwitchingFunction::ErrorFunctionGaussian => {
+                if r < 1.0e-8 {
+                    0.0
+                } else {
+                    libm::erf(r / lr) / r
+                        - 2.0 / (PI_SQRT * r_lr) * (-1.0 / 3.0 * (r / r_lr).pow(2)).exp()
+                }
             }
-        }
-        SwitchingFunction::NoSwitching => 0.0,
-    };
-    return result;
+            SwitchingFunction::NoSwitching => 0.0,
+        };
+        return result;
+    }
+
+    fn eval_deriv(&self, r: f64, r_lr: f64) -> f64 {
+        let result: f64 = match self {
+            SwitchingFunction::ErrorFunction => {
+                2.0 / (PI_SQRT * r_lr) * (-(r / r_lr).powi(2)).exp()
+            }
+            SwitchingFunction::ErrorFunctionGaussian => {
+                if r < 1.0e-8 {
+                    0.0
+                } else {
+                    let r2: f64 = (r / r_lr).powi(2);
+                    4.0 / (3.0 * PI_SQRT * r_lr.powi(3)) * (-r2 / 3.0).exp() * r
+                        + 2.0 / (PI_SQRT * r_lr) * -r2.exp() / r
+                        - libm::erf(r / r_lr) / r.powi(2)
+                }
+            }
+            SwitchingFunction::NoSwitching => 0.0,
+        };
+        return result;
+    }
 }
 
-fn deriv_switching(s_func: SwitchingFunction, r: f64, r_lr: f64) -> f64 {
-    let result: f64 = match s_func {
-        SwitchingFunction::ErrorFunction => 2.0 / (PI_SQRT * r_lr) * (-(r / r_lr).powi(2)).exp(),
-        SwitchingFunction::ErrorFunctionGaussian => {
-            if r < 1.0e-8 {
-                0.0
-            } else {
-                let r2: f64 = (r / r_lr).powi(2);
-                4.0 / (3.0 * PI_SQRT * r_lr.powi(3)) * (-r2 / 3.0).exp() * r
-                    + 2.0 / (PI_SQRT * r_lr) * -r2.exp() / r
-                    - libm::erf(r / r_lr) / r.powi(2)
+struct GammaFunction{
+    kind: GFKind,
+    sigmas: HashMap<u8, f64>,
+    cs
+}
+
+/// ## Gamma Function
+/// gamma_AB = int F_A(r-RA) * 1/|RA-RB| * F_B(r-RB) d^3r
+enum GFKind {
+    // spherical charge fluctuations are modelled as Gaussians
+    // FA(|r-RA|) = 1/(2 pi sigmaA^2)^(3/2) * exp( - (r-RA)^2/(2*sigmaA^2) )
+    Gaussian,
+    // spherical charge fluctuation around an atom A are modelled as Slater functions
+    // FA(|r-RA|) = tA^3/(8 pi)*exp(-tA*|r-RA|)
+    Slater,
+    // spherical charge fluctuations are modelled as Gaussians
+    // FA(|r-RA|) = 1/(2 pi sigmaA^2)^(3/2) * exp( - (r-RA)^2/(2*sigmaA^2) )
+    // long-range part of the Coulomb potential
+    // 1/r  ->  erf(r/Rlr)/r
+    GaussianLC,
+    // aproximate LC integral by taking switching function out of the integral
+    ApproxLC,
+    // the gamma function are read from a table and interpolated
+    Numerical,
+}
+
+
+impl GammaFunction {
+
+    fn initialize (&self, sigmas: HashMap<u8, f64>) -> HashMap<(u8, u8), f64> {
+        let result: HashMap<(u8, u8), f64> = HashMap::new();
+        let bla:f64 = match self {
+            GammaFunction::Gaussian => {1.0}
+            GammaFunction::Slater => {1.0}
+            GammaFunction::GaussianLC => {1.0}
+            GammaFunction::ApproxLC => {1.0}
+            GammaFunction::Numerical => {1.0}
+        };
+        return result;
+    }
+
+    fn eval(&self, r: f64, z_a: u8, z_b: u8) -> f64 {
+        let result: f64 = match self {
+            GammaFunction::Gaussian => {
+                assert!(r > 0.0);
+                libm::erf()
             }
-        }
-        SwitchingFunction::NoSwitching => 0.0,
-    };
-    return result;
+
+
+        },
+        return result;
+    }
+
 }
 
 //pub fn gamma_function (sigmas: HashMap<u8, f64>)
