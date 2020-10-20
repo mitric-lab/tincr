@@ -88,30 +88,24 @@ impl SwitchingFunction {
     }
 }
 
-struct GammaFunction{
-    kind: GFKind,
-    sigmas: HashMap<u8, f64>,
-    cs
-}
-
 /// ## Gamma Function
 /// gamma_AB = int F_A(r-RA) * 1/|RA-RB| * F_B(r-RB) d^3r
-enum GFKind {
+enum GammaFunction {
     // spherical charge fluctuations are modelled as Gaussians
     // FA(|r-RA|) = 1/(2 pi sigmaA^2)^(3/2) * exp( - (r-RA)^2/(2*sigmaA^2) )
-    Gaussian,
+    Gaussian{sigma:HashMap<u8, f64>, c:HashMap<(u8, u8), f64>},
     // spherical charge fluctuation around an atom A are modelled as Slater functions
     // FA(|r-RA|) = tA^3/(8 pi)*exp(-tA*|r-RA|)
-    Slater,
+    Slater{tau:HashMap<u8, f64>},
     // spherical charge fluctuations are modelled as Gaussians
     // FA(|r-RA|) = 1/(2 pi sigmaA^2)^(3/2) * exp( - (r-RA)^2/(2*sigmaA^2) )
     // long-range part of the Coulomb potential
     // 1/r  ->  erf(r/Rlr)/r
-    GaussianLC,
+    GaussianLC{sigma:HashMap<u8, f64>, c:HashMap<(u8, u8), f64>, r_lr:f64},
     // aproximate LC integral by taking switching function out of the integral
-    ApproxLC,
+    //ApproxLC{gf: , sw:},
     // the gamma function are read from a table and interpolated
-    Numerical,
+    Numerical{atompairs: Vec<(u8, u8)>},
 }
 
 
