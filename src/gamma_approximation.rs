@@ -1,6 +1,7 @@
+use crate::molecule::*;
 use libm;
+use ndarray::{Array2, ArrayView2};
 use std::collections::HashMap;
-use std::collections::hash_map::RandomState;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -18,25 +19,10 @@ const PI_SQRT: f64 = 1.7724538509055159;
 ///
 /// Here, this equation is solved for sigmaA, the decay constant
 /// of a gaussian.
-pub fn gaussian_decay(
-    hubbard_u: HashMap<u8, f64>,
-    valorbs: HashMap<u8, (u8, u8, u8)>,
-    r_lr: f64,
-    lc_flag: bool,
-) -> HashMap<u8, f64> {
+pub fn gaussian_decay(hubbard_u: HashMap<u8, f64>) -> HashMap<u8, f64> {
     let mut sigmas: HashMap<u8, f64> = HashMap::new();
-
-    // ATTENTION LC_FLAG IS OVERWRITTEN HERE
-    let lc_flag = true;
-    if lc_flag == false {
-        for (z, u) in hubbard_u.iter() {
-            sigmas.insert(*z, 1.0 / (*u * PI_SQRT));
-        }
-    } else {
-        // do something else
-        // but it don't understand the dftbaby code
-        // at this place, as it always returns sigmas0
-        // so this if-else conditions might be superfluous
+    for (z, u) in hubbard_u.iter() {
+        sigmas.insert(*z, 1.0 / (*u * PI_SQRT));
     }
     return sigmas;
 }
@@ -91,50 +77,110 @@ impl SwitchingFunction {
 /// ## Gamma Function
 /// gamma_AB = int F_A(r-RA) * 1/|RA-RB| * F_B(r-RB) d^3r
 enum GammaFunction {
-    // spherical charge fluctuations are modelled as Gaussians
-    // FA(|r-RA|) = 1/(2 pi sigmaA^2)^(3/2) * exp( - (r-RA)^2/(2*sigmaA^2) )
-    Gaussian{sigma:HashMap<u8, f64>, c:HashMap<(u8, u8), f64>},
-    // spherical charge fluctuation around an atom A are modelled as Slater functions
-    // FA(|r-RA|) = tA^3/(8 pi)*exp(-tA*|r-RA|)
-    Slater{tau:HashMap<u8, f64>},
-    // spherical charge fluctuations are modelled as Gaussians
-    // FA(|r-RA|) = 1/(2 pi sigmaA^2)^(3/2) * exp( - (r-RA)^2/(2*sigmaA^2) )
-    // long-range part of the Coulomb potential
-    // 1/r  ->  erf(r/Rlr)/r
-    GaussianLC{sigma:HashMap<u8, f64>, c:HashMap<(u8, u8), f64>, r_lr:f64},
-    // aproximate LC integral by taking switching function out of the integral
-    //ApproxLC{gf: , sw:},
-    // the gamma function are read from a table and interpolated
-    Numerical{atompairs: Vec<(u8, u8)>},
+    Slater {
+        tau: HashMap<u8, f64>,
+    },
+    Gaussian {
+        sigma: HashMap<u8, f64>,
+        c: HashMap<(u8, u8), f64>,
+        r_lr: f64,
+    },
 }
 
-
 impl GammaFunction {
-
-    fn initialize (&self, sigmas: HashMap<u8, f64>) -> HashMap<(u8, u8), f64> {
-        let result: HashMap<(u8, u8), f64> = HashMap::new();
-        let bla:f64 = match self {
-            GammaFunction::Gaussian => {1.0}
-            GammaFunction::Slater => {1.0}
-            GammaFunction::GaussianLC => {1.0}
-            GammaFunction::ApproxLC => {1.0}
-            GammaFunction::Numerical => {1.0}
-        };
-        return result;
+    fn initialize(&self) {
+        match self {
+            GammaFunction::Gaussian(sigmas, ref mut c, r_lr) => {
+                // Construct the C_AB matrix
+                for z_a in sigmas.keys() {
+                    for z_b in sigmas.keys() {
+                        c.insert(
+                            (z_a, z_b),
+                            1.0 / (2.0
+                                * (sigmas[z_a].powi(2) + sigmas[z_b].powi(2) + 0.5 * r_lr.powi(2)))
+                            .sqrt(),
+                        )
+                    }
+                }
+            }
+            GammaFunction::Slater => {}
+        }
     }
 
     fn eval(&self, r: f64, z_a: u8, z_b: u8) -> f64 {
         let result: f64 = match self {
-            GammaFunction::Gaussian => {
+            GammaFunction::Gaussian(_, &c, _) => {
                 assert!(r > 0.0);
-                libm::erf()
+                libm::erf(c[(z_a, z_b)] * r) / r
             }
-
-
-        },
+            GammaFunction::Slater(&tau) => {
+                let t_a = tau[z_a];
+                let t_b = tau[z_b];
+                if r.abs() < 1.0e-5 {
+                    // R -> 0 limit
+                    t_a * t_b * (t_a.powi(2) + 3 * t_a * t_b + t_b.powi(2))
+                        / (2.0 * (t_a + t_b).powi(3))
+                } else if (t_a - t_b).abs() < 1.0e-5 {
+                    // t_A == t_b limit
+                    let x = t_a * r;
+                    (1.0 / r)
+                        * (1.0
+                            - (-t_a * r).exp() * (48 + 33 * x + 9 * x.powi(2) + x.powi(3)) / 48.0)
+                } else {
+                    // general case R != 0 and t_a != t_b
+                    let denom_ab =
+                        t_b.powi(4) * (t_b.powi(2) * (2 + t_a * r) - t_a.powi(2) * (6 + t_a * r));
+                    let denom_ba =
+                        t_a.powi(4) * (t_a.powi(2) * (2 + t_b * r) - t_b.powi(2) * (6 + t_b * r));
+                    let num = 2 * (t_a.powi(2) - t_b.powi(2)).powi(3);
+                    (1.0 / r)
+                        * (1.0 + ((-t_a * r).exp() * denom_ab - (-t_b * r).exp() * denom_ba) / num)
+                }
+            }
+        };
         return result;
     }
-
 }
 
-//pub fn gamma_function (sigmas: HashMap<u8, f64>)
+fn gamma_atomwise(
+    gamma_func: GammaFunction,
+    mol: &Molecule,
+    distances: ArrayView2<f64>,
+) -> (Array2<f64>) {
+    let mut g0 = Array2::zeros((mol.n_atoms, mol.n_atoms));
+    for (i, (z_i, pos_i)) in mol.iter_atomlist().enumerate() {
+        for (j, (z_j, pos_j)) in mol.iter_atomlist().enumerate() {
+            if i == j {
+                g0[[i, j]] = gamma_func.eval();
+            } else if i < j {
+                g0[[i, j]] = gamma_func.eval(distances[[i, j]], *z_i, *z_j);
+            } else {
+                g0[[i, j]] = g0[[j, i]];
+            }
+        }
+    }
+    return g0;
+}
+
+fn gamma_ao_wise(
+    gamma_func: GammaFunction,
+    mol: Molecule,
+    distances: ArrayView2<f64>,
+    directions: ArrayView2<f64>,
+) -> Array2<f64> {
+    let g0: Array2<f64> = gamma_atomwise(gamma_func, &mol, distances);
+    let mut g0_a0: Array2<f64> = Array2::zeros((mol.n_orbs, mol.norbs));
+    let mu: u32 = 0;
+    for (i, (z_i, pos_i)) in mol.iter_atomlist().enumerate() {
+        for (n_i, l_i, m_i) in mol.valorbs[*z_i] {
+            let nu: u32 = 0;
+            for (j, (z_j, pos_j)) in mol.iter_atomlist().enumerate() {
+                for (n_j, l_j, m_j) in mol.valorbs[*z_j] {
+                    g0_A0[[mu, nu]] = g0[[i, j]];
+                }
+            }
+        }
+    }
+
+    return g0_a0;
+}

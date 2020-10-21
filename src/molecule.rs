@@ -5,12 +5,12 @@ use ndarray::prelude::*;
 use std::collections::HashMap;
 use std::hash::Hash;
 
-struct Molecule {
+pub(crate) struct Molecule {
     atomic_numbers: Vec<u8>,
     positions: Array2<f64>,
     charge: i8,
     multiplicity: u8,
-    valorbs: HashMap<u8, (u8, u8, u8)>,
+    pub(crate) valorbs: HashMap<u8, (u8, u8, u8)>,
     valorbs_occupation: HashMap<u8, Vec<u8>>,
     atomtypes: HashMap<u8, String>,
     orbital_energies: HashMap<u8, HashMap<(u8, u8), f64>>,
@@ -79,7 +79,7 @@ impl Molecule {
 
     }
 
-    fn iter_atomlist(
+    pub fn iter_atomlist(
         &self,
     ) -> std::iter::Zip<
         std::slice::Iter<'_, u8>,
