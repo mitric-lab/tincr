@@ -221,3 +221,22 @@ fn test_gaussian_decay() {
     let sigmas: HashMap<u8, f64> = gaussian_decay(u);
     assert_eq!(ref_sigmas, sigmas);
 }
+
+#[test]
+fn test_gamma_gaussian() {
+    let mut u: HashMap<u8, f64> = HashMap::new();
+    u.insert(1, 0.4720158398964136);
+    u.insert(8, 0.4467609798860577);
+    let sigmas: HashMap<u8, f64> = gaussian_decay(u);
+    let new_c: HashMap<(u8, u8), f64> = HashMap::new();
+    let mut gfunc = GammaFunction::Gaussian {sigma: sigmas, c:new_c, r_lr:3.03};
+    gfunc.initialize();
+    assert_eq!(gfunc.eval(1.0, 1, 1), 0.2859521722011254);
+    assert_eq!(gfunc.eval(2.0, 1, 1), 0.26817515355018845);
+    assert_eq!(gfunc.eval(3.0, 1, 1), 0.24278403726022513);
+    assert_eq!(gfunc.eval(1.0, 1, 8), 0.2829517673247839);
+    assert_eq!(gfunc.eval(2.0, 1, 8), 0.26571666152876605);
+    assert_eq!(gfunc.eval(3.0, 1, 8), 0.2410200913795066);
+}
+
+
