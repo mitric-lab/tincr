@@ -1,10 +1,21 @@
-use crate::molecule;
 use ndarray::{ArrayView2, Array};
 use crate::parameters::*;
 use crate::slako_transformations::*;
 use std::collections::HashMap;
+use crate::molecule::Molecule;
 
-
+///
+/// compute Hamiltonian and overlap matrix elements between two sets of atoms. If the sets
+/// A and B contain exactly the same structure AisB should be set to True to ensure that
+/// the diagonal elements of the Hamiltonian are replaced by the correct on-site energies.
+///
+/// Parameters:
+/// ===========
+/// dim_a: number of orbitals of all the atoms in set A
+/// dim_b:  ''                                 in set B
+/// atomlist_a, atomlist_b: list of (Zi,(xi,yi,zi)) for each atom
+///
+///
 pub fn h0_and_s_ab(
     molecule_a: Molecule,
     molecule_b: Molecule,
@@ -13,18 +24,6 @@ pub fn h0_and_s_ab(
     orbital_energies: HashMap<u8, HashMap<(u8, u8), f64>>,
     m_proximity: ArrayView2<u8>,
 ) -> (Array<f64, Ix2>, Array<f64, Ix2>) {
-    ///
-    /// compute Hamiltonian and overlap matrix elements between two sets of atoms. If the sets
-    /// A and B contain exactly the same structure AisB should be set to True to ensure that
-    /// the diagonal elements of the Hamiltonian are replaced by the correct on-site energies.
-    ///
-    /// Parameters:
-    /// ===========
-    /// dim_a: number of orbitals of all the atoms in set A
-    /// dim_b:  ''                                 in set B
-    /// atomlist_a, atomlist_b: list of (Zi,(xi,yi,zi)) for each atom
-    ///
-    ///
     let mut h0: Array<f64, Ix2> = Array::zeros((dim_a, dim_b));
     let mut s: Array<f64, Ix2> = Array::zeros((dim_a, dim_b));
     // iterate over atoms

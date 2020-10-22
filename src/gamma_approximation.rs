@@ -2,6 +2,7 @@ use crate::molecule::*;
 use libm;
 use ndarray::{Array2, ArrayView2};
 use std::collections::HashMap;
+use std::f64::consts::PI;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -27,6 +28,7 @@ pub fn gaussian_decay(hubbard_u: HashMap<u8, f64>) -> HashMap<u8, f64> {
     return sigmas;
 }
 
+// TODO: DO WE NEED THIS?
 enum SwitchingFunction {
     // f(R) = erf(R/Rlr)
     ErrorFunction,
@@ -38,14 +40,14 @@ enum SwitchingFunction {
 
 impl SwitchingFunction {
     fn eval(&self, r: f64, r_lr: f64) -> f64 {
-        let result: f64 = match self {
+        let result: f64 = match *self {
             SwitchingFunction::ErrorFunction => libm::erf(r / r_lr),
             SwitchingFunction::ErrorFunctionGaussian => {
                 if r < 1.0e-8 {
                     0.0
                 } else {
-                    libm::erf(r / lr) / r
-                        - 2.0 / (PI_SQRT * r_lr) * (-1.0 / 3.0 * (r / r_lr).pow(2)).exp()
+                    libm::erf(r / r_lr) / r
+                        - 2.0 / (PI_SQRT * r_lr) * (-1.0 / 3.0 * (r / r_lr).powi(2)).exp()
                 }
             }
             SwitchingFunction::NoSwitching => 0.0,
@@ -54,7 +56,7 @@ impl SwitchingFunction {
     }
 
     fn eval_deriv(&self, r: f64, r_lr: f64) -> f64 {
-        let result: f64 = match self {
+        let result: f64 = match *self {
             SwitchingFunction::ErrorFunction => {
                 2.0 / (PI_SQRT * r_lr) * (-(r / r_lr).powi(2)).exp()
             }
@@ -88,55 +90,65 @@ enum GammaFunction {
 }
 
 impl GammaFunction {
-    fn initialize(&self) {
-        match self {
-            GammaFunction::Gaussian(sigmas, ref mut c, r_lr) => {
+    fn initialize(&mut self) {
+        match *self {
+            GammaFunction::Gaussian{ref sigma, ref mut c,ref r_lr} => {
                 // Construct the C_AB matrix
-                for z_a in sigmas.keys() {
-                    for z_b in sigmas.keys() {
+                for z_a in sigma.keys() {
+                    for z_b in sigma.keys() {
                         c.insert(
-                            (z_a, z_b),
+                            (*z_a, *z_b),
                             1.0 / (2.0
-                                * (sigmas[z_a].powi(2) + sigmas[z_b].powi(2) + 0.5 * r_lr.powi(2)))
+                                * (sigma[z_a].powi(2) + sigma[z_b].powi(2) + 0.5 * r_lr.powi(2)))
                             .sqrt(),
-                        )
+                        );
                     }
                 }
             }
-            GammaFunction::Slater => {}
+            _ => {}
         }
     }
 
     fn eval(&self, r: f64, z_a: u8, z_b: u8) -> f64 {
-        let result: f64 = match self {
-            GammaFunction::Gaussian(_, &c, _) => {
+        let result: f64 = match *self{
+            GammaFunction::Gaussian{ref sigma, ref c,ref r_lr} => {
                 assert!(r > 0.0);
-                libm::erf(c[(z_a, z_b)] * r) / r
+                libm::erf(c[&(z_a, z_b)] * r) / r
             }
-            GammaFunction::Slater(&tau) => {
-                let t_a = tau[z_a];
-                let t_b = tau[z_b];
+            GammaFunction::Slater{ref tau} => {
+                let t_a: f64 = tau[&z_a];
+                let t_b: f64 = tau[&z_b];
                 if r.abs() < 1.0e-5 {
                     // R -> 0 limit
-                    t_a * t_b * (t_a.powi(2) + 3 * t_a * t_b + t_b.powi(2))
+                    t_a * t_b * (t_a.powi(2) + 3.0 * t_a * t_b + t_b.powi(2))
                         / (2.0 * (t_a + t_b).powi(3))
                 } else if (t_a - t_b).abs() < 1.0e-5 {
                     // t_A == t_b limit
-                    let x = t_a * r;
+                    let x: f64 = t_a * r;
                     (1.0 / r)
                         * (1.0
-                            - (-t_a * r).exp() * (48 + 33 * x + 9 * x.powi(2) + x.powi(3)) / 48.0)
+                            - (-t_a * r).exp() * (48.0 + 33.0 * x + 9.0 * x.powi(2) + x.powi(3)) / 48.0)
                 } else {
                     // general case R != 0 and t_a != t_b
-                    let denom_ab =
-                        t_b.powi(4) * (t_b.powi(2) * (2 + t_a * r) - t_a.powi(2) * (6 + t_a * r));
-                    let denom_ba =
-                        t_a.powi(4) * (t_a.powi(2) * (2 + t_b * r) - t_b.powi(2) * (6 + t_b * r));
-                    let num = 2 * (t_a.powi(2) - t_b.powi(2)).powi(3);
+                    let denom_ab: f64 =
+                        t_b.powi(4) * (t_b.powi(2) * (2.0 + t_a * r) - t_a.powi(2) * (6.0 + t_a * r));
+                    let denom_ba: f64 =
+                        t_a.powi(4) * (t_a.powi(2) * (2.0 + t_b * r) - t_b.powi(2) * (6.0 + t_b * r));
+                    let num: f64 = 2.0 * (t_a.powi(2) - t_b.powi(2)).powi(3);
                     (1.0 / r)
                         * (1.0 + ((-t_a * r).exp() * denom_ab - (-t_b * r).exp() * denom_ba) / num)
                 }
             }
+        };
+        return result;
+    }
+
+    fn eval_limit0(&self, z: u8) -> f64 {
+        let result: f64 = match *self {
+            GammaFunction::Gaussian{ref sigma, ref c,ref r_lr} => {
+                1.0 / (PI * (sigma[&z].powi(2) + 0.25 * r_lr.powi(2))).sqrt()
+            }
+            GammaFunction::Slater{ref tau} => (5.0 / 16.0) * tau[&z],
         };
         return result;
     }
@@ -151,7 +163,7 @@ fn gamma_atomwise(
     for (i, (z_i, pos_i)) in mol.iter_atomlist().enumerate() {
         for (j, (z_j, pos_j)) in mol.iter_atomlist().enumerate() {
             if i == j {
-                g0[[i, j]] = gamma_func.eval();
+                g0[[i, j]] = gamma_func.eval_limit0(*z_i);
             } else if i < j {
                 g0[[i, j]] = gamma_func.eval(distances[[i, j]], *z_i, *z_j);
             } else {
@@ -166,21 +178,46 @@ fn gamma_ao_wise(
     gamma_func: GammaFunction,
     mol: Molecule,
     distances: ArrayView2<f64>,
-    directions: ArrayView2<f64>,
 ) -> Array2<f64> {
     let g0: Array2<f64> = gamma_atomwise(gamma_func, &mol, distances);
-    let mut g0_a0: Array2<f64> = Array2::zeros((mol.n_orbs, mol.norbs));
-    let mu: u32 = 0;
+    let mut g0_a0: Array2<f64> = Array2::zeros((mol.n_orbs, mol.n_orbs));
+    let mu: usize = 0;
     for (i, (z_i, pos_i)) in mol.iter_atomlist().enumerate() {
-        for (n_i, l_i, m_i) in mol.valorbs[*z_i] {
-            let nu: u32 = 0;
+        for (n_i, l_i, m_i) in &mol.valorbs[z_i] {
+            let nu: usize = 0;
             for (j, (z_j, pos_j)) in mol.iter_atomlist().enumerate() {
-                for (n_j, l_j, m_j) in mol.valorbs[*z_j] {
-                    g0_A0[[mu, nu]] = g0[[i, j]];
+                for (n_j, l_j, m_j) in &mol.valorbs[z_j] {
+                    g0_a0[[mu, nu]] = g0[[i, j]];
                 }
             }
         }
     }
-
     return g0_a0;
+}
+
+//TODO: DERIVATIVE OF GAMMA MATRIX
+
+/// Test of Gaussian decay function on a water molecule. The xyz geometry of the
+/// water molecule is
+/// ```no_run
+/// 3
+//
+// O          0.34215        1.17577        0.00000
+// H          1.31215        1.17577        0.00000
+// H          0.01882        1.65996        0.77583
+///```
+///
+///
+#[test]
+fn test_gaussian_decay() {
+    let mut u: HashMap<u8, f64> = HashMap::new();
+    u.insert(1, 0.4720158398964136);
+    u.insert(8, 0.4467609798860577);
+
+    let mut ref_sigmas: HashMap<u8, f64> = HashMap::new();
+    ref_sigmas.insert(1, 1.1952768018792987);
+    ref_sigmas.insert(8, 1.2628443596207704);
+
+    let sigmas: HashMap<u8, f64> = gaussian_decay(u);
+    assert_eq!(ref_sigmas, sigmas);
 }

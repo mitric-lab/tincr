@@ -35,10 +35,10 @@ pub struct PseudoAtom {
     orbital_names: Vec<String>,
     pub energies: Vec<f64>,
     radial_wavefunctions: Vec<Vec<f64>>,
-    pub angular_momenta: Vec<u8>,
+    pub angular_momenta: Vec<i8>,
     pub valence_orbitals: Vec<u8>,
-    pub nshell: Vec<u8>,
-    pub orbital_occupation: Vec<u8>;
+    pub nshell: Vec<i8>,
+    pub orbital_occupation: Vec<i8>,
     #[serde(default = "get_nan_value")]
     energy_1s: f64,
     #[serde(default = "get_nan_value")]
@@ -82,28 +82,28 @@ pub struct SlaterKosterTable {
     z2: u8,
     d: Vec<f64>,
     index_to_symbol: HashMap<u8, String>,
-    #[serde(default = "init_hashmap")]
-    s_spline: HashMap<u8, CubicSpline>,
-    #[serde(default = "init_hashmap")]
-    h_spline: HashMap<u8, CubicSpline>,
+    // #[serde(default = "init_hashmap")]
+    // s_spline: HashMap<u8, CubicSpline>,
+    // #[serde(default = "init_hashmap")]
+    // h_spline: HashMap<u8, CubicSpline>,
 }
 
 impl SlaterKosterTable {
     fn spline_overlap(&self) -> bool {
         let mut splines: HashMap<u8, CubicSpline> = HashMap::new();
-        for ((l1, l2, i), value) in self.s {
+        for ((l1, l2, i), value) in &self.s {
             let x: Vec<f64> = self.d.clone();
             let y: Vec<f64> = value.clone();
-            splines.insert(i, CubicSpline::from_nodes(x, y));
+            splines.insert(*i, CubicSpline::from_nodes(x, y));
         }
         return true;
     }
     fn spline_hamiltonian(&self) -> bool {
         let mut splines: HashMap<u8, CubicSpline> = HashMap::new();
-        for ((l1, l2, i), value) in self.h {
+        for ((l1, l2, i), value) in &self.h {
             let x: Vec<f64> = self.d.clone();
             let y: Vec<f64> = value.clone();
-            splines.insert(i, CubicSpline::from_nodes(x, y));
+            splines.insert(*i, CubicSpline::from_nodes(x, y));
         }
         return true;
     }
