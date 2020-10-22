@@ -14,6 +14,7 @@ pub(crate) struct Molecule {
     pub(crate) n_atoms: usize,
     pub(crate) n_orbs: usize,
     pub(crate) valorbs: HashMap<u8, Vec<(u8, u8, u8)>>,
+    hubbard_u: HashMap<u8, f64>,
     valorbs_occupation: HashMap<u8, Vec<u8>>,
     atomtypes: HashMap<u8, String>,
     orbital_energies: HashMap<u8, HashMap<(u8, u8), f64>>,
@@ -37,10 +38,12 @@ impl Molecule {
         let mut valorbs_occupation: HashMap<u8, Vec<i8>> = HashMap::new();
         let mut ne_val: HashMap<u8, i8> = HashMap::new();
         let mut orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>> = HashMap::new();
+        let mut hubbard_u: HashMap<u8, f64> = HashMap::new();
         for (zi, symbol) in atomtypes.iter() {
             let (atom, free_atom): (PseudoAtom, PseudoAtom) = import_pseudo_atom(zi);
             let mut occ: Vec<i8> = Vec::new();
             let val_e: i8 = 0;
+            hubbard_u.insert(*zi, atom.hubbard_u[*zi]);
             for i in atom.valence_orbitals {
                 let n: i8 = atom.nshell[i as usize];
                 let l: i8 = atom.angular_momenta[i as usize];
