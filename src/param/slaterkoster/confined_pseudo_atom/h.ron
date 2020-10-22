@@ -5,6 +5,7 @@
   ekin:   1.42206256,
   etot:   0.48166277,
   exc:   0.00000000,
+  hubbard_u: 0.4720158398964136,
   n_elec: 1,
   z: 1,
   angular_momenta: [0],

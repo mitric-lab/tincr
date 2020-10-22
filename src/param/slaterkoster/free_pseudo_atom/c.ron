@@ -6,6 +6,7 @@
   etot: -37.72584347,
   exc:  -5.02971799,
   n_elec: 6,
+  hubbard_u: 0.3674262412520011,
   z: 6,
   angular_momenta: [0,0,0,1],
   effective_potential: 

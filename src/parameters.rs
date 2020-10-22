@@ -25,6 +25,7 @@ fn init_hashmap() -> HashMap<u8, CubicSpline> {
 #[derive(Serialize, Deserialize)]
 pub struct PseudoAtom {
     z: u8,
+    hubbard_u: u8,
     n_elec: u8,
     #[serde(default = "get_inf_value")]
     r0: f64,

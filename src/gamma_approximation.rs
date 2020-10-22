@@ -237,6 +237,9 @@ fn test_gamma_gaussian() {
     assert_eq!(gfunc.eval(1.0, 1, 8), 0.2829517673247839);
     assert_eq!(gfunc.eval(2.0, 1, 8), 0.26571666152876605);
     assert_eq!(gfunc.eval(3.0, 1, 8), 0.2410200913795066);
+    assert_eq!(gfunc.eval_limit0(1), 0.2923649998054588);
+    assert_eq!(gfunc.eval_limit0(8), 0.28605544182430387);
 }
+
 
 

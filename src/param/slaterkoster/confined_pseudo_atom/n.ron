@@ -6,6 +6,7 @@
   etot: -53.64776805,
   exc:  -6.71966943,
   n_elec: 7,
+  hubbard_u: 0.53,
   z: 7,
   angular_momenta: 
       [0,0,0,0,1,
