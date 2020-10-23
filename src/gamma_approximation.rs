@@ -20,7 +20,7 @@ const PI_SQRT: f64 = 1.7724538509055159;
 ///
 /// Here, this equation is solved for sigmaA, the decay constant
 /// of a gaussian.
-pub fn gaussian_decay(hubbard_u: HashMap<u8, f64>) -> HashMap<u8, f64> {
+pub fn gaussian_decay(hubbard_u: &HashMap<u8, f64>) -> HashMap<u8, f64> {
     let mut sigmas: HashMap<u8, f64> = HashMap::new();
     for (z, u) in hubbard_u.iter() {
         sigmas.insert(*z, 1.0 / (*u * PI_SQRT));
@@ -78,7 +78,7 @@ impl SwitchingFunction {
 
 /// ## Gamma Function
 /// gamma_AB = int F_A(r-RA) * 1/|RA-RB| * F_B(r-RB) d^3r
-enum GammaFunction {
+pub enum GammaFunction {
     Slater {
         tau: HashMap<u8, f64>,
     },
@@ -90,7 +90,7 @@ enum GammaFunction {
 }
 
 impl GammaFunction {
-    fn initialize(&mut self) {
+    pub(crate) fn initialize(&mut self) {
         match *self {
             GammaFunction::Gaussian{ref sigma, ref mut c,ref r_lr} => {
                 // Construct the C_AB matrix
@@ -174,7 +174,7 @@ fn gamma_atomwise(
     return g0;
 }
 
-fn gamma_ao_wise(
+pub fn gamma_ao_wise(
     gamma_func: GammaFunction,
     mol: Molecule,
     distances: ArrayView2<f64>,
