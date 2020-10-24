@@ -65,6 +65,9 @@ Ein eigenes Beispiel von mir für solch ein Interface zu Python findet sich hier
 
 #### Dokumentation
 Ein paar Hinweise zur Dokumentation des Codes sind auf dieser [extra Seite](https://github.com/hochej/tincr/blob/master/Documentation.md) gegeben.
+Kommentare die mit drei Slashes beginnen werden automatisch in der Dokumentation
+als Text angezeigt. 
+
 
 -----------------------------------
 ### Einstieg in Rust
