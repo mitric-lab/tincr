@@ -12,6 +12,12 @@ pub const EBOHR_TO_DEBYE: f64 = 1.0 / 0.393430307; // 1 Debye = 0.393430307 e*a0
 pub const SPEED_OF_LIGHT: f64 = 137.035999139; // speed of light in atomic units, inverse of fine structure constant
                                                // c = 1/alpha
 
+// THESE ARE NO REAL CONSTANTS, THEY ARE DEFAULT VALUES
+pub const LONG_RANGE_RADIUS: f64 = 3.0300;
+pub const PROXIMITY_CUTOFF: f64 = 2.00;
+pub const DEFAULT_CHARGE: i8 = 0;
+pub const DEFAULT_MULTIPLICITY: u8 = 1;
+
 pub const ATOM_NAMES: [&str; 86] = [
     "h", "he", "li", "be", "b", "c", "n", "o", "f", "ne", "na", "mg", "al", "si", "p", "s", "cl",
     "ar", "k", "ca", "sc", "ti", "v", "cr", "mn", "fe", "co", "ni", "cu", "zn", "ga", "ge", "as",

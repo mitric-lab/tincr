@@ -49,28 +49,7 @@ impl Atom {
     }
 }
 
-fn distance_matrix(
-    coordinates: Array<f64, Ix2>,
-) -> (Array<f64, Ix2>, Array<f64, Ix3>, Array<usize, Ix2>) {
-    let cutoff = 2.0;
-    let n_atoms: usize = coordinates.cols();
-    let mut dist_matrix: Array<f64, Ix2> = Array::zeros((n_atoms, n_atoms));
-    let mut directions_matrix: Array<f64, Ix3> = Array::zeros((n_atoms, n_atoms, 3));
-    let mut prox_matrix: Array<usize, Ix2> = Array::zeros((n_atoms, n_atoms));
-    for (i, pos_i) in coordinates.outer_iter().enumerate() {
-        for (j, pos_j) in coordinates.slice(s![i.., ..]).outer_iter().enumerate() {
-            let r = &pos_i - &pos_j;
-            let r_ij = r.norm();
-            dist_matrix[[i, j]] = r_ij;
-            //directions_matrix[[i, j]] = &r/&r_ij;
-            if r_ij <= cutoff { prox_matrix[[i, j]] = 1; }
-        }
-    }
-    let dist_matrix = &dist_matrix + &dist_matrix.t();
-    let prox_matrix = &prox_matrix + &prox_matrix.t();
-    //let directions_matrix = directions_matrix - directions_matrix.t();
-    return (dist_matrix, directions_matrix, prox_matrix);
-}
+
 
 
 

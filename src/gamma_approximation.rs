@@ -176,7 +176,7 @@ fn gamma_atomwise(
 
 pub fn gamma_ao_wise(
     gamma_func: GammaFunction,
-    mol: Molecule,
+    mol: &Molecule,
     distances: ArrayView2<f64>,
 ) -> Array2<f64> {
     let g0: Array2<f64> = gamma_atomwise(gamma_func, &mol, distances);
@@ -218,7 +218,7 @@ fn test_gaussian_decay() {
     ref_sigmas.insert(1, 1.1952768018792987);
     ref_sigmas.insert(8, 1.2628443596207704);
 
-    let sigmas: HashMap<u8, f64> = gaussian_decay(u);
+    let sigmas: HashMap<u8, f64> = gaussian_decay(&u);
     assert_eq!(ref_sigmas, sigmas);
 }
 
@@ -227,7 +227,7 @@ fn test_gamma_gaussian() {
     let mut u: HashMap<u8, f64> = HashMap::new();
     u.insert(1, 0.4720158398964136);
     u.insert(8, 0.4467609798860577);
-    let sigmas: HashMap<u8, f64> = gaussian_decay(u);
+    let sigmas: HashMap<u8, f64> = gaussian_decay(&u);
     let new_c: HashMap<(u8, u8), f64> = HashMap::new();
     let mut gfunc = GammaFunction::Gaussian {sigma: sigmas, c:new_c, r_lr:3.03};
     gfunc.initialize();
