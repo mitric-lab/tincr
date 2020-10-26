@@ -17,6 +17,9 @@ pub const LONG_RANGE_RADIUS: f64 = 3.0300;
 pub const PROXIMITY_CUTOFF: f64 = 2.00;
 pub const DEFAULT_CHARGE: i8 = 0;
 pub const DEFAULT_MULTIPLICITY: u8 = 1;
+pub const DEFAULT_MAX_ITER: usize = 250;
+pub const DEFAULT_SCF_CONV: f64 = 1.0e-7;
+pub const DEFAULT_TEMPERATURE: f64 = 0.0;
 
 pub const ATOM_NAMES: [&str; 86] = [
     "h", "he", "li", "be", "b", "c", "n", "o", "f", "ne", "na", "mg", "al", "si", "p", "s", "cl",
