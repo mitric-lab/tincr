@@ -83,30 +83,31 @@ pub struct SlaterKosterTable {
     z2: u8,
     d: Vec<f64>,
     index_to_symbol: HashMap<u8, String>,
-    // #[serde(default = "init_hashmap")]
-    // s_spline: HashMap<u8, CubicSpline>,
-    // #[serde(default = "init_hashmap")]
-    // h_spline: HashMap<u8, CubicSpline>,
+    #[serde(default = "init_hashmap")]
+    pub s_spline: HashMap<u8, CubicSpline>,
+    #[serde(default = "init_hashmap")]
+    pub h_spline: HashMap<u8, CubicSpline>,
 }
 
 impl SlaterKosterTable {
-    fn spline_overlap(&self) -> bool {
+    pub fn spline_overlap(&self) -> HashMap<u8, CubicSpline> {
         let mut splines: HashMap<u8, CubicSpline> = HashMap::new();
         for ((l1, l2, i), value) in &self.s {
             let x: Vec<f64> = self.d.clone();
             let y: Vec<f64> = value.clone();
+            println!("Is {}", i);
             splines.insert(*i, CubicSpline::from_nodes(x, y));
         }
-        return true;
+        return splines;
     }
-    fn spline_hamiltonian(&self) -> bool {
+    pub fn spline_hamiltonian(&self) -> HashMap<u8, CubicSpline> {
         let mut splines: HashMap<u8, CubicSpline> = HashMap::new();
         for ((l1, l2, i), value) in &self.h {
             let x: Vec<f64> = self.d.clone();
             let y: Vec<f64> = value.clone();
             splines.insert(*i, CubicSpline::from_nodes(x, y));
         }
-        return true;
+        return splines;
     }
 }
 
@@ -150,7 +151,7 @@ pub fn get_confined_pseudo_atom(element: &str) -> PseudoAtom {
 
 pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
     let filename: String = format!(
-        "./src/param/slaterkoster/slako-tables/{}_{}.ron",
+        "./src/param/slaterkoster/slako_tables/{}_{}.ron",
         element1, element2
     );
     let path: &Path = Path::new(&filename);
@@ -161,7 +162,7 @@ pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
 
 pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTable {
     let filename: String = format!(
-        "./src/param/repulsive_potential/reppot-tables/{}_{}.ron",
+        "./src/param/repulsive_potential/reppot_tables/{}_{}.ron",
         element1, element2
     );
     let path: &Path = Path::new(&filename);

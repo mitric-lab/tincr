@@ -1,6 +1,7 @@
 use crate::constants::{
-    ATOM_NAMES, DEFAULT_CHARGE, DEFAULT_MULTIPLICITY, LONG_RANGE_RADIUS, PROXIMITY_CUTOFF,
+    ATOM_NAMES,
 };
+use crate::defaults;
 use crate::gamma_approximation;
 use crate::parameters::*;
 use combinations::Combinations;
@@ -24,13 +25,14 @@ pub struct Molecule {
     pub hubbard_u: HashMap<u8, f64>,
     valorbs_occupation: HashMap<u8, Vec<i8>>,
     atomtypes: HashMap<u8, String>,
-    orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>>,
-    skt: HashMap<(u8, u8), SlaterKosterTable>,
+    pub orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>>,
+    pub skt: HashMap<(u8, u8), SlaterKosterTable>,
     v_rep: HashMap<(u8, u8), RepulsivePotentialTable>,
+    pub proximity_matrix: Array2<bool>,
 }
 
 impl Molecule {
-    fn new(
+    pub(crate) fn new(
         atomic_numbers: Vec<u8>,
         positions: Array2<f64>,
         charge: Option<i8>,
@@ -45,18 +47,24 @@ impl Molecule {
             HashMap<u8, HashMap<(i8, i8), f64>>,
             HashMap<u8, f64>,
         ) = get_electronic_configuration(&atomtypes);
+
         let (skt, vrep): (
             HashMap<(u8, u8), SlaterKosterTable>,
             HashMap<(u8, u8), RepulsivePotentialTable>,
         ) = get_parameters(unique_numbers);
-        let charge: i8 = charge.unwrap_or(DEFAULT_CHARGE);
-        let multiplicity: u8 = multiplicity.unwrap_or(DEFAULT_MULTIPLICITY);
 
-        let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<usize>) =
+        let charge: i8 = charge.unwrap_or(defaults::CHARGE);
+        let multiplicity: u8 = multiplicity.unwrap_or(defaults::MULTIPLICITY);
+
+        let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
             distance_matrix(positions.view(), None);
 
-        let n_atoms: usize =5;
-        let n_orbs: usize = 5;
+        let n_atoms: usize = positions.cols();
+
+        let mut n_orbs: usize = 0;
+        for zi in &atomic_numbers {
+            n_orbs = n_orbs + &valorbs[zi].len();
+        }
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
             positions: positions,
@@ -71,6 +79,7 @@ impl Molecule {
             orbital_energies: orbital_energies,
             skt: skt,
             v_rep: vrep,
+            proximity_matrix: prox_matrix,
         };
 
         return mol;
@@ -97,15 +106,15 @@ fn get_gamma_matrix(
     mol: &Molecule,
     r_lr: Option<f64>,
     distances: ArrayView2<f64>,
-) -> (Array2<f64>) {
+) -> (Array2<f64>, Array2<f64>) {
     // initialize gamma matrix
     let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(&mol.hubbard_u);
     let mut c: HashMap<(u8, u8), f64> = HashMap::new();
-    let r_lr: f64 = r_lr.unwrap_or(LONG_RANGE_RADIUS);
+    let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
     let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
-    let gm: Array2<f64> = gamma_approximation::gamma_ao_wise(gf, mol, distances);
-    return gm;
+    let (gm, gm_ao): (Array2<f64>, Array2<f64>) = gamma_approximation::gamma_ao_wise(gf, mol, distances);
+    return (gm, gm_ao);
 }
 
 fn get_parameters(
@@ -115,7 +124,14 @@ fn get_parameters(
     HashMap<(u8, u8), RepulsivePotentialTable>,
 ) {
     // find unique atom pairs and initialize Slater-Koster tables
-    let atompairs: Vec<Vec<u8>> = Combinations::new(numbers, 2).collect();
+    let atompairs: Vec<Vec<u8>>;
+    if numbers.len() > 2 {
+        // this only works if we have more than two types of elements
+        atompairs = Combinations::new(numbers, 2).collect();
+    } else {
+        // otherwise we can directly use numbers
+        atompairs = vec![numbers];
+    }
     let mut skt: HashMap<(u8, u8), SlaterKosterTable> = HashMap::new();
     let mut v_rep: HashMap<(u8, u8), RepulsivePotentialTable> = HashMap::new();
     for pair in atompairs {
@@ -123,8 +139,10 @@ fn get_parameters(
         let zj: u8 = pair[1];
         assert!(zi <= zj);
         // load precalculated slako table
-        let slako_module: SlaterKosterTable =
+        let mut slako_module: SlaterKosterTable =
             get_slako_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+        slako_module.s_spline = slako_module.spline_overlap();
+        slako_module.h_spline = slako_module.spline_hamiltonian();
         // load repulsive potential table
         let reppot_module: RepulsivePotentialTable =
             get_reppot_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
@@ -201,12 +219,12 @@ fn get_electronic_configuration(
 fn distance_matrix(
     coordinates: ArrayView2<f64>,
     cutoff: Option<f64>,
-) -> (Array2<f64>, Array3<f64>, Array2<usize>) {
-    let cutoff: f64 = cutoff.unwrap_or(PROXIMITY_CUTOFF);
+) -> (Array2<f64>, Array3<f64>, Array2<bool>) {
+    let cutoff: f64 = cutoff.unwrap_or(defaults::PROXIMITY_CUTOFF);
     let n_atoms: usize = coordinates.cols();
     let mut dist_matrix: Array2<f64> = Array::zeros((n_atoms, n_atoms));
     let mut directions_matrix: Array3<f64> = Array::zeros((n_atoms, n_atoms, 3));
-    let mut prox_matrix: Array2<usize> = Array::zeros((n_atoms, n_atoms));
+    let mut prox_matrix: Array2<bool> = Array::from_elem((n_atoms, n_atoms), false);
     for (i, pos_i) in coordinates.outer_iter().enumerate() {
         for (j, pos_j) in coordinates.slice(s![i.., ..]).outer_iter().enumerate() {
             let r: Array1<f64> = &pos_i - &pos_j;
@@ -214,12 +232,12 @@ fn distance_matrix(
             dist_matrix[[i, j]] = r_ij;
             //directions_matrix[[i, j]] = &r/&r_ij;
             if r_ij <= cutoff {
-                prox_matrix[[i, j]] = 1;
+                prox_matrix[[i, j]] = true;
+                prox_matrix[[j, i]] = true;
             }
         }
     }
     let dist_matrix = &dist_matrix + &dist_matrix.t();
-    let prox_matrix = &prox_matrix + &prox_matrix.t();
     //let directions_matrix = directions_matrix - directions_matrix.t();
     return (dist_matrix, directions_matrix, prox_matrix);
 }

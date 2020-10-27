@@ -178,7 +178,7 @@ pub fn gamma_ao_wise(
     gamma_func: GammaFunction,
     mol: &Molecule,
     distances: ArrayView2<f64>,
-) -> Array2<f64> {
+) -> (Array2<f64>, Array2<f64>) {
     let g0: Array2<f64> = gamma_atomwise(gamma_func, &mol, distances);
     let mut g0_a0: Array2<f64> = Array2::zeros((mol.n_orbs, mol.n_orbs));
     let mu: usize = 0;
@@ -192,7 +192,7 @@ pub fn gamma_ao_wise(
             }
         }
     }
-    return g0_a0;
+    return (g0, g0_a0);
 }
 
 //TODO: DERIVATIVE OF GAMMA MATRIX

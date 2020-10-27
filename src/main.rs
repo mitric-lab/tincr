@@ -4,9 +4,11 @@ mod constants;
 //mod slako_transformations_lmax2;
 mod parameters;
 mod molecule;
-//mod h0_and_s;
+mod h0_and_s;
 mod gamma_approximation;
-mod scc_routine;
+mod slako_transformations;
+//mod scc_routine;
+mod defaults;
 
 use ndarray::*;
 use ndarray_linalg::*;
