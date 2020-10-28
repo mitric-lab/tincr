@@ -33,7 +33,7 @@ pub fn curfit(
     );
     let lwest: usize = m * k1 as usize + nest * (7 + 3 * k as usize);
     assert!(lwrk >= lwest, "lwrk is to small");
-    assert!(xb <= x[1] && xe >= x[m]);
+    assert!(xb <= x[0] && xe >= x[m - 1]);
     //assert!(x.is_sorted(), "x has to be sorted in ascending order");
     if iopt >= 0 {
         assert!(s >= 0.0, "smoothing factor cannot be negative");
@@ -46,11 +46,11 @@ pub fn curfit(
         "total number of knots must be within nmin and nest"
     );
 
-    let mut j: usize = n - 1;
+    let mut j: usize = n;
     let mut t: Vec<f64> = t;
-    for i in 0..k1 {
-        t[i as usize] = xb;
-        t[j] = xe;
+    for i in 1..(k1 + 1) {
+        t[(i - 1) as usize] = xb;
+        t[j - 1] = xe;
         j = j - 1;
     }
 
@@ -231,49 +231,49 @@ fn check_knots(x: &Vec<f64>, t: &Vec<f64>, k: u8, m: usize, n: usize) -> u8 {
         return 10;
     }
     // check condition no 2
-    let mut j: usize = n - 1;
-    for i in 0..k {
-        if t[i as usize] > t[i as usize + 1] {
+    let mut j: usize = n;
+    for i in 1..(k + 1) {
+        if t[(i - 1) as usize] > t[i as usize] {
             return 10;
         }
-        if t[j] < t[j - 1] {
+        if t[j - 1] < t[j - 2] {
             return 10;
         }
         j = j - 1;
     }
     // check condition no 3
-    for i in k1..nk1 {
-        if t[i] <= t[i - 1] {
+    for i in k1..(nk1 + 1) {
+        if t[i - 1] <= t[i - 2] {
             return 10;
         }
     }
     // check condition no 4
-    if x[0] < t[k as usize] || x[m - 1] > t[nk1] {
+    if x[0] < t[k1 - 1] || x[m - 1] > t[nk2 - 1] {
         return 10;
     }
     //check condition no 5
-    if x[0] > t[k1] || x[m - 1] <= t[nk1 - 1] {
+    if x[0] > t[k2 - 1] || x[m - 1] <= t[nk1 - 1] {
         return 10;
     }
-    let mut i: usize = 0;
-    let mut l: usize = k1;
+    let mut i: usize = 1;
+    let mut l: usize = k2;
     let nk3: usize = nk1 - 1;
     if nk3 < 2 {
         return 0;
     }
-    for j in 1..nk3 - 1 {
+    for j in 2..(nk3 + 1) {
         l = l + 1;
         i = i + 1;
         if i > m {
             return 10;
         }
-        while x[i] <= t[j] {
+        while x[i - 1] <= t[j - 1] {
             i = i + 1;
             if i > m {
                 return 10;
             }
         }
-        if x[i] >= t[l] {
+        if x[i - 1] >= t[l - 1] {
             return 10;
         }
     }
@@ -293,20 +293,20 @@ fn fbspl(x: f64, t: &Vec<f64>, k: u8, n: usize, l: usize, h: Vec<f64>) -> Vec<f6
     let mut h: Vec<f64> = h;
     let hh: [f64; 19] = [0.0; 19];
 
-    for j in 0..k {
-        for i in 0..j {
-            hh[i] = h[i];
+    for j in 1..(k + 1) {
+        for i in 1..(j + 1) {
+            hh[i - 1] = h[i - 1];
         }
         h[0] = 0.0;
-        for i in 0..j {
-            let li = i + 1;
-            let lj = li - 1;
-            if t[li] == t[lj] {
-                h[i + 1] = 0.0;
+        for i in 1..(j + 1) {
+            let li: usize = l + i;
+            let lj: usize = li - j;
+            if t[li - 1] == t[lj - 1] {
+                h[i] = 0.0;
             } else {
-                let f = hh[i] / (t[li] - t[lj]);
-                h[i] = h[i] + f * (t[li] - x);
-                h[i + 1] = f * (x - t[lj]);
+                let f = hh[i - 1] / (t[li - 1] - t[lj - 1]);
+                h[i - 1] = h[i - 1] + f * (t[li - 1] - x);
+                h[i] = f * (x - t[lj - 1]);
             }
         }
     }
@@ -344,26 +344,25 @@ fn fprota(cos: f64, sin: f64, a: f64, b: f64) -> (f64, f64) {
 ///  equations $a * c = z$ with a a n x n upper triangular matrix
 ///  of bandwidth k.
 fn fpback(a: ArrayView2<f64>, z: Vec<f64>, n: usize, k: u8, c: Vec<f64>) -> Vec<f64> {
-
-    let mut c: Vec<f64>= c;
+    let mut c: Vec<f64> = c;
 
     let k1: usize = k as usize - 1;
-    c[n - 1] = z[n -1 ] / a[[n-1, 0]];
+    c[n - 1] = z[n - 1] / a[[n - 1, 0]];
     let mut i: usize = n - 1;
-    if i != 0  {
-        for j in 2..n {
+    if i != 0 {
+        for j in 2..(n + 1) {
             let mut store: f64 = z[i - 1];
             let mut i1: usize = k1;
             if j <= k1 {
-                i1 = j-1;
+                i1 = j - 1;
             }
-            let mut m:usize = i;
-            for l in 1..i1 {
-                m = m+1;
-                store = store - c[m-1] * a[[i-1,l]];
+            let mut m: usize = i;
+            for l in 1..(i1 + 1) {
+                m = m + 1;
+                store = store - c[m - 1] * a[[i - 1, l]];
             }
-            c[i] = store/a[[i-1,0]];
-            i = i-1;
+            c[i - 1] = store / a[[i - 1, 0]];
+            i = i - 1;
         }
     }
     return c;
@@ -372,19 +371,18 @@ fn fpback(a: ArrayView2<f64>, z: Vec<f64>, n: usize, k: u8, c: Vec<f64>) -> Vec<
 ///  The function fpdisc calculates the discontinuity jumps of the kth
 ///  derivative of the b-splines of degree k at the knots t[k+2]..t[n-k-1]
 ///  The original subroutine in FITPACK by Paul Dierckx is named fpdisc
-fn fpdisc(t: Vec<f64>, k2: usize, n: usize, b:Array2<f64>) -> f64{
+fn fpdisc(t: Vec<f64>, k2: usize, n: usize, b: Array2<f64>) -> f64 {
+    let mut b: Array2<f64> = b;
 
-    let mut b:Array2<f64> = b;
-
-    let k1: usize =  k2 - 1;
+    let k1: usize = k2 - 1;
     let k: usize = k1 - 1;
     let nk1: usize = n - k1;
     let nrint: usize = nk1 - k;
     let an: f64 = nrint as f64;
-    let fac: f64 = an / (t[nk1 + 1 - 1] - t[k1 - 1]);
-    for l in k2..nk1 {
+    let fac: f64 = an / (t[nk1] - t[k1 - 1]);
+    for l in k2..(nk1 + 1) {
         let lmk: usize = l - k1;
-        for j in 1..k1 {
+        for j in 1..(k1 + 1) {
             let ik: usize = j + k1;
             let lj: usize = l + j;
             let lk: usize = lj - k2;
@@ -392,15 +390,15 @@ fn fpdisc(t: Vec<f64>, k2: usize, n: usize, b:Array2<f64>) -> f64{
             h[ik - 1] = t[l - 1] - t[lj - 1];
         }
         let mut lp: usize = lmk;
-        for j in 1..k2 {
+        for j in 1..(k2 + 1) {
             let mut jk: usize = j;
             let mut prod = h[j - 1];
-            for i in 1..k{
+            for i in 1..(k + 1) {
                 jk = jk + 1;
                 prod = prod * h[jk - 1] * fac;
             }
             let lk: usize = lp + k1;
-            b[[lmk - 1, j - 1]] = ( t[lk] - t[lp] ) / prod;
+            b[[lmk - 1, j - 1]] = (t[lk - 1] - t[lp - 1]) / prod;
             lp = lp + 1;
         }
     }
