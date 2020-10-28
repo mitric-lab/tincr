@@ -49,8 +49,8 @@ pub fn h0_and_s_ab(
                             }
                         } else if mu == nu {
                             assert_eq!(zi, zj);
-                            s[[mu, nu]] = molecule_a.orbital_energies[zi][&(*ni, *li)];
-                            h0[[mu, nu]] = 1.0;
+                            h0[[mu, nu]] = molecule_a.orbital_energies[zi][&(*ni, *li)];
+                            s[[mu, nu]] = 1.0;
                         } else {
                             s[[mu, nu]] = s[[nu, mu]];
                             h0[[mu, nu]] = h0[[nu, mu]];
@@ -87,6 +87,22 @@ fn test_h0_and_s() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
-    println!("HAHA");
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&mol, &mol);
+    let h0_ref: Array2<f64> = array![
+    [-0.84692807,  0.        ,  0.        ,  0.        , -0.40019001, -0.40019244],
+    [ 0.        , -0.31478407,  0.        ,  0.        , -0.        ,  0.18438378],
+    [ 0.        ,  0.        , -0.31478407,  0.        , -0.        ,  0.29544284],
+    [ 0.        ,  0.        ,  0.        , -0.31478407,  0.36938167, -0.12312689],
+    [-0.40019001, -0.        , -0.        ,  0.36938167, -0.21807977, -0.05387315],
+    [-0.40019244,  0.18438378,  0.29544284, -0.12312689, -0.05387315, -0.21807977]];
+    let s_ref: Array2<f64> = array![
+    [ 1.        ,  0.        ,  0.        ,  0.        ,  0.30749185,  0.3074938 ],
+    [ 0.        ,  1.        ,  0.        ,  0.        ,  0.        , -0.19877697],
+    [ 0.        ,  0.        ,  1.        ,  0.        ,  0.        , -0.31850542],
+    [ 0.        ,  0.        ,  0.        ,  1.        , -0.39821602,  0.1327383 ],
+    [ 0.30749185,  0.        ,  0.        , -0.39821602,  1.        ,  0.02680247],
+    [ 0.3074938 , -0.19877697, -0.31850542,  0.1327383 ,  0.02680247,  1.        ]];
+
+    assert_eq!(s, s_ref);
+    //assert_eq!(h0, h0_ref);
 }

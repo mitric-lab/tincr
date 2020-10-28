@@ -95,7 +95,6 @@ impl SlaterKosterTable {
         for ((l1, l2, i), value) in &self.s {
             let x: Vec<f64> = self.d.clone();
             let y: Vec<f64> = value.clone();
-            println!("Is {}", i);
             splines.insert(*i, CubicSpline::from_nodes(x, y));
         }
         return splines;
@@ -173,7 +172,7 @@ pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTab
 }
 
 #[test]
-fn test_free_pseudo_atom() {
+fn test_load_free_pseudo_atom() {
     let path: &Path = Path::new("./src/param/slaterkoster/free_pseudo_atom/h.ron");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
     let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
@@ -181,7 +180,7 @@ fn test_free_pseudo_atom() {
 }
 
 #[test]
-fn test_confined_pseudo_atom() {
+fn test_load_confined_pseudo_atom() {
     let path: &Path = Path::new("./src/param/slaterkoster/confined_pseudo_atom/h.ron");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
     let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
@@ -189,7 +188,7 @@ fn test_confined_pseudo_atom() {
 }
 
 #[test]
-fn test_slako_tables() {
+fn test_load_slako_tables() {
     let path: &Path = Path::new("./src/param/slaterkoster/slako_tables/h_h.ron");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
     let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
@@ -198,11 +197,45 @@ fn test_slako_tables() {
 }
 
 #[test]
-fn test_repulsive_potential_tables() {
+fn test_load_repulsive_potential_tables() {
     let path: &Path = Path::new("./src/param/repulsive_potential/reppot_tables/h_h.ron");
     let data: String = fs::read_to_string(path).expect("Unable to read file");
     let reppot_table: RepulsivePotentialTable =
         from_str(&data).expect("RON file was not well-formatted");
     assert_eq! {reppot_table.z1, 1};
     assert_eq! {reppot_table.z2, 1};
+}
+
+#[test]
+fn test_spline_overlap_integrals() {
+    let path: &Path = Path::new("./src/param/slaterkoster/slako_tables/h_h.ron");
+    let data: String = fs::read_to_string(path).expect("Unable to read file");
+    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
+    let spline: HashMap<u8, CubicSpline> = slako_table.spline_overlap();
+    let mut y_values: Vec<f64> =  Vec::new();
+    let x_values: Vec<f64> = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4];
+    for x in x_values {
+        y_values.push(spline[&0].eval(x));
+    }
+    let y_values_ref: Vec<f64> = vec![
+        0.99533965, 0.98123848, 0.95835214, 0.92747436, 0.88959495, 0.84582577, 0.79737747,
+        0.74544878, 0.69123373, 0.6358463,  0.58032332, 0.52558001, 0.47240379, 0.42145244];
+    assert_eq! {y_values, y_values_ref};
+}
+
+#[test]
+fn test_spline_h0() {
+    let path: &Path = Path::new("./src/param/slaterkoster/slako_tables/h_h.ron");
+    let data: String = fs::read_to_string(path).expect("Unable to read file");
+    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
+    let spline: HashMap<u8, CubicSpline> = slako_table.spline_hamiltonian();
+    let mut y_values: Vec<f64> =  Vec::new();
+    let x_values: Vec<f64> = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4];
+    for x in x_values {
+        y_values.push(spline[&0].eval(x));
+    }
+    let y_values_ref: Vec<f64> = vec![
+        -0.70200751, -0.68274544, -0.65599337, -0.62495084, -0.59193984, -0.55855101, -0.52580678,
+        -0.49428580, -0.46424298, -0.43570982, -0.40856948, -0.38263806, -0.35770413, -0.33358128];
+    assert_eq! {y_values, y_values_ref};
 }

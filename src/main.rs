@@ -9,6 +9,7 @@ mod gamma_approximation;
 mod slako_transformations;
 //mod scc_routine;
 mod defaults;
+mod spline;
 
 use ndarray::*;
 use ndarray_linalg::*;

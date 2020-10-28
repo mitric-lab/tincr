@@ -18,3 +18,4 @@ ron = "0.6.0"
 peroxide = {version = "0.27.0", features = ["serde"]}
 combinations = "0.1.0"
 libm = "0.2.1"
+bspline = "0.2.3"
