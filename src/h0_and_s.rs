@@ -35,6 +35,7 @@ pub fn h0_and_s_ab(
                 // iterate over orbitals on center j
                 for (nj, lj, mj) in &molecule_b.valorbs[zj] {
                     if molecule_a.proximity_matrix[[i, j]] {
+                        println!("HALLO mu {}, nu {}, zi {} zj {}", mu, nu, zi, zj);
                         if mu < nu {
                             if zi <= zj {
                                 if i != j {
@@ -80,10 +81,12 @@ pub fn h0_and_s_ab(
 #[test]
 fn test_h0_and_s() {
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let positions: Array2<f64> = array![[0.34215, 1.17577, 0.00000],
+    let mut positions: Array2<f64> = array![[0.34215, 1.17577, 0.00000],
                                         [1.31215, 1.17577, 0.00000],
                                         [0.01882, 1.65996, 0.77583]];
 
+    // transform coordinates in au
+    positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
@@ -102,7 +105,7 @@ fn test_h0_and_s() {
     [ 0.        ,  0.        ,  0.        ,  1.        , -0.39821602,  0.1327383 ],
     [ 0.30749185,  0.        ,  0.        , -0.39821602,  1.        ,  0.02680247],
     [ 0.3074938 , -0.19877697, -0.31850542,  0.1327383 ,  0.02680247,  1.        ]];
-
-    assert_eq!(s, s_ref);
-    //assert_eq!(h0, h0_ref);
+    println!("s {}", s);
+    assert!(s.all_close(&s_ref, 1e-05));
+    assert!(h0.all_close(&h0_ref, 1e-05));
 }

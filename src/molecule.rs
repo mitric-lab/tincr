@@ -4,7 +4,7 @@ use crate::constants::{
 use crate::defaults;
 use crate::gamma_approximation;
 use crate::parameters::*;
-use combinations::Combinations;
+use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::*;
 use peroxide::special::function::gamma;
@@ -124,20 +124,14 @@ fn get_parameters(
     HashMap<(u8, u8), RepulsivePotentialTable>,
 ) {
     // find unique atom pairs and initialize Slater-Koster tables
-    let atompairs: Vec<Vec<u8>>;
-    if numbers.len() > 2 {
-        // this only works if we have more than two types of elements
-        atompairs = Combinations::new(numbers, 2).collect();
-    } else {
-        // otherwise we can directly use numbers
-        atompairs = vec![numbers];
-    }
+    let atompairs = numbers.clone().into_iter().cartesian_product(numbers);
     let mut skt: HashMap<(u8, u8), SlaterKosterTable> = HashMap::new();
     let mut v_rep: HashMap<(u8, u8), RepulsivePotentialTable> = HashMap::new();
-    for pair in atompairs {
-        let zi: u8 = pair[0];
-        let zj: u8 = pair[1];
-        assert!(zi <= zj);
+    'pair_loop: for pair in atompairs {
+        let zi: u8 = pair.0;
+        let zj: u8 = pair.1;
+        // the cartesian product creates all combinations, but we only need one
+        if zi > zj { continue 'pair_loop }
         // load precalculated slako table
         let mut slako_module: SlaterKosterTable =
             get_slako_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
@@ -226,10 +220,12 @@ fn distance_matrix(
     let mut directions_matrix: Array3<f64> = Array::zeros((n_atoms, n_atoms, 3));
     let mut prox_matrix: Array2<bool> = Array::from_elem((n_atoms, n_atoms), false);
     for (i, pos_i) in coordinates.outer_iter().enumerate() {
-        for (j, pos_j) in coordinates.slice(s![i.., ..]).outer_iter().enumerate() {
+        for (j0, pos_j) in coordinates.slice(s![i.., ..]).outer_iter().enumerate() {
+            let j:usize = j0 + i;
             let r: Array1<f64> = &pos_i - &pos_j;
             let r_ij = r.norm();
             dist_matrix[[i, j]] = r_ij;
+            dist_matrix[[j, i]] = r_ij;
             //directions_matrix[[i, j]] = &r/&r_ij;
             if r_ij <= cutoff {
                 prox_matrix[[i, j]] = true;
@@ -237,7 +233,43 @@ fn distance_matrix(
             }
         }
     }
-    let dist_matrix = &dist_matrix + &dist_matrix.t();
     //let directions_matrix = directions_matrix - directions_matrix.t();
     return (dist_matrix, directions_matrix, prox_matrix);
+}
+
+
+/// Test of Gaussian decay function on a water molecule. The xyz geometry of the
+/// water molecule is
+/// ```no_run
+/// 3
+//
+// O          0.34215        1.17577        0.00000
+// H          1.31215        1.17577        0.00000
+// H          0.01882        1.65996        0.77583
+///```
+///
+///
+#[test]
+fn test_distance_matrix() {
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
+        distance_matrix(positions.view(), None);
+
+    let dist_matrix_ref: Array2<f64> = array![
+         [0.0000000000000000, 1.8330342089215557, 1.8330287870558954],
+         [1.8330342089215557, 0.0000000000000000, 2.9933251510242216],
+         [1.8330287870558954, 2.9933251510242216, 0.0000000000000000]];
+    assert!(dist_matrix.all_close(&dist_matrix_ref, 1e-05));
+
+    let prox_matrix_ref: Array2<bool> = array![
+        [true, true, true],
+        [true, true, true],
+        [true, true, true]];
+    assert_eq!(prox_matrix, prox_matrix_ref);
 }

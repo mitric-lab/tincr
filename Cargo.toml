@@ -16,7 +16,7 @@ serde_json = "1.0"
 serde_derive = "1.0"
 ron = "0.6.0"
 peroxide = {version = "0.27.0", features = ["serde"]}
-combinations = "0.1.0"
+itertools = "0.9"
 libm = "0.2.1"
 bspline = "0.2.3"
 rusty-fitpack = { path = "/Users/hochej/rusty_dierckx" }

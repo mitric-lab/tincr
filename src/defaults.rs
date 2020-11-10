@@ -9,7 +9,7 @@ pub const MULTIPLICITY: u8 = 1;
 pub const TEMPERATURE: f64 = 0.0;
 
 pub const LONG_RANGE_RADIUS: f64 = 3.03;
-pub const PROXIMITY_CUTOFF: f64 = 2.00;
+pub const PROXIMITY_CUTOFF: f64 = 30.00;
 pub const LONG_RANGE_CORRECTION: bool = true;
 
 
