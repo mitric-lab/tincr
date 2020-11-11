@@ -1,6 +1,6 @@
 use crate::molecule::*;
 use libm;
-use ndarray::{Array2, ArrayView2};
+use ndarray::{Array2, ArrayView2, Array1, array};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
@@ -181,15 +181,18 @@ pub fn gamma_ao_wise(
 ) -> (Array2<f64>, Array2<f64>) {
     let g0: Array2<f64> = gamma_atomwise(gamma_func, &mol, distances);
     let mut g0_a0: Array2<f64> = Array2::zeros((mol.n_orbs, mol.n_orbs));
-    let mu: usize = 0;
+    let mut mu: usize = 0;
+    let mut nu: usize;
     for (i, (z_i, pos_i)) in mol.iter_atomlist().enumerate() {
         for (n_i, l_i, m_i) in &mol.valorbs[z_i] {
-            let nu: usize = 0;
+            nu = 0;
             for (j, (z_j, pos_j)) in mol.iter_atomlist().enumerate() {
                 for (n_j, l_j, m_j) in &mol.valorbs[z_j] {
                     g0_a0[[mu, nu]] = g0[[i, j]];
+                    nu = nu + 1;
                 }
             }
+            mu = mu + 1;
         }
     }
     return (g0, g0_a0);
@@ -239,6 +242,35 @@ fn test_gamma_gaussian() {
     assert_eq!(gfunc.eval(3.0, 1, 8), 0.2410200913795066);
     assert_eq!(gfunc.eval_limit0(1), 0.2923649998054588);
     assert_eq!(gfunc.eval_limit0(8), 0.28605544182430387);
+}
+
+#[test]
+fn gamma_ao_matrix () {
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    // get gamma matrix without LRC
+    let (gm, gm_a0) = get_gamma_matrix(&mol, Some(0.0));
+    let gamma_ref: Array2<f64> = array![
+        [0.4467609798860577, 0.3863557889890281, 0.3863561531176491],
+        [0.3863557889890281, 0.4720158398964135, 0.3084885848056254],
+        [0.3863561531176491, 0.3084885848056254, 0.4720158398964135]];
+    assert!(gm.all_close(&gamma_ref, 1e-06));
+    // get gamma matrix with LRC
+    let (gm_lrc, gm_a0_lrc) = get_gamma_matrix(&mol, Some(3.03));
+    let gamma_lrc_ref: Array2<f64> = array![
+        [0.2860554418243039, 0.2692279296946004, 0.2692280400920803],
+        [0.2692279296946004, 0.2923649998054588, 0.24296864292032624],
+        [0.2692280400920803, 0.2429686492032624, 0.2923649998054588]];
+    assert!(gm_lrc.all_close(&gamma_lrc_ref, 1e-08));
 }
 
 

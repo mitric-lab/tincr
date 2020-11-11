@@ -7,7 +7,6 @@ use crate::parameters::*;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::*;
-use peroxide::special::function::gamma;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Neg;
@@ -29,6 +28,9 @@ pub struct Molecule {
     pub skt: HashMap<(u8, u8), SlaterKosterTable>,
     v_rep: HashMap<(u8, u8), RepulsivePotentialTable>,
     pub proximity_matrix: Array2<bool>,
+    pub distance_matrix: Array2<f64>,
+    //pub gm: Array2<f64>,
+    //pub gm_a0: Array2<f64>,
 }
 
 impl Molecule {
@@ -65,6 +67,8 @@ impl Molecule {
         for zi in &atomic_numbers {
             n_orbs = n_orbs + &valorbs[zi].len();
         }
+
+
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
             positions: positions,
@@ -80,6 +84,7 @@ impl Molecule {
             skt: skt,
             v_rep: vrep,
             proximity_matrix: prox_matrix,
+            distance_matrix: dist_matrix,
         };
 
         return mol;
@@ -102,10 +107,9 @@ fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {
     return (confined_atom, free_atom);
 }
 
-fn get_gamma_matrix(
+pub fn get_gamma_matrix(
     mol: &Molecule,
     r_lr: Option<f64>,
-    distances: ArrayView2<f64>,
 ) -> (Array2<f64>, Array2<f64>) {
     // initialize gamma matrix
     let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(&mol.hubbard_u);
@@ -113,7 +117,7 @@ fn get_gamma_matrix(
     let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
     let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
-    let (gm, gm_ao): (Array2<f64>, Array2<f64>) = gamma_approximation::gamma_ao_wise(gf, mol, distances);
+    let (gm, gm_ao): (Array2<f64>, Array2<f64>) = gamma_approximation::gamma_ao_wise(gf, mol, mol.distance_matrix.view());
     return (gm, gm_ao);
 }
 
