@@ -1,9 +1,9 @@
-### Beispiel für Interface zu Python mit Pyo3
-
-Dies ist ein eigenes kleines Beispiel um eine Funktion aus Rust in Python als Modul zu importieren. 
-Der Rust-Funktion kann man aus Python direkt numpy-arrays übergeben und die Funktion gibt auch numpy-arrays zürück. 
-Die Laufzeit war im Vergleich zu einem Fortran-Modul (compiliert mit f2py) um einen Faktor 4 kürzer. Die Implementierung
-in Rust sieht folgendermaßen aus für die Berechnung von Mulliken-Ladungen:
+#### Example of interface to Python with Pyo3
+ 
+ This is a small example to import a function from Rust into Python as a module. 
+ You can pass numpy-arrays directly from Python to the Rust function and the function will also return numpy-arrays. 
+ Compared to a Fortran module (compiled with f2py) the runtime was 4 times shorter. The implementation
+ in Rust looks as follows for the calculation of Mulliken-charges
 ```rust
 use ndarray::{ArrayViewD, Array1, ArrayView1, ArrayView2};
 //use pyo3::prelude::{pymodule, pyfunction, PyModule, PyResult, Python};
@@ -70,11 +70,11 @@ fn rust_ext(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 }
 ```
 
-Die erste Funktion `fn rust_ext` beschreibt das Python-Modul, das anschließend importiert werden kann. Die Funktion
-'mulliken' berechnet die Ladungen in Rust, ist aber für Python nicht direkt zugänglich. Daher ist es notwendig, diese
-zu wrappen, um die Dateitypen zwischen Python und Rust kompatibel zu machen. Dies geschieht in der Funktion `fn mulliken_py`, 
-durch das Attribut `#[pyfn(m, "mulliken`)]` wird diese Funktion als Python-Funktion verfügbar gemacht unter dem Namen 'mulliken'.
-Die notwendigen Einstellungen in der Cargo.toml für diese Funktion waren:
+The first function `fn rust_ext`  describes the Python module, which can then be imported. The function
+mulliken' calculates the charges in Rust, but is not directly accessible for Python. Therefore it is necessary to
+to wrap to make the file types compatible between Python and Rust. This is done in the function `fn mulliken_py`, 
+the attribute `#[pyfn(m, "mulliken`)]` makes this function available as a Python function under the name 'mulliken'.
+The necessary settings in Cargo.toml for this function were
 ```
 [lib]
 name = "rust_ext"
@@ -88,7 +88,7 @@ ndarray = "0.13.0"
 version = "0.11.1"
 features = ["extension-module"]
 ```
-und kompiliert wurde das Modul mit einer setup.py. Diese hatte den folgenden Inhalt:
+and compiled the module with a setup.py. This had the following content:
 ````python
 from setuptools import find_packages, setup
 from setuptools_rust import RustExtension
@@ -114,8 +114,8 @@ setup(
     zip_safe=False,
 )
 ````
-Die Implementierung hatte ich dann mit folgendem Python-Skript getestet. Zunächst kommen hier einige DFTBaby-Aufrufe
-um die notwendigen numpy-arrays als Input zu berechnen: 
+I tested the implementation with the following Python script. At first here are some DFTBaby calls
+to calculate the necessary numpy-arrays as input: 
 ```python
 import numpy as np
 from DFTB.DFTB2 import DFTB2

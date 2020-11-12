@@ -1,44 +1,46 @@
-## Umgang mit den DFTB Parametern
+## Handling the DFTB parameters
 
-Dieser Abschnitt betrifft folgende Parameter: 
+This section concerns the following parameters: 
  - confined pseudo atoms
  - free pseudo atoms 
  - pairwise Slater-Koster tables
  - pairwise Repulsive-Potential tables
     
-In DFTBaby werden die "homegrown" Parameter als Python Dateien (Modul) zur 
-Verfügung gestellt und es gibt die Möglichkeit die Parameterdateien aus
-DFTB+ oder Hotbit einzulesen. Da es in Rust wenig Sinn ergibt, Python Dateien 
-zum Speichern von Daten zu benutzen, muss hier eine andere Lösung her. Ich hatte
-zunächst auch  überlegt alle Parameter als Rust-Dateien zu schreiben und
-zur Compile-Zeit vorliegen zu haben und in die Binary zu "backen". Allerdings ist
-das Aufrufen der Daten dann etwas umständlich.  Es gibt auch zwei
-ganz nützliche Artikel auf Github über das Speichern von Daten in Rust: 
+In DFTBaby the "homegrown" parameters are stored as Python files (module) for 
+and there is the possibility to download the parameter files from
+DFTB+ or Hotbit. Since it makes little sense in Rust to read Python files 
+to store data, another solution must be found here. I had
+first of all also considers to write all parameters as Rust files and
+at compile time and "bake" them into the binary. However
+to call up the data is then somewhat cumbersome.  There are also two
+very useful articles on Github about saving data in Rust: 
 [Global Data in Rust](https://github.com/paulkernfeld/global-data-in-rust)
-und [Contiguous Data in Rust](https://github.com/paulkernfeld/contiguous-data-in-rust)
+and [Contiguous Data in Rust](https://github.com/paulkernfeld/contiguous-data-in-rust)
 
-Aktuell halte ich es am für am sinnvollsten die Parameter zu Beginn der Laufzeit zu laden,
-da die Datenmengen nicht sehr groß sind und dies effizient gehen sollte. Das Package
-[serde](https://serde.rs) scheint dafür sehr gut geeignet zu sein. Dies erlaubt es effizient Daten 
-aus verschiedenen Dateiformaten in Rust ´structs´ zu laden. 
-Ich hatte zunächst mit JSON Dateien gearbeitet, diese bieten allerdings einige sehr lästige Nachteile. 
-In JSON gibt es nur sehr wenige Datentypen (numbers, objects, arrays, strings), so dass es beispielsweise
-nicht möglich ist ein Tuple als Key für ein Dictionary/Map zu benutzen. Dadurch lässt sich das nur durch 
-die Benutzung von Strings umgehen und dies macht das Deserialisieren wiederum deutlich aufwendiger. 
-Daher halte ich [Rusty Object Notation (RON)](https://github.com/ron-rs/ron) für das passendere Dateiformat. 
-Dies ist analog zu JSON aufgebaut, enthält aber genau die benötigten Features. 
-Als Einstieg für die Benutzung von serde in Kombination mit JSON Dateien fand ich dieses [Video](https://www.youtube.com/watch?v=hIi_UlyIPMg) hilfreich.
-Infos zu Serdes default Deklaration, die ich oft benutze, finden sich hier: [Link](https://serde.rs/field-attrs.html)  
+Currently, I think it makes most sense to load the parameters at the beginning of the runtime,
+as the data volumes are not very large and this should be done efficiently. The package
+[serde](https://serde.rs) seems to be very well suited for this. This allows efficient data 
+load 'structs' from various file formats into Rust. 
+I had initially worked with JSON files, but they have some very annoying disadvantages. 
+In JSON there are very few data types (numbers, objects, arrays, strings), so it is for example
+not possible to use a tuple as key for a dictionary/map. Therefore this can only be done by 
+bypass the use of strings and this makes deserialisation much more complex. 
+Therefore I think [Rusty Object Notation (RON)](https://github.com/ron-rs/ron) is the more suitable file format. 
+This is similar to JSON, but contains exactly the needed features. 
+As an introduction for the use of serde in combination with JSON files I found this [Video](https://www.youtube.com/watch?v=hIi_UlyIPMg) helpful.
+Infos about serde's default declaration, which I often use, can be found here: [link](https://serde.rs/field-attrs.html)  
 
-Die DFTB+ und Hotbit Parameter müsste man dann entweder manuell einlesen oder man konvertiert diese
-zu JSON Dateien, um einheitliche Paramter-Dateiformate zu benutzen. 
+The DFTB+ and Hotbit parameters would then either have to be read in manually or converted
+to RON files to use uniform parameter file formats. 
 
-Die Spline-Interpolation der Potentiale sollte wahrscheinlich am besten mit dem
-Package Peroxide gemacht werden. In DFTBaby wird das Fitten der an kubische Splines
-über SciPy gemacht. Die Implementation in SciPy wiederum ist ein Wrapper des Fortran77
-Pakets Fitpack von Pier Dierckxx. Da ich denke, dass es den Aufwand zunächst nicht Wert ist 
-das Fitten von Splines selbst zu implementieren, wäre es am einfachsten 
-das Peroxide Paket zu benutzen. 
+<s> The spline interpolation of the potentials should probably be best done with the
+Package Peroxides can be made </s>. In DFTBaby the fitting of the cubic splines
+is done with SciPy. The implementation in SciPy is a wrapper of the Fortran77
+Package FITPACK from Paul Dierckxx. <s> Since I think that it is not worth the effort 
+to implement the fitting of splines my self, it would be easiest to use the peroxides package. </s> Since the spline 
+interpolation in peroxides did not really convince me, I implemented the splines myself. 
+However, they are not part of tincr, but an external package (crate) and available at 
+[rusty-FITPACK](https://github.com/mitric-lab/Rusty-FITPACK)
 
 ### Free and Confined Pseudo Atoms
 <table>
