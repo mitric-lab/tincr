@@ -1,10 +1,11 @@
 use crate::constants::*;
-use crate::molecule::*;
-use ndarray::*;
-use ndarray::prelude::*;
-use ndarray_linalg::*;
 use crate::defaults;
 use crate::h0_and_s::h0_and_s_ab;
+use crate::molecule::*;
+use ndarray::prelude::*;
+use ndarray::*;
+use ndarray_linalg::*;
+use std::cmp::max;
 
 // INCOMPLETE
 pub fn run_scc(
@@ -24,7 +25,7 @@ pub fn run_scc(
     let shift_flag: bool = false;
     let mixing_flag: bool = false;
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&mol, &mol);
-    let (gm, gm_a0): (Array2<f64>, Array2<f64>)= get_gamma_matrix(&mol, Some(0.0));
+    let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(&mol, Some(0.0));
     for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(&mol, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1.view() * s.view();
@@ -39,15 +40,11 @@ pub fn run_scc(
         // C = X.C'
         let orbs: Array2<f64> = cp.dot(&x);
         // construct density matrix
-
-
-
     }
     return 1.0;
 }
 
-
-fn density_matrix(orbs: Array2<f64>, f: Vec<f64> ) -> Array2<f64> {
+fn density_matrix(orbs: Array2<f64>, f: Vec<f64>) -> Array2<f64> {
     //let occ_indx:
     //let occ_orbs: Vec<bool> = ;
     //let P: Array2<f64> = (f * occ_orbs).dot(&occ_orbs.t());
@@ -56,44 +53,8 @@ fn density_matrix(orbs: Array2<f64>, f: Vec<f64> ) -> Array2<f64> {
 }
 
 
-/// Find the occupation of single-particle state a at finite temperature T
-/// according to the Fermi distribution:
-///     $f_a = f(en_a) = 2 /(exp(en_a - mu)/(kB*T) + 1)$
-/// The chemical potential is determined from the condition that
-/// sum_a f_a = Nelec
-///
-/// Parameters:
-/// ===========
-/// orbe: orbital energies
-/// Nelec_paired: number of paired electrons, these electron will be placed in the same orbital
-/// Nelec_unpaired: number of unpaired electrons, these electrons will sit in singly occupied
-///                 orbitals (only works at T=0)
-/// T: temperature in Kelvin
-///
-/// Returns:
-/// ========
-/// mu: chemical potential
-/// f: list of occupations f[a] for orbitals (in the same order as the energies in orbe)
-fn fermi_occupation(orbe: Array<f64>, n_elec_paired: usize, n_elec_unpaired: usize, t:f64) -> Vec<f64> {
 
-    fn fermi(en: f64, mu: f64, T: f64) -> f64 {
-        return 2.0 / ( ( (en-mu) / (kBoltzmann * T) ).exp() + 1.0)
-    }
-
-    fn func(mu: f64, orbe:Array1<f64>, fermi_function: fn(f64, f64, f64) -> f64, t: f64) -> f64 {
-        // find the root of this function to enforce sum_a f_a = Nelec
-        let mut sum_fa: f64 = 0.0;
-        for en_a in orbe.iter() {
-            sum_fa = sum_fa + fermi_function(en_a, mu, t)
-        }
-        return sum_fa;
-    }
-
-
-}
-
-
-fn construct_h1(mol : &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
+fn construct_h1(mol: &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
     let mut h1: Array2<f64> = Array2::zeros([mol.n_orbs, mol.n_orbs]);
 
@@ -114,15 +75,14 @@ fn construct_h1(mol : &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) ->
     return h1;
 }
 
-
-
 #[test]
 fn h1_construction() {
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let mut positions: Array2<f64> = array![
         [0.34215, 1.17577, 0.00000],
         [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]];
+        [0.01882, 1.65996, 0.77583]
+    ];
 
     // transform coordinates in au
     positions = positions / 0.529177249;
@@ -133,25 +93,61 @@ fn h1_construction() {
     let dq: Array1<f64> = array![0.4900936727759634, -0.2450466365939161, -0.2450470361820512];
     let h1: Array2<f64> = construct_h1(&mol, gm.view(), dq.view());
     let h1_ref: Array2<f64> = array![
-        [ 0.0296041126328175,  0.0296041126328175,  0.0296041126328175,
-          0.0296041126328175,  0.0138472664342115,  0.0138473229910027],
-        [ 0.0296041126328175,  0.0296041126328175,  0.0296041126328175,
-          0.0296041126328175,  0.0138472664342115,  0.0138473229910027],
-        [ 0.0296041126328175,  0.0296041126328175,  0.0296041126328175,
-          0.0296041126328175,  0.0138472664342115,  0.0138473229910027],
-        [ 0.0296041126328175,  0.0296041126328175,  0.0296041126328175,
-          0.0296041126328175,  0.0138472664342115,  0.0138473229910027],
-        [ 0.0138472664342115,  0.0138472664342115,  0.0138472664342115,
-          0.0138472664342115, -0.0019095797643945, -0.0019095232076034],
-        [ 0.0138473229910027,  0.0138473229910027,  0.0138473229910027,
-          0.0138473229910027, -0.0019095232076034, -0.0019094666508122]];
+        [
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0138472664342115,
+            0.0138473229910027
+        ],
+        [
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0138472664342115,
+            0.0138473229910027
+        ],
+        [
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0138472664342115,
+            0.0138473229910027
+        ],
+        [
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0296041126328175,
+            0.0138472664342115,
+            0.0138473229910027
+        ],
+        [
+            0.0138472664342115,
+            0.0138472664342115,
+            0.0138472664342115,
+            0.0138472664342115,
+            -0.0019095797643945,
+            -0.0019095232076034
+        ],
+        [
+            0.0138473229910027,
+            0.0138473229910027,
+            0.0138473229910027,
+            0.0138473229910027,
+            -0.0019095232076034,
+            -0.0019094666508122
+        ]
+    ];
     assert!(h1.all_close(&h1_ref, 1e-06));
 }
 
 #[test]
 fn test_mat() {
-    let mut a: Array2<f64> = array![[ 0.75592895,  1.13389342],
-                                    [ 0.37796447,  1.88982237]];
+    let mut a: Array2<f64> = array![[0.75592895, 1.13389342], [0.37796447, 1.88982237]];
     a = a.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
     let b: Array2<f64> = a.dot(&a);
     let (c, d) = b.eigh(UPLO::Upper).unwrap();

@@ -9,7 +9,9 @@ mod gamma_approximation;
 mod slako_transformations;
 //mod scc_routine;
 mod defaults;
-mod scc_routine;
+//mod scc_routine;
+//mod fermi_occupation;
+mod zbrent;
 
 use ndarray::*;
 use ndarray_linalg::*;
