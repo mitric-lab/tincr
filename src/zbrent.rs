@@ -2,7 +2,7 @@ use std::f64::consts::PI;
 
 /// In the original DFTBaby code the Fermi energy is searched using the bisection
 /// method, as it is necessary to find the root of (sum_a fa - n_elec).
-/// Since the bisection method can be very slow, we use the Brents method.
+/// Since the bisection method can be slow, we use the Brent's method.
 /// Using Brent's method, find the root of a function known to lie between `x1 ` and
 /// `x2`. The root will be refined until its accuracy is `tol`
 ///
@@ -106,7 +106,6 @@ pub fn zbrent(func: fn(f64) -> f64, x1: f64, x2: f64, tol: f64, maxiter: usize) 
         }
         fb = func(b);
     }
-
     return root;
 }
 
@@ -125,7 +124,6 @@ fn zero_test() {
     let a: f64 = 1.0;
     let b: f64 = 2.0;
     let x: f64 = zbrent(f_01, a, b, t, maxiter);
-    println!("f01 {}, x {}", f_01(x), x);
     assert!(f_01(x) <= t);
 
     // F_02 evaluates 2*x-exp(-x).
@@ -157,11 +155,10 @@ fn zero_test() {
 
     // F_05 evaluates (x+3)*(x-1)*(x-1).
     fn f_05(x: f64) -> f64 {
-        ( x + 3.0 ) * ( x - 1.0 ) * ( x - 1.0 )
+        (x + 3.0) * (x - 1.0) * (x - 1.0)
     }
     let a: f64 = -5.0;
     let b: f64 = 2.0;
     let x: f64 = zbrent(f_05, a, b, t, maxiter);
     assert!(f_05(x) <= t);
-
 }
