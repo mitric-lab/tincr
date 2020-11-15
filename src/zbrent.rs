@@ -9,7 +9,7 @@ use std::f64::consts::PI;
 /// The code is based on:
 /// Numerical Recipes in C: The Art of Scientific Computing. W. H. Press,
 /// S. A. Teukolsky, W. T. Vetterling, B. P. Flannery. Cambridge University Press 1992
-pub fn zbrent(func: fn(f64) -> f64, x1: f64, x2: f64, tol: f64, maxiter: usize) -> f64 {
+pub fn zbrent<F: Fn(f64) -> f64>(func: F, x1: f64, x2: f64, tol: f64, maxiter: usize) -> f64 {
     let eps: f64 = 2.220446049250313e-016_f64.sqrt();
     let iter: usize;
     let mut a: f64 = x1;

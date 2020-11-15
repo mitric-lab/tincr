@@ -12,7 +12,7 @@ mod defaults;
 //mod scc_routine;
 //mod fermi_occupation;
 mod zbrent;
-//mod fermi_occupation;
+mod fermi_occupation;
 
 use ndarray::*;
 use ndarray_linalg::*;

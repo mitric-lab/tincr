@@ -1,4 +1,4 @@
-use ndarray::{Array, Array1};
+use ndarray::{Array, Array1, ArrayView1};
 use std::cmp::{max, min};
 use crate::zbrent::zbrent;
 use crate::constants;
@@ -30,7 +30,9 @@ fn fermi_occupation(
     let mut fermi_occ: Vec<f64> = Vec::new();
     let mut mu: f64 = 0.0;
     if t == 0.0 {
-        (mu, fermi_occ) = fermi_occupation_t0(orbe, n_elec_paired, n_elec_unpaired);
+        let result = fermi_occupation_t0(orbe, n_elec_paired, n_elec_unpaired);
+        mu = result.0;
+        fermi_occ = result.1;
     } else {
         let n_elec: usize = n_elec_paired + n_elec_unpaired;
         let sort_indx: Vec<usize> = argsort(&orbe.to_vec());
@@ -41,7 +43,7 @@ fn fermi_occupation(
         let lp1_idx: usize = max((n_elec / 2) + 1, sort_indx.len() - 1);
         let lumop1: f64 = orbe[sort_indx[lp1_idx]];
         // search for fermi energy in the interval [HOMO, LUMO+1]
-        let func = |x: f64| -> f64 { fa_minus_nelec(x, orbe, fermi, t, n_elec) };
+        let func = |x: f64| -> f64 { fa_minus_nelec(x, orbe.view(), fermi, t, n_elec) };
         mu = zbrent(func, homo, lumop1, 1.0e-08, 100);
         let dn: f64 = func(mu);
         assert!(dn.abs() <= 1.0e-08);
@@ -56,15 +58,15 @@ fn fermi_occupation(
 fn fermi_occupation_t0(orbe: Array1<f64>, n_elec_paired: usize, n_elec_unpaired: usize) -> (f64, Vec<f64>){
     let mut n_elec_paired: f64 = n_elec_paired as f64;
     let mut n_elec_unpaired: f64 = n_elec_unpaired as f64;
-    let sort_indx: Vec<usize> = argsort(&orbe.to_vec());
+    let sort_indx: Vec<usize> = argsort(orbe.as_slice().unwrap());
     let mut fermi_occ: Vec<f64> =  vec![0.0; orbe.len()];
     for a in sort_indx.iter() {
         if n_elec_paired > 0.0 {
-            fermi_occ[a] = 2.0_f64.min(n_elec_paired);
+            fermi_occ[*a] = 2.0_f64.min(n_elec_paired);
             n_elec_paired = n_elec_paired - 2.0;
         } else {
             if n_elec_unpaired > 0.0 {
-                fermi_occ[a] = 1.0_f64.min(n_elec_unpaired);
+                fermi_occ[*a] = 1.0_f64.min(n_elec_unpaired);
                 n_elec_unpaired = n_elec_unpaired - 1.0;
             }
         }
@@ -73,9 +75,9 @@ fn fermi_occupation_t0(orbe: Array1<f64>, n_elec_paired: usize, n_elec_unpaired:
 }
 
 // stolen from https://qiita.com/osanshouo/items/71b0272cd5e156cbf5f2
-fn argsort<T: Ord>(v: &[T]) -> Vec<usize> {
+fn argsort(v: &[f64]) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
-    idx.sort_unstable_by(|&i, &j| v[i].cmp(&v[j]));
+    idx.sort_unstable_by(|&i, &j| v[i].partial_cmp(&v[j]).unwrap());
     idx
 }
 
@@ -85,7 +87,7 @@ fn fermi(en: f64, mu: f64, t: f64) -> f64 {
 
 fn fa_minus_nelec(
     mu: f64,
-    orbe: Array1<f64>,
+    orbe: ArrayView1<f64>,
     fermi_function: fn(f64, f64, f64) -> f64,
     t: f64,
     n_elec: usize,
