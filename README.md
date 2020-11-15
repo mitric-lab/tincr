@@ -87,6 +87,22 @@ All these suggestions are taken from the official [Rust Forum](https://users.rus
 The IDE [CLion](https://www.jetbrains.com/clion/) from Jetbrains offers very good support for Rust (through a plugin). Additionally you can use
 the git versioning is very easy. The package is [free of charge] for university employees and students (https://www.jetbrains.com/de-de/community/education/#students).
 
+#### Rustfmt and Clippy 
+There are two tools in Rust that are very helpful in everyday life. 
+The first one is `rustfmt`, this can be easily called by 
+```bash
+rustfmt some_file.rs
+``` 
+and it automatically formats the Rust file into a legible format following the
+official style guide. 
+The second tool, Clippy, which I discovered relatively late, goes one step further
+and suggests code changes to make the code more idiomatic and also more efficient.
+The tool is also included in the standard Rust installation and can be started with:
+```
+cargo clippy
+```
+
+
 #### Rust naming conventions  
 
 <p>In general, Rust tends to use <code>CamelCase</code> for &quot;type-level&quot; constructs

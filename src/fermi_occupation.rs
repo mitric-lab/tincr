@@ -1,6 +1,7 @@
 use ndarray::{Array, Array1};
 use std::cmp::{max, min};
 use crate::zbrent::zbrent;
+use crate::constants;
 
 /// Find the occupation of single-particle state a at finite temperature T
 /// according to the Fermi distribution:
@@ -45,7 +46,7 @@ fn fermi_occupation(
         let dn: f64 = func(mu);
         assert!(dn.abs() <= 1.0e-08);
         for en in orbe.iter() {
-            fermi_occ.push(fermi(*en, mu));
+            fermi_occ.push(fermi(*en, mu, t));
         }
     }
     return (mu, fermi_occ);
@@ -78,8 +79,8 @@ fn argsort<T: Ord>(v: &[T]) -> Vec<usize> {
     idx
 }
 
-fn fermi(en: f64, mu: f64, T: f64) -> f64 {
-    return 2.0 / (((en - mu) / (kBoltzmann * T)).exp() + 1.0);
+fn fermi(en: f64, mu: f64, t: f64) -> f64 {
+    2.0 / (((en - mu) / (constants::K_BOLTZMANN * t)).exp() + 1.0)
 }
 
 fn fa_minus_nelec(
