@@ -124,7 +124,7 @@ pub struct RepulsivePotentialTable {
     ///
     /// smooth_decay controls whether vrep and its derivatives are set abruptly to
     /// 0 after the cutoff radius or whether a smoothing function is added.
-    /// WARNING: the smooting function can change the nuclear repulsion energy between
+    /// WARNING: the smoothing function can change the nuclear repulsion energy between
     /// atoms that are far apart. Therefore you should check visually the tails of
     /// the repulsive potential and check that the additional energy is not negligible.
     vrep: Vec<f64>,

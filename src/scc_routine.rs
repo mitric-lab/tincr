@@ -20,8 +20,10 @@ pub fn run_scc(
     let scf_conv: f64 = scf_conv.unwrap_or(defaults::SCF_CONV);
     let temperature: f64 = temperature.unwrap_or(defaults::TEMPERATURE);
 
+    // construct reference density matrix
+    let p0: Array2<f64> = density_matrix_ref(&molecule);
     // charge guess
-    let dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
+    let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
     let ddip: Array2<f64> = Array2::zeros([molecule.n_atoms, 3]);
     let converged: bool = false;
     let shift_flag: bool = false;
@@ -29,8 +31,16 @@ pub fn run_scc(
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&molecule, &molecule);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(&molecule, Some(0.0));
 
-    let mut diis_error: Vec<Array1<f64>> = Vec::new();
+    let mut fock_error: Vec<Array1<f64>> = Vec::new();
     let mut fock_list: Vec<Array2<f64>> = Vec::new();
+
+    // # compute A = S^(-1/2)
+    // 1. diagonalize S
+    let (w, v): (Array1<f64>, Array2<f64>) = s.eigh(UPLO::Upper).unwrap();
+    // 2. compute inverse square root of the eigenvalues
+    let w12: Array2<f64> = Array2::from_diag(&w.map(|x| x.pow(-0.5)));
+    // 3. and transform back
+    let a: Array2<f64> = v.dot(&w12.dot(&v.t()));
 
     for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
@@ -61,13 +71,79 @@ pub fn run_scc(
         if diis_count > defaults::DIIS_LIMIT {
             // remove oldest vector
             fock_list.remove(0);
-            diis_error.remove(0);
+            fock_error.remove(0);
             diis_count -= 1;
         }
 
+        // update partial charges using Mulliken analysis
+        let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
+            p.view(),
+            p0.view(),
+            s.view(),
+            &molecule.orbs_per_atom,
+            molecule.n_atoms,
+        );
+        q = new_q;
+        dq = new_dq;
+
+        // compute energy
+
+        // does the density matrix commute with the KS Hamiltonian?
+        // diis_error = H * D * S - S * D * H
+        let mut diis_e: Array1<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
+        // transform error vector to orthogonal basis
+        diis_e = &a.t().dot(&diis_e.dot(&a));
+        let drms: f64 = *&diis_e.map(|x| x * x).mean().unwrap().sqrt();
+        fock_error.push(diis_e);
+
+        // if (abs(SCF_E - Eold) < E_conv) and (dRMS < D_conv)
+        // break
+        //Eold = SCF_E
     }
     return 1.0;
 }
+
+/// Compute energy due to core electrons and nuclear repulsion
+fn get_repulsive_energy(molecule: &Molecule) -> f64 {
+    let mut e_nuc: f64 = 0.0;
+    for (i, (z_i, posi)) in molecule.iter_atomlist_sliced(1, molecule.n_atoms-1).enumerate() {
+        for (z_j, posj) in molecule.iter_atomlist_sliced(0, i+1) {
+            if z_i > zj {
+                let z_1: u8 = *z_j;
+                let z_2: u8 = *z_i;
+            } else {
+                let z_1: u8 = *z_i;
+                let z_2: u8 = *z_j;
+            }
+            let r: f64 = (posi - posj).norm();
+            // nucleus-nucleus and core-electron repulsion
+            // TODO: vrep is not finished
+            //e_nuc += &molecule.v_rep((z_1, z_2))
+        }
+    }
+    return e_nuc;
+}
+
+/// the repulsive potential, the dispersion correction and only depend on the nuclear
+/// geometry and do not change during the SCF cycle
+fn get_nuclear_energy() {
+
+}
+
+/// Compute electronic energies
+fn get_electronic_energy(p: ArrayView2<f64>, h0: ArrayView2<f64>, dq: ArrayView1<f64>, gamma: ArrayView2<f64>) -> f64 {
+    // band structure energy
+    let e_band_structure: f64 = (p*h0).sum();
+    // Coulomb energy from monopoles
+    let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
+    // electronic energy as sum of band structure energy and Coulomb energy
+    let e_elec: f64 = e_band_structure + e_coulomb;
+    // long-range Hartree-Fock exchange
+    // if ....
+    return e_elec;
+}
+
+
 
 /// Construct the density matrix
 /// P_mn = sum_a f_a C_ma* C_na
@@ -105,7 +181,7 @@ fn mulliken(
     p: ArrayView2<f64>,
     p0: ArrayView2<f64>,
     s: ArrayView2<f64>,
-    orbs_per_atom: Vec<i64>,
+    orbs_per_atom: &[usize],
     n_atom: usize,
 ) -> (Array1<f64>, Array1<f64>) {
     let dp = &p - &p0;

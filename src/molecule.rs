@@ -1,17 +1,14 @@
-use crate::constants::{
-    ATOM_NAMES,
-};
+use crate::constants::ATOM_NAMES;
 use crate::defaults;
 use crate::gamma_approximation;
 use crate::parameters::*;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::*;
+use ndarray_linalg::*;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Neg;
-use ndarray_linalg::*;
-
 
 pub struct Molecule {
     atomic_numbers: Vec<u8>,
@@ -26,13 +23,13 @@ pub struct Molecule {
     atomtypes: HashMap<u8, String>,
     pub orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>>,
     pub skt: HashMap<(u8, u8), SlaterKosterTable>,
-    v_rep: HashMap<(u8, u8), RepulsivePotentialTable>,
+    pub v_rep: HashMap<(u8, u8), RepulsivePotentialTable>,
     pub proximity_matrix: Array2<bool>,
     pub distance_matrix: Array2<f64>,
     pub q0: Vec<usize>,
-    pub nr_unpaired_electrons: usize
-    //pub gm: Array2<f64>,
-    //pub gm_a0: Array2<f64>,
+    pub nr_unpaired_electrons: usize,
+    pub orbs_per_atom: Vec<usize>, //pub gm: Array2<f64>,
+                                   //pub gm_a0: Array2<f64>
 }
 
 impl Molecule {
@@ -44,12 +41,13 @@ impl Molecule {
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
-        let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u, q0): (
+        let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u, q0, orbs_per_atom): (
             HashMap<u8, Vec<(i8, i8, i8)>>,
             HashMap<u8, Vec<i8>>,
             HashMap<u8, i8>,
             HashMap<u8, HashMap<(i8, i8), f64>>,
             HashMap<u8, f64>,
+            Vec<usize>,
             Vec<usize>
         ) = get_electronic_configuration(&atomtypes);
 
@@ -71,7 +69,6 @@ impl Molecule {
             n_orbs = n_orbs + &valorbs[zi].len();
         }
 
-
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
             positions: positions,
@@ -88,8 +85,9 @@ impl Molecule {
             v_rep: vrep,
             proximity_matrix: prox_matrix,
             distance_matrix: dist_matrix,
-            q0: q0
-            nr_unpaired_electrons: 0
+            q0: q0,
+            nr_unpaired_electrons: 0,
+            orbs_per_atom: orbs_per_atom,
         };
 
         return mol;
@@ -103,6 +101,19 @@ impl Molecule {
     > {
         self.atomic_numbers.iter().zip(self.positions.outer_iter())
     }
+
+    pub fn iter_atomlist_sliced(
+        &self,
+        i: usize,
+        f: usize,
+    ) -> std::iter::Zip<
+        std::slice::Iter<'_, u8>,
+        ndarray::iter::AxisIter<'_, f64, ndarray::Dim<[usize; 1]>>,
+    > {
+        self.atomic_numbers[i..f]
+            .iter()
+            .zip(self.positions.slice(s![i..f, ..]).outer_iter())
+    }
 }
 
 fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {
@@ -112,17 +123,15 @@ fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {
     return (confined_atom, free_atom);
 }
 
-pub fn get_gamma_matrix(
-    mol: &Molecule,
-    r_lr: Option<f64>,
-) -> (Array2<f64>, Array2<f64>) {
+pub fn get_gamma_matrix(mol: &Molecule, r_lr: Option<f64>) -> (Array2<f64>, Array2<f64>) {
     // initialize gamma matrix
     let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(&mol.hubbard_u);
     let mut c: HashMap<(u8, u8), f64> = HashMap::new();
     let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
     let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
-    let (gm, gm_ao): (Array2<f64>, Array2<f64>) = gamma_approximation::gamma_ao_wise(gf, mol, mol.distance_matrix.view());
+    let (gm, gm_ao): (Array2<f64>, Array2<f64>) =
+        gamma_approximation::gamma_ao_wise(gf, mol, mol.distance_matrix.view());
     return (gm, gm_ao);
 }
 
@@ -140,7 +149,9 @@ fn get_parameters(
         let zi: u8 = pair.0;
         let zj: u8 = pair.1;
         // the cartesian product creates all combinations, but we only need one
-        if zi > zj { continue 'pair_loop }
+        if zi > zj {
+            continue 'pair_loop;
+        }
         // load precalculated slako table
         let mut slako_module: SlaterKosterTable =
             get_slako_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
@@ -175,7 +186,8 @@ fn get_electronic_configuration(
     HashMap<u8, i8>,
     HashMap<u8, HashMap<(i8, i8), f64>>,
     HashMap<u8, f64>,
-    Vec<usize>
+    Vec<usize>,
+    Vec<usize>,
 ) {
     // find quantum numbers of valence orbitals
     let mut valorbs: HashMap<u8, Vec<(i8, i8, i8)>> = HashMap::new();
@@ -184,6 +196,7 @@ fn get_electronic_configuration(
     let mut orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>> = HashMap::new();
     let mut hubbard_u: HashMap<u8, f64> = HashMap::new();
     let mut q0: Vec<usize> = Vec::new();
+    let mut orbs_per_atom: Vec<usize> = Vec::new();
     for (zi, symbol) in atomtypes.iter() {
         let (atom, free_atom): (PseudoAtom, PseudoAtom) = import_pseudo_atom(zi);
         let mut occ: Vec<i8> = Vec::new();
@@ -200,6 +213,7 @@ fn get_electronic_configuration(
             let val_e: i8 = val_e + atom.orbital_occupation[i as usize];
         }
         valorbs.insert(*zi, vo_vec);
+        orbs_per_atom.push(vo_vec.len());
         valorbs_occupation.insert(*zi, occ);
         ne_val.insert(*zi, val_e);
         q0.push(val_e as usize);
@@ -219,7 +233,8 @@ fn get_electronic_configuration(
         ne_val,
         orbital_energies,
         hubbard_u,
-        q0
+        q0,
+        orbs_per_atom,
     );
 }
 
@@ -234,7 +249,7 @@ fn distance_matrix(
     let mut prox_matrix: Array2<bool> = Array::from_elem((n_atoms, n_atoms), false);
     for (i, pos_i) in coordinates.outer_iter().enumerate() {
         for (j0, pos_j) in coordinates.slice(s![i.., ..]).outer_iter().enumerate() {
-            let j:usize = j0 + i;
+            let j: usize = j0 + i;
             let r: Array1<f64> = &pos_i - &pos_j;
             let r_ij = r.norm();
             dist_matrix[[i, j]] = r_ij;
@@ -249,7 +264,6 @@ fn distance_matrix(
     //let directions_matrix = directions_matrix - directions_matrix.t();
     return (dist_matrix, directions_matrix, prox_matrix);
 }
-
 
 /// Test of Gaussian decay function on a water molecule. The xyz geometry of the
 /// water molecule is
@@ -267,7 +281,8 @@ fn test_distance_matrix() {
     let mut positions: Array2<f64> = array![
         [0.34215, 1.17577, 0.00000],
         [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]];
+        [0.01882, 1.65996, 0.77583]
+    ];
 
     // transform coordinates in au
     positions = positions / 0.529177249;
@@ -275,14 +290,13 @@ fn test_distance_matrix() {
         distance_matrix(positions.view(), None);
 
     let dist_matrix_ref: Array2<f64> = array![
-         [0.0000000000000000, 1.8330342089215557, 1.8330287870558954],
-         [1.8330342089215557, 0.0000000000000000, 2.9933251510242216],
-         [1.8330287870558954, 2.9933251510242216, 0.0000000000000000]];
+        [0.0000000000000000, 1.8330342089215557, 1.8330287870558954],
+        [1.8330342089215557, 0.0000000000000000, 2.9933251510242216],
+        [1.8330287870558954, 2.9933251510242216, 0.0000000000000000]
+    ];
     assert!(dist_matrix.all_close(&dist_matrix_ref, 1e-05));
 
-    let prox_matrix_ref: Array2<bool> = array![
-        [true, true, true],
-        [true, true, true],
-        [true, true, true]];
+    let prox_matrix_ref: Array2<bool> =
+        array![[true, true, true], [true, true, true], [true, true, true]];
     assert_eq!(prox_matrix, prox_matrix_ref);
 }
