@@ -24,17 +24,15 @@ pub fn run_scc(
     let p0: Array2<f64> = density_matrix_ref(&molecule);
     // charge guess
     let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
-    let ddip: Array2<f64> = Array2::zeros([molecule.n_atoms, 3]);
-    let converged: bool = false;
-    let shift_flag: bool = false;
-    let mixing_flag: bool = false;
+    let mut energy_old: f64 = 0.0;
+    let mut scf_energy: f64 = 0.0;
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&molecule, &molecule);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(&molecule, Some(0.0));
 
     let mut fock_error: Vec<Array1<f64>> = Vec::new();
     let mut fock_list: Vec<Array2<f64>> = Vec::new();
 
-    // # compute A = S^(-1/2)
+    //  compute A = S^(-1/2)
     // 1. diagonalize S
     let (w, v): (Array1<f64>, Array2<f64>) = s.eigh(UPLO::Upper).unwrap();
     // 2. compute inverse square root of the eigenvalues
@@ -42,7 +40,7 @@ pub fn run_scc(
     // 3. and transform back
     let a: Array2<f64> = v.dot(&w12.dot(&v.t()));
 
-    for i in 0..max_iter {
+    'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let h: Array2<f64> = h_coul + h0.view();
@@ -86,8 +84,6 @@ pub fn run_scc(
         q = new_q;
         dq = new_dq;
 
-        // compute energy
-
         // does the density matrix commute with the KS Hamiltonian?
         // diis_error = H * D * S - S * D * H
         let mut diis_e: Array1<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
@@ -96,18 +92,27 @@ pub fn run_scc(
         let drms: f64 = *&diis_e.map(|x| x * x).mean().unwrap().sqrt();
         fock_error.push(diis_e);
 
-        // if (abs(SCF_E - Eold) < E_conv) and (dRMS < D_conv)
-        // break
-        //Eold = SCF_E
+        // compute electronic energy
+        scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm_a0.view());
+        if ((scf_energy - energy_old).abs() < scf_conv) && (drms < defaults::DENSITY_CONV)
+        {
+            break 'scf_loop;
+        }
+        energy_old = scf_energy;
+        assert_ne!(i, max_iter, "SCF not converged");
     }
-    return 1.0;
+    let nuclear_energy: f64 = get_repulsive_energy(&molecule);
+    return scf_energy + nuclear_energy;
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
 fn get_repulsive_energy(molecule: &Molecule) -> f64 {
     let mut e_nuc: f64 = 0.0;
-    for (i, (z_i, posi)) in molecule.iter_atomlist_sliced(1, molecule.n_atoms-1).enumerate() {
-        for (z_j, posj) in molecule.iter_atomlist_sliced(0, i+1) {
+    for (i, (z_i, posi)) in molecule
+        .iter_atomlist_sliced(1, molecule.n_atoms - 1)
+        .enumerate()
+    {
+        for (z_j, posj) in molecule.iter_atomlist_sliced(0, i + 1) {
             if z_i > zj {
                 let z_1: u8 = *z_j;
                 let z_2: u8 = *z_i;
@@ -126,14 +131,17 @@ fn get_repulsive_energy(molecule: &Molecule) -> f64 {
 
 /// the repulsive potential, the dispersion correction and only depend on the nuclear
 /// geometry and do not change during the SCF cycle
-fn get_nuclear_energy() {
-
-}
+fn get_nuclear_energy() {}
 
 /// Compute electronic energies
-fn get_electronic_energy(p: ArrayView2<f64>, h0: ArrayView2<f64>, dq: ArrayView1<f64>, gamma: ArrayView2<f64>) -> f64 {
+fn get_electronic_energy(
+    p: ArrayView2<f64>,
+    h0: ArrayView2<f64>,
+    dq: ArrayView1<f64>,
+    gamma: ArrayView2<f64>,
+) -> f64 {
     // band structure energy
-    let e_band_structure: f64 = (p*h0).sum();
+    let e_band_structure: f64 = (p * h0).sum();
     // Coulomb energy from monopoles
     let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
     // electronic energy as sum of band structure energy and Coulomb energy
@@ -142,8 +150,6 @@ fn get_electronic_energy(p: ArrayView2<f64>, h0: ArrayView2<f64>, dq: ArrayView1
     // if ....
     return e_elec;
 }
-
-
 
 /// Construct the density matrix
 /// P_mn = sum_a f_a C_ma* C_na
