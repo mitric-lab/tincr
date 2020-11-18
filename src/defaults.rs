@@ -36,3 +36,6 @@ pub const HOMO_LUMO_TOL: f64 = 0.05;
 // is no density mixer object is used (density_mixer=None) the next
 // guess for the density matrix is constructed as P_next = a*P + (1-a)*P_last
 pub const LINEAR_MIXING_COEFFICIENT: f64 = 0.33;
+
+
+pub const DIIS_LIMIT: usize = 15;

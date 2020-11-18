@@ -14,12 +14,12 @@ use numpy::{IntoPyArray, PyArray1, PyReadonlyArrayDyn, PyReadonlyArray1, PyReado
 fn rust_ext(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 
     // Mulliken Charges
-    fn mulliken(P: ArrayView2<f64>, P0: ArrayView2<f64>,
-                S: ArrayView2<f64>, orbsPerAtom: Vec<i64>,
+    fn mulliken(p: ArrayView2<f64>, p0: ArrayView2<f64>,
+                s: ArrayView2<f64>, orbs_per_atom: Vec<i64>,
                 Nat: usize, Norb: u32)
                 -> (Array1<f64>, Array1<f64>) {
 
-        let dP = &P - &P0;
+        let dP = &p - &p0;
 
         let mut q = Array1::<f64>::zeros(Nat);
         let mut dq = Array1::<f64>::zeros(Nat);
@@ -30,14 +30,14 @@ fn rust_ext(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
         // inside the loop
         for A in 0..Nat {
             // iterate over orbitals on atom A
-            for muA in 0..orbsPerAtom[A] {
+            for muA in 0..orbs_per_atom[A] {
                 let mut nu = 0;
                 // iterate over atoms B
                 for B in 0..Nat {
                     // iterate over orbitals on atom B
-                    for nuB in 0..orbsPerAtom[B] {
-                        q[A] = q[A] + (&P[[mu,nu]] * &S[[mu,nu]]);
-                        dq[A] = dq[A] + (&dP[[mu,nu]] * &S[[mu,nu]]);
+                    for nuB in 0..orbs_per_atom[B] {
+                        q[A] = q[A] + (&p[[mu,nu]] * &s[[mu,nu]]);
+                        dq[A] = dq[A] + (&dP[[mu,nu]] * &s[[mu,nu]]);
                         nu += 1;
                     }
                 }
@@ -51,18 +51,18 @@ fn rust_ext(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     #[pyfn(m, "mulliken")]
     fn mulliken_py<'py>(
         py: Python<'py>,
-        P: PyReadonlyArray2<f64>,
-        P0: PyReadonlyArray2<f64>,
-        S: PyReadonlyArray2<f64>,
-        orbsPerAtom: Vec<i64>,
+        p: PyReadonlyArray2<f64>,
+        p0: PyReadonlyArray2<f64>,
+        s: PyReadonlyArray2<f64>,
+        orbs_per_atom: Vec<i64>,
         Nat: usize,
         Norb: u32,
     ) -> (&'py PyArray1<f64>, &'py PyArray1<f64>) {
-        let P = P.as_array();
-        let P0 = P0.as_array();
-        let S = S.as_array();
-        //let orbsPerAtom = orbsPerAtom.as_array();
-        let ret = mulliken(P, P0, S, orbsPerAtom, Nat, Norb);
+        let p = p.as_array();
+        let p0 = p0.as_array();
+        let s = s.as_array();
+        //let orbs_per_atom = orbs_per_atom.as_array();
+        let ret = mulliken(p, p0, s, orbs_per_atom, Nat, Norb);
         (ret.0.into_pyarray(py), ret.1.into_pyarray(py))
     }
 
@@ -133,5 +133,5 @@ Norb = 24
 
 # here the import from the rust modul happens
 from rust_ext import mulliken
-q, dq = mulliken(dftb.P, dftb.P0, dftb.S, dftb.orbsPerAtom, Nat, Norb)
+q, dq = mulliken(dftb.p, dftb.p0, dftb.s, dftb.orbs_per_atom, Nat, Norb)
 ``` 

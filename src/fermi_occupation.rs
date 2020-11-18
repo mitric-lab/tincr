@@ -1,4 +1,4 @@
-use ndarray::{Array, Array1, ArrayView1};
+use ndarray::{Array, Array1, ArrayView1, array};
 use std::cmp::{max, min};
 use crate::zbrent::zbrent;
 use crate::constants;
@@ -21,8 +21,8 @@ use crate::constants;
 /// ========
 /// mu: chemical potential
 /// f: list of occupations f[a] for orbitals (in the same order as the energies in orbe)
-fn fermi_occupation(
-    orbe: Array1<f64>,
+pub fn fermi_occupation(
+    orbe: ArrayView1<f64>,
     n_elec_paired: usize,
     n_elec_unpaired: usize,
     t: f64,
@@ -30,7 +30,7 @@ fn fermi_occupation(
     let mut fermi_occ: Vec<f64> = Vec::new();
     let mut mu: f64 = 0.0;
     if t == 0.0 {
-        let result = fermi_occupation_t0(orbe, n_elec_paired, n_elec_unpaired);
+        let result: (f64, Vec<f64>) = fermi_occupation_t0(orbe, n_elec_paired, n_elec_unpaired);
         mu = result.0;
         fermi_occ = result.1;
     } else {
@@ -74,7 +74,7 @@ fn fermi_occupation_t0(orbe: Array1<f64>, n_elec_paired: usize, n_elec_unpaired:
     return (0.0, fermi_occ);
 }
 
-// stolen from https://qiita.com/osanshouo/items/71b0272cd5e156cbf5f2
+// original code from from https://qiita.com/osanshouo/items/71b0272cd5e156cbf5f2
 fn argsort(v: &[f64]) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
     idx.sort_unstable_by(|&i, &j| v[i].partial_cmp(&v[j]).unwrap());
@@ -98,4 +98,60 @@ fn fa_minus_nelec(
         sum_fa = sum_fa + fermi_function(*en_a, mu, t)
     }
     return sum_fa - (n_elec as f64);
+}
+
+
+#[test]
+fn fermi_occ_at_t0() {
+    let orbe: Array1<f64> = array![-0.8274698649039047, -0.4866977381657900,
+                                   -0.4293504325361446, -0.3805317817759825,
+                                    0.4597732008355508,  0.5075648461370381];
+    let temperature: f64 = 0.0;
+    let n_elec: usize = 8;
+    let n_elec_unpaired: usize = 0;
+    let mu_ref: f64 = 0.0;
+    let occ_ref: Vec<f64> = vec![2.0, 2.0, 2.0, 2.0, 0.0, 0.0];
+    let result: (f64, Vec<f64>) = fermi_occupation(orbe, n_elec, n_elec_unpaired, temperature);
+    let mu: f64 = result.0;
+    let occ: Vec<f64> = result.1;
+    assert!((mu-mu_ref).abs() < 1e-8);
+    assert_eq!(occ, occ_ref);
+}
+
+#[test]
+fn fermi_occ_at_t100k() {
+    let orbe: Array1<f64> = array![-0.8274698649039047, -0.4866977381657900,
+                                   -0.4293504325361446, -0.3805317817759825,
+                                    0.4597732008355508,  0.5075648461370381];
+    let temperature: f64 = 100.0;
+    let n_elec: usize = 8;
+    let n_elec_unpaired: usize = 0;
+    let mu_ref: f64 = -0.3692029124379807;
+    let occ_ref: Vec<f64> = vec![2.0, 2.0, 2.0, 1.9999999999999996, 0.0, 0.0];
+    let result: (f64, Vec<f64>) = fermi_occupation(orbe, n_elec, n_elec_unpaired, temperature);
+    let mu: f64 = result.0;
+    let occ: Vec<f64> = result.1;
+    // TODO: Check the differences to DFTBaby
+    //assert!((mu-mu_ref).abs() < 1e-4);
+    //assert_eq!(occ, occ_ref);
+    assert!((occ.iter().sum::<f64>() - n_elec as f64).abs() < 1e-08);
+}
+
+#[test]
+fn fermi_occ_at_t100000k() {
+    let orbe: Array1<f64> = array![-0.8274698649039047, -0.4866977381657900,
+                                   -0.4293504325361446, -0.3805317817759825,
+                                    0.4597732008355508,  0.5075648461370381];
+    let temperature: f64 = 100000.0;
+    let n_elec: usize = 8;
+    let n_elec_unpaired: usize = 0;
+    let mu_ref: f64 = 0.1259066212142123;
+    let occ_ref: Vec<f64> = vec![1.906094704507551, 1.747482667930276, 1.7047529931205556,
+                                 1.6638147878851874, 0.5168129976856992, 0.4611095080472262];
+    let result: (f64, Vec<f64>) = fermi_occupation(orbe, n_elec, n_elec_unpaired, temperature);
+    let mu: f64 = result.0;
+    let occ: Vec<f64> = result.1;
+    assert!((mu-mu_ref).abs() < 1e-4);
+    //assert_eq!(occ, occ_ref);
+    assert!((occ.iter().sum::<f64>() - n_elec as f64).abs() < 1e-08);
 }

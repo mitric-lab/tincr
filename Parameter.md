@@ -97,7 +97,7 @@ However, they are not part of tincr, but an external package (crate) and availab
 |--------------|-----------------------------|
 | Dipole       | dict{tuple: ndarray[float]} |
 | H            | dict{tuple: ndarray[float]} |
-| S            | dict{tuple: ndarray[float]} |
+| s            | dict{tuple: ndarray[float]} |
 | Z1           | int                         |
 | Z2           | int                         |
 | d            | ndarray[float]              |
