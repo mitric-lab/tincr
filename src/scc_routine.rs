@@ -1,5 +1,6 @@
 use crate::constants::*;
 use crate::defaults;
+use crate::diis::diis;
 use crate::fermi_occupation;
 use crate::h0_and_s::h0_and_s_ab;
 use crate::molecule::*;
@@ -29,6 +30,7 @@ pub fn run_scc(
     let mut q: Array1<f64> = Array::from_iter(molecule.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
+    let mut diis_count: usize = 0;
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&molecule, &molecule);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(&molecule, Some(0.0));
 
@@ -47,18 +49,19 @@ pub fn run_scc(
     scf_energy += get_repulsive_energy(&molecule);
 
     'scf_loop: for i in 0..max_iter {
-        println!("HALLO");
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
-        let h: Array2<f64> = h_coul + h0.view();
+        let mut h: Array2<f64> = h_coul + h0.view();
         // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
         // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
         // H' = X^t.H.X
+        //println!("H {}", h);
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
         let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
         // C = X.C'
-        let orbs: Array2<f64> = cp.dot(&x);
+        //println!("ORBE {}", orbe);
+        let orbs: Array2<f64> = x.dot(&cp);
         // construct density matrix
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
             orbe.view(),
@@ -69,19 +72,21 @@ pub fn run_scc(
         let mu: f64 = tmp.0;
         let f: Vec<f64> = tmp.1;
         // calculate the density matrix
-        println!("ZWEI, orbs shape {:?}, f: {:?}, nelec {:?}", orbs.shape(), f, molecule.q0);
         let p: Array2<f64> = density_matrix(orbs.view(), &f[..]);
-        println!("ZWEI 5");
-        // use DIIS to speed up convergence
-        // limit size of DIIS vector
-        let mut diis_count: usize = fock_list.len();
-        if diis_count > defaults::DIIS_LIMIT {
-            // remove oldest vector
-            fock_list.remove(0);
-            fock_error.remove(0);
-            diis_count -= 1;
+        if i >= 2 {
+            // use DIIS to speed up convergence
+            // limit size of DIIS vector
+            diis_count = fock_list.len();
+            if diis_count > defaults::DIIS_LIMIT {
+                // remove oldest vector
+                fock_list.remove(0);
+                fock_error.remove(0);
+                diis_count -= 1;
+            }
+            h = diis(h.view(), &fock_list[..], &fock_error[..]);
         }
-        println!("DREI");
+
+        //println!("P0 {}", p0);
         // update partial charges using Mulliken analysis
         let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
             p.view(),
@@ -97,20 +102,21 @@ pub fn run_scc(
         // diis_error = H * D * S - S * D * H
         let mut diis_e: Array2<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
         // transform error vector to orthogonal basis
-        println!("DREI 5");
         diis_e = a.t().dot(&diis_e.dot(&a));
         let diis_e: Array1<f64> = Array::from_iter(diis_e.iter().cloned());
         let drms: f64 = *&diis_e.map(|x| x * x).mean().unwrap().sqrt();
         fock_error.push(diis_e);
-        println!("VIER");
+        fock_list.push(h.clone());
         // compute electronic energy
         scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
         if ((scf_energy - energy_old).abs() < scf_conv) && (drms < defaults::DENSITY_CONV) {
             break 'scf_loop;
         }
         energy_old = scf_energy;
-        assert_ne!(i, max_iter, "SCF not converged");
+        println!("ENERGY ====  {}", scf_energy);
+        assert_ne!(i + 1, max_iter, "SCF not converged");
     }
+    println!("SCF CONVERGED!");
     return scf_energy;
 }
 
@@ -158,11 +164,13 @@ fn get_electronic_energy(
     dq: ArrayView1<f64>,
     gamma: ArrayView2<f64>,
 ) -> f64 {
+    //println!("P {}", p);
     // band structure energy
     let e_band_structure: f64 = (&p * &h0).sum();
     // Coulomb energy from monopoles
     let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
     // electronic energy as sum of band structure energy and Coulomb energy
+    println!("E BS {} E COUL {} dQ {}", e_band_structure, e_coulomb, dq);
     let e_elec: f64 = e_band_structure + e_coulomb;
     // long-range Hartree-Fock exchange
     // if ....
@@ -183,11 +191,6 @@ fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
         }
     }
     let f_occ_mat: Array2<f64> = Array2::from_shape_vec(occ_orbs.raw_dim(), f_occ_mat).unwrap();
-    println!(
-        "LHS Length {:?}, 1; occ_orbs {:?}",
-        f_occ_mat.shape(),
-        occ_orbs.shape()
-    );
     let p: Array2<f64> = (f_occ_mat * &occ_orbs).dot(&occ_orbs.t());
     return p;
 }

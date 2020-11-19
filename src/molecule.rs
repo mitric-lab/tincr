@@ -19,7 +19,7 @@ pub struct Molecule {
     pub n_orbs: usize,
     pub valorbs: HashMap<u8, Vec<(i8, i8, i8)>>,
     pub hubbard_u: HashMap<u8, f64>,
-    pub valorbs_occupation: HashMap<u8, Vec<i8>>,
+    pub valorbs_occupation: HashMap<u8, Vec<f64>>,
     atomtypes: HashMap<u8, String>,
     pub orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>>,
     pub skt: HashMap<(u8, u8), SlaterKosterTable>,
@@ -43,7 +43,7 @@ impl Molecule {
             get_atomtypes(atomic_numbers.clone());
         let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u): (
             HashMap<u8, Vec<(i8, i8, i8)>>,
-            HashMap<u8, Vec<i8>>,
+            HashMap<u8, Vec<f64>>,
             HashMap<u8, i8>,
             HashMap<u8, HashMap<(i8, i8), f64>>,
             HashMap<u8, f64>,
@@ -168,20 +168,20 @@ fn get_electronic_configuration(
     atomtypes: &HashMap<u8, String>,
 ) -> (
     HashMap<u8, Vec<(i8, i8, i8)>>,
-    HashMap<u8, Vec<i8>>,
+    HashMap<u8, Vec<f64>>,
     HashMap<u8, i8>,
     HashMap<u8, HashMap<(i8, i8), f64>>,
     HashMap<u8, f64>,
 ) {
     // find quantum numbers of valence orbitals
     let mut valorbs: HashMap<u8, Vec<(i8, i8, i8)>> = HashMap::new();
-    let mut valorbs_occupation: HashMap<u8, Vec<i8>> = HashMap::new();
+    let mut valorbs_occupation: HashMap<u8, Vec<f64>> = HashMap::new();
     let mut ne_val: HashMap<u8, i8> = HashMap::new();
     let mut orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>> = HashMap::new();
     let mut hubbard_u: HashMap<u8, f64> = HashMap::new();
     for (zi, symbol) in atomtypes.iter() {
         let (atom, free_atom): (PseudoAtom, PseudoAtom) = import_pseudo_atom(zi);
-        let mut occ: Vec<i8> = Vec::new();
+        let mut occ: Vec<f64> = Vec::new();
         let mut vo_vec: Vec<(i8, i8, i8)> = Vec::new();
         let mut val_e: i8 = 0;
         hubbard_u.insert(*zi, atom.hubbard_u);
@@ -190,7 +190,7 @@ fn get_electronic_configuration(
             let l: i8 = atom.angular_momenta[i as usize];
             for m in l.neg()..l + 1 {
                 vo_vec.push((n - 1, l, m));
-                occ.push(atom.orbital_occupation[i as usize] / (2 * l + 1));
+                occ.push(atom.orbital_occupation[i as usize] as f64 / (2 * l + 1) as f64);
             }
             val_e += atom.orbital_occupation[i as usize];
         }

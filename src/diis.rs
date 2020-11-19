@@ -6,12 +6,11 @@ use ndarray_stats::QuantileExt;
 // Psi4NumPy implementation is used as a reference
 pub fn diis(
     h: ArrayView2<f64>,
-    fock_list: &[ArrayView2<f64>],
-    diis_error: &[ArrayView1<f64>],
+    fock_list: &[Array2<f64>],
+    diis_error: &[Array1<f64>],
 ) -> Array2<f64> {
 
     let diis_count: usize = fock_list.len();
-
     // build error matrix B, [Pulay:1980:393], Eqn. 6, LHS
     let mut b: Array2<f64> = Array2::zeros((diis_count + 1, diis_count + 1));
     b.slice_mut(s![diis_count, ..]).fill(-1.0);
