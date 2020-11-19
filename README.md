@@ -1,13 +1,47 @@
 <div align="left">
   <img src="https://github.com/hochej/tincr/blob/master/tincr.png" height="120"/>
 </div>
+
+## Install
+##### Warning: The features of the program are currently very limited! 
+To be able to compile and run the __tincr__ program it is necessary to have the Intel MKL libary
+installed, as the linear algebra operations are based on the MKL LAPACK and BLAS implementations. 
+You can just download the MKL library from the Intel webpage and after installation make sure that the 
+enviroment variables are set. If not you can just execute the `makevars.sh` script which is located in the
+installation directory of the MKL Library. 
+```bash
+source /path/to/MKL/makevars.sh
+```  
+Make sure that the environment variable `$MKLROOT` was set. 
+Of course you also need Rust itself. This is straightforward to install and explained in 
+detail on the [official site](https://www.rust-lang.org/tools/install). 
+
+Then just clone the repository to your local machine
+```
+git clone https://github.com/hochej/tincr.git
+```
+Go into the new directory
+```
+cd tincr
+```
+and build the executable with the package manager Cargo
+```
+cargo build --release
+```
+The option `--release` enables all optimization during the build and ensures fast runtimes, but can
+result in very long compile times. If you want to compile often e.g. in the case of debugging, then 
+it makes sense to just execute
+```
+cargo build
+``` 
+
+### Ideas for new quantum-chemical features
 The idea of this project is to port the DFTBaby program package by Alexander Humeniuk 
 in Rust and to expand it. The advantages would be that the efficiency can be significantly
 improved and the programme would be easier to run in parallel.
 Furthermore, fragment-orbital based calculations based on DFTB will 
 be implemented (FMO method).
 
-### Ideas for new quantum-chemical features
 - **Archetype is DFTBaby**
 - spin-unrestricted DFTB would improve description of triplets
 - machine-learned repulsive potentials as done in Orb-Net
