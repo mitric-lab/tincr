@@ -35,7 +35,6 @@ pub fn h0_and_s_ab(
                 // iterate over orbitals on center j
                 for (nj, lj, mj) in &molecule_b.valorbs[zj] {
                     if molecule_a.proximity_matrix[[i, j]] {
-                        println!("HALLO mu {}, nu {}, zi {} zj {}", mu, nu, zi, zj);
                         if mu < nu {
                             if zi <= zj {
                                 if i != j {

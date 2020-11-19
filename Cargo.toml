@@ -8,7 +8,8 @@ edition = "2018"
 
 [dependencies]
 chemfiles = "0.9"
-ndarray = {version = "0.13.1", features = ["serde-1"]}
+ndarray = {version = "0.13.1", features = ["serde-1", "approx"]}
+approx = "0.3.2"
 ndarray-linalg = { version = "0.12.1", features = ["intel-mkl"]}
 ndarray-stats = "0.3"
 phf = { version = "0.8.0", features = ["macros"] }

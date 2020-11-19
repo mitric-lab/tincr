@@ -3,6 +3,7 @@ use crate::defaults;
 use crate::fermi_occupation;
 use crate::h0_and_s::h0_and_s_ab;
 use crate::molecule::*;
+use approx::AbsDiffEq;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::*;
@@ -42,7 +43,11 @@ pub fn run_scc(
     // 3. and transform back
     let a: Array2<f64> = v.dot(&w12.dot(&v.t()));
 
+    // add nuclear energy to the total scf energy
+    scf_energy += get_repulsive_energy(&molecule);
+
     'scf_loop: for i in 0..max_iter {
+        println!("HALLO");
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let h: Array2<f64> = h_coul + h0.view();
@@ -64,7 +69,9 @@ pub fn run_scc(
         let mu: f64 = tmp.0;
         let f: Vec<f64> = tmp.1;
         // calculate the density matrix
+        println!("ZWEI, orbs shape {:?}, f: {:?}, nelec {:?}", orbs.shape(), f, molecule.q0);
         let p: Array2<f64> = density_matrix(orbs.view(), &f[..]);
+        println!("ZWEI 5");
         // use DIIS to speed up convergence
         // limit size of DIIS vector
         let mut diis_count: usize = fock_list.len();
@@ -74,7 +81,7 @@ pub fn run_scc(
             fock_error.remove(0);
             diis_count -= 1;
         }
-
+        println!("DREI");
         // update partial charges using Mulliken analysis
         let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
             p.view(),
@@ -88,23 +95,23 @@ pub fn run_scc(
 
         // does the density matrix commute with the KS Hamiltonian?
         // diis_error = H * D * S - S * D * H
-        let mut diis_e: Array1<f64> =
-            Array::from_iter((h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h)).iter().cloned());
+        let mut diis_e: Array2<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
         // transform error vector to orthogonal basis
+        println!("DREI 5");
         diis_e = a.t().dot(&diis_e.dot(&a));
+        let diis_e: Array1<f64> = Array::from_iter(diis_e.iter().cloned());
         let drms: f64 = *&diis_e.map(|x| x * x).mean().unwrap().sqrt();
         fock_error.push(diis_e);
-
+        println!("VIER");
         // compute electronic energy
-        scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm_a0.view());
+        scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
         if ((scf_energy - energy_old).abs() < scf_conv) && (drms < defaults::DENSITY_CONV) {
             break 'scf_loop;
         }
         energy_old = scf_energy;
         assert_ne!(i, max_iter, "SCF not converged");
     }
-    let nuclear_energy: f64 = get_repulsive_energy(&molecule);
-    return scf_energy + nuclear_energy;
+    return scf_energy;
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
@@ -168,14 +175,20 @@ fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
     let occ_indx: Vec<usize> = f.iter().positions(|&x| x > 0.0).collect();
     let occ_orbs: Array2<f64> = orbs.select(Axis(1), &occ_indx);
     let f_occ: Vec<f64> = f.iter().filter(|&&x| x > 0.0).cloned().collect();
-    let lhs: Vec<f64> = f_occ
-        .iter()
-        .zip(&occ_indx)
-        .map(|(&i1, &i2)| i1 * i2 as f64)
-        .collect();
-    let p: Array2<f64> = Array2::from_shape_vec((lhs.len(), 1), lhs)
-        .unwrap()
-        .dot(&occ_orbs.t());
+    // THIS IS NOT AN EFFICIENT WAY TO BUILD THE LEFT HAND SIDE
+    let mut f_occ_mat: Vec<f64> = Vec::new();
+    for i in 0..occ_orbs.nrows() {
+        for val in f_occ.iter() {
+            f_occ_mat.push(*val);
+        }
+    }
+    let f_occ_mat: Array2<f64> = Array2::from_shape_vec(occ_orbs.raw_dim(), f_occ_mat).unwrap();
+    println!(
+        "LHS Length {:?}, 1; occ_orbs {:?}",
+        f_occ_mat.shape(),
+        occ_orbs.shape()
+    );
+    let p: Array2<f64> = (f_occ_mat * &occ_orbs).dot(&occ_orbs.t());
     return p;
 }
 
@@ -210,18 +223,17 @@ fn mulliken(
 
     // iterate over atoms A
     let mut mu = 0;
-    // WARNING: this loop cannot be parallelized easily because mu is incremented
     // inside the loop
-    for A in 0..n_atom {
+    for a in 0..n_atom {
         // iterate over orbitals on atom A
-        for muA in 0..orbs_per_atom[A] {
+        for _mu_a in 0..orbs_per_atom[a] {
             let mut nu = 0;
             // iterate over atoms B
-            for B in 0..n_atom {
+            for b in 0..n_atom {
                 // iterate over orbitals on atom B
-                for nuB in 0..orbs_per_atom[B] {
-                    q[A] = q[A] + (&p[[mu, nu]] * &s[[mu, nu]]);
-                    dq[A] = dq[A] + (&dp[[mu, nu]] * &s[[mu, nu]]);
+                for _nu_b in 0..orbs_per_atom[b] {
+                    q[a] = q[a] + (&p[[mu, nu]] * &s[[mu, nu]]);
+                    dq[a] = dq[a] + (&dp[[mu, nu]] * &s[[mu, nu]]);
                     nu += 1;
                 }
             }
@@ -320,4 +332,130 @@ fn h1_construction() {
         ]
     ];
     assert!(h1.all_close(&h1_ref, 1e-06));
+}
+
+#[test]
+fn density_matrix_test() {
+    let orbs: Array2<f64> = array![
+        [
+            8.7633819729731810e-01,
+            -7.3282344651120093e-07,
+            -2.5626947507277165e-01,
+            5.9002324562689818e-16,
+            4.4638746598694098e-05,
+            6.5169204671842440e-01
+        ],
+        [
+            1.5609816246174135e-02,
+            -1.9781345423283686e-01,
+            -3.5949495734350723e-01,
+            -8.4834397825097219e-01,
+            2.8325036729124353e-01,
+            -2.9051012618890415e-01
+        ],
+        [
+            2.5012007142380756e-02,
+            -3.1696154856040176e-01,
+            -5.7602794926745904e-01,
+            5.2944545948125210e-01,
+            4.5385929584577422e-01,
+            -4.6549179289356957e-01
+        ],
+        [
+            2.0847639428373754e-02,
+            5.2838141513310655e-01,
+            -4.8012912372328725e-01,
+            6.2706942441176916e-16,
+            -7.5667689316910480e-01,
+            -3.8791258902430070e-01
+        ],
+        [
+            1.6641902124514810e-01,
+            -3.7146607333368298e-01,
+            2.5136104623642469e-01,
+            -4.0589133922668506e-16,
+            -7.2004448997899451e-01,
+            -7.6949321948982752e-01
+        ],
+        [
+            1.6641959153799185e-01,
+            3.7146559134907692e-01,
+            2.5135994443678955e-01,
+            -1.0279311111336347e-15,
+            7.1993588930877628e-01,
+            -7.6959837655952745e-01
+        ]
+    ];
+    let f: Vec<f64> = vec![2., 2., 2., 2., 0., 0.];
+    let p: Array2<f64> = density_matrix(orbs.view(), &f[..]);
+    let p_ref: Array2<f64> = array![
+        [
+            1.6672853597938484,
+            0.2116144144027609,
+            0.3390751794256264,
+            0.282623268095985,
+            0.162846907840508,
+            0.1628473832190555
+        ],
+        [
+            0.2116144144027609,
+            1.776595917657724,
+            -0.357966065395007,
+            0.1368169475860144,
+            -0.0285685423132669,
+            -0.3224914900258041
+        ],
+        [
+            0.3390751794256264,
+            -0.357966065395007,
+            1.426421833339374,
+            0.2192252885141318,
+            -0.0457761047995666,
+            -0.5167363487612707
+        ],
+        [
+            0.282623268095985,
+            0.1368169475860144,
+            0.2192252885141318,
+            1.020291038750183,
+            -0.6269841692414225,
+            0.1581194812138258
+        ],
+        [
+            0.162846907840508,
+            -0.0285685423132669,
+            -0.0457761047995666,
+            -0.6269841692414225,
+            0.4577294196704165,
+            -0.0942187608833704
+        ],
+        [
+            0.1628473832190555,
+            -0.3224914900258041,
+            -0.5167363487612707,
+            0.1581194812138258,
+            -0.0942187608833704,
+            0.4577279753425148
+        ]
+    ];
+    assert!(p.abs_diff_eq(&p_ref, 1e-16));
+}
+
+#[test]
+fn self_consistent_charge_routine() {
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let energy: f64 = run_scc(&mol, None, None, None);
+    println!("ENERGY: {}", energy);
+    assert_eq!(1, 2);
 }

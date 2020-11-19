@@ -41,16 +41,15 @@ impl Molecule {
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
-        let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u, q0, orbs_per_atom): (
+        let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u): (
             HashMap<u8, Vec<(i8, i8, i8)>>,
             HashMap<u8, Vec<i8>>,
             HashMap<u8, i8>,
             HashMap<u8, HashMap<(i8, i8), f64>>,
             HashMap<u8, f64>,
-            Vec<f64>,
-            Vec<usize>
         ) = get_electronic_configuration(&atomtypes);
-
+        let q0: Vec<f64> = atomic_numbers.iter().map(|zi| ne_val[zi] as f64).collect();
+        let orbs_per_atom: Vec<usize> = atomic_numbers.iter().map(|zi| valorbs[zi].len()).collect();
         let (skt, vrep): (
             HashMap<(u8, u8), SlaterKosterTable>,
             HashMap<(u8, u8), RepulsivePotentialTable>,
@@ -173,8 +172,6 @@ fn get_electronic_configuration(
     HashMap<u8, i8>,
     HashMap<u8, HashMap<(i8, i8), f64>>,
     HashMap<u8, f64>,
-    Vec<f64>,
-    Vec<usize>,
 ) {
     // find quantum numbers of valence orbitals
     let mut valorbs: HashMap<u8, Vec<(i8, i8, i8)>> = HashMap::new();
@@ -182,13 +179,11 @@ fn get_electronic_configuration(
     let mut ne_val: HashMap<u8, i8> = HashMap::new();
     let mut orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>> = HashMap::new();
     let mut hubbard_u: HashMap<u8, f64> = HashMap::new();
-    let mut q0: Vec<f64> = Vec::new();
-    let mut orbs_per_atom: Vec<usize> = Vec::new();
     for (zi, symbol) in atomtypes.iter() {
         let (atom, free_atom): (PseudoAtom, PseudoAtom) = import_pseudo_atom(zi);
         let mut occ: Vec<i8> = Vec::new();
         let mut vo_vec: Vec<(i8, i8, i8)> = Vec::new();
-        let val_e: i8 = 0;
+        let mut val_e: i8 = 0;
         hubbard_u.insert(*zi, atom.hubbard_u);
         for i in atom.valence_orbitals {
             let n: i8 = atom.nshell[i as usize];
@@ -197,13 +192,11 @@ fn get_electronic_configuration(
                 vo_vec.push((n - 1, l, m));
                 occ.push(atom.orbital_occupation[i as usize] / (2 * l + 1));
             }
-            let val_e: i8 = val_e + atom.orbital_occupation[i as usize];
+            val_e += atom.orbital_occupation[i as usize];
         }
-        orbs_per_atom.push(vo_vec.len());
         valorbs.insert(*zi, vo_vec);
         valorbs_occupation.insert(*zi, occ);
         ne_val.insert(*zi, val_e);
-        q0.push(val_e as f64);
         let mut energies_zi: HashMap<(i8, i8), f64> = HashMap::new();
         for (n, (l, en)) in free_atom
             .nshell
@@ -220,8 +213,6 @@ fn get_electronic_configuration(
         ne_val,
         orbital_energies,
         hubbard_u,
-        q0,
-        orbs_per_atom,
     );
 }
 
