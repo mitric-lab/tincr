@@ -8,6 +8,7 @@ use ndarray::prelude::*;
 use ndarray::*;
 use ndarray_linalg::*;
 use std::cmp::max;
+use std::iter::FromIterator;
 
 // INCOMPLETE
 pub fn run_scc(
@@ -24,6 +25,7 @@ pub fn run_scc(
     let p0: Array2<f64> = density_matrix_ref(&molecule);
     // charge guess
     let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
+    let mut q: Array1<f64> = Array::from_iter(molecule.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&molecule, &molecule);
@@ -55,7 +57,7 @@ pub fn run_scc(
         // construct density matrix
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
             orbe.view(),
-            molecule.q0.iter().sum() - molecule.charge as usize,
+            molecule.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
             molecule.nr_unpaired_electrons,
             temperature,
         );
@@ -86,16 +88,16 @@ pub fn run_scc(
 
         // does the density matrix commute with the KS Hamiltonian?
         // diis_error = H * D * S - S * D * H
-        let mut diis_e: Array1<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
+        let mut diis_e: Array1<f64> =
+            Array::from_iter((h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h)).iter().cloned());
         // transform error vector to orthogonal basis
-        diis_e = &a.t().dot(&diis_e.dot(&a));
+        diis_e = a.t().dot(&diis_e.dot(&a));
         let drms: f64 = *&diis_e.map(|x| x * x).mean().unwrap().sqrt();
         fock_error.push(diis_e);
 
         // compute electronic energy
         scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm_a0.view());
-        if ((scf_energy - energy_old).abs() < scf_conv) && (drms < defaults::DENSITY_CONV)
-        {
+        if ((scf_energy - energy_old).abs() < scf_conv) && (drms < defaults::DENSITY_CONV) {
             break 'scf_loop;
         }
         energy_old = scf_energy;
@@ -108,19 +110,28 @@ pub fn run_scc(
 /// Compute energy due to core electrons and nuclear repulsion
 fn get_repulsive_energy(molecule: &Molecule) -> f64 {
     let mut e_nuc: f64 = 0.0;
-    for (i, (z_i, posi)) in molecule
-        .iter_atomlist_sliced(1, molecule.n_atoms - 1)
+    for (i, (z_i, posi)) in molecule.atomic_numbers[1..molecule.n_atoms - 1]
+        .iter()
+        .zip(
+            molecule
+                .positions
+                .slice(s![1..molecule.n_atoms - 1, ..])
+                .outer_iter(),
+        )
         .enumerate()
     {
-        for (z_j, posj) in molecule.iter_atomlist_sliced(0, i + 1) {
-            if z_i > zj {
+        for (z_j, posj) in molecule.atomic_numbers[0..i + 1]
+            .iter()
+            .zip(molecule.positions.slice(s![0..i + 1, ..]).outer_iter())
+        {
+            if z_i > z_j {
                 let z_1: u8 = *z_j;
                 let z_2: u8 = *z_i;
             } else {
                 let z_1: u8 = *z_i;
                 let z_2: u8 = *z_j;
             }
-            let r: f64 = (posi - posj).norm();
+            let r: f64 = (&posi - &posj).norm();
             // nucleus-nucleus and core-electron repulsion
             // TODO: vrep is not finished
             //e_nuc += &molecule.v_rep((z_1, z_2))
@@ -141,7 +152,7 @@ fn get_electronic_energy(
     gamma: ArrayView2<f64>,
 ) -> f64 {
     // band structure energy
-    let e_band_structure: f64 = (p * h0).sum();
+    let e_band_structure: f64 = (&p * &h0).sum();
     // Coulomb energy from monopoles
     let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
     // electronic energy as sum of band structure energy and Coulomb energy
@@ -155,14 +166,16 @@ fn get_electronic_energy(
 /// P_mn = sum_a f_a C_ma* C_na
 fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
     let occ_indx: Vec<usize> = f.iter().positions(|&x| x > 0.0).collect();
-    let occ_orbs: Array2<f64> = orbs.a.slice_axis(Axis(1), Slice::from(occ_indx));
-    let f_occ: Vec<f64> = f.iter().filter(|&x| x > &0.0).collect();
+    let occ_orbs: Array2<f64> = orbs.select(Axis(1), &occ_indx);
+    let f_occ: Vec<f64> = f.iter().filter(|&&x| x > 0.0).cloned().collect();
     let lhs: Vec<f64> = f_occ
         .iter()
         .zip(&occ_indx)
-        .map(|(&i1, &i2)| i1 * i2)
+        .map(|(&i1, &i2)| i1 * i2 as f64)
         .collect();
-    let p: Array2<f64> = Array2::from_shape_vec((lhs.len(), 1), lhs).dot(&occ_orbs.t());
+    let p: Array2<f64> = Array2::from_shape_vec((lhs.len(), 1), lhs)
+        .unwrap()
+        .dot(&occ_orbs.t());
     return p;
 }
 
@@ -172,10 +185,10 @@ fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
     let mut p0: Array2<f64> = Array2::zeros((mol.n_orbs, mol.n_orbs));
     // iterate over orbitals on center i
     let mut idx: usize = 0;
-    for (_i, (zi, _posi)) in mol.iter_atomlist() {
+    for (_i, (zi, _posi)) in mol.iter_atomlist().enumerate() {
         // how many electrons are put into the nl-shell
-        for (iv, (_ni, _li, _mi)) in mol.valorbs[*zi].iter().enumerate() {
-            p0[[idx, idx]] = mol.valorbs_occupation[*zi][*iv];
+        for (iv, (_ni, _li, _mi)) in mol.valorbs[zi].iter().enumerate() {
+            p0[[idx, idx]] = mol.valorbs_occupation[zi][iv] as f64;
             idx += 1;
         }
     }
@@ -307,14 +320,4 @@ fn h1_construction() {
         ]
     ];
     assert!(h1.all_close(&h1_ref, 1e-06));
-}
-
-#[test]
-fn test_mat() {
-    let mut a: Array2<f64> = array![[0.75592895, 1.13389342], [0.37796447, 1.88982237]];
-    a = a.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
-    let b: Array2<f64> = a.dot(&a);
-    let (c, d) = b.eigh(UPLO::Upper).unwrap();
-    println!("b : {}", c);
-    assert_eq!(1, 2);
 }

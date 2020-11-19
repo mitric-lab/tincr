@@ -11,8 +11,8 @@ use std::hash::Hash;
 use std::ops::Neg;
 
 pub struct Molecule {
-    atomic_numbers: Vec<u8>,
-    positions: Array2<f64>,
+    pub(crate) atomic_numbers: Vec<u8>,
+    pub(crate) positions: Array2<f64>,
     pub charge: i8,
     multiplicity: u8,
     pub n_atoms: usize,
@@ -26,7 +26,7 @@ pub struct Molecule {
     pub v_rep: HashMap<(u8, u8), RepulsivePotentialTable>,
     pub proximity_matrix: Array2<bool>,
     pub distance_matrix: Array2<f64>,
-    pub q0: Vec<usize>,
+    pub q0: Vec<f64>,
     pub nr_unpaired_electrons: usize,
     pub orbs_per_atom: Vec<usize>, //pub gm: Array2<f64>,
                                    //pub gm_a0: Array2<f64>
@@ -47,7 +47,7 @@ impl Molecule {
             HashMap<u8, i8>,
             HashMap<u8, HashMap<(i8, i8), f64>>,
             HashMap<u8, f64>,
-            Vec<usize>,
+            Vec<f64>,
             Vec<usize>
         ) = get_electronic_configuration(&atomtypes);
 
@@ -100,19 +100,6 @@ impl Molecule {
         ndarray::iter::AxisIter<'_, f64, ndarray::Dim<[usize; 1]>>,
     > {
         self.atomic_numbers.iter().zip(self.positions.outer_iter())
-    }
-
-    pub fn iter_atomlist_sliced(
-        &self,
-        i: usize,
-        f: usize,
-    ) -> std::iter::Zip<
-        std::slice::Iter<'_, u8>,
-        ndarray::iter::AxisIter<'_, f64, ndarray::Dim<[usize; 1]>>,
-    > {
-        self.atomic_numbers[i..f]
-            .iter()
-            .zip(self.positions.slice(s![i..f, ..]).outer_iter())
     }
 }
 
@@ -186,7 +173,7 @@ fn get_electronic_configuration(
     HashMap<u8, i8>,
     HashMap<u8, HashMap<(i8, i8), f64>>,
     HashMap<u8, f64>,
-    Vec<usize>,
+    Vec<f64>,
     Vec<usize>,
 ) {
     // find quantum numbers of valence orbitals
@@ -195,7 +182,7 @@ fn get_electronic_configuration(
     let mut ne_val: HashMap<u8, i8> = HashMap::new();
     let mut orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>> = HashMap::new();
     let mut hubbard_u: HashMap<u8, f64> = HashMap::new();
-    let mut q0: Vec<usize> = Vec::new();
+    let mut q0: Vec<f64> = Vec::new();
     let mut orbs_per_atom: Vec<usize> = Vec::new();
     for (zi, symbol) in atomtypes.iter() {
         let (atom, free_atom): (PseudoAtom, PseudoAtom) = import_pseudo_atom(zi);
@@ -212,11 +199,11 @@ fn get_electronic_configuration(
             }
             let val_e: i8 = val_e + atom.orbital_occupation[i as usize];
         }
-        valorbs.insert(*zi, vo_vec);
         orbs_per_atom.push(vo_vec.len());
+        valorbs.insert(*zi, vo_vec);
         valorbs_occupation.insert(*zi, occ);
         ne_val.insert(*zi, val_e);
-        q0.push(val_e as usize);
+        q0.push(val_e as f64);
         let mut energies_zi: HashMap<(i8, i8), f64> = HashMap::new();
         for (n, (l, en)) in free_atom
             .nshell
