@@ -17,21 +17,21 @@ Of course you also need Rust itself. This is straightforward to install and expl
 detail on the [official site](https://www.rust-lang.org/tools/install). 
 
 Then just clone the repository to your local machine
-```
+```bash
 git clone https://github.com/hochej/tincr.git
 ```
 Go into the new directory
-```
+```bash
 cd tincr
 ```
 and build the executable with the package manager Cargo
-```
+```bash
 cargo build --release
 ```
 The option `--release` enables all optimization during the build and ensures fast runtimes, but can
 result in very long compile times. If you want to compile often e.g. in the case of debugging, then 
 it makes sense to just execute
-```
+```bash
 cargo build
 ``` 
 
@@ -132,7 +132,7 @@ official style guide.
 The second tool, Clippy, which I discovered relatively late, goes one step further
 and suggests code changes to make the code more idiomatic and also more efficient.
 The tool is also included in the standard Rust installation and can be started with:
-```
+```bash
 cargo clippy
 ```
 
