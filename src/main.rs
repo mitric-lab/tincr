@@ -15,6 +15,7 @@ mod zbrent;
 mod fermi_occupation;
 mod scc_routine;
 mod diis;
+mod mulliken;
 
 use ndarray::*;
 use ndarray_linalg::*;

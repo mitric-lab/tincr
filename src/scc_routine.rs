@@ -4,6 +4,7 @@ use crate::diis::diis;
 use crate::fermi_occupation;
 use crate::h0_and_s::h0_and_s_ab;
 use crate::molecule::*;
+use crate::mulliken::*;
 use approx::AbsDiffEq;
 use itertools::Itertools;
 use ndarray::prelude::*;
@@ -25,6 +26,7 @@ pub fn run_scc(
 
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
+    let mut p: Array2<f64> = Array2::zeros(p0.raw_dim());
     // charge guess
     let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
     let mut q: Array1<f64> = Array::from_iter(molecule.q0.iter().cloned());
@@ -36,6 +38,8 @@ pub fn run_scc(
 
     let mut fock_error: Vec<Array1<f64>> = Vec::new();
     let mut fock_list: Vec<Array2<f64>> = Vec::new();
+    let mut density_error: Vec<Array1<f64>> = Vec::new();
+    let mut density_list: Vec<Array2<f64>> = Vec::new();
 
     //  compute A = S^(-1/2)
     // 1. diagonalize S
@@ -47,7 +51,7 @@ pub fn run_scc(
 
     // add nuclear energy to the total scf energy
     scf_energy += get_repulsive_energy(&molecule);
-
+    println!("REPULSIVE ENERGY {}", scf_energy);
     'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
@@ -72,7 +76,7 @@ pub fn run_scc(
         let mu: f64 = tmp.0;
         let f: Vec<f64> = tmp.1;
         // calculate the density matrix
-        let p: Array2<f64> = density_matrix(orbs.view(), &f[..]);
+        p = density_matrix(orbs.view(), &f[..]);
         if i >= 2 {
             // use DIIS to speed up convergence
             // limit size of DIIS vector
@@ -81,9 +85,12 @@ pub fn run_scc(
                 // remove oldest vector
                 fock_list.remove(0);
                 fock_error.remove(0);
+                density_list.remove(0);
+                density_error.remove(0);
                 diis_count -= 1;
             }
             h = diis(h.view(), &fock_list[..], &fock_error[..]);
+            p = diis(p.view(), &density_list[..], &density_error[..]);
         }
 
         //println!("P0 {}", p0);
@@ -105,8 +112,10 @@ pub fn run_scc(
         diis_e = a.t().dot(&diis_e.dot(&a));
         let diis_e: Array1<f64> = Array::from_iter(diis_e.iter().cloned());
         let drms: f64 = *&diis_e.map(|x| x * x).mean().unwrap().sqrt();
-        fock_error.push(diis_e);
+        fock_error.push(diis_e.clone());
         fock_list.push(h.clone());
+        density_error.push(diis_e);
+        density_list.push(p.clone());
         // compute electronic energy
         scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
         if ((scf_energy - energy_old).abs() < scf_conv) && (drms < defaults::DENSITY_CONV) {
@@ -114,7 +123,7 @@ pub fn run_scc(
         }
         energy_old = scf_energy;
         println!("ENERGY ====  {}", scf_energy);
-        assert_ne!(i + 1, max_iter, "SCF not converged");
+        assert_ne!(i + 1, 2, "SCF not converged");
     }
     println!("SCF CONVERGED!");
     return scf_energy;
@@ -123,12 +132,12 @@ pub fn run_scc(
 /// Compute energy due to core electrons and nuclear repulsion
 fn get_repulsive_energy(molecule: &Molecule) -> f64 {
     let mut e_nuc: f64 = 0.0;
-    for (i, (z_i, posi)) in molecule.atomic_numbers[1..molecule.n_atoms - 1]
+    for (i, (z_i, posi)) in molecule.atomic_numbers[1..molecule.n_atoms]
         .iter()
         .zip(
             molecule
                 .positions
-                .slice(s![1..molecule.n_atoms - 1, ..])
+                .slice(s![1..molecule.n_atoms, ..])
                 .outer_iter(),
         )
         .enumerate()
@@ -137,17 +146,18 @@ fn get_repulsive_energy(molecule: &Molecule) -> f64 {
             .iter()
             .zip(molecule.positions.slice(s![0..i + 1, ..]).outer_iter())
         {
+            let z_1:u8;
+            let z_2:u8;
             if z_i > z_j {
-                let z_1: u8 = *z_j;
-                let z_2: u8 = *z_i;
+                z_1  = *z_j;
+                z_2  = *z_i;
             } else {
-                let z_1: u8 = *z_i;
-                let z_2: u8 = *z_j;
+                z_1 = *z_i;
+                z_2 = *z_j;
             }
             let r: f64 = (&posi - &posj).norm();
             // nucleus-nucleus and core-electron repulsion
-            // TODO: vrep is not finished
-            //e_nuc += &molecule.v_rep((z_1, z_2))
+            e_nuc += &molecule.v_rep[&(z_1, z_2)].spline_eval(r);
         }
     }
     return e_nuc;
@@ -211,40 +221,6 @@ fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
     return p0;
 }
 
-// Mulliken Charges
-fn mulliken(
-    p: ArrayView2<f64>,
-    p0: ArrayView2<f64>,
-    s: ArrayView2<f64>,
-    orbs_per_atom: &[usize],
-    n_atom: usize,
-) -> (Array1<f64>, Array1<f64>) {
-    let dp = &p - &p0;
-
-    let mut q: Array1<f64> = Array1::<f64>::zeros(n_atom);
-    let mut dq: Array1<f64> = Array1::<f64>::zeros(n_atom);
-
-    // iterate over atoms A
-    let mut mu = 0;
-    // inside the loop
-    for a in 0..n_atom {
-        // iterate over orbitals on atom A
-        for _mu_a in 0..orbs_per_atom[a] {
-            let mut nu = 0;
-            // iterate over atoms B
-            for b in 0..n_atom {
-                // iterate over orbitals on atom B
-                for _nu_b in 0..orbs_per_atom[b] {
-                    q[a] = q[a] + (&p[[mu, nu]] * &s[[mu, nu]]);
-                    dq[a] = dq[a] + (&dp[[mu, nu]] * &s[[mu, nu]]);
-                    nu += 1;
-                }
-            }
-            mu += 1;
-        }
-    }
-    (q, dq)
-}
 
 fn construct_h1(mol: &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
@@ -334,7 +310,7 @@ fn h1_construction() {
             -0.0019094666508122
         ]
     ];
-    assert!(h1.all_close(&h1_ref, 1e-06));
+    assert!(h1.abs_diff_eq(&h1_ref, 1e-06));
 }
 
 #[test]
@@ -442,6 +418,31 @@ fn density_matrix_test() {
         ]
     ];
     assert!(p.abs_diff_eq(&p_ref, 1e-16));
+}
+
+#[test]
+fn reference_density_matrix() {
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let p0: Array2<f64> = density_matrix_ref(&mol);
+    let p0_ref: Array2<f64> = array![
+        [2., 0., 0., 0., 0., 0.],
+        [0., 1.3333333333333333, 0., 0., 0., 0.],
+        [0., 0., 1.3333333333333333, 0., 0., 0.],
+        [0., 0., 0., 1.3333333333333333, 0., 0.],
+        [0., 0., 0., 0., 1., 0.],
+        [0., 0., 0., 0., 0., 1.]
+    ];
+    assert!(p0.abs_diff_eq(&p0_ref, 1e-16));
 }
 
 #[test]

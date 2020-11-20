@@ -17,6 +17,8 @@ fn get_nan_value() -> f64 {
     f64::NAN
 }
 
+fn init_none() -> Option<(Vec<f64>, Vec<f64>, usize)> {None}
+
 fn get_inf_value() -> f64 {
     f64::INFINITY
 }
@@ -131,6 +133,23 @@ pub struct RepulsivePotentialTable {
     z1: u8,
     z2: u8,
     d: Vec<f64>,
+    #[serde(default = "init_none")]
+    spline_rep: Option<(Vec<f64>, Vec<f64>, usize)>
+}
+
+impl RepulsivePotentialTable {
+    pub fn spline_rep(&mut self)  {
+        let spline: (Vec<f64>, Vec<f64>, usize) = rusty_fitpack::splrep(self.d.clone(), self.vrep.clone(), None,
+                                                                            None, None, None, None, None,
+                                                                            None, None, None, None);
+        self.spline_rep = Some(spline);
+    }
+    pub fn spline_eval(&self, x: f64) -> f64 {
+        match &self.spline_rep {
+            Some((t, c, k)) => rusty_fitpack::splev_uniform(t, c, *k, x),
+            None => panic!("No spline represantation available"),
+        }
+    }
 }
 
 pub fn get_free_pseudo_atom(element: &str) -> PseudoAtom {
@@ -170,8 +189,9 @@ pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTab
     );
     let path: &Path = Path::new(&filename);
     let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let reppot_table: RepulsivePotentialTable =
+    let mut reppot_table: RepulsivePotentialTable =
         from_str(&data).expect("RON file was not well-formatted");
+    reppot_table.spline_rep();
     return reppot_table;
 }
 
