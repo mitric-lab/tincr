@@ -51,7 +51,6 @@ pub fn run_scc(
 
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
-    println!("REPULSIVE ENERGY {}", scf_energy);
     'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
@@ -133,7 +132,8 @@ pub fn run_scc(
             break 'scf_loop;
         }
         energy_old = scf_energy;
-        println!("Iteration {}; Energy = {} hartree", i, scf_energy + rep_energy);
+        println!("Iteration {} => SCF-Energy = {} hartree", i, scf_energy + rep_energy);
+        break;
         assert_ne!(i + 1, 50, "SCF not converged");
     }
     println!("SCF Converged!");
