@@ -54,14 +54,13 @@ impl Molecule {
             HashMap<(u8, u8), SlaterKosterTable>,
             HashMap<(u8, u8), RepulsivePotentialTable>,
         ) = get_parameters(unique_numbers);
-
         let charge: i8 = charge.unwrap_or(defaults::CHARGE);
         let multiplicity: u8 = multiplicity.unwrap_or(defaults::MULTIPLICITY);
 
         let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
             distance_matrix(positions.view(), None);
 
-        let n_atoms: usize = positions.cols();
+        let n_atoms: usize = positions.nrows();
 
         let mut n_orbs: usize = 0;
         for zi in &atomic_numbers {
@@ -221,7 +220,7 @@ fn distance_matrix(
     cutoff: Option<f64>,
 ) -> (Array2<f64>, Array3<f64>, Array2<bool>) {
     let cutoff: f64 = cutoff.unwrap_or(defaults::PROXIMITY_CUTOFF);
-    let n_atoms: usize = coordinates.cols();
+    let n_atoms: usize = coordinates.nrows();
     let mut dist_matrix: Array2<f64> = Array::zeros((n_atoms, n_atoms));
     let mut directions_matrix: Array3<f64> = Array::zeros((n_atoms, n_atoms, 3));
     let mut prox_matrix: Array2<bool> = Array::from_elem((n_atoms, n_atoms), false);

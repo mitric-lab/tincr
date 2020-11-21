@@ -50,7 +50,7 @@ pub fn run_scc(
     let a: Array2<f64> = v.dot(&w12.dot(&v.t()));
 
     // add nuclear energy to the total scf energy
-    scf_energy += get_repulsive_energy(&molecule);
+    let rep_energy: f64 = get_repulsive_energy(&molecule);
     println!("REPULSIVE ENERGY {}", scf_energy);
     'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
@@ -77,6 +77,7 @@ pub fn run_scc(
         let f: Vec<f64> = tmp.1;
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
+        density_list.push(p.clone());
         if i >= 2 {
             // use DIIS to speed up convergence
             // limit size of DIIS vector
@@ -90,7 +91,14 @@ pub fn run_scc(
                 diis_count -= 1;
             }
             h = diis(h.view(), &fock_list[..], &fock_error[..]);
-            p = diis(p.view(), &density_list[..], &density_error[..]);
+        }
+        if density_list.len() > 3 && density_error.len() > 4 {
+            if (density_error[density_error.len() - 1].norm()
+                / density_list[density_list.len() - 1].norm())
+                < 0.5
+            {
+                p = diis(p.view(), &density_list[..], &density_error[..]);
+            }
         }
 
         //println!("P0 {}", p0);
@@ -114,19 +122,22 @@ pub fn run_scc(
         let drms: f64 = *&diis_e.map(|x| x * x).mean().unwrap().sqrt();
         fock_error.push(diis_e.clone());
         fock_list.push(h.clone());
-        density_error.push(diis_e);
-        density_list.push(p.clone());
+        if density_list.len() >= 2 {
+            density_error.push(Array1::from_iter(
+                (&density_list[density_list.len() - 1] - &density_list[density_list.len() - 2]).iter().cloned(),
+            ));
+        }
         // compute electronic energy
         scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
         if ((scf_energy - energy_old).abs() < scf_conv) && (drms < defaults::DENSITY_CONV) {
             break 'scf_loop;
         }
         energy_old = scf_energy;
-        println!("ENERGY ====  {}", scf_energy);
-        assert_ne!(i + 1, 2, "SCF not converged");
+        println!("Iteration {}; Energy = {} hartree", i, scf_energy + rep_energy);
+        assert_ne!(i + 1, 50, "SCF not converged");
     }
-    println!("SCF CONVERGED!");
-    return scf_energy;
+    println!("SCF Converged!");
+    return scf_energy+rep_energy;
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
@@ -146,11 +157,11 @@ fn get_repulsive_energy(molecule: &Molecule) -> f64 {
             .iter()
             .zip(molecule.positions.slice(s![0..i + 1, ..]).outer_iter())
         {
-            let z_1:u8;
-            let z_2:u8;
+            let z_1: u8;
+            let z_2: u8;
             if z_i > z_j {
-                z_1  = *z_j;
-                z_2  = *z_i;
+                z_1 = *z_j;
+                z_2 = *z_i;
             } else {
                 z_1 = *z_i;
                 z_2 = *z_j;
@@ -180,7 +191,7 @@ fn get_electronic_energy(
     // Coulomb energy from monopoles
     let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
     // electronic energy as sum of band structure energy and Coulomb energy
-    println!("E BS {} E COUL {} dQ {}", e_band_structure, e_coulomb, dq);
+    //println!("E BS {} E COUL {} dQ {}", e_band_structure, e_coulomb, dq);
     let e_elec: f64 = e_band_structure + e_coulomb;
     // long-range Hartree-Fock exchange
     // if ....
@@ -220,7 +231,6 @@ fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
     }
     return p0;
 }
-
 
 fn construct_h1(mol: &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
