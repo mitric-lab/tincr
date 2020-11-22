@@ -187,7 +187,7 @@ fn get_electronic_energy(
     let e_elec: f64 = e_band_structure + e_coulomb;
     // long-range Hartree-Fock exchange
     // if ....Iteration {} =>
-    println!("               E_bs = {:.7}  E_coulomb = {:.7}", e_band_structure, e_coulomb);
+    //println!("               E_bs = {:.7}  E_coulomb = {:.7}", e_band_structure, e_coulomb);
     return e_elec;
 }
 
