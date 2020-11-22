@@ -1,4 +1,3 @@
-use peroxide::numerical::spline::CubicSpline;
 use ron::de::from_str;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -8,6 +7,8 @@ use rusty_fitpack;
 use rusty_fitpack::splev_uniform;
 use ndarray::{Array, Array1, Array2};
 use ndarray::array;
+use std::env;
+use crate::defaults;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -152,8 +153,17 @@ impl RepulsivePotentialTable {
     }
 }
 
+fn get_path_prefix() -> String {
+    let key: &str = defaults::SOURCE_DIR_VARIABLE;
+    match env::var(key) {
+        Ok(val) => val,
+        Err(e) => panic!("The environment variable {} was not set", key),
+    }
+}
+
 pub fn get_free_pseudo_atom(element: &str) -> PseudoAtom {
-    let filename: String = format!("./src/param/slaterkoster/free_pseudo_atom/{}.ron", element);
+    let path_prefix: String = get_path_prefix();
+    let filename: String = format!("{}/src/param/slaterkoster/free_pseudo_atom/{}.ron",path_prefix, element);
     let path: &Path = Path::new(&filename);
     let data: String = fs::read_to_string(path).expect("Unable to read file");
     let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
@@ -161,8 +171,10 @@ pub fn get_free_pseudo_atom(element: &str) -> PseudoAtom {
 }
 
 pub fn get_confined_pseudo_atom(element: &str) -> PseudoAtom {
+    let path_prefix: String = get_path_prefix();
     let filename: String = format!(
-        "./src/param/slaterkoster/confined_pseudo_atom/{}.ron",
+        "{}/src/param/slaterkoster/confined_pseudo_atom/{}.ron",
+        path_prefix,
         element
     );
     let path: &Path = Path::new(&filename);
@@ -172,8 +184,10 @@ pub fn get_confined_pseudo_atom(element: &str) -> PseudoAtom {
 }
 
 pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
+    let path_prefix: String = get_path_prefix();
     let filename: String = format!(
-        "./src/param/slaterkoster/slako_tables/{}_{}.ron",
+        "{}/src/param/slaterkoster/slako_tables/{}_{}.ron",
+        path_prefix,
         element1, element2
     );
     let path: &Path = Path::new(&filename);
@@ -183,8 +197,10 @@ pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
 }
 
 pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTable {
+    let path_prefix: String = get_path_prefix();
     let filename: String = format!(
-        "./src/param/repulsive_potential/reppot_tables/{}_{}.ron",
+        "{}/src/param/repulsive_potential/reppot_tables/{}_{}.ron",
+        path_prefix,
         element1, element2
     );
     let path: &Path = Path::new(&filename);

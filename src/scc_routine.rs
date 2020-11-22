@@ -1,6 +1,6 @@
 use crate::constants::*;
 use crate::defaults;
-use crate::diis::diis;
+use crate::diis::*;
 use crate::fermi_occupation;
 use crate::h0_and_s::h0_and_s_ab;
 use crate::molecule::*;
@@ -26,6 +26,7 @@ pub fn run_scc(
 
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
+    let mut p_last: Array2<f64> = p0.clone();
     let mut p: Array2<f64> = Array2::zeros(p0.raw_dim());
     // charge guess
     let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
@@ -38,8 +39,10 @@ pub fn run_scc(
 
     let mut fock_error: Vec<Array1<f64>> = Vec::new();
     let mut fock_list: Vec<Array2<f64>> = Vec::new();
-    let mut density_error: Vec<Array1<f64>> = Vec::new();
-    let mut density_list: Vec<Array2<f64>> = Vec::new();
+    let mut density_mixer: Pulay80 = Pulay80::new();
+    let mut fock_mixer: Pulay82 = Pulay82::new();
+
+    let mut mixing_flag: bool = false;
 
     //  compute A = S^(-1/2)
     // 1. diagonalize S
@@ -60,6 +63,9 @@ pub fn run_scc(
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
         // H' = X^t.H.X
         //println!("H {}", h);
+        if i > 0 {
+            h = fock_mixer.next(h);
+        }
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
         let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
         // C = X.C'
@@ -76,29 +82,16 @@ pub fn run_scc(
         let f: Vec<f64> = tmp.1;
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
-        density_list.push(p.clone());
-        if i >= 2 {
-            // use DIIS to speed up convergence
-            // limit size of DIIS vector
-            diis_count = fock_list.len();
-            if diis_count > defaults::DIIS_LIMIT {
-                // remove oldest vector
-                fock_list.remove(0);
-                fock_error.remove(0);
-                density_list.remove(0);
-                density_error.remove(0);
-                diis_count -= 1;
-            }
-            h = diis(h.view(), &fock_list[..], &fock_error[..]);
+        //println!("P orig {}", p);
+        if mixing_flag {
+            p = density_mixer.next(p);
+        } else {
+            // this is only temporary for testing
+            let mut next_p: Array2<f64> = p.map(|x| 0.33 * *x) + p_last.map(|x| 0.67 * *x);
+            next_p *= (&p * &s).sum() / (&next_p * &s).sum();
+            p = next_p;
         }
-        if density_list.len() > 3 && density_error.len() > 4 {
-            if (density_error[density_error.len() - 1].norm()
-                / density_list[density_list.len() - 1].norm())
-                < 0.5
-            {
-                p = diis(p.view(), &density_list[..], &density_error[..]);
-            }
-        }
+        //println!("P diis {}", p);
 
         //println!("P0 {}", p0);
         // update partial charges using Mulliken analysis
@@ -112,29 +105,28 @@ pub fn run_scc(
         q = new_q;
         dq = new_dq;
 
-        // does the density matrix commute with the KS Hamiltonian?
-        // diis_error = H * D * S - S * D * H
-        let mut diis_e: Array2<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
-        // transform error vector to orthogonal basis
-        diis_e = a.t().dot(&diis_e.dot(&a));
-        let diis_e: Array1<f64> = Array::from_iter(diis_e.iter().cloned());
-        let drms: f64 = *&diis_e.map(|x| x * x).mean().unwrap().sqrt();
-        fock_error.push(diis_e.clone());
-        fock_list.push(h.clone());
-        if density_list.len() >= 2 {
-            density_error.push(Array1::from_iter(
-                (&density_list[density_list.len() - 1] - &density_list[density_list.len() - 2]).iter().cloned(),
-            ));
-        }
+        //println!("Q: {}, dq {}", q, dq);
+
         // compute electronic energy
         scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
-        if ((scf_energy - energy_old).abs() < scf_conv) && (drms < defaults::DENSITY_CONV) {
+
+        // does the density matrix commute with the KS Hamiltonian?
+        // diis_error = H * D * S - S * D * H
+        let mut diis_e: Array1<f64> = Array1::from_iter((h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h)).iter().cloned());
+        fock_mixer.add_error_vector(diis_e);
+
+        if ((scf_energy - energy_old).abs() < scf_conv)  {
             break 'scf_loop;
         }
+
+        if density_mixer.relative_change() < 1.0e-3 {
+            //mixing_flag = true;
+        }
+
         energy_old = scf_energy;
-        println!("Iteration {} => SCF-Energy = {} hartree", i, scf_energy + rep_energy);
-        break;
+        println!("Iteration {} => SCF-Energy = {:.8} hartree", i, scf_energy + rep_energy);
         assert_ne!(i + 1, 50, "SCF not converged");
+        p_last = p;
     }
     println!("SCF Converged!");
     return scf_energy+rep_energy;
@@ -194,7 +186,8 @@ fn get_electronic_energy(
     //println!("E BS {} E COUL {} dQ {}", e_band_structure, e_coulomb, dq);
     let e_elec: f64 = e_band_structure + e_coulomb;
     // long-range Hartree-Fock exchange
-    // if ....
+    // if ....Iteration {} =>
+    println!("               E_bs = {:.7}  E_coulomb = {:.7}", e_band_structure, e_coulomb);
     return e_elec;
 }
 

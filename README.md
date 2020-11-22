@@ -7,14 +7,15 @@
 To be able to compile and run the __tincr__ program it is necessary to have the Intel MKL libary
 installed, as the linear algebra operations are based on the MKL LAPACK and BLAS implementations. 
 You can just download the MKL library from the Intel webpage and after installation make sure that the 
-enviroment variables are set. If not you can just execute the `makevars.sh` script which is located in the
+enviroment variables are set. If not you can just execute the `mklvars.sh` script which is located in the
 installation directory of the MKL Library. 
 ```bash
-source /path/to/MKL/makevars.sh
+source /path/to/MKL/mklvars.sh intel64
 ```  
 Make sure that the environment variable `$MKLROOT` was set. 
 Of course you also need Rust itself. This is straightforward to install and explained in 
-detail on the [official site](https://www.rust-lang.org/tools/install). 
+detail on the [official site](https://www.rust-lang.org/tools/install). Furthermore, you need the `Rusty-Fitpack` crate
+for the spline interpolation. This can be cloned from the Github repository and installed in the same way.
 
 Then just clone the repository to your local machine
 ```bash
@@ -34,6 +35,25 @@ it makes sense to just execute
 ```bash
 cargo build
 ``` 
+To be able to execute the `tincr` programm you should set `TINCR_SRC_DIR` to the installation directory and you 
+can add the binary path to your `PATH` environment variable.
+
+### Example
+This example shows the installation on the wuxcs cluster as a local user: 
+```bash
+source /opt/local/intel/compilers_and_libraries_2019.4.243/linux/mkl/bin/mklvars.sh intel64
+cd $HOME/software
+git clone https://github.com/mitric-lab/Rusty-FITPACK.git
+git clone https://github.com/hochej/tincr.git
+cd tincr
+```
+Update the path to the Rusty-Fitpack directory in `Cargo.toml`
+```
+cargo build --release
+export TINCR_SRC_DIR="$HOME/software/tincr"
+export PATH=$PATH:$TINCR_SRC_DIR/target/release
+```
+
 
 ### Ideas for new quantum-chemical features
 The idea of this project is to port the DFTBaby program package by Alexander Humeniuk 

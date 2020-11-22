@@ -10,6 +10,7 @@ mod fermi_occupation;
 mod scc_routine;
 mod diis;
 mod mulliken;
+mod broyden;
 
 use ndarray::*;
 use ndarray_linalg::*;

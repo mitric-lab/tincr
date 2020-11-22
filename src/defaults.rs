@@ -24,7 +24,7 @@ pub const REPPOT_SCALING: f64 = 1.0;
 // stop SCF calculation after maxiter iterations
 pub const MAX_ITER: usize = 250;
 // convergence threshold for relative change in SCF-calculation
-pub const SCF_CONV: f64 = 1.0e-12;
+pub const SCF_CONV: f64 = 1.0e-7;
 pub const DENSITY_CONV: f64 = 1.0e-3;
 // if the relative change drops below this value density mixing is used
 pub const MIXING_THRESHOLD: f64 = 1.0e-3;
@@ -40,3 +40,6 @@ pub const LINEAR_MIXING_COEFFICIENT: f64 = 0.33;
 
 
 pub const DIIS_LIMIT: usize = 8;
+
+
+pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
