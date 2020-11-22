@@ -44,7 +44,7 @@ This example shows the installation on the wuxcs cluster as a local user:
 source /opt/local/intel/compilers_and_libraries_2019.4.243/linux/mkl/bin/mklvars.sh intel64
 cd $HOME/software
 git clone https://github.com/mitric-lab/Rusty-FITPACK.git
-git clone https://github.com/hochej/tincr.git
+git clone https://github.com/mitric-lab/tincr
 cd tincr
 ```
 Update the path to the Rusty-Fitpack directory in `Cargo.toml`
