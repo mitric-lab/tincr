@@ -14,7 +14,7 @@ source /path/to/MKL/mklvars.sh intel64
 ```  
 Make sure that the environment variable `$MKLROOT` was set. 
 Of course you also need Rust itself. This is straightforward to install and explained in 
-detail on the [official site](https://www.rust-lang.org/tools/install). Furthermore, you need the [Rusty-FITPACK](https://github.com/mitric-lab/Rusty-FITPACK)([see Documentation for details](http://jhoche.de/Rusty-FITPACK/rusty_fitpack/) crate
+detail on the [official site](https://www.rust-lang.org/tools/install). Furthermore, you need the [Rusty-FITPACK](https://github.com/mitric-lab/Rusty-FITPACK) ([see Documentation for details](http://jhoche.de/Rusty-FITPACK/rusty_fitpack/)) crate
 for the spline interpolation. This can be cloned from the Github repository and installed in the same way.
 
 Then just clone the repository to your local machine
