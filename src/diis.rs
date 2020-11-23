@@ -17,7 +17,13 @@ impl Pulay80 {
     pub fn new() -> Pulay80 {
         let t_v: Vec<Array2<f64>> = Vec::new();
         let r_v: Vec<Array1<f64>> = Vec::new();
-        return Pulay80{ trial_vectors: t_v, residual_vectors: r_v, memory: defaults::DIIS_LIMIT, iter: 0, start: false };
+        return Pulay80 {
+            trial_vectors: t_v,
+            residual_vectors: r_v,
+            memory: defaults::DIIS_LIMIT,
+            iter: 0,
+            start: false,
+        };
     }
 
     pub fn reset(&mut self) {
@@ -69,6 +75,16 @@ impl Pulay80 {
         b.slice_mut(s![.., diis_count]).fill(-1.0);
         b[[diis_count, diis_count]] = 0.0;
 
+        // normalize
+        // calculate the maximal element of the array slice
+        let max: f64 = *b
+            .slice(s![0..diis_count, 0..diis_count])
+            .map(|x| x.abs())
+            .max()
+            .unwrap();
+        b.slice_mut(s![0..diis_count, 0..diis_count])
+            .map(|x| x / max);
+
         // build residual vector, [Pulay:1980:393], Eqn. 6, RHS
         let mut resid: Array1<f64> = Array1::zeros((diis_count + 1));
         resid[diis_count] = -1.0;
@@ -78,14 +94,13 @@ impl Pulay80 {
 
         // calculate new density matrix as linear combination of previous density matrices
         let mut p_next: Array2<f64> = Array2::zeros(self.trial_vectors[0].raw_dim());
-        for (idx, coeff) in ci.slice(s![0..diis_count - 1]).iter().enumerate() {
+        for (idx, coeff) in ci.slice(s![0..diis_count]).iter().enumerate() {
             p_next += &self.trial_vectors[idx].map(|x| x * *coeff);
         }
         let t_len: usize = self.trial_vectors.len();
         self.trial_vectors[t_len - 1] = p_next.clone();
         self.residual_vectors[diis_count - 1] = Array1::from_iter(
-            (&self.trial_vectors[t_len - 1]
-                - &self.trial_vectors[t_len - 2])
+            (&self.trial_vectors[t_len - 1] - &self.trial_vectors[t_len - 2])
                 .iter()
                 .cloned(),
         );
@@ -93,7 +108,7 @@ impl Pulay80 {
     }
 
     // add the trial vector p and replace it with the DIIS approximate
-    pub fn next(&mut self, p:Array2<f64>) -> Array2<f64> {
+    pub fn next(&mut self, p: Array2<f64>) -> Array2<f64> {
         self.add_trial_vector(p.clone());
         let p_next: Array2<f64>;
         if self.start {
@@ -140,7 +155,13 @@ impl Pulay82 {
     pub fn new() -> Pulay82 {
         let t_v: Vec<Array2<f64>> = Vec::new();
         let r_v: Vec<Array1<f64>> = Vec::new();
-        return Pulay82{ trial_vectors: t_v, error_vectors: r_v, memory: defaults::DIIS_LIMIT, iter: 0, start: false };
+        return Pulay82 {
+            trial_vectors: t_v,
+            error_vectors: r_v,
+            memory: defaults::DIIS_LIMIT,
+            iter: 0,
+            start: false,
+        };
     }
 
     pub fn reset(&mut self) {
@@ -162,10 +183,7 @@ impl Pulay82 {
         // determine the best linear combination of the previous
         // solution vectors.
         let diis_count: usize = self.error_vectors.len();
-        assert!(
-            diis_count > 1,
-            "There should be at least 2 error vectors"
-        );
+        assert!(diis_count > 1, "There should be at least 2 error vectors");
         // build error matrix B, [Pulay:1980:393], Eqn. 6, LHS
         let mut b: Array2<f64> = Array2::zeros((diis_count + 1, diis_count + 1));
         for (idx1, e1) in self.error_vectors.iter().enumerate() {
@@ -181,6 +199,15 @@ impl Pulay82 {
         b.slice_mut(s![.., diis_count]).fill(-1.0);
         b[[diis_count, diis_count]] = 0.0;
 
+        // normalize
+        // calculate the maximal element of the array slice
+        let max: f64 = *b
+            .slice(s![0..diis_count, 0..diis_count])
+            .map(|x| x.abs())
+            .max()
+            .unwrap();
+        b.slice_mut(s![0..diis_count, 0..diis_count])
+            .map(|x| x / max);
         // build residual vector, [Pulay:1980:393], Eqn. 6, RHS
         let mut resid: Array1<f64> = Array1::zeros((diis_count + 1));
         resid[diis_count] = -1.0;
@@ -190,14 +217,14 @@ impl Pulay82 {
 
         // calculate new density matrix as linear combination of previous density matrices
         let mut h_next: Array2<f64> = Array2::zeros(self.trial_vectors[0].raw_dim());
-        for (idx, coeff) in ci.slice(s![0..diis_count - 1]).iter().enumerate() {
+        for (idx, coeff) in ci.slice(s![0..diis_count]).iter().enumerate() {
             h_next += &self.trial_vectors[idx].map(|x| x * *coeff);
         }
         return h_next;
     }
 
     // add the trial vector p and replace it with the DIIS approximate
-    pub fn next(&mut self, h:Array2<f64>) -> Array2<f64> {
+    pub fn next(&mut self, h: Array2<f64>) -> Array2<f64> {
         let h_next: Array2<f64>;
         if self.start {
             h_next = self.get_approximation()
@@ -219,13 +246,13 @@ impl Pulay82 {
             change = 1.0;
         } else {
             let t_len: usize = self.trial_vectors.len();
-            let diff: f64 = (&self.trial_vectors[t_len - 1] - &self.trial_vectors[t_len - 2]).norm();
+            let diff: f64 =
+                (&self.trial_vectors[t_len - 1] - &self.trial_vectors[t_len - 2]).norm();
             change = diff / self.trial_vectors[t_len - 1].norm();
         }
         return change;
     }
 }
-
 
 //
 // // Psi4NumPy implementation is used as a reference

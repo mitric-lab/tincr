@@ -119,8 +119,8 @@ pub fn run_scc(
             break 'scf_loop;
         }
 
-        if density_mixer.relative_change() < 1.0e-3 {
-            //mixing_flag = true;
+        if density_mixer.relative_change() < 1.0e-1 {
+            mixing_flag = true;
         }
 
         energy_old = scf_energy;
