@@ -186,8 +186,8 @@ impl Pulay82 {
         assert!(diis_count > 1, "There should be at least 2 error vectors");
         // build error matrix B, [Pulay:1980:393], Eqn. 6, LHS
         let mut b: Array2<f64> = Array2::zeros((diis_count + 1, diis_count + 1));
-        for (idx1, e1) in self.error_vectors.iter().enumerate() {
-            for (idx2, e2) in self.error_vectors.iter().enumerate() {
+        for (idx1, e1) in self.error_vectors[0..diis_count].iter().enumerate() {
+            for (idx2, e2) in self.error_vectors[0..diis_count].iter().enumerate() {
                 if idx2 <= idx1 {
                     let val: f64 = e1.dot(e2);
                     b[[idx1, idx2]] = val;
@@ -201,19 +201,20 @@ impl Pulay82 {
 
         // normalize
         // calculate the maximal element of the array slice
-        let max: f64 = *b
-            .slice(s![0..diis_count, 0..diis_count])
-            .map(|x| x.abs())
-            .max()
-            .unwrap();
-        b.slice_mut(s![0..diis_count, 0..diis_count])
-            .map(|x| x / max);
+        // let max: f64 = *b
+        //     .slice(s![0..diis_count, 0..diis_count])
+        //     .map(|x| x.abs())
+        //     .max()
+        //     .unwrap();
+        // b.slice_mut(s![0..diis_count, 0..diis_count])
+        //     .map(|x| x / max);
         // build residual vector, [Pulay:1980:393], Eqn. 6, RHS
         let mut resid: Array1<f64> = Array1::zeros((diis_count + 1));
         resid[diis_count] = -1.0;
 
         // Solve Pulay equations, [Pulay:1980:393], Eqn. 6
         let ci: Array1<f64> = b.solve_into(resid).unwrap();
+        println!("linear comb {}", ci);
 
         // calculate new density matrix as linear combination of previous density matrices
         let mut h_next: Array2<f64> = Array2::zeros(self.trial_vectors[0].raw_dim());
@@ -225,17 +226,23 @@ impl Pulay82 {
 
     // add the trial vector p and replace it with the DIIS approximate
     pub fn next(&mut self, h: Array2<f64>) -> Array2<f64> {
+        println!("NEXT {}", self.start);
         let h_next: Array2<f64>;
-        if self.start {
-            h_next = self.get_approximation()
-        } else {
+        if self.start == false {
             if self.trial_vectors.len() > 2 {
-                if self.relative_change() < 0.5 {
+                println!("relative change {}", self.relative_change());
+                if self.relative_change() < 0.1 {
+                    println!("START DIIS");
                     self.start = true;
                 }
             }
-            h_next = h;
         }
+        if self.start {
+            h_next = self.get_approximation()
+        } else {
+            h_next = h.clone();
+        }
+        self.trial_vectors.push(h);
         return h_next;
     }
 
@@ -250,6 +257,7 @@ impl Pulay82 {
                 (&self.trial_vectors[t_len - 1] - &self.trial_vectors[t_len - 2]).norm();
             change = diff / self.trial_vectors[t_len - 1].norm();
         }
+        println!("CHANGE {}", change);
         return change;
     }
 }

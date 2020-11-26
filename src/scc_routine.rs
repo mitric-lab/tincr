@@ -69,7 +69,8 @@ pub fn run_scc(
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
         let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
         // C = X.C'
-        //println!("ORBE {}", orbe);
+        println!("ORBE {}", orbe);
+
         let orbs: Array2<f64> = x.dot(&cp);
         // construct density matrix
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
@@ -82,7 +83,7 @@ pub fn run_scc(
         let f: Vec<f64> = tmp.1;
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
-        //println!("P orig {}", p);
+        println!("P orig {}", p);
         if mixing_flag {
             p = density_mixer.next(p);
         } else {
@@ -91,7 +92,7 @@ pub fn run_scc(
             next_p *= (&p * &s).sum() / (&next_p * &s).sum();
             p = next_p;
         }
-        //println!("P diis {}", p);
+        println!("P diis {}", p);
 
         //println!("P0 {}", p0);
         // update partial charges using Mulliken analysis
@@ -112,14 +113,19 @@ pub fn run_scc(
 
         // does the density matrix commute with the KS Hamiltonian?
         // diis_error = H * D * S - S * D * H
-        let mut diis_e: Array1<f64> = Array1::from_iter((h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h)).iter().cloned());
-        fock_mixer.add_error_vector(diis_e);
+        if i > 0 {
+            let mut diis_e: Array2<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
+            // transform error vector to orthogonal basis
+            let mut diis_e: Array1<f64> = Array1::from_iter(a.t().dot(&diis_e.dot(&a)).iter().cloned());
+            println!("DIIS E {}", diis_e);
+            fock_mixer.add_error_vector(diis_e);
+        }
 
         if ((scf_energy - energy_old).abs() < scf_conv)  {
             break 'scf_loop;
         }
 
-        if density_mixer.relative_change() < 1.0e-1 {
+        if (&p_last - &p).norm()/&p.norm() < 1.0e-4 {
             mixing_flag = true;
         }
 
