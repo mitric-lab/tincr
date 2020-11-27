@@ -5,6 +5,7 @@ use crate::fermi_occupation;
 use crate::h0_and_s::h0_and_s_ab;
 use crate::molecule::*;
 use crate::mulliken::*;
+use crate::broyden::*;
 use approx::AbsDiffEq;
 use itertools::Itertools;
 use ndarray::prelude::*;
@@ -12,6 +13,7 @@ use ndarray::*;
 use ndarray_linalg::*;
 use std::cmp::max;
 use std::iter::FromIterator;
+
 
 // INCOMPLETE
 pub fn run_scc(
@@ -42,6 +44,8 @@ pub fn run_scc(
     let mut density_mixer: Pulay80 = Pulay80::new();
     let mut fock_mixer: Pulay82 = Pulay82::new();
 
+    let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
+
     let mut mixing_flag: bool = false;
 
     //  compute A = S^(-1/2)
@@ -69,7 +73,7 @@ pub fn run_scc(
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
         let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
         // C = X.C'
-        println!("ORBE {}", orbe);
+        //println!("ORBE {}", orbe);
 
         let orbs: Array2<f64> = x.dot(&cp);
         // construct density matrix
@@ -83,16 +87,16 @@ pub fn run_scc(
         let f: Vec<f64> = tmp.1;
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
-        println!("P orig {}", p);
-        if mixing_flag {
-            p = density_mixer.next(p);
-        } else {
-            // this is only temporary for testing
-            let mut next_p: Array2<f64> = p.map(|x| 0.33 * *x) + p_last.map(|x| 0.67 * *x);
-            next_p *= (&p * &s).sum() / (&next_p * &s).sum();
-            p = next_p;
-        }
-        println!("P diis {}", p);
+        //println!("P orig {}", p);
+        // if mixing_flag {
+        //     p = density_mixer.next(p);
+        // } else {
+        //     // this is only temporary for testing
+        //     let mut next_p: Array2<f64> = p.map(|x| 0.33 * *x) + p_last.map(|x| 0.67 * *x);
+        //     next_p *= (&p * &s).sum() / (&next_p * &s).sum();
+        //     p = next_p;
+        // }
+        //println!("P diis {}", p);
 
         //println!("P0 {}", p0);
         // update partial charges using Mulliken analysis
@@ -103,7 +107,7 @@ pub fn run_scc(
             &molecule.orbs_per_atom,
             molecule.n_atoms,
         );
-        q = new_q;
+        q = broyden_mixer.next(new_q, new_dq.clone());
         dq = new_dq;
 
         //println!("Q: {}, dq {}", q, dq);
@@ -117,7 +121,7 @@ pub fn run_scc(
             let mut diis_e: Array2<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
             // transform error vector to orthogonal basis
             let mut diis_e: Array1<f64> = Array1::from_iter(a.t().dot(&diis_e.dot(&a)).iter().cloned());
-            println!("DIIS E {}", diis_e);
+            //println!("DIIS E {}", diis_e);
             fock_mixer.add_error_vector(diis_e);
         }
 

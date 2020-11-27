@@ -1,11 +1,11 @@
 use crate::defaults;
 use ndarray::*;
+use ndarray_linalg::krylov::qr;
 use ndarray_linalg::{Inverse, Norm, Solve};
 use ndarray_stats::QuantileExt;
 use peroxide::special::function::beta;
 use std::cmp::{max, min};
 use std::iter::FromIterator;
-use ndarray_linalg::krylov::qr;
 
 /// Modified Broyden mixer
 ///
@@ -42,9 +42,7 @@ pub struct BroydenMixer {
 
 impl BroydenMixer {
     pub fn new(n_atoms: usize) -> BroydenMixer {
-        assert!(alpha > 0.0);
-        assert!(omega0 > 0.0);
-        BroydenMixer{
+        BroydenMixer {
             iter: 0,
             miter: defaults::MAX_ITER,
             omega0: defaults::BROYDEN_OMEGA0,
@@ -57,14 +55,14 @@ impl BroydenMixer {
             q_inp_last: Array1::zeros([n_atoms]),
             a_mat: Array2::zeros([defaults::MAX_ITER - 1, defaults::MAX_ITER - 1]),
             df: Array2::zeros([n_atoms, defaults::MAX_ITER - 1]),
-            uu: Array2::zeros([n_atoms, defaults::MAX_ITER - 1])
+            uu: Array2::zeros([n_atoms, defaults::MAX_ITER - 1]),
         }
     }
 
     pub fn reset(&mut self, n_atoms: usize) {
         self.iter = 0;
-        self.ww = Array1::zeros([self.miter-1]);
-        self.a_mat = Array2::zeros([self.miter-1, self.miter-1]);
+        self.ww = Array1::zeros([self.miter - 1]);
+        self.a_mat = Array2::zeros([self.miter - 1, self.miter - 1]);
         self.q_diff_last = Array1::zeros([n_atoms]);
         self.q_inp_last = Array1::zeros([n_atoms]);
         self.a_mat = Array2::zeros([defaults::MAX_ITER - 1, defaults::MAX_ITER - 1]);
@@ -74,24 +72,31 @@ impl BroydenMixer {
 
     pub fn next(&mut self, q_inp_result: Array1<f64>, q_diff: Array1<f64>) -> Array1<f64> {
         self.iter += 1;
-        assert!(self.iter < self.miter, "Broyden Mixer: Maximal nr. of steps exceeded");
+        assert!(
+            self.iter < self.miter,
+            "Broyden Mixer: Maximal nr. of steps exceeded"
+        );
 
         let q_result: Array1<f64> = self.get_approximation(q_inp_result, q_diff);
         return q_result;
     }
 
     // Does the real work for the Broyden mixer
-    fn get_approximation(&mut self, q_inp_result: Array1<f64>, q_diff: Array1<f64>) -> (Array1<f64>) {
+    fn get_approximation(
+        &mut self,
+        q_inp_result: Array1<f64>,
+        q_diff: Array1<f64>,
+    ) -> (Array1<f64>) {
         let nn_1: usize = self.iter - 1;
         let mut q_inp_result: Array1<f64> = q_inp_result;
         // First iteration: simple mix and storage of qInp and qDiff
-        if self.iter == 0 {
-            self.q_inp_last = q_inp_result.cloned();
-            self.q_diff_last = q_diff;
+        if self.iter == 1 {
+            self.q_inp_last = q_inp_result.clone();
+            self.q_diff_last = q_diff.clone();
             q_inp_result = q_inp_result + q_diff.mapv(|x| x * self.alpha);
         } else {
             // Create weight factor
-            let mut ww_at_n1: f64 = q_diff.dot(&qdiff).sqrt();
+            let mut ww_at_n1: f64 = q_diff.dot(&q_diff).sqrt();
             if ww_at_n1 > self.weight_factor / self.max_weight {
                 ww_at_n1 = self.weight_factor / ww_at_n1;
             } else {
@@ -103,57 +108,59 @@ impl BroydenMixer {
             self.ww[nn_1] = ww_at_n1;
 
             // Build |DF(m-1)> and  (m is the current iteration number)
-            let mut df_uu: Array1<f64> = &q_diff - &q_diff_last;
-            let mut inv_norm: f64 = self.df.dot(&self.df).sqrt();
-            inv_norm = max(inv_norm, 1e-12);
+            let mut df_uu: Array1<f64> = &q_diff - &self.q_diff_last;
+            let mut inv_norm: f64 = df_uu.dot(&df_uu).sqrt();
+            inv_norm = if inv_norm > 1e-12 { inv_norm } else { 1e-12 };
             inv_norm = 1.0 / inv_norm;
             df_uu = df_uu.mapv(|x| x * inv_norm);
 
-            let mut cc: Array2<f64> = Array2::zeros([1, self.iter]);
+            let mut cc: Array2<f64> = Array2::zeros([1, self.iter-1]);
             // Build a, beta, c, and gamma
             for ii in 0..self.iter - 2 {
-                self.aa[[ii, nn_1]] = self.df.slice(s![.., ii]).dot(&df_uu);
-                self.aa[[nn_1, ii]] = a[[ii, nn_1]];
-                cc[[0, ii]] = self
-                    .df
-                    .slice(s![.., ii])
-                    .dot(&self.q_diff_last)
-                    .mapv(|x| x * self.ww[ii]);
+                self.a_mat[[ii, nn_1]] = self.df.slice(s![.., ii]).dot(&df_uu);
+                self.a_mat[[nn_1, ii]] = self.a_mat[[ii, nn_1]];
+                cc[[0, ii]] = self.df.slice(s![.., ii]).dot(&self.q_diff_last) * self.ww[ii];
             }
-            self.aa[[nn_1, nn_1]] = 1.0;
-            cc[[0, nn_1]] = self.ww[nn_1] * df_uu.dot(&self.q_diff_last);
+            self.a_mat[[nn_1, nn_1]] = 1.0;
+            cc[[0, nn_1-1]] = self.ww[nn_1] * df_uu.dot(&self.q_diff_last);
 
-            let mut beta: Array2<f64> = Array2::zeros([]);
+            let mut beta: Array2<f64> = Array2::zeros([nn_1, nn_1]);
             for ii in 0..nn_1 {
-                beta[[ii, ii]] = beta[[ii, ii]] * omega0 * *2;
+                beta.slice_mut(s![..nn_1, ii]).assign(
+                    &(&self.ww.slice(s![..nn_1]).mapv(|x| x * self.ww[ii])
+                        * &self.a_mat.slice(s![..nn_1, ii])),
+                );
+                beta[[ii, ii]] = beta[[ii, ii]] + self.omega0.powi(2);
             }
             beta = beta.inv().unwrap();
 
             let gamma: Array2<f64> = cc.dot(&beta);
             // Store |dF(m-1)>
-            self.df.slice_mut(s![.., nn_1]) = df_uu.view_mut();
+            self.df.slice_mut(s![.., nn_1]).assign(&df_uu);
 
             // Create |u(m-1)>
             df_uu = df_uu.mapv(|x| x * self.alpha)
-                + (&q_inp_result - &q_inp_last).mapv(|x| x * inv_norm);
+                + (&q_inp_result - &self.q_inp_last).mapv(|x| x * inv_norm);
 
             // Save charge vectors before overwriting
-            q_inp_last = q_inp_result.clone();
-            q_diff_last = q_diff.clone();
+            self.q_inp_last = q_inp_result.clone();
+            self.q_diff_last = q_diff.clone();
 
             // Build new vector
-            q_inp_result = &q_inp_result + q_diff.mapv(|x| x * self.alpha);
-            for ii in 0..nn - 2 {
-                q_inp_result = q_inp_result - self.ww[ii] * gamma[[0, ii]] * uu[[.., ii]];
+            q_inp_result = q_diff.mapv(|x| x * self.alpha) + &q_inp_result;
+            for ii in 0..self.iter - 2 {
+                q_inp_result = q_inp_result
+                    - self
+                        .uu
+                        .slice(s![.., ii])
+                        .mapv(|x| x * self.ww[ii] * gamma[[0, ii]]);
             }
-            q_inp_result = q_inp_result - ww[nn_1] * gamma[[0, nn_1]] * df_uu;
+            q_inp_result = q_inp_result - &df_uu.mapv(|x| x * self.ww[nn_1] * gamma[[0, nn_1-1]]);
 
             // Save |u(m-1)>
-            uu.slice_mut(s![.., nn_1]) = df_uu.view_mut();
+            self.uu.slice_mut(s![.., nn_1]).assign(&df_uu);
         }
 
         return q_inp_result;
     }
-
-
 }
