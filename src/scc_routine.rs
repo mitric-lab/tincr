@@ -67,9 +67,9 @@ pub fn run_scc(
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
         // H' = X^t.H.X
         //println!("H {}", h);
-        if i > 0 {
-            h = fock_mixer.next(h);
-        }
+        // if i > 0 {
+        //     h = fock_mixer.next(h);
+        // }
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
         let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
         // C = X.C'
