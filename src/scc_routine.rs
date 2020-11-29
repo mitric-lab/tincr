@@ -107,7 +107,9 @@ pub fn run_scc(
             &molecule.orbs_per_atom,
             molecule.n_atoms,
         );
+        println!("Q BEFORE {}", q);
         q = broyden_mixer.next(new_q, new_dq.clone());
+        println!("Q AFTER {}", q);
         dq = new_dq;
 
         //println!("Q: {}, dq {}", q, dq);

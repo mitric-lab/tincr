@@ -87,6 +87,8 @@ impl BroydenMixer {
         q_inp_result: Array1<f64>,
         q_diff: Array1<f64>,
     ) -> (Array1<f64>) {
+        // In the first iteration the counter `self.iter` ist 1
+        // Therefore the that corresponds to the iterations should be lower by 1
         let nn_1: usize = self.iter - 1;
         let mut q_inp_result: Array1<f64> = q_inp_result;
         // First iteration: simple mix and storage of qInp and qDiff
@@ -95,17 +97,18 @@ impl BroydenMixer {
             self.q_diff_last = q_diff.clone();
             q_inp_result = q_inp_result + q_diff.mapv(|x| x * self.alpha);
         } else {
+            let nn_2: usize = self.iter - 2;
             // Create weight factor
-            let mut ww_at_n1: f64 = q_diff.dot(&q_diff).sqrt();
-            if ww_at_n1 > self.weight_factor / self.max_weight {
-                ww_at_n1 = self.weight_factor / ww_at_n1;
+            let mut ww_at_n2: f64 = q_diff.dot(&q_diff).sqrt();
+            if ww_at_n2 > self.weight_factor / self.max_weight {
+                ww_at_n2 = self.weight_factor / ww_at_n2;
             } else {
-                ww_at_n1 = self.max_weight;
+                ww_at_n2 = self.max_weight;
             }
-            if ww_at_n1 < self.min_weight {
-                ww_at_n1 = self.min_weight;
+            if ww_at_n2 < self.min_weight {
+                ww_at_n2 = self.min_weight;
             }
-            self.ww[nn_1] = ww_at_n1;
+            self.ww[nn_2] = ww_at_n2;
 
             // Build |DF(m-1)> and  (m is the current iteration number)
             let mut df_uu: Array1<f64> = &q_diff - &self.q_diff_last;
@@ -116,21 +119,21 @@ impl BroydenMixer {
 
             let mut cc: Array2<f64> = Array2::zeros([1, self.iter-1]);
             // Build a, beta, c, and gamma
-            for ii in 0..self.iter - 2 {
-                self.a_mat[[ii, nn_1]] = self.df.slice(s![.., ii]).dot(&df_uu);
-                self.a_mat[[nn_1, ii]] = self.a_mat[[ii, nn_1]];
-                cc[[0, ii]] = self.df.slice(s![.., ii]).dot(&self.q_diff_last) * self.ww[ii];
+            for i in 0..self.iter - 2 {
+                self.a_mat[[i, nn_2]] = self.df.slice(s![.., i]).dot(&df_uu);
+                self.a_mat[[nn_2, i]] = self.a_mat[[i, nn_2]];
+                cc[[0, i]] = self.df.slice(s![.., i]).dot(&self.q_diff_last) * self.ww[i];
             }
-            self.a_mat[[nn_1, nn_1]] = 1.0;
-            cc[[0, nn_1-1]] = self.ww[nn_1] * df_uu.dot(&self.q_diff_last);
+            self.a_mat[[nn_2, nn_2]] = 1.0;
+            cc[[0, nn_2]] = self.ww[nn_2] * df_uu.dot(&self.q_diff_last);
 
             let mut beta: Array2<f64> = Array2::zeros([nn_1, nn_1]);
-            for ii in 0..nn_1 {
-                beta.slice_mut(s![..nn_1, ii]).assign(
-                    &(&self.ww.slice(s![..nn_1]).mapv(|x| x * self.ww[ii])
-                        * &self.a_mat.slice(s![..nn_1, ii])),
+            for i in 0..nn_1 {
+                beta.slice_mut(s![..nn_1, i]).assign(
+                    &(&self.ww.slice(s![..nn_1]).mapv(|x| x * self.ww[i])
+                        * &self.a_mat.slice(s![..nn_1, i])),
                 );
-                beta[[ii, ii]] = beta[[ii, ii]] + self.omega0.powi(2);
+                beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2);
             }
             beta = beta.inv().unwrap();
 
@@ -148,14 +151,15 @@ impl BroydenMixer {
 
             // Build new vector
             q_inp_result = q_diff.mapv(|x| x * self.alpha) + &q_inp_result;
-            for ii in 0..self.iter - 2 {
+            for i in 0..nn_2 {
                 q_inp_result = q_inp_result
                     - self
                         .uu
-                        .slice(s![.., ii])
-                        .mapv(|x| x * self.ww[ii] * gamma[[0, ii]]);
+                        .slice(s![.., i])
+                        .mapv(|x| x * self.ww[i] * gamma[[0, i]]);
             }
-            q_inp_result = q_inp_result - &df_uu.mapv(|x| x * self.ww[nn_1] * gamma[[0, nn_1-1]]);
+
+            q_inp_result = q_inp_result - &df_uu.mapv(|x| x * self.ww[nn_2] * gamma[[0, nn_2]]);
 
             // Save |u(m-1)>
             self.uu.slice_mut(s![.., nn_1]).assign(&df_uu);
