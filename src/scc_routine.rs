@@ -13,6 +13,7 @@ use ndarray::*;
 use ndarray_linalg::*;
 use std::cmp::max;
 use std::iter::FromIterator;
+use ndarray_stats::QuantileExt;
 
 
 // This routine is very messy und should be rewritten in a clean form
@@ -28,18 +29,18 @@ pub fn run_scc(
 
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
-    let mut p_last: Array2<f64> = p0.clone();
     let mut p: Array2<f64> = Array2::zeros(p0.raw_dim());
     // charge guess
     let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
     let mut q: Array1<f64> = Array::from_iter(molecule.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
-    let mut diis_count: usize = 0;
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&molecule, &molecule);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(&molecule, Some(0.0));
 
     let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
+
+    let mut converged: bool = false;
 
     //  compute A = S^(-1/2)
     // 1. diagonalize S
@@ -52,18 +53,22 @@ pub fn run_scc(
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
     'scf_loop: for i in 0..max_iter {
+
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
+
         // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
         // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
+
         // H' = X^t.H.X
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
+
         let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
         // C = X.C'
-
         let orbs: Array2<f64> = x.dot(&cp);
+
         // construct density matrix
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
             orbe.view(),
@@ -73,6 +78,7 @@ pub fn run_scc(
         );
         let mu: f64 = tmp.0;
         let f: Vec<f64> = tmp.1;
+
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
 
@@ -84,25 +90,28 @@ pub fn run_scc(
             &molecule.orbs_per_atom,
             molecule.n_atoms,
         );
-        //println!("Q BEFORE {}", dq);
-        let dq_diff = &new_dq - &dq;
+
+        // charge difference to previous iteration
+        let dq_diff: Array1<f64> = &new_dq - &dq;
+
+        // check if charge difference to the previus iteration is lower then 1e-5
+        if (dq_diff.map(|x| x.abs()).max().unwrap() < &scf_conv)  {
+            converged = true;
+        }
+        // Broyden mixing of partial charges
         dq = broyden_mixer.next(new_dq, dq_diff);
         q = new_q;
-        //println!("Q AFTER {}", dq);
-        //dq = new_dq;
 
         // compute electronic energy
         scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
 
-
-        if ((scf_energy - energy_old).abs() < scf_conv)  {
-            break 'scf_loop;
-        }
-
         energy_old = scf_energy;
         println!("Iteration {} => SCF-Energy = {:.8} hartree", i, scf_energy + rep_energy);
         assert_ne!(i + 1, 20, "SCF not converged");
-        p_last = p;
+
+        if converged {
+            break 'scf_loop;
+        }
     }
     println!("SCF Converged!");
     return scf_energy+rep_energy;
