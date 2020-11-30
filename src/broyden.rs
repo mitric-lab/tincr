@@ -122,10 +122,10 @@ impl BroydenMixer {
             for i in 0..self.iter - 2 {
                 self.a_mat[[i, nn_2]] = self.df.slice(s![.., i]).dot(&df_uu);
                 self.a_mat[[nn_2, i]] = self.a_mat[[i, nn_2]];
-                cc[[0, i]] = self.df.slice(s![.., i]).dot(&self.q_diff_last) * self.ww[i];
+                cc[[0, i]] = self.df.slice(s![.., i]).dot(&q_diff) * self.ww[i];
             }
             self.a_mat[[nn_2, nn_2]] = 1.0;
-            cc[[0, nn_2]] = self.ww[nn_2] * df_uu.dot(&self.q_diff_last);
+            cc[[0, nn_2]] = self.ww[nn_2] * df_uu.dot(&q_diff);
 
             let mut beta: Array2<f64> = Array2::zeros([nn_1, nn_1]);
             for i in 0..nn_1 {
@@ -136,10 +136,11 @@ impl BroydenMixer {
                 beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2);
             }
             beta = beta.inv().unwrap();
-
             let gamma: Array2<f64> = cc.dot(&beta);
             // Store |dF(m-1)>
-            self.df.slice_mut(s![.., nn_1]).assign(&df_uu);
+            self.df.slice_mut(s![.., nn_2]).assign(&df_uu);
+
+            //println!("Gamma {}", gamma);
 
             // Create |u(m-1)>
             df_uu = df_uu.mapv(|x| x * self.alpha)
@@ -162,7 +163,7 @@ impl BroydenMixer {
             q_inp_result = q_inp_result - &df_uu.mapv(|x| x * self.ww[nn_2] * gamma[[0, nn_2]]);
 
             // Save |u(m-1)>
-            self.uu.slice_mut(s![.., nn_1]).assign(&df_uu);
+            self.uu.slice_mut(s![.., nn_2]).assign(&df_uu);
         }
 
         return q_inp_result;

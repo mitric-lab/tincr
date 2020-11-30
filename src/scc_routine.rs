@@ -15,7 +15,7 @@ use std::cmp::max;
 use std::iter::FromIterator;
 
 
-// INCOMPLETE
+// This routine is very messy und should be rewritten in a clean form
 pub fn run_scc(
     molecule: &Molecule,
     max_iter: Option<usize>,
@@ -39,14 +39,7 @@ pub fn run_scc(
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&molecule, &molecule);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(&molecule, Some(0.0));
 
-    let mut fock_error: Vec<Array1<f64>> = Vec::new();
-    let mut fock_list: Vec<Array2<f64>> = Vec::new();
-    let mut density_mixer: Pulay80 = Pulay80::new();
-    let mut fock_mixer: Pulay82 = Pulay82::new();
-
     let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
-
-    let mut mixing_flag: bool = false;
 
     //  compute A = S^(-1/2)
     // 1. diagonalize S
@@ -66,14 +59,9 @@ pub fn run_scc(
         // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
         // H' = X^t.H.X
-        //println!("H {}", h);
-        // if i > 0 {
-        //     h = fock_mixer.next(h);
-        // }
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
         let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
         // C = X.C'
-        //println!("ORBE {}", orbe);
 
         let orbs: Array2<f64> = x.dot(&cp);
         // construct density matrix
@@ -87,18 +75,7 @@ pub fn run_scc(
         let f: Vec<f64> = tmp.1;
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
-        //println!("P orig {}", p);
-        // if mixing_flag {
-        //     p = density_mixer.next(p);
-        // } else {
-        //     // this is only temporary for testing
-        //     let mut next_p: Array2<f64> = p.map(|x| 0.33 * *x) + p_last.map(|x| 0.67 * *x);
-        //     next_p *= (&p * &s).sum() / (&next_p * &s).sum();
-        //     p = next_p;
-        // }
-        //println!("P diis {}", p);
 
-        //println!("P0 {}", p0);
         // update partial charges using Mulliken analysis
         let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
             p.view(),
@@ -107,35 +84,24 @@ pub fn run_scc(
             &molecule.orbs_per_atom,
             molecule.n_atoms,
         );
-        q = broyden_mixer.next(new_q, new_dq.clone());
-        dq = new_dq;
-
-        //println!("Q: {}, dq {}", q, dq);
+        //println!("Q BEFORE {}", dq);
+        let dq_diff = &new_dq - &dq;
+        dq = broyden_mixer.next(new_dq, dq_diff);
+        q = new_q;
+        //println!("Q AFTER {}", dq);
+        //dq = new_dq;
 
         // compute electronic energy
         scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
 
-        // does the density matrix commute with the KS Hamiltonian?
-        // diis_error = H * D * S - S * D * H
-        if i > 0 {
-            let mut diis_e: Array2<f64> = h.dot(&p.dot(&s)) - &s.dot(&p).dot(&h);
-            // transform error vector to orthogonal basis
-            let mut diis_e: Array1<f64> = Array1::from_iter(a.t().dot(&diis_e.dot(&a)).iter().cloned());
-            //println!("DIIS E {}", diis_e);
-            fock_mixer.add_error_vector(diis_e);
-        }
 
         if ((scf_energy - energy_old).abs() < scf_conv)  {
             break 'scf_loop;
         }
 
-        if (&p_last - &p).norm()/&p.norm() < 1.0e-4 {
-            mixing_flag = true;
-        }
-
         energy_old = scf_energy;
         println!("Iteration {} => SCF-Energy = {:.8} hartree", i, scf_energy + rep_energy);
-        assert_ne!(i + 1, 50, "SCF not converged");
+        assert_ne!(i + 1, 20, "SCF not converged");
         p_last = p;
     }
     println!("SCF Converged!");
@@ -465,6 +431,35 @@ fn self_consistent_charge_routine() {
         [0.34215, 1.17577, 0.00000],
         [1.31215, 1.17577, 0.00000],
         [0.01882, 1.65996, 0.77583]
+    ];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let energy: f64 = run_scc(&mol, None, None, None);
+    println!("ENERGY: {}", energy);
+    assert_eq!(1, 2);
+}
+
+
+#[test]
+fn self_consistent_charge_routine_near_coin() {
+    let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
+    let mut positions: Array2<f64> = array![
+    [ 1.14035341,  -0.13021522,   2.08719024],
+    [ 0.50220664,   0.05063317,   1.22118011],
+    [-0.88326674,   0.10942181,   1.29559480],
+    [-1.44213805,   0.04044044,   2.22946088],
+    [-1.48146499,   0.27160316,   0.02973104],
+    [-2.56237600,   0.24057787,  -0.12419723],
+    [-0.55934487,   0.38982195,  -1.09018600],
+    [-0.82622551,   1.09380623,  -1.89412324],
+    [ 0.63247888,  -0.46827911,  -1.31954527],
+    [ 1.20025191,  -0.17363757,  -2.22072997],
+    [ 1.09969583,   0.23621820,  -0.12214916],
+    [ 2.06782038,   0.75551464,  -0.16994068],
     ];
 
     // transform coordinates in au
