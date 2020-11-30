@@ -4,7 +4,7 @@
 
 
 <div align="center">
-  <img src="http://jhoche.de/benchmark.png" height="300"/>
+  <img src="http://jhoche.de/benchmark.png" height="420"/>
 </div>
 
 ## Install
