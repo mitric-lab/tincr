@@ -50,6 +50,10 @@ pub fn run_scc(
     // 3. and transform back
     let a: Array2<f64> = v.dot(&w12.dot(&v.t()));
 
+    // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
+    // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
+    let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
+
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
     'scf_loop: for i in 0..max_iter {
@@ -57,10 +61,6 @@ pub fn run_scc(
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
-
-        // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
-        // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
-        let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
 
         // H' = X^t.H.X
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
