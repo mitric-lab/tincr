@@ -107,7 +107,7 @@ pub fn run_scc(
 
         energy_old = scf_energy;
         println!("Iteration {} => SCF-Energy = {:.8} hartree", i, scf_energy + rep_energy);
-        assert_ne!(i + 1, 20, "SCF not converged");
+        assert_ne!(i + 1, max_iter, "SCF not converged");
 
         if converged {
             break 'scf_loop;
