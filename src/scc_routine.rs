@@ -1,20 +1,20 @@
+use crate::broyden::*;
+use crate::calculator::*;
 use crate::constants::*;
 use crate::defaults;
 use crate::diis::*;
 use crate::fermi_occupation;
-use crate::h0_and_s::h0_and_s_ab;
+use crate::h0_and_s::h0_and_s;
 use crate::molecule::*;
 use crate::mulliken::*;
-use crate::broyden::*;
 use approx::AbsDiffEq;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::*;
 use ndarray_linalg::*;
+use ndarray_stats::QuantileExt;
 use std::cmp::max;
 use std::iter::FromIterator;
-use ndarray_stats::QuantileExt;
-
 
 // This routine is very messy und should be rewritten in a clean form
 pub fn run_scc(
@@ -32,11 +32,27 @@ pub fn run_scc(
     let mut p: Array2<f64> = Array2::zeros(p0.raw_dim());
     // charge guess
     let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
-    let mut q: Array1<f64> = Array::from_iter(molecule.q0.iter().cloned());
+    let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
-    let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s_ab(&molecule, &molecule);
-    let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(&molecule, Some(0.0));
+    let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
+        &molecule.atomic_numbers,
+        molecule.positions.view(),
+        molecule.calculator.n_orbs,
+        &molecule.calculator.valorbs,
+        molecule.proximity_matrix.view(),
+        &molecule.calculator.skt,
+        &molecule.calculator.orbital_energies,
+    );
+    let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+        &molecule.atomic_numbers,
+        molecule.n_atoms,
+        molecule.calculator.n_orbs,
+        molecule.distance_matrix.view(),
+        &molecule.calculator.hubbard_u,
+        &molecule.calculator.valorbs,
+        Some(0.0),
+    );
 
     let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
 
@@ -57,7 +73,6 @@ pub fn run_scc(
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
     'scf_loop: for i in 0..max_iter {
-
         let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
@@ -72,8 +87,8 @@ pub fn run_scc(
         // construct density matrix
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
             orbe.view(),
-            molecule.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
-            molecule.nr_unpaired_electrons,
+            molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
+            molecule.calculator.nr_unpaired_electrons,
             temperature,
         );
         let mu: f64 = tmp.0;
@@ -87,7 +102,7 @@ pub fn run_scc(
             p.view(),
             p0.view(),
             s.view(),
-            &molecule.orbs_per_atom,
+            &molecule.calculator.orbs_per_atom,
             molecule.n_atoms,
         );
 
@@ -95,7 +110,7 @@ pub fn run_scc(
         let dq_diff: Array1<f64> = &new_dq - &dq;
 
         // check if charge difference to the previus iteration is lower then 1e-5
-        if (dq_diff.map(|x| x.abs()).max().unwrap() < &scf_conv)  {
+        if (dq_diff.map(|x| x.abs()).max().unwrap() < &scf_conv) {
             converged = true;
         }
         // Broyden mixing of partial charges
@@ -106,7 +121,11 @@ pub fn run_scc(
         scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
 
         energy_old = scf_energy;
-        println!("Iteration {} => SCF-Energy = {:.8} hartree", i, scf_energy + rep_energy);
+        println!(
+            "Iteration {} => SCF-Energy = {:.8} hartree",
+            i,
+            scf_energy + rep_energy
+        );
         assert_ne!(i + 1, max_iter, "SCF not converged");
 
         if converged {
@@ -114,7 +133,7 @@ pub fn run_scc(
         }
     }
     println!("SCF Converged!");
-    return scf_energy+rep_energy;
+    return scf_energy + rep_energy;
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
@@ -145,7 +164,7 @@ fn get_repulsive_energy(molecule: &Molecule) -> f64 {
             }
             let r: f64 = (&posi - &posj).norm();
             // nucleus-nucleus and core-electron repulsion
-            e_nuc += &molecule.v_rep[&(z_1, z_2)].spline_eval(r);
+            e_nuc += &molecule.calculator.v_rep[&(z_1, z_2)].spline_eval(r);
         }
     }
     return e_nuc;
@@ -197,13 +216,13 @@ fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
 /// Construct reference density matrix
 /// all atoms should be neutral
 fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
-    let mut p0: Array2<f64> = Array2::zeros((mol.n_orbs, mol.n_orbs));
+    let mut p0: Array2<f64> = Array2::zeros((mol.calculator.n_orbs, mol.calculator.n_orbs));
     // iterate over orbitals on center i
     let mut idx: usize = 0;
-    for (_i, (zi, _posi)) in mol.iter_atomlist().enumerate() {
+    for zi in mol.atomic_numbers.iter() {
         // how many electrons are put into the nl-shell
-        for (iv, (_ni, _li, _mi)) in mol.valorbs[zi].iter().enumerate() {
-            p0[[idx, idx]] = mol.valorbs_occupation[zi][iv] as f64;
+        for (iv, _) in mol.calculator.valorbs[zi].iter().enumerate() {
+            p0[[idx, idx]] = mol.calculator.valorbs_occupation[zi][iv] as f64;
             idx += 1;
         }
     }
@@ -212,15 +231,15 @@ fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
 
 fn construct_h1(mol: &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
-    let mut h1: Array2<f64> = Array2::zeros([mol.n_orbs, mol.n_orbs]);
+    let mut h1: Array2<f64> = Array2::zeros([mol.calculator.n_orbs, mol.calculator.n_orbs]);
 
     let mut mu: usize = 0;
     let mut nu: usize;
-    for (i, (z_i, pos_i)) in mol.iter_atomlist().enumerate() {
-        for (n_i, l_i, m_i) in &mol.valorbs[z_i] {
+    for (i, z_i) in mol.atomic_numbers.iter().enumerate() {
+        for _ in &mol.calculator.valorbs[z_i] {
             nu = 0;
-            for (j, (z_j, pos_j)) in mol.iter_atomlist().enumerate() {
-                for (n_j, l_j, m_j) in &mol.valorbs[z_j] {
+            for (j, z_j) in mol.atomic_numbers.iter().enumerate() {
+                for _ in &mol.calculator.valorbs[z_j] {
                     h1[[mu, nu]] = 0.5 * (e_stat_pot[i] + e_stat_pot[j]);
                     nu = nu + 1;
                 }
@@ -245,7 +264,15 @@ fn h1_construction() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
-    let (gm, _gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(&mol, Some(0.0));
+    let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+        &mol.atomic_numbers,
+        mol.n_atoms,
+        mol.calculator.n_orbs,
+        mol.distance_matrix.view(),
+        &mol.calculator.hubbard_u,
+        &mol.calculator.valorbs,
+        Some(0.0),
+    );
     let dq: Array1<f64> = array![0.4900936727759634, -0.2450466365939161, -0.2450470361820512];
     let h1: Array2<f64> = construct_h1(&mol, gm.view(), dq.view());
     let h1_ref: Array2<f64> = array![
@@ -452,23 +479,22 @@ fn self_consistent_charge_routine() {
     assert_eq!(1, 2);
 }
 
-
 #[test]
 fn self_consistent_charge_routine_near_coin() {
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
-    [ 1.14035341,  -0.13021522,   2.08719024],
-    [ 0.50220664,   0.05063317,   1.22118011],
-    [-0.88326674,   0.10942181,   1.29559480],
-    [-1.44213805,   0.04044044,   2.22946088],
-    [-1.48146499,   0.27160316,   0.02973104],
-    [-2.56237600,   0.24057787,  -0.12419723],
-    [-0.55934487,   0.38982195,  -1.09018600],
-    [-0.82622551,   1.09380623,  -1.89412324],
-    [ 0.63247888,  -0.46827911,  -1.31954527],
-    [ 1.20025191,  -0.17363757,  -2.22072997],
-    [ 1.09969583,   0.23621820,  -0.12214916],
-    [ 2.06782038,   0.75551464,  -0.16994068],
+        [1.14035341, -0.13021522, 2.08719024],
+        [0.50220664, 0.05063317, 1.22118011],
+        [-0.88326674, 0.10942181, 1.29559480],
+        [-1.44213805, 0.04044044, 2.22946088],
+        [-1.48146499, 0.27160316, 0.02973104],
+        [-2.56237600, 0.24057787, -0.12419723],
+        [-0.55934487, 0.38982195, -1.09018600],
+        [-0.82622551, 1.09380623, -1.89412324],
+        [0.63247888, -0.46827911, -1.31954527],
+        [1.20025191, -0.17363757, -2.22072997],
+        [1.09969583, 0.23621820, -0.12214916],
+        [2.06782038, 0.75551464, -0.16994068],
     ];
 
     // transform coordinates in au

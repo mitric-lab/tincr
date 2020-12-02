@@ -1,6 +1,8 @@
-use crate::molecule::*;
+use crate::calculator::get_gamma_matrix;
+use crate::molecule::{distance_matrix, Molecule};
+use approx::AbsDiffEq;
 use libm;
-use ndarray::{Array2, ArrayView2, Array1, array};
+use ndarray::{array, Array1, Array2, Array3, ArrayView2};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
@@ -92,7 +94,11 @@ pub enum GammaFunction {
 impl GammaFunction {
     pub(crate) fn initialize(&mut self) {
         match *self {
-            GammaFunction::Gaussian{ref sigma, ref mut c,ref r_lr} => {
+            GammaFunction::Gaussian {
+                ref sigma,
+                ref mut c,
+                ref r_lr,
+            } => {
                 // Construct the C_AB matrix
                 for z_a in sigma.keys() {
                     for z_b in sigma.keys() {
@@ -110,12 +116,16 @@ impl GammaFunction {
     }
 
     fn eval(&self, r: f64, z_a: u8, z_b: u8) -> f64 {
-        let result: f64 = match *self{
-            GammaFunction::Gaussian{ref sigma, ref c,ref r_lr} => {
+        let result: f64 = match *self {
+            GammaFunction::Gaussian {
+                ref sigma,
+                ref c,
+                ref r_lr,
+            } => {
                 assert!(r > 0.0);
                 libm::erf(c[&(z_a, z_b)] * r) / r
             }
-            GammaFunction::Slater{ref tau} => {
+            GammaFunction::Slater { ref tau } => {
                 let t_a: f64 = tau[&z_a];
                 let t_b: f64 = tau[&z_b];
                 if r.abs() < 1.0e-5 {
@@ -127,13 +137,14 @@ impl GammaFunction {
                     let x: f64 = t_a * r;
                     (1.0 / r)
                         * (1.0
-                            - (-t_a * r).exp() * (48.0 + 33.0 * x + 9.0 * x.powi(2) + x.powi(3)) / 48.0)
+                            - (-t_a * r).exp() * (48.0 + 33.0 * x + 9.0 * x.powi(2) + x.powi(3))
+                                / 48.0)
                 } else {
                     // general case R != 0 and t_a != t_b
-                    let denom_ab: f64 =
-                        t_b.powi(4) * (t_b.powi(2) * (2.0 + t_a * r) - t_a.powi(2) * (6.0 + t_a * r));
-                    let denom_ba: f64 =
-                        t_a.powi(4) * (t_a.powi(2) * (2.0 + t_b * r) - t_b.powi(2) * (6.0 + t_b * r));
+                    let denom_ab: f64 = t_b.powi(4)
+                        * (t_b.powi(2) * (2.0 + t_a * r) - t_a.powi(2) * (6.0 + t_a * r));
+                    let denom_ba: f64 = t_a.powi(4)
+                        * (t_a.powi(2) * (2.0 + t_b * r) - t_b.powi(2) * (6.0 + t_b * r));
                     let num: f64 = 2.0 * (t_a.powi(2) - t_b.powi(2)).powi(3);
                     (1.0 / r)
                         * (1.0 + ((-t_a * r).exp() * denom_ab - (-t_b * r).exp() * denom_ba) / num)
@@ -145,10 +156,12 @@ impl GammaFunction {
 
     fn eval_limit0(&self, z: u8) -> f64 {
         let result: f64 = match *self {
-            GammaFunction::Gaussian{ref sigma, ref c,ref r_lr} => {
-                1.0 / (PI * (sigma[&z].powi(2) + 0.25 * r_lr.powi(2))).sqrt()
-            }
-            GammaFunction::Slater{ref tau} => (5.0 / 16.0) * tau[&z],
+            GammaFunction::Gaussian {
+                ref sigma,
+                ref c,
+                ref r_lr,
+            } => 1.0 / (PI * (sigma[&z].powi(2) + 0.25 * r_lr.powi(2))).sqrt(),
+            GammaFunction::Slater { ref tau } => (5.0 / 16.0) * tau[&z],
         };
         return result;
     }
@@ -156,12 +169,13 @@ impl GammaFunction {
 
 fn gamma_atomwise(
     gamma_func: GammaFunction,
-    mol: &Molecule,
+    atomic_numbers: &[u8],
+    n_atoms: usize,
     distances: ArrayView2<f64>,
 ) -> (Array2<f64>) {
-    let mut g0 = Array2::zeros((mol.n_atoms, mol.n_atoms));
-    for (i, (z_i, pos_i)) in mol.iter_atomlist().enumerate() {
-        for (j, (z_j, pos_j)) in mol.iter_atomlist().enumerate() {
+    let mut g0 = Array2::zeros((n_atoms, n_atoms));
+    for (i, z_i) in atomic_numbers.iter().enumerate() {
+        for (j, z_j) in atomic_numbers.iter().enumerate() {
             if i == j {
                 g0[[i, j]] = gamma_func.eval_limit0(*z_i);
             } else if i < j {
@@ -176,18 +190,21 @@ fn gamma_atomwise(
 
 pub fn gamma_ao_wise(
     gamma_func: GammaFunction,
-    mol: &Molecule,
+    atomic_numbers: &[u8],
+    n_atoms: usize,
+    n_orbs: usize,
     distances: ArrayView2<f64>,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
 ) -> (Array2<f64>, Array2<f64>) {
-    let g0: Array2<f64> = gamma_atomwise(gamma_func, &mol, distances);
-    let mut g0_a0: Array2<f64> = Array2::zeros((mol.n_orbs, mol.n_orbs));
+    let g0: Array2<f64> = gamma_atomwise(gamma_func, atomic_numbers, n_atoms, distances);
+    let mut g0_a0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
     let mut mu: usize = 0;
     let mut nu: usize;
-    for (i, (z_i, pos_i)) in mol.iter_atomlist().enumerate() {
-        for (n_i, l_i, m_i) in &mol.valorbs[z_i] {
+    for (i, z_i) in atomic_numbers.iter().enumerate() {
+        for _ in &valorbs[z_i] {
             nu = 0;
-            for (j, (z_j, pos_j)) in mol.iter_atomlist().enumerate() {
-                for (n_j, l_j, m_j) in &mol.valorbs[z_j] {
+            for (j, z_j) in atomic_numbers.iter().enumerate() {
+                for _ in &valorbs[z_j] {
                     g0_a0[[mu, nu]] = g0[[i, j]];
                     nu = nu + 1;
                 }
@@ -232,7 +249,11 @@ fn test_gamma_gaussian() {
     u.insert(8, 0.4467609798860577);
     let sigmas: HashMap<u8, f64> = gaussian_decay(&u);
     let new_c: HashMap<(u8, u8), f64> = HashMap::new();
-    let mut gfunc = GammaFunction::Gaussian {sigma: sigmas, c:new_c, r_lr:3.03};
+    let mut gfunc = GammaFunction::Gaussian {
+        sigma: sigmas,
+        c: new_c,
+        r_lr: 3.03,
+    };
     gfunc.initialize();
     assert_eq!(gfunc.eval(1.0, 1, 1), 0.2859521722011254);
     assert_eq!(gfunc.eval(2.0, 1, 1), 0.26817515355018845);
@@ -245,33 +266,65 @@ fn test_gamma_gaussian() {
 }
 
 #[test]
-fn gamma_ao_matrix () {
+fn gamma_ao_matrix() {
+    // test gamma matrix with and without long range correction
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let mut positions: Array2<f64> = array![
         [0.34215, 1.17577, 0.00000],
         [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]];
+        [0.01882, 1.65996, 0.77583]
+    ];
 
     // transform coordinates in au
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomic_numbers.clone(), positions, charge, multiplicity);
     // get gamma matrix without LRC
-    let (gm, gm_a0) = get_gamma_matrix(&mol, Some(0.0));
+    let hubbard_u: HashMap<u8, f64>;
+    let mut sigma: HashMap<u8, f64> = HashMap::new();
+    sigma.insert(1, 1.1952768018792987);
+    sigma.insert(8, 1.2628443596207704);
+    let mut c: HashMap<(u8, u8), f64> = HashMap::new();
+    let r_lr: f64 = 0.0;
+    let mut gf = GammaFunction::Gaussian { sigma, c, r_lr };
+    gf.initialize();
+    let (gm, gm_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+        gf,
+        &atomic_numbers,
+        mol.n_atoms,
+        mol.calculator.n_orbs,
+        mol.distance_matrix.view(),
+        &mol.calculator.valorbs,
+    );
     let gamma_ref: Array2<f64> = array![
         [0.4467609798860577, 0.3863557889890281, 0.3863561531176491],
         [0.3863557889890281, 0.4720158398964135, 0.3084885848056254],
-        [0.3863561531176491, 0.3084885848056254, 0.4720158398964135]];
-    assert!(gm.all_close(&gamma_ref, 1e-06));
+        [0.3863561531176491, 0.3084885848056254, 0.4720158398964135]
+    ];
+    assert!(gm.abs_diff_eq(&gamma_ref, 1e-06));
+    // test gamma matrix with long range correction
+    //
+    let mut sigma: HashMap<u8, f64> = HashMap::new();
+    sigma.insert(1, 1.1952768018792987);
+    sigma.insert(8, 1.2628443596207704);
     // get gamma matrix with LRC
-    let (gm_lrc, gm_a0_lrc) = get_gamma_matrix(&mol, Some(3.03));
+    let mut c: HashMap<(u8, u8), f64> = HashMap::new();
+    let r_lr: f64 = 3.03;
+    let mut gf = GammaFunction::Gaussian { sigma, c, r_lr };
+    gf.initialize();
+    let (gm_lrc, gm_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+        gf,
+        &atomic_numbers,
+        mol.n_atoms,
+        mol.calculator.n_orbs,
+        mol.distance_matrix.view(),
+        &mol.calculator.valorbs,
+    );
     let gamma_lrc_ref: Array2<f64> = array![
         [0.2860554418243039, 0.2692279296946004, 0.2692280400920803],
         [0.2692279296946004, 0.2923649998054588, 0.24296864292032624],
-        [0.2692280400920803, 0.2429686492032624, 0.2923649998054588]];
-    assert!(gm_lrc.all_close(&gamma_lrc_ref, 1e-08));
+        [0.2692280400920803, 0.2429686492032624, 0.2923649998054588]
+    ];
+    assert!(gm_lrc.abs_diff_eq(&gamma_lrc_ref, 1e-08));
 }
-
-
-

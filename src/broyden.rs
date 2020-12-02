@@ -117,7 +117,7 @@ impl BroydenMixer {
             inv_norm = 1.0 / inv_norm;
             df_uu = df_uu.mapv(|x| x * inv_norm);
 
-            let mut cc: Array2<f64> = Array2::zeros([1, self.iter-1]);
+            let mut cc: Array2<f64> = Array2::zeros([1, self.iter - 1]);
             // Build a, beta, c, and gamma
             for i in 0..self.iter - 2 {
                 self.a_mat[[i, nn_2]] = self.df.slice(s![.., i]).dot(&df_uu);

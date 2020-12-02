@@ -1,33 +1,37 @@
+#![allow(dead_code)]
+
 mod constants;
-mod parameters;
-mod molecule;
-mod h0_and_s;
-mod gamma_approximation;
-mod slako_transformations;
 mod defaults;
-mod zbrent;
 mod fermi_occupation;
-mod scc_routine;
+mod gamma_approximation;
+mod h0_and_s;
+mod molecule;
+mod parameters;
+mod slako_transformations;
+mod zbrent;
+mod broyden;
+mod calculator;
 mod diis;
 mod mulliken;
-mod broyden;
+mod scc_routine;
 
+use crate::molecule::Molecule;
 use ndarray::*;
 use ndarray_linalg::*;
-use std::ptr::eq;
-use peroxide::fuga::*;
-use crate::molecule::Molecule;
 use std::env;
+use std::ptr::eq;
 use std::time::{Duration, Instant};
 
 fn main() {
-    println!(r#"   _________  ___  ________   ________  ________
+    println!(
+        r#"   _________  ___  ________   ________  ________
   |\___   ___\\  \|\   ___  \|\   ____\|\   __  \
   \|___ \  \_\ \  \ \  \\ \  \ \  \___|\ \  \|\  \
        \ \  \ \ \  \ \  \\ \  \ \  \    \ \   _  _\
         \ \  \ \ \  \ \  \\ \  \ \  \____\ \  \\  \|
          \ \__\ \ \__\ \__\\ \__\ \_______\ \__\\ _\
-          \|__|  \|__|\|__| \|__|\|_______|\|__|\|__| "#);
+          \|__|  \|__|\|__| \|__|\|_______|\|__|\|__| "#
+    );
     println!("");
     println!("                       R. Mitric");
     println!("            Chair of theoretical Chemistry");
@@ -40,11 +44,10 @@ fn main() {
     println!("Start calculation");
     println!("_______________________________________________________");
     let now = Instant::now();
-    let energy: f64 = scc_routine::run_scc(&mol, None, None, None);
+    //let energy: f64 = scc_routine::run_scc(&mol, None, None, None);
     println!("_______________________________________________________");
     println!("Time elapsed: {:.4} secs", now.elapsed().as_secs_f32());
 }
-
 
 fn read_xyz(path: &str) -> Molecule {
     let mut trajectory = chemfiles::Trajectory::open(path, 'r').unwrap();

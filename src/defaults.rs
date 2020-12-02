@@ -1,4 +1,3 @@
-
 // MOLECULE SPECIFICATION
 // charge of the molecule in a.u.
 pub const CHARGE: i8 = 0;
@@ -11,8 +10,6 @@ pub const TEMPERATURE: f64 = 0.0;
 pub const LONG_RANGE_RADIUS: f64 = 3.03;
 pub const PROXIMITY_CUTOFF: f64 = 30.00;
 pub const LONG_RANGE_CORRECTION: bool = true;
-
-
 
 // PARAMETERS
 // scaling of hubbard parameters by this factor
@@ -37,7 +34,6 @@ pub const HOMO_LUMO_TOL: f64 = 0.05;
 // is no density mixer object is used (density_mixer=None) the next
 // guess for the density matrix is constructed as P_next = a*P + (1-a)*P_last
 pub const LINEAR_MIXING_COEFFICIENT: f64 = 0.33;
-
 
 pub const DIIS_LIMIT: usize = 8;
 

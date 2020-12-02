@@ -12,16 +12,13 @@ pub const EBOHR_TO_DEBYE: f64 = 1.0 / 0.393430307; // 1 Debye = 0.393430307 e*a0
 pub const SPEED_OF_LIGHT: f64 = 137.035999139; // speed of light in atomic units, inverse of fine structure constant
                                                // c = 1/alpha
 
-
-
 pub const ATOM_NAMES: [&str; 87] = [
-    "dummy",
-    "h", "he", "li", "be", "b", "c", "n", "o", "f", "ne", "na", "mg", "al", "si", "p", "s", "cl",
-    "ar", "k", "ca", "sc", "ti", "v", "cr", "mn", "fe", "co", "ni", "cu", "zn", "ga", "ge", "as",
-    "se", "br", "kr", "rb", "sr", "y", "zr", "nb", "mo", "tc", "ru", "rh", "pd", "ag", "cd", "in",
-    "sn", "sb", "te", "i", "xe", "cs", "ba", "la", "ce", "pr", "nd", "pm", "sm", "eu", "gd", "tb",
-    "dy", "ho", "er", "th", "yt", "lu", "hf", "ta", "w", "re", "os", "ir", "pt", "au", "hg", "tl",
-    "pb", "bi", "po", "at", "rn",
+    "dummy", "h", "he", "li", "be", "b", "c", "n", "o", "f", "ne", "na", "mg", "al", "si", "p",
+    "s", "cl", "ar", "k", "ca", "sc", "ti", "v", "cr", "mn", "fe", "co", "ni", "cu", "zn", "ga",
+    "ge", "as", "se", "br", "kr", "rb", "sr", "y", "zr", "nb", "mo", "tc", "ru", "rh", "pd", "ag",
+    "cd", "in", "sn", "sb", "te", "i", "xe", "cs", "ba", "la", "ce", "pr", "nd", "pm", "sm", "eu",
+    "gd", "tb", "dy", "ho", "er", "th", "yt", "lu", "hf", "ta", "w", "re", "os", "ir", "pt", "au",
+    "hg", "tl", "pb", "bi", "po", "at", "rn",
 ];
 
 // I believe these masses are averaged over isotopes weighted with their abundances
@@ -70,7 +67,6 @@ pub static ATOMIC_MASSES: phf::Map<&'static str, f64> = phf_map! {
     "bi" => 3.809479476012968E+05, "po" => 3.828065627851500E+05,
     "at" => 3.828065627851500E+05, "rn" => 4.010354467273000E+05
 };
-
 
 // //  occupation numbers of valence orbitals
 // //  which are used to assign the correct occupation to orbitals loaded from hotbit .elm files

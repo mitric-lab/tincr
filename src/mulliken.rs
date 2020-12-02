@@ -39,7 +39,7 @@ pub fn mulliken(
 #[test]
 fn mulliken_charges() {
     use crate::molecule::*;
-    use crate::scc_routine::*;
+    //use crate::scc_routine::*;
     let p0: Array2<f64> = array![
         [2., 0., 0., 0., 0., 0.],
         [0., 1.3333333333333333, 0., 0., 0., 0.],
