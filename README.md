@@ -3,9 +3,6 @@
 </div>
 
 
-<div align="center">
-  <img src="http://jhoche.de/benchmark.png" height="420"/>
-</div>
 
 ## Install
 ##### Warning: The features of the program are currently very limited! 
