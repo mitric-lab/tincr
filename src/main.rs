@@ -14,6 +14,7 @@ mod calculator;
 mod diis;
 mod mulliken;
 mod scc_routine;
+mod scc_routine_unrestricted;
 
 use crate::molecule::Molecule;
 use ndarray::*;

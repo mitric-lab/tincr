@@ -16,8 +16,8 @@ use ndarray_stats::QuantileExt;
 use std::cmp::max;
 use std::iter::FromIterator;
 
-// This routine is very messy und should be rewritten in a clean form
-pub fn run_scc(
+// Routine for unrestricted SCC calculations
+pub fn run_unrestricted_scc(
     molecule: &Molecule,
     max_iter: Option<usize>,
     scf_conv: Option<f64>,
@@ -29,10 +29,17 @@ pub fn run_scc(
 
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
-    let mut p: Array2<f64> = Array2::zeros(p0.raw_dim());
-    // charge guess
-    let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
-    let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
+
+    // initalize density matrix for alpha and beta spin orbitals
+    let mut p_alpha: Array2<f64> = Array2::zeros(p0.raw_dim());
+    let mut p_beta: Array2<f64> = Array2::zeros(p0.raw_dim());
+
+    // charge guess for alpha and beta spin orbitals
+    let mut dq_alpha: Array1<f64> = Array1::zeros([molecule.n_atoms]);
+    let mut dq_beta: Array1<f64> = Array1::zeros([molecule.n_atoms]);
+    let mut q_alpha: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
+    let mut q_beta: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
+
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
