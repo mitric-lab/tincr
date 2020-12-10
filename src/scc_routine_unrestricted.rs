@@ -61,7 +61,8 @@ pub fn run_unrestricted_scc(
         Some(0.0),
     );
 
-    let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
+    let mut broyden_mixer_alpha: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
+    let mut broyden_mixer_beta: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
 
     let mut converged: bool = false;
 
