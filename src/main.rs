@@ -15,7 +15,6 @@ mod diis;
 mod mulliken;
 mod scc_routine;
 mod scc_routine_unrestricted;
-mod spin_coupling_constants;
 //mod scc_routine_unrestricted;
 
 use crate::molecule::Molecule;

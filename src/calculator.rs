@@ -19,7 +19,7 @@ pub enum Calculator {
 pub struct DFTBCalculator {
     pub valorbs: HashMap<u8, Vec<(i8, i8, i8)>>,
     pub hubbard_u: HashMap<u8, f64>,
-    pub spin_couplings: HashMap<u8, f64>,
+    pub spin_couplings: Array1<f64>,
     pub valorbs_occupation: HashMap<u8, Vec<f64>>,
     pub orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>>,
     pub skt: HashMap<(u8, u8), SlaterKosterTable>,
@@ -35,7 +35,7 @@ impl DFTBCalculator {
         let mut unique_numbers: Vec<u8> = Vec::from(atomic_numbers);
         unique_numbers.sort_unstable(); // fast sort of atomic numbers
         unique_numbers.dedup(); // delete duplicates
-        let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u, spin_couplings): (
+        let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u, spin_coupling_map): (
             HashMap<u8, Vec<(i8, i8, i8)>>,
             HashMap<u8, Vec<f64>>,
             HashMap<u8, i8>,
@@ -43,6 +43,13 @@ impl DFTBCalculator {
             HashMap<u8, f64>,
             HashMap<u8, f64>,
         ) = get_electronic_configuration(&atomtypes);
+        // NOTE: The spin-coupling constants were taken from
+        // https://dftb.org/fileadmin/DFTB/public/slako/mio/mio-1-1.spinw.txt
+        // However, the coupling constants are only tabulated there on an angular momentum level
+        // and we use only one spin-coupling constant per element type. Therefore, the average was
+        // used in the confined_pseudo_atom parameter files
+        let spin_couplings: Array1<f64> =
+            Array::from(atomic_numbers.iter().map(|x| spin_coupling_map[x]).collect());
         let q0: Vec<f64> = atomic_numbers.iter().map(|zi| ne_val[zi] as f64).collect();
         let orbs_per_atom: Vec<usize> = atomic_numbers.iter().map(|zi| valorbs[zi].len()).collect();
         let (skt, vrep): (
