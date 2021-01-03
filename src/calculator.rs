@@ -9,6 +9,7 @@ use ndarray::*;
 use ndarray_linalg::*;
 use std::collections::HashMap;
 use std::ops::Neg;
+use std::hash::Hash;
 
 
 pub enum Calculator {
@@ -18,6 +19,7 @@ pub enum Calculator {
 pub struct DFTBCalculator {
     pub valorbs: HashMap<u8, Vec<(i8, i8, i8)>>,
     pub hubbard_u: HashMap<u8, f64>,
+    pub spin_couplings: HashMap<u8, f64>,
     pub valorbs_occupation: HashMap<u8, Vec<f64>>,
     pub orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>>,
     pub skt: HashMap<(u8, u8), SlaterKosterTable>,
@@ -33,11 +35,12 @@ impl DFTBCalculator {
         let mut unique_numbers: Vec<u8> = Vec::from(atomic_numbers);
         unique_numbers.sort_unstable(); // fast sort of atomic numbers
         unique_numbers.dedup(); // delete duplicates
-        let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u): (
+        let (valorbs, valorbs_occupation, ne_val, orbital_energies, hubbard_u, spin_couplings): (
             HashMap<u8, Vec<(i8, i8, i8)>>,
             HashMap<u8, Vec<f64>>,
             HashMap<u8, i8>,
             HashMap<u8, HashMap<(i8, i8), f64>>,
+            HashMap<u8, f64>,
             HashMap<u8, f64>,
         ) = get_electronic_configuration(&atomtypes);
         let q0: Vec<f64> = atomic_numbers.iter().map(|zi| ne_val[zi] as f64).collect();
@@ -53,6 +56,7 @@ impl DFTBCalculator {
         DFTBCalculator {
             valorbs: valorbs,
             hubbard_u: hubbard_u,
+            spin_couplings: spin_couplings,
             valorbs_occupation: valorbs_occupation,
             orbital_energies: orbital_energies,
             skt: skt,
@@ -131,6 +135,7 @@ fn get_electronic_configuration(
     HashMap<u8, i8>,
     HashMap<u8, HashMap<(i8, i8), f64>>,
     HashMap<u8, f64>,
+    HashMap<u8, f64>
 ) {
     // find quantum numbers of valence orbitals
     let mut valorbs: HashMap<u8, Vec<(i8, i8, i8)>> = HashMap::new();
@@ -138,12 +143,14 @@ fn get_electronic_configuration(
     let mut ne_val: HashMap<u8, i8> = HashMap::new();
     let mut orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>> = HashMap::new();
     let mut hubbard_u: HashMap<u8, f64> = HashMap::new();
+    let mut spin_couplings: HashMap<u8, f64> = HashMap::new();
     for (zi, symbol) in atomtypes.iter() {
         let (atom, free_atom): (PseudoAtom, PseudoAtom) = import_pseudo_atom(zi);
         let mut occ: Vec<f64> = Vec::new();
         let mut vo_vec: Vec<(i8, i8, i8)> = Vec::new();
         let mut val_e: i8 = 0;
         hubbard_u.insert(*zi, atom.hubbard_u);
+        spin_couplings.insert(*zi, atom.spin_coupling_constant);
         for i in atom.valence_orbitals {
             let n: i8 = atom.nshell[i as usize];
             let l: i8 = atom.angular_momenta[i as usize];
@@ -172,5 +179,6 @@ fn get_electronic_configuration(
         ne_val,
         orbital_energies,
         hubbard_u,
+        spin_couplings
     );
 }

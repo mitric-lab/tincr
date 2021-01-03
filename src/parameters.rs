@@ -50,6 +50,8 @@ pub struct PseudoAtom {
     pub nshell: Vec<i8>,
     pub orbital_occupation: Vec<i8>,
     #[serde(default = "get_nan_value")]
+    pub spin_coupling_constant: f64,
+    #[serde(default = "get_nan_value")]
     energy_1s: f64,
     #[serde(default = "get_nan_value")]
     energy_2s: f64,

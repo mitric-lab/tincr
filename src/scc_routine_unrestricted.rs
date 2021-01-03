@@ -30,7 +30,7 @@ pub fn run_unrestricted_scc(
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
 
-    // initalize density matrix for alpha and beta spin orbitals
+    // initialize density matrix for alpha and beta spin orbitals
     let mut p_alpha: Array2<f64> = Array2::zeros(p0.raw_dim());
     let mut p_beta: Array2<f64> = Array2::zeros(p0.raw_dim());
 
@@ -88,22 +88,40 @@ pub fn run_unrestricted_scc(
         // H' = X^t.H.X
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
 
-        let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
-        // C = X.C'
-        let orbs: Array2<f64> = x.dot(&cp);
+        let (orbe_alpha, cp_alhpa): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
+        let (orbe_beta, cp_beta): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
 
-        // construct density matrix
+        // C = X.C'
+        let orbs_alpha: Array2<f64> = x.dot(&cp_alpha);
+        let orbs_beta: Array2<f64> = x.dot(&cp_beta);
+
+        // get chemical potential and occupation pattern for alpha electrons
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
-            orbe.view(),
-            molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
+            orbe_alpha.view(),
+            molecule.calculator.q0.iter().sum::<f64>() as usize
+                - molecule.charge as usize
+                - molecule.calculator.nr_unpaired_electrons,
             molecule.calculator.nr_unpaired_electrons,
             temperature,
         );
-        let mu: f64 = tmp.0;
-        let f: Vec<f64> = tmp.1;
+        let mu_alpha: f64 = tmp.0;
+        let f_alpha: Vec<f64> = tmp.1;
+
+        // get chemical potential and occupation pattern for beta electrons
+        let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
+            orbe_beta.view(),
+            molecule.calculator.q0.iter().sum::<f64>() as usize
+                - molecule.charge as usize
+                - molecule.calculator.nr_unpaired_electrons,
+            molecule.calculator.nr_unpaired_electrons,
+            temperature,
+        );
+        let mu_beta: f64 = tmp.0;
+        let f_beta: Vec<f64> = tmp.1;
 
         // calculate the density matrix
-        p = density_matrix(orbs.view(), &f[..]);
+        p_alpha = density_matrix(orbs_alpha.view(), &f_alpha[..]);
+        p_beta = density_matrix(orbs_beta.view(), &f_beta[..]);
 
         // update partial charges using Mulliken analysis
         let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
@@ -223,6 +241,7 @@ fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
 
 /// Construct reference density matrix
 /// all atoms should be neutral
+/// takes n_orbs, atomic_numbers, valorbs, valorbs_occupation
 fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
     let mut p0: Array2<f64> = Array2::zeros((mol.calculator.n_orbs, mol.calculator.n_orbs));
     // iterate over orbitals on center i
@@ -257,5 +276,3 @@ fn construct_h1(mol: &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> 
     }
     return h1;
 }
-
-
