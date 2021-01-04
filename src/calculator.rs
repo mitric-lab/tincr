@@ -43,13 +43,13 @@ impl DFTBCalculator {
             HashMap<u8, f64>,
             HashMap<u8, f64>,
         ) = get_electronic_configuration(&atomtypes);
-        // NOTE: The spin-coupling constants were taken from
+        // NOTE: The spin-coupling constants are taken from
         // https://dftb.org/fileadmin/DFTB/public/slako/mio/mio-1-1.spinw.txt
         // However, the coupling constants are only tabulated there on an angular momentum level
         // and we use only one spin-coupling constant per element type. Therefore, the average was
         // used in the confined_pseudo_atom parameter files
-        let spin_couplings: Array1<f64> =
-            Array::from(atomic_numbers.iter().map(|x| spin_coupling_map[x]).collect());
+        let tmp: Vec<f64> = atomic_numbers.iter().map(|x| spin_coupling_map[x]).collect();
+        let spin_couplings: Array1<f64> = Array1::from(tmp);
         let q0: Vec<f64> = atomic_numbers.iter().map(|zi| ne_val[zi] as f64).collect();
         let orbs_per_atom: Vec<usize> = atomic_numbers.iter().map(|zi| valorbs[zi].len()).collect();
         let (skt, vrep): (

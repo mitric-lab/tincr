@@ -81,22 +81,29 @@ pub fn run_unrestricted_scc(
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
     'scf_loop: for i in 0..max_iter {
-        let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
+        // coulomb part
+        let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq_alpha.view(), dq_beta.view());
+        // exchange part
+        let h2: Array2<f64> = construct_h2(&molecule, dq_alpha.view(), dq_beta.view());
         let h_coul: Array2<f64> = h1 * s.view();
-        let mut h: Array2<f64> = h_coul + h0.view();
+        let h_exchange: Array2<f64> = h2 * s.view();
+        let mut h_alpha: Array2<f64> = h_coul.clone() + h_exchange.view() + h0.view();
+        let mut h_beta: Array2<f64> = h_coul - h_exchange.view() + h0.view();
 
         // H' = X^t.H.X
-        let hp: Array2<f64> = x.t().dot(&h).dot(&x);
+        let hp_alpha: Array2<f64> = x.t().dot(&h_alpha).dot(&x);
+        let hp_beta: Array2<f64> = x.t().dot(&h_beta).dot(&x);
 
-        let (orbe_alpha, cp_alhpa): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
-        let (orbe_beta, cp_beta): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
+        let (orbe_alpha, cp_alpha): (Array1<f64>, Array2<f64>) =
+            hp_alpha.eigh(UPLO::Upper).unwrap();
+        let (orbe_beta, cp_beta): (Array1<f64>, Array2<f64>) = hp_beta.eigh(UPLO::Upper).unwrap();
 
         // C = X.C'
         let orbs_alpha: Array2<f64> = x.dot(&cp_alpha);
         let orbs_beta: Array2<f64> = x.dot(&cp_beta);
 
         // get chemical potential and occupation pattern for alpha electrons
-        let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
+        let (_, f_alpha): (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
             orbe_alpha.view(),
             molecule.calculator.q0.iter().sum::<f64>() as usize
                 - molecule.charge as usize
@@ -104,11 +111,9 @@ pub fn run_unrestricted_scc(
             molecule.calculator.nr_unpaired_electrons,
             temperature,
         );
-        let mu_alpha: f64 = tmp.0;
-        let f_alpha: Vec<f64> = tmp.1;
 
         // get chemical potential and occupation pattern for beta electrons
-        let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
+        let (_, f_beta): (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
             orbe_beta.view(),
             molecule.calculator.q0.iter().sum::<f64>() as usize
                 - molecule.charge as usize
@@ -116,16 +121,23 @@ pub fn run_unrestricted_scc(
             molecule.calculator.nr_unpaired_electrons,
             temperature,
         );
-        let mu_beta: f64 = tmp.0;
-        let f_beta: Vec<f64> = tmp.1;
 
         // calculate the density matrix
         p_alpha = density_matrix(orbs_alpha.view(), &f_alpha[..]);
         p_beta = density_matrix(orbs_beta.view(), &f_beta[..]);
 
-        // update partial charges using Mulliken analysis
-        let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
-            p.view(),
+        // update alpha partial charges using Mulliken analysis
+        let (new_q_alpha, new_dq_alpha): (Array1<f64>, Array1<f64>) = mulliken(
+            p_alpha.view(),
+            p0.view(),
+            s.view(),
+            &molecule.calculator.orbs_per_atom,
+            molecule.n_atoms,
+        );
+
+        // update beta partial charges using Mulliken analysis
+        let (new_q_beta, new_dq_beta): (Array1<f64>, Array1<f64>) = mulliken(
+            p_alpha.view(),
             p0.view(),
             s.view(),
             &molecule.calculator.orbs_per_atom,
@@ -133,20 +145,31 @@ pub fn run_unrestricted_scc(
         );
 
         // charge difference to previous iteration
-        let dq_diff: Array1<f64> = &new_dq - &dq;
+        let dq_diff_alpha: Array1<f64> = &new_dq_alpha - &dq_alpha;
+        let dq_diff_beta: Array1<f64> = &new_dq_beta - &dq_beta;
 
-        // check if charge difference to the previus iteration is lower then 1e-5
-        if (dq_diff.map(|x| x.abs()).max().unwrap() < &scf_conv) {
+        // check if both charge differences to the previus iteration is lower then 1e-5
+        if (dq_diff_alpha.map(|x| x.abs()).max().unwrap() < &scf_conv
+            && dq_diff_beta.map(|x| x.abs()).max().unwrap() < &scf_conv)
+        {
             converged = true;
         }
         // Broyden mixing of partial charges
-        dq = broyden_mixer.next(new_dq, dq_diff);
-        q = new_q;
+        dq_alpha = broyden_mixer_alpha.next(new_dq_alpha, dq_diff_alpha);
+        dq_beta = broyden_mixer_beta.next(new_dq_beta, dq_diff_beta);
+        q_alpha = new_q_alpha;
+        q_beta = new_q_beta;
 
-        // compute electronic energy
-        scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
+        // compute electronic energy from alpha and beta electrons
+        let scf_energy: f64 = get_electronic_energy(
+            p_beta.view(),
+            h0.view(),
+            dq_alpha.view(),
+            dq_beta.view(),
+            molecule.calculator.spin_couplings.view(),
+            gm.view(),
+        );
 
-        energy_old = scf_energy;
         println!(
             "Iteration {} => SCF-Energy = {:.8} hartree",
             i,
@@ -201,12 +224,16 @@ fn get_repulsive_energy(molecule: &Molecule) -> f64 {
 fn get_nuclear_energy() {}
 
 /// Compute electronic energies
+/// TODO: CHECK EXCHANGE PART!
 fn get_electronic_energy(
     p: ArrayView2<f64>,
     h0: ArrayView2<f64>,
-    dq: ArrayView1<f64>,
+    dq_alpha: ArrayView1<f64>,
+    dq_beta: ArrayView1<f64>,
+    spin_couplings: ArrayView1<f64>,
     gamma: ArrayView2<f64>,
 ) -> f64 {
+    let dq: Array1<f64> = &dq_alpha + &dq_beta;
     //println!("P {}", p);
     // band structure energy
     let e_band_structure: f64 = (&p * &h0).sum();
@@ -214,7 +241,10 @@ fn get_electronic_energy(
     let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
     // electronic energy as sum of band structure energy and Coulomb energy
     //println!("E BS {} E COUL {} dQ {}", e_band_structure, e_coulomb, dq);
-    let e_elec: f64 = e_band_structure + e_coulomb;
+    let m_squared: Array1<f64> = (&dq_alpha - &dq_beta).iter().map(|x| x * x).collect();
+    let e_exchange: f64 = 0.5 * m_squared.dot(&spin_couplings);
+    // exchange part
+    let e_elec: f64 = e_band_structure + e_coulomb + e_exchange;
     // long-range Hartree-Fock exchange
     // if ....Iteration {} =>
     //println!("               E_bs = {:.7}  E_coulomb = {:.7}", e_band_structure, e_coulomb);
@@ -256,7 +286,13 @@ fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
     return p0;
 }
 
-fn construct_h1(mol: &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
+fn construct_h1(
+    mol: &Molecule,
+    gamma: ArrayView2<f64>,
+    dq_alpha: ArrayView1<f64>,
+    dq_beta: ArrayView1<f64>,
+) -> Array2<f64> {
+    let dq: Array1<f64> = &dq_alpha + &dq_beta;
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
     let mut h1: Array2<f64> = Array2::zeros([mol.calculator.n_orbs, mol.calculator.n_orbs]);
 
@@ -275,4 +311,29 @@ fn construct_h1(mol: &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> 
         }
     }
     return h1;
+}
+
+fn construct_h2(
+    mol: &Molecule,
+    dq_alpha: ArrayView1<f64>,
+    dq_beta: ArrayView1<f64>,
+) -> Array2<f64> {
+    let mut h2: Array2<f64> = Array2::zeros([mol.calculator.n_orbs, mol.calculator.n_orbs]);
+    let m: Array1<f64> = &dq_alpha - &dq_beta;
+    let tmp: Array1<f64> = &mol.calculator.spin_couplings * &m;
+    let mut mu: usize = 0;
+    let mut nu: usize;
+    for (i, z_i) in mol.atomic_numbers.iter().enumerate() {
+        for _ in &mol.calculator.valorbs[z_i] {
+            nu = 0;
+            for (j, z_j) in mol.atomic_numbers.iter().enumerate() {
+                for _ in &mol.calculator.valorbs[z_j] {
+                    h2[[mu, nu]] = 0.5 * (tmp[i] + tmp[j]);
+                    nu = nu + 1;
+                }
+            }
+            mu = mu + 1;
+        }
+    }
+    return h2;
 }
