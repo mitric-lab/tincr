@@ -15,6 +15,7 @@ mod diis;
 mod mulliken;
 mod scc_routine;
 mod scc_routine_unrestricted;
+mod gradients;
 //mod scc_routine_unrestricted;
 
 use crate::molecule::Molecule;
