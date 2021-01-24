@@ -2,7 +2,7 @@ use crate::calculator::get_gamma_matrix;
 use crate::molecule::{distance_matrix, Molecule};
 use approx::AbsDiffEq;
 use libm;
-use ndarray::{array, Array1, Array2, Array3, ArrayView2};
+use ndarray::{array, Array1, Array2, Array3, ArrayView2, ArrayView3, ArrayView1};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
@@ -165,6 +165,42 @@ impl GammaFunction {
         };
         return result;
     }
+
+    fn deriv(&self, r: f64, z_a: u8, z_b: u8) -> f64 {
+        let result: f64 = match *self {
+            GammaFunction::Gaussian {
+                ref sigma,
+                ref c,
+                ref r_lr,
+            } => {
+                assert!(r > 0.0);
+                let c_v: f64 = c[&(z_a, z_b)];
+                2.0 * c_v / PI_SQRT * (-(c_v * r).powi(2)).exp() / r - libm::erf(c_v * r) / r.powi(2)
+            }
+            GammaFunction::Slater { ref tau } => {
+                let t_a: f64 = tau[&z_a];
+                let t_b: f64 = tau[&z_b];
+                if r.abs() < 1.0e-5 {
+                    // R -> 0 limit
+                    0.0
+                } else if (t_a - t_b).abs() < 1.0e-5 {
+                    // t_A == t_b limit
+                    let x: f64 = t_a * r;
+                    -1.0 / r.powi(2) * (1.0 - (-x).exp() * (1.0 + 1.0 / 48.0 * (x * (4.0 + x) * (12.0 + x * (3.0 + x)))))
+                } else {
+                    // general case R != 0 and t_a != t_b
+                    let t_a_r: f64 = t_a * r;
+                    let t_b_r: f64 = t_b * r;
+                    let t_a2: f64 = t_a.powi(2);
+                    let t_b2: f64 = t_b.powi(2);
+                    let denom: f64 = 2.0 * (t_a2 - t_b2).powi(3);
+                    let f_b: f64 = (2.0 + t_b_r * (2.0 + t_r_r)) * t_a2 - (6.0 + t_b_r * (6.0 + t_b_r)) * t_b2;
+                    let f_a: f64 = (2.0 + t_a_r * (2.0 + t_a_r)) * t_b2 - (6.0 + t_a_r * (6.0 + t_a_r)) * t_a2;
+                    -1.0 / r.powi(2) * (1.0 - 1.0 / denom * (t_a2.powi(2) * f_b * (-t_b_r).exp() - t_b2.powi(2) * f_a * (-t_a_r).exp()))
+                }
+            }
+        };
+    }
 }
 
 fn gamma_atomwise(
@@ -186,6 +222,39 @@ fn gamma_atomwise(
         }
     }
     return g0;
+}
+
+fn gamma_gradients_atomwise(
+    gamma_func: GammaFunction,
+    atomic_numbers: &[u8],
+    n_atoms: usize,
+    distances: ArrayView2<f64>,
+    directions: ArrayView3<f64>,
+) -> (Array2<f64>, Array3<f64>) {
+    let mut g0: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
+    let mut g1_val: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
+    let mut g1: Array3<f64> = Array3::zeros((3*n_atoms, n_atoms, n_atoms));
+    for (i, z_i) in atomic_numbers.iter().enumerate() {
+        for (j, z_j) in atomic_numbers.iter().enumerate() {
+            if i == j {
+                g0[[i, j]] = gamma_func.eval_limit0(*z_i);
+                g1[[i, j]] = 0.0;
+            } else if i < j {
+                let r_ij: f64 =  distances[[i, j]];
+                let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
+                g0[[i, j]] = gamma_func.eval(r_ij, *z_i, *z_j);
+                g1_val[[i, j]] = gamma_func.deriv(r_ij, *z_i, *z_j);
+                g1.slice_mut(s![3*i..3*i+3, i, j]).assign(e_ij * g1_val[[i, j]]);
+            } else {
+                let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
+                g0[[i, j]] = g0[[j, i]];
+                g1[[i, j]] = g1[[j, i]];
+                g1.slice_mut(s![3*i..3*i+3, i, j]).assign(e_ij * g1_val[[i, j]]);
+            }
+
+        }
+    }
+    return (g0, g1);
 }
 
 pub fn gamma_ao_wise(
@@ -215,8 +284,37 @@ pub fn gamma_ao_wise(
     return (g0, g0_a0);
 }
 
-//TODO: DERIVATIVE OF GAMMA MATRIX
-
+pub fn gamma_gradients_ao_wise(
+    gamma_func: GammaFunction,
+    atomic_numbers: &[u8],
+    n_atoms: usize,
+    n_orbs: usize,
+    distances: ArrayView2<f64>,
+    directions: ArrayView3<f64>,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
+) -> (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) {
+    let (g0, g1): (Array2<f64>, Array3<f64>) = gamma_gradients_atomwise(gamma_func, atomic_numbers, n_atoms, distances, directions);
+    let mut g0_a0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
+    let mut g1_a0: Array3<f64> = Array3::zeros((3 * n_atoms, n_orbs, n_orbs));
+    let mut mu: usize = 0;
+    let mut nu: usize;
+    for (i, z_i) in atomic_numbers.iter().enumerate() {
+        for _ in &valorbs[z_i] {
+            nu = 0;
+            for (j, z_j) in atomic_numbers.iter().enumerate() {
+                for _ in &valorbs[z_j] {
+                    g0_a0[[mu, nu]] = g0[[i, j]];
+                    if i != j {
+                        g1_a0.slice_mut(s![3*i..3*i+3, mu, nu]).assign(g1[[i, j]].slice(s![3*i..3*i+3, i, j]));
+                    }
+                    nu = nu + 1;
+                }
+            }
+            mu = mu + 1;
+        }
+    }
+    return (g0, g1, g0_a0, g1_a0);
+}
 /// Test of Gaussian decay function on a water molecule. The xyz geometry of the
 /// water molecule is
 /// ```no_run
