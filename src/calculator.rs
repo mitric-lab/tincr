@@ -103,6 +103,27 @@ pub fn get_gamma_matrix(
     return (gm, gm_ao);
 }
 
+pub fn get_gamma_gradient_matrix(
+    atomic_numbers: &[u8],
+    n_atoms: usize,
+    n_orbs: usize,
+    distances: ArrayView2<f64>,
+    directions: ArrayView3<f64>,
+    hubbard_u: &HashMap<u8, f64>,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
+    r_lr: Option<f64>,
+) -> (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) {
+    // initialize gamma matrix
+    let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(hubbard_u);
+    let mut c: HashMap<(u8, u8), f64> = HashMap::new();
+    let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
+    let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
+    gf.initialize();
+    let (g0, g1, g0_ao, g1_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
+        gamma_approximation::gamma_gradients_ao_wise(gf, atomic_numbers, n_atoms, n_orbs, distances, directions, valorbs);
+    return (g0, g1, g0_ao, g1_ao);
+}
+
 fn get_parameters(
     numbers: Vec<u8>,
 ) -> (

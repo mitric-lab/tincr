@@ -215,7 +215,7 @@ fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
 
 /// Construct reference density matrix
 /// all atoms should be neutral
-fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
+pub fn density_matrix_ref(mol: &Molecule) -> Array2<f64> {
     let mut p0: Array2<f64> = Array2::zeros((mol.calculator.n_orbs, mol.calculator.n_orbs));
     // iterate over orbitals on center i
     let mut idx: usize = 0;

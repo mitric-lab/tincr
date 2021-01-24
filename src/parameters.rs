@@ -176,6 +176,12 @@ impl RepulsivePotentialTable {
             None => panic!("No spline represantation available"),
         }
     }
+    pub fn spline_deriv(&self, x: f64) -> f64 {
+        match &self.spline_rep {
+            Some((t, c, k)) => rusty_fitpack::splder_uniform(t, c, *k, x, 1),
+            None => panic!("No spline represantation available"),
+        }
+    }
 }
 
 fn get_path_prefix() -> String {

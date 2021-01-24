@@ -21,6 +21,7 @@ pub struct Molecule {
     atomtypes: HashMap<u8, String>,
     pub proximity_matrix: Array2<bool>,
     pub distance_matrix: Array2<f64>,
+    pub directions_matrix: Array3<f64>,
     pub calculator: DFTBCalculator,
 }
 
@@ -52,6 +53,7 @@ impl Molecule {
             atomtypes: atomtypes,
             proximity_matrix: prox_matrix,
             distance_matrix: dist_matrix,
+            directions_matrix: dir_matrix,
             calculator: calculator,
         };
 
