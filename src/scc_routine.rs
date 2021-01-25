@@ -22,7 +22,7 @@ pub fn run_scc(
     max_iter: Option<usize>,
     scf_conv: Option<f64>,
     temperature: Option<f64>,
-) -> f64 {
+) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>) {
     let max_iter: usize = max_iter.unwrap_or(defaults::MAX_ITER);
     let scf_conv: f64 = scf_conv.unwrap_or(defaults::SCF_CONV);
     let temperature: f64 = temperature.unwrap_or(defaults::TEMPERATURE);
@@ -35,6 +35,8 @@ pub fn run_scc(
     let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
+    let mut orbs: Array2<f64> = Array2::zeros([molecule.calculator.n_orbs, molecule.calculator.n_orbs]);
+    let mut orbe: Array1<f64> = Array1::zeros([molecule.calculator.n_orbs]);
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
         &molecule.atomic_numbers,
         molecule.positions.view(),
@@ -80,9 +82,11 @@ pub fn run_scc(
         // H' = X^t.H.X
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
 
-        let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
+        let w_v_tmp: (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
+        orbe = w_v_tmp.0;
+        let cp: Array2<f64> = w_v_tmp.1;
         // C = X.C'
-        let orbs: Array2<f64> = x.dot(&cp);
+        orbs= x.dot(&cp);
 
         // construct density matrix
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
@@ -133,7 +137,7 @@ pub fn run_scc(
         }
     }
     println!("SCF Converged!");
-    return scf_energy + rep_energy;
+    return (scf_energy + rep_energy, orbs, orbe, s);
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
@@ -474,8 +478,8 @@ fn self_consistent_charge_routine() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
-    let energy: f64 = run_scc(&mol, None, None, None);
-    println!("ENERGY: {}", energy);
+    let energy = run_scc(&mol, None, None, None);
+    //println!("ENERGY: {}", energy);
     assert_eq!(1, 2);
 }
 
@@ -502,7 +506,7 @@ fn self_consistent_charge_routine_near_coin() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
-    let energy: f64 = run_scc(&mol, None, None, None);
-    println!("ENERGY: {}", energy);
+    let energy = run_scc(&mol, None, None, None);
+    //println!("ENERGY: {}", energy);
     assert_eq!(1, 2);
 }

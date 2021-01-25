@@ -8,9 +8,8 @@ use ndarray::prelude::*;
 use ndarray::*;
 use ndarray_linalg::*;
 use std::collections::HashMap;
-use std::ops::Neg;
 use std::hash::Hash;
-
+use std::ops::Neg;
 
 pub enum Calculator {
     DFTB(DFTBCalculator),
@@ -48,7 +47,10 @@ impl DFTBCalculator {
         // However, the coupling constants are only tabulated there on an angular momentum level
         // and we use only one spin-coupling constant per element type. Therefore, the average was
         // used in the confined_pseudo_atom parameter files
-        let tmp: Vec<f64> = atomic_numbers.iter().map(|x| spin_coupling_map[x]).collect();
+        let tmp: Vec<f64> = atomic_numbers
+            .iter()
+            .map(|x| spin_coupling_map[x])
+            .collect();
         let spin_couplings: Array1<f64> = Array1::from(tmp);
         let q0: Vec<f64> = atomic_numbers.iter().map(|zi| ne_val[zi] as f64).collect();
         let orbs_per_atom: Vec<usize> = atomic_numbers.iter().map(|zi| valorbs[zi].len()).collect();
@@ -120,7 +122,15 @@ pub fn get_gamma_gradient_matrix(
     let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
     let (g0, g1, g0_ao, g1_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
-        gamma_approximation::gamma_gradients_ao_wise(gf, atomic_numbers, n_atoms, n_orbs, distances, directions, valorbs);
+        gamma_approximation::gamma_gradients_ao_wise(
+            gf,
+            atomic_numbers,
+            n_atoms,
+            n_orbs,
+            distances,
+            directions,
+            valorbs,
+        );
     return (g0, g1, g0_ao, g1_ao);
 }
 
@@ -163,7 +173,7 @@ fn get_electronic_configuration(
     HashMap<u8, i8>,
     HashMap<u8, HashMap<(i8, i8), f64>>,
     HashMap<u8, f64>,
-    HashMap<u8, f64>
+    HashMap<u8, f64>,
 ) {
     // find quantum numbers of valence orbitals
     let mut valorbs: HashMap<u8, Vec<(i8, i8, i8)>> = HashMap::new();
@@ -207,6 +217,6 @@ fn get_electronic_configuration(
         ne_val,
         orbital_energies,
         hubbard_u,
-        spin_couplings
+        spin_couplings,
     );
 }

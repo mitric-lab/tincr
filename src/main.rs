@@ -1,21 +1,22 @@
 #![allow(dead_code)]
 
-mod constants;
-mod defaults;
-mod fermi_occupation;
-mod gamma_approximation;
-mod h0_and_s;
-mod molecule;
-mod parameters;
-mod slako_transformations;
-mod zbrent;
 mod broyden;
 mod calculator;
+mod constants;
+mod defaults;
 mod diis;
+mod fermi_occupation;
+mod gamma_approximation;
+mod gradients;
+mod h0_and_s;
+mod molecule;
 mod mulliken;
+mod parameters;
 mod scc_routine;
 mod scc_routine_unrestricted;
-mod gradients;
+mod slako_transformations;
+mod zbrent;
+mod transition_charges;
 //mod scc_routine_unrestricted;
 
 use crate::molecule::Molecule;
@@ -24,6 +25,7 @@ use ndarray_linalg::*;
 use std::env;
 use std::ptr::eq;
 use std::time::{Duration, Instant};
+use crate::gradients::gradient_nolc;
 
 fn main() {
     println!(
@@ -47,7 +49,9 @@ fn main() {
     println!("Start calculation");
     println!("_______________________________________________________");
     let now = Instant::now();
-    //let energy: f64 = scc_routine::run_scc(&mol, None, None, None);
+    let (energy, orbs, orbe, s): (f64, Array2<f64>, Array1<f64>, Array2<f64>) =
+        scc_routine::run_scc(&mol, None, None, None);
+    gradient_nolc(&mol, or);
     println!("_______________________________________________________");
     println!("Time elapsed: {:.4} secs", now.elapsed().as_secs_f32());
 }

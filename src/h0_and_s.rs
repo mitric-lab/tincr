@@ -4,7 +4,7 @@ use crate::molecule::Molecule;
 use crate::parameters::*;
 use crate::slako_transformations::*;
 use approx::AbsDiffEq;
-use ndarray::{array, Array2, ArrayView2, Array3, ArrayView3};
+use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 
 ///
@@ -187,7 +187,7 @@ pub fn h0_and_s_gradients(
                                     *lj,
                                     *mj,
                                 )
-                                    .mapv(|x| x * -1.0);
+                                .mapv(|x| x * -1.0);
 
                                 h0_deriv = slako_transformation_gradients(
                                     r,
@@ -200,7 +200,7 @@ pub fn h0_and_s_gradients(
                                     *lj,
                                     *mj,
                                 )
-                                    .mapv(|x| x * -1.0);
+                                .mapv(|x| x * -1.0);
                             }
                         } else {
                             // swap atoms if Zj > Zi, since posi and posj are swapped, the gradient
@@ -254,7 +254,6 @@ pub fn h0_and_s_gradients(
     }
     return (grad_s, grad_h0);
 }
-
 
 /// Test of H0 and S construction for a water molecule. The xyz geometry of the
 /// water molecule is

@@ -1,6 +1,6 @@
 use crate::parameters::*;
 use ndarray::prelude::*;
-use rusty_fitpack::{splev_uniform, splder_uniform};
+use rusty_fitpack::{splder_uniform, splev_uniform};
 use std::collections::HashMap;
 
 const SQRT3: f64 = 1.7320508075688772;
@@ -706,24 +706,25 @@ pub fn slako_transformation_gradients(
         (0, 0, 1, -1) => {
             x * y
                 * (-(splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r) / r)
-                + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
+                    + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
         }
         (0, 0, 1, 0) => {
             x * z
                 * (-(splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r) / r)
-                + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
+                    + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
         }
         (0, 0, 1, 1) => {
-            -(((-1.0 + x.powi(2)) * splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r)) / r)
+            -(((-1.0 + x.powi(2)) * splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r))
+                / r)
                 + x.powi(2) * splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1)
         }
         (0, 0, 2, -2) => {
             (SQRT3
                 * y
                 * ((1.0 - 2.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
+                    + r * x.powi(2)
+                        * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, -1) => {
@@ -732,7 +733,7 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * (-2.0 * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    + r * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, 0) => {
@@ -740,51 +741,52 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r))
                 / r
                 - (x * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1))
-                / 2.
+                    * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1))
+                    / 2.
         }
         (0, 0, 2, 1) => {
             (SQRT3
                 * z
                 * ((1.0 - 2.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
+                    + r * x.powi(2)
+                        * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, 2) => {
             (SQRT3
                 * x
-                * (2.0 * (1.0 - x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                * (2.0
+                    * (1.0 - x.powi(2) + y.powi(2))
+                    * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
+                    + r * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / (2. * r)
         }
         (1, -1, 0, 0) => {
             x * y
                 * (-(splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r) / r)
-                + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
+                    + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
         }
         (1, -1, 1, -1) => {
             (x * (-2.0
                 * (-1.0 + x.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + r * (x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                    * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
                 + y.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, -1, 1, 0) => {
             (x * y
                 * z
                 * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                    + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                        + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, -1, 1, 1) => {
@@ -792,111 +794,116 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + x.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, -1, 2, -2) => {
-            ((-y.powi(2) + z.powi(2) - 3.0 * x.powi(2) * (-1.0 + x.powi(2) - y.powi(2) + z.powi(2)))
+            ((-y.powi(2) + z.powi(2)
+                - 3.0 * x.powi(2) * (-1.0 + x.powi(2) - y.powi(2) + z.powi(2)))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + r * x.powi(2)
-                * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    * (x.powi(2) - y.powi(2) + z.powi(2))
+                    * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
                 + SQRT3
-                * y.powi(2)
-                * ((1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * y.powi(2)
+                    * ((1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                        + r * x.powi(2)
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, -1, 2, -1) => {
             (x * z
                 * ((2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + r * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * y.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + r * (x.powi(2) - y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + SQRT3
+                        * y.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&9].0,
+                                &s_or_h[&9].1,
+                                s_or_h[&9].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (1, -1, 2, 0) => {
             -(x * y
                 * ((2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + 2.0 * z.powi(2)
-                * (-3.0
-                * SQRT3
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + 3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * SQRT3
-                * splder_uniform(
-                &s_or_h[&8].0,
-                &s_or_h[&8].1,
-                s_or_h[&8].2,
-                r,
-                1,
-            ))
-                + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * (-3.0
+                            * SQRT3
+                            * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                            + 3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + r * SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&8].0,
+                                    &s_or_h[&8].1,
+                                    s_or_h[&8].2,
+                                    r,
+                                    1,
+                                ))
+                    + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (1, -1, 2, 1) => {
             (y * z
-                * ((-2.0 + 6.0 *x.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * x.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * x.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * x.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, -1, 2, 2) => {
             (x * y
-                * (2.0 * (-4.0 + 6.0 *x.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                - 2.0 * r
-                * (2.0 * x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                * (2.0
+                    * (-4.0 + 6.0 * x.powi(2) + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    - 2.0
+                        * r
+                        * (2.0 * x.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (1, 0, 0, 0) => {
             x * z
                 * (-(splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r) / r)
-                + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
+                    + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
         }
         (1, 0, 1, -1) => {
             (x * y
                 * z
                 * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                    + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                        + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, 0, 1, 0) => {
@@ -904,10 +911,10 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + x.powi(2) + y.powi(2))
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + r * (x.powi(2) + y.powi(2))
-                * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                    * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
                 + z.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, 0, 1, 1) => {
@@ -915,106 +922,111 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + x.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, 0, 2, -2) => {
             (y * z
-                * ((-2.0 + 6.0 *x.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * x.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * x.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * x.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, 0, 2, -1) => {
             (x * y
                 * ((2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + r * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * z.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + r * (x.powi(2) + y.powi(2) - z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + SQRT3
+                        * z.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&9].0,
+                                &s_or_h[&9].1,
+                                s_or_h[&9].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (1, 0, 2, 0) => {
             -(x * z
-                * (2.0 * SQRT3
-                * (-2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + (2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * (-2.0
-                * SQRT3
-                * (x.powi(2) + y.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))))
+                * (2.0
+                    * SQRT3
+                    * (-2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + (2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * (-2.0
+                        * SQRT3
+                        * (x.powi(2) + y.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))))
                 / (2. * r)
         }
         (1, 0, 2, 1) => {
             (((y - z) * (y + z) - 3.0 * x.powi(2) * (-1.0 + x.powi(2) + y.powi(2) - z.powi(2)))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + r * x.powi(2)
-                * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    * (x.powi(2) + y.powi(2) - z.powi(2))
+                    * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
                 + SQRT3
-                * z.powi(2)
-                * ((1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * z.powi(2)
+                    * ((1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                        + r * x.powi(2)
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, 0, 2, 2) => {
             (x * z
-                * ((-4.0 + 6.0 *x.powi(2) - 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + 2.0 * SQRT3 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                - (x - y)
-                * (x + y)
-                * (3.0 * SQRT3
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + 2.0 * r
-                * splder_uniform(
-                &s_or_h[&8].0,
-                &s_or_h[&8].1,
-                s_or_h[&8].2,
-                r,
-                1,
-            )
-                - r * SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-4.0 + 6.0 * x.powi(2) - 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + 2.0 * SQRT3 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    - (x - y)
+                        * (x + y)
+                        * (3.0
+                            * SQRT3
+                            * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + 2.0
+                                * r
+                                * splder_uniform(
+                                    &s_or_h[&8].0,
+                                    &s_or_h[&8].1,
+                                    s_or_h[&8].2,
+                                    r,
+                                    1,
+                                )
+                            - r * SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / (2. * r)
         }
         (1, 1, 0, 0) => {
-            -(((-1.0 + x.powi(2)) * splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r)) / r)
+            -(((-1.0 + x.powi(2)) * splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r))
+                / r)
                 + x.powi(2) * splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1)
         }
         (1, 1, 1, -1) => {
@@ -1022,9 +1034,9 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + x.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, 1, 1, 0) => {
@@ -1032,9 +1044,9 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + x.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, 1, 1, 1) => {
@@ -1042,146 +1054,152 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + x.powi(2))
                 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 - (y.powi(2) + z.powi(2))
-                * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - r * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1))
+                    * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
+                        - r * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1))
                 + r * x.powi(2) * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))
                 / r
         }
         (1, 1, 2, -2) => {
             (x * y
                 * ((-2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (2.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (2.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * (-x.powi(2) + y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, 1, 2, -1) => {
             (y * z
-                * ((-2.0 + 6.0 *x.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * x.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * x.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * x.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, 1, 2, 0) => {
-            -(2.0 * SQRT3
+            -(2.0
+                * SQRT3
                 * (1.0 - 3.0 * x.powi(2))
                 * z.powi(2)
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + (y.powi(2)
-                - 2.0 * z.powi(2)
-                - 3.0 * x.powi(2) * (-1.0 + x.powi(2) + y.powi(2) - 2.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    - 2.0 * z.powi(2)
+                    - 3.0 * x.powi(2) * (-1.0 + x.powi(2) + y.powi(2) - 2.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
                 + r * x.powi(2)
-                * (2.0 * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * (2.0
+                        * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (1, 1, 2, 1) => {
             (x * z
                 * ((-2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (2.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (2.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * (-x.powi(2) + y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, 1, 2, 2) => {
-            (-2.0 * (-1.0 + 3.0 * x.powi(2))
+            (-2.0
+                * (-1.0 + 3.0 * x.powi(2))
                 * (2.0 * y.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 - SQRT3
-                * (3.0 * x.powi(4) + y.powi(2) - 3.0 * x.powi(2) * (1.0 + y.powi(2)))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    * (3.0 * x.powi(4) + y.powi(2) - 3.0 * x.powi(2) * (1.0 + y.powi(2)))
+                    * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
                 + r * x.powi(2)
-                * (2.0 * (2.0 * y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * (2.0
+                        * (2.0 * y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        + SQRT3
+                            * (x - y)
+                            * (x + y)
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (2, -2, 0, 0) => {
             (SQRT3
                 * y
                 * ((1.0 - 2.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
+                    + r * x.powi(2)
+                        * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, -2, 1, -1) => {
-            ((-y.powi(2) + z.powi(2) - 3.0 * x.powi(2) * (-1.0 + x.powi(2) - y.powi(2) + z.powi(2)))
+            ((-y.powi(2) + z.powi(2)
+                - 3.0 * x.powi(2) * (-1.0 + x.powi(2) - y.powi(2) + z.powi(2)))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + r * x.powi(2)
-                * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    * (x.powi(2) - y.powi(2) + z.powi(2))
+                    * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
                 + SQRT3
-                * y.powi(2)
-                * ((1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * y.powi(2)
+                    * ((1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                        + r * x.powi(2)
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, -2, 1, 0) => {
             (y * z
-                * ((-2.0 + 6.0 *x.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * x.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * x.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * x.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, -2, 1, 1) => {
             (x * y
                 * ((-2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (2.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (2.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (-x.powi(2) + y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, -2, 2, -2) => {
@@ -1189,165 +1207,199 @@ pub fn slako_transformation_gradients(
                 * (y.powi(2) + z.powi(2))
                 * (-1.0 + 2.0 * x.powi(2) + 2.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (-2.0 * x.powi(4)
-                + z.powi(2)
-                + x.powi(2) * (2.0 + 4.0 * y.powi(2) - 2.0 * z.powi(2))
-                - 2.0 * y.powi(2) * (1.0 + y.powi(2) + z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (-2.0 * x.powi(4)
+                        + z.powi(2)
+                        + x.powi(2) * (2.0 + 4.0 * y.powi(2) - 2.0 * z.powi(2))
+                        - 2.0 * y.powi(2) * (1.0 + y.powi(2) + z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 6.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -2, 2, -1) => {
             (z * ((4.0 * x.powi(4) - z.powi(2) + x.powi(2) * (-3.0 + 4.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
                 + (-3.0 * y.powi(2)
-                + z.powi(2)
-                + x.powi(2) * (3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2) - 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + z.powi(2)
+                    + x.powi(2) * (3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2) - 4.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -2, 2, 0) => {
             (SQRT3
                 * y
                 * ((-4.0 * x.powi(4)
-                + y.powi(2)
-                + 2.0 * z.powi(2)
-                + x.powi(2) * (3.0 - 4.0 * y.powi(2) - 8.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (-1.0 + 4.0 * x.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 3.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 2.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * x.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    + y.powi(2)
+                    + 2.0 * z.powi(2)
+                    + x.powi(2) * (3.0 - 4.0 * y.powi(2) - 8.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 4.0
+                        * (-1.0 + 4.0 * x.powi(2))
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 3.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * x.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + r * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 4.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * x.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, -2, 2, 1) => {
             (x * y
                 * z
-                * (4.0 * (y.powi(2) + z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 4.0 * (y.powi(2) + z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *(-1.0 + 2.0 * x.powi(2))
-                * (splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r))
-                + r * (-((y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1))
-                + (-3.0 * x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * x.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1))))
+                * (4.0
+                    * (y.powi(2) + z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 4.0
+                        * (y.powi(2) + z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 6.0
+                        * (-1.0 + 2.0 * x.powi(2))
+                        * (splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                            - splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r))
+                    + r * (-((y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1))
+                        + (-3.0 * x.powi(2) + y.powi(2) + z.powi(2))
+                            * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                        + 3.0
+                            * x.powi(2)
+                            * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1))))
                 / r
         }
         (2, -2, 2, 2) => {
             (y * (-((4.0 * x.powi(4) + y.powi(2) - x.powi(2) * (3.0 + 4.0 * y.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r))
-                + 4.0 * (y.powi(2) + x.powi(2) * (-3.0 + 4.0 * x.powi(2) - 4.0 * y.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 9.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 4.0
+                    * (y.powi(2) + x.powi(2) * (-3.0 + 4.0 * x.powi(2) - 4.0 * y.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 9.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 4.0
+                    * r
+                    * x.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * (x - y)
+                    * (x + y)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, -1, 0, 0) => {
@@ -1356,136 +1408,145 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * (-2.0 * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    + r * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, -1, 1, -1) => {
             (x * z
                 * ((2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + r * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * y.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + r * (x.powi(2) - y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + SQRT3
+                        * y.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&12].0,
+                                &s_or_h[&12].1,
+                                s_or_h[&12].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (2, -1, 1, 0) => {
             (x * y
                 * ((2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + r * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * z.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + r * (x.powi(2) + y.powi(2) - z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + SQRT3
+                        * z.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&12].0,
+                                &s_or_h[&12].1,
+                                s_or_h[&12].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (2, -1, 1, 1) => {
             (y * z
-                * ((-2.0 + 6.0 *x.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * x.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * x.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * x.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, -1, 2, -2) => {
             (z * ((4.0 * x.powi(4) - z.powi(2) + x.powi(2) * (-3.0 + 4.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
                 + (-3.0 * y.powi(2)
-                + z.powi(2)
-                + x.powi(2) * (3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2) - 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + z.powi(2)
+                    + x.powi(2) * (3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2) - 4.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -1, 2, -1) => {
             (x * (2.0
                 * (y.powi(2) - 2.0 * x.powi(2) * (-1.0 + x.powi(2) + y.powi(2)) + z.powi(2)
-                - 2.0 * (x.powi(2) + y.powi(2)) * z.powi(2))
+                    - 2.0 * (x.powi(2) + y.powi(2)) * z.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (-2.0 * y.powi(4) + z.powi(2) - 2.0 * z.powi(2) * (x.powi(2) + z.powi(2))
-                + y.powi(2) * (1.0 - 2.0 * x.powi(2) + 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (-2.0 * y.powi(4) + z.powi(2) - 2.0 * z.powi(2) * (x.powi(2) + z.powi(2))
+                        + y.powi(2) * (1.0 - 2.0 * x.powi(2) + 4.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -1, 2, 0) => {
@@ -1494,97 +1555,117 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * ((-2.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (4.0 - 8.0 * x.powi(2) - 8.0 * y.powi(2) + 8.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + (4.0 - 8.0 * x.powi(2) - 8.0 * y.powi(2) + 8.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 2.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, -1, 2, 1) => {
             (y * ((4.0 * x.powi(4) - y.powi(2) + x.powi(2) * (-3.0 + 4.0 * y.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
                 + (y.powi(2) - 3.0 * z.powi(2)
-                + x.powi(2) * (3.0 - 4.0 * x.powi(2) - 4.0 * y.powi(2) + 12.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * z.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + x.powi(2) * (3.0 - 4.0 * x.powi(2) - 4.0 * y.powi(2) + 12.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -1, 2, 2) => {
             (x * y
                 * z
                 * (-2.0
-                * (-3.0 + 6.0 *x.powi(2) + 2.0 * y.powi(2) + 4.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (-3.0 + 6.0 *x.powi(2) - 2.0 * y.powi(2) + 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 6.0 *r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-3.0 + 6.0 * x.powi(2) + 2.0 * y.powi(2) + 4.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 4.0
+                        * (-3.0 + 6.0 * x.powi(2) - 2.0 * y.powi(2) + 2.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 6.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 12.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 12.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 3.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + r * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 6.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 3.0
+                        * r
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 0, 0) => {
@@ -1592,102 +1673,115 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r))
                 / r
                 - (x * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1))
-                / 2.
+                    * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1))
+                    / 2.
         }
         (2, 0, 1, -1) => {
             -(x * y
                 * ((2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + 2.0 * z.powi(2)
-                * (-3.0
-                * SQRT3
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + 3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * SQRT3
-                * splder_uniform(
-                &s_or_h[&11].0,
-                &s_or_h[&11].1,
-                s_or_h[&11].2,
-                r,
-                1,
-            ))
-                + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * (-3.0
+                            * SQRT3
+                            * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                            + 3.0
+                                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                            + r * SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&11].0,
+                                    &s_or_h[&11].1,
+                                    s_or_h[&11].2,
+                                    r,
+                                    1,
+                                ))
+                    + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 1, 0) => {
             -(x * z
-                * (2.0 * SQRT3
-                * (-2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + (2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (-2.0
-                * SQRT3
-                * (x.powi(2) + y.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
+                * (2.0
+                    * SQRT3
+                    * (-2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + (2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (-2.0
+                        * SQRT3
+                        * (x.powi(2) + y.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
                 / (2. * r)
         }
         (2, 0, 1, 1) => {
-            -(2.0 * SQRT3
+            -(2.0
+                * SQRT3
                 * (1.0 - 3.0 * x.powi(2))
                 * z.powi(2)
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + (y.powi(2)
-                - 2.0 * z.powi(2)
-                - 3.0 * x.powi(2) * (-1.0 + x.powi(2) + y.powi(2) - 2.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    - 2.0 * z.powi(2)
+                    - 3.0 * x.powi(2) * (-1.0 + x.powi(2) + y.powi(2) - 2.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
                 + r * x.powi(2)
-                * (2.0 * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * (2.0
+                        * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, -2) => {
             (SQRT3
                 * y
                 * ((-4.0 * x.powi(4)
-                + y.powi(2)
-                + 2.0 * z.powi(2)
-                + x.powi(2) * (3.0 - 4.0 * y.powi(2) - 8.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (-1.0 + 4.0 * x.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 3.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 2.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * x.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    + y.powi(2)
+                    + 2.0 * z.powi(2)
+                    + x.powi(2) * (3.0 - 4.0 * y.powi(2) - 8.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 4.0
+                        * (-1.0 + 4.0 * x.powi(2))
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 3.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * x.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + r * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 4.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * x.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, -1) => {
@@ -1696,31 +1790,37 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * ((-2.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (4.0 - 8.0 * x.powi(2) - 8.0 * y.powi(2) + 8.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + (4.0 - 8.0 * x.powi(2) - 8.0 * y.powi(2) + 8.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 2.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, 0) => {
@@ -1728,285 +1828,347 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + x.powi(2) + y.powi(2))
                 * (x.powi(2) + y.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 24.0 * (-1.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 4.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 16.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 16.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 16.0 * z.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * r
-                * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 6.0 *r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 3.0 * r
-                * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 12.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 12.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 24.0
+                    * (-1.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2))
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 4.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 4.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 4.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 8.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 4.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 8.0
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 16.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 16.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 16.0
+                    * z.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * r
+                    * x.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 6.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 12.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 12.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2)).powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 0, 2, 1) => {
             (SQRT3
                 * z
                 * ((4.0 * x.powi(4) - y.powi(2) + x.powi(2) * (-3.0 + 4.0 * y.powi(2)))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * ((y - z) * (y + z)
-                + x.powi(2) * (3.0 - 4.0 * x.powi(2) - 4.0 * y.powi(2) + 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 3.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 2.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * x.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 2.0
+                        * ((y - z) * (y + z)
+                            + x.powi(2)
+                                * (3.0 - 4.0 * x.powi(2) - 4.0 * y.powi(2) + 4.0 * z.powi(2)))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 3.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(4)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * x.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, 2) => {
             (SQRT3
                 * x
-                * (4.0 * (-x.powi(4)
-                + y.powi(4)
-                + z.powi(2)
-                + 2.0 * y.powi(2) * z.powi(2)
-                + x.powi(2) * (1.0 - 2.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 8.0 * (-1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 4.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * y.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 8.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * (x - y)
-                * (x + y)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                * (4.0
+                    * (-x.powi(4)
+                        + y.powi(4)
+                        + z.powi(2)
+                        + 2.0 * y.powi(2) * z.powi(2)
+                        + x.powi(2) * (1.0 - 2.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 8.0
+                        * (-1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2))
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 4.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 4.0
+                        * y.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 8.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * x.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 4.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 4.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * (x - y)
+                        * (x + y)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 1, 0, 0) => {
             (SQRT3
                 * z
                 * ((1.0 - 2.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
+                    + r * x.powi(2)
+                        * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, 1, 1, -1) => {
             (y * z
-                * ((-2.0 + 6.0 *x.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * x.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * x.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * x.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, 1, 1, 0) => {
             (((y - z) * (y + z) - 3.0 * x.powi(2) * (-1.0 + x.powi(2) + y.powi(2) - z.powi(2)))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + r * x.powi(2)
-                * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    * (x.powi(2) + y.powi(2) - z.powi(2))
+                    * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
                 + SQRT3
-                * z.powi(2)
-                * ((1.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * z.powi(2)
+                    * ((1.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                        + r * x.powi(2)
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, 1, 1, 1) => {
             (x * z
                 * ((-2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (2.0 - 3.0 * x.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (2.0 - 3.0 * x.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (-x.powi(2) + y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, 1, 2, -2) => {
             (x * y
                 * z
-                * (4.0 * (y.powi(2) + z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 4.0 * (y.powi(2) + z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *(-1.0 + 2.0 * x.powi(2))
-                * (splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r))
-                + r * (-((y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1))
-                + (-3.0 * x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * x.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1))))
+                * (4.0
+                    * (y.powi(2) + z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 4.0
+                        * (y.powi(2) + z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 6.0
+                        * (-1.0 + 2.0 * x.powi(2))
+                        * (splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                            - splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r))
+                    + r * (-((y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1))
+                        + (-3.0 * x.powi(2) + y.powi(2) + z.powi(2))
+                            * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                        + 3.0
+                            * x.powi(2)
+                            * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1))))
                 / r
         }
         (2, 1, 2, -1) => {
             (y * ((4.0 * x.powi(4) - y.powi(2) + x.powi(2) * (-3.0 + 4.0 * y.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
                 + (y.powi(2) - 3.0 * z.powi(2)
-                + x.powi(2) * (3.0 - 4.0 * x.powi(2) - 4.0 * y.powi(2) + 12.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * z.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + x.powi(2) * (3.0 - 4.0 * x.powi(2) - 4.0 * y.powi(2) + 12.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, 1, 2, 0) => {
             (SQRT3
                 * z
                 * ((4.0 * x.powi(4) - y.powi(2) + x.powi(2) * (-3.0 + 4.0 * y.powi(2)))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * ((y - z) * (y + z)
-                + x.powi(2) * (3.0 - 4.0 * x.powi(2) - 4.0 * y.powi(2) + 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 3.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 2.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * x.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 2.0
+                        * ((y - z) * (y + z)
+                            + x.powi(2)
+                                * (3.0 - 4.0 * x.powi(2) - 4.0 * y.powi(2) + 4.0 * z.powi(2)))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 3.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(4)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * x.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 1, 2, 1) => {
@@ -2014,45 +2176,52 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2))
                 * (y.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (y.powi(2)
-                - 2.0 * z.powi(2)
-                - 2.0 * (x.powi(2) * (-1.0 + x.powi(2) + y.powi(2))
-                + (-2.0 * x.powi(2) + y.powi(2)) * z.powi(2)
-                + z.powi(4)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *z.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (y.powi(2)
+                        - 2.0 * z.powi(2)
+                        - 2.0
+                            * (x.powi(2) * (-1.0 + x.powi(2) + y.powi(2))
+                                + (-2.0 * x.powi(2) + y.powi(2)) * z.powi(2)
+                                + z.powi(4)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 6.0
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, 1, 2, 2) => {
@@ -2061,220 +2230,273 @@ pub fn slako_transformation_gradients(
                 + 2.0 * z.powi(2)
                 + x.powi(2) * (3.0 - 12.0 * y.powi(2) - 8.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 2.0 * (4.0 * x.powi(4) + 3.0 * y.powi(2) + z.powi(2)
-                - x.powi(2) * (3.0 + 12.0 * y.powi(2) + 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 9.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 2.0
+                    * (4.0 * x.powi(4) + 3.0 * y.powi(2) + z.powi(2)
+                        - x.powi(2) * (3.0 + 12.0 * y.powi(2) + 4.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 9.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 6.0 *r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * x.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 6.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * (x - y)
+                    * (x + y)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 0, 0) => {
             (SQRT3
                 * x
-                * (2.0 * (1.0 - x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                * (2.0
+                    * (1.0 - x.powi(2) + y.powi(2))
+                    * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
+                    + r * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 1, -1) => {
             (x * y
-                * (2.0 * (-4.0 + 6.0 *x.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                - 2.0 * r
-                * (2.0 * x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                * (2.0
+                    * (-4.0 + 6.0 * x.powi(2) + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    - 2.0
+                        * r
+                        * (2.0 * x.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 1, 0) => {
             (x * z
-                * ((-4.0 + 6.0 *x.powi(2) - 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                - r * (x - y)
-                * (x + y)
-                * (2.0 * splder_uniform(
-                &s_or_h[&11].0,
-                &s_or_h[&11].1,
-                s_or_h[&11].2,
-                r,
-                1,
-            ) - SQRT3
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
+                * ((-4.0 + 6.0 * x.powi(2) - 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    - r * (x - y)
+                        * (x + y)
+                        * (2.0
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)
+                            - SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&11].0,
+                                    &s_or_h[&11].1,
+                                    s_or_h[&11].2,
+                                    r,
+                                    1,
+                                ))))
                 / (2. * r)
         }
         (2, 2, 1, 1) => {
-            (-2.0 * (-1.0 + 3.0 * x.powi(2))
+            (-2.0
+                * (-1.0 + 3.0 * x.powi(2))
                 * (2.0 * y.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 - SQRT3
-                * (3.0 * x.powi(4) + y.powi(2) - 3.0 * x.powi(2) * (1.0 + y.powi(2)))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    * (3.0 * x.powi(4) + y.powi(2) - 3.0 * x.powi(2) * (1.0 + y.powi(2)))
+                    * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
                 + r * x.powi(2)
-                * (2.0 * (2.0 * y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * (2.0
+                        * (2.0 * y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        + SQRT3
+                            * (x - y)
+                            * (x + y)
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, -2) => {
             (y * (-((4.0 * x.powi(4) + y.powi(2) - x.powi(2) * (3.0 + 4.0 * y.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r))
-                + 4.0 * (y.powi(2) + x.powi(2) * (-3.0 + 4.0 * x.powi(2) - 4.0 * y.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 9.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 4.0
+                    * (y.powi(2) + x.powi(2) * (-3.0 + 4.0 * x.powi(2) - 4.0 * y.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 9.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 4.0
+                    * r
+                    * x.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * (x - y)
+                    * (x + y)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, -1) => {
             (x * y
                 * z
                 * (-2.0
-                * (-3.0 + 6.0 *x.powi(2) + 2.0 * y.powi(2) + 4.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (-3.0 + 6.0 *x.powi(2) - 2.0 * y.powi(2) + 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 6.0 *r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-3.0 + 6.0 * x.powi(2) + 2.0 * y.powi(2) + 4.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 4.0
+                        * (-3.0 + 6.0 * x.powi(2) - 2.0 * y.powi(2) + 2.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 6.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 12.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 12.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 3.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + r * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 6.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 3.0
+                        * r
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, 0) => {
             (SQRT3
                 * x
-                * (4.0 * (-x.powi(4)
-                + y.powi(4)
-                + z.powi(2)
-                + 2.0 * y.powi(2) * z.powi(2)
-                + x.powi(2) * (1.0 - 2.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 8.0 * (-1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 4.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * y.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 8.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * (x - y)
-                * (x + y)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                * (4.0
+                    * (-x.powi(4)
+                        + y.powi(4)
+                        + z.powi(2)
+                        + 2.0 * y.powi(2) * z.powi(2)
+                        + x.powi(2) * (1.0 - 2.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 8.0
+                        * (-1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2))
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 4.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 4.0
+                        * y.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 8.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * x.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 4.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 4.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * (x - y)
+                        * (x + y)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 2, 2, 1) => {
@@ -2283,93 +2505,125 @@ pub fn slako_transformation_gradients(
                 + 2.0 * z.powi(2)
                 + x.powi(2) * (3.0 - 12.0 * y.powi(2) - 8.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 2.0 * (4.0 * x.powi(4) + 3.0 * y.powi(2) + z.powi(2)
-                - x.powi(2) * (3.0 + 12.0 * y.powi(2) + 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 9.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 2.0
+                    * (4.0 * x.powi(4) + 3.0 * y.powi(2) + z.powi(2)
+                        - x.powi(2) * (3.0 + 12.0 * y.powi(2) + 4.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 9.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 6.0 *r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * x.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 6.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * (x - y)
+                    * (x + y)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, 2) => {
             (x * (-4.0
                 * (x.powi(4) + y.powi(2) - 2.0 * z.powi(2)
-                + (y.powi(2) + 2.0 * z.powi(2)).powi(2)
-                + x.powi(2) * (-1.0 - 2.0 * y.powi(2) + 4.0 * z.powi(2)))
+                    + (y.powi(2) + 2.0 * z.powi(2)).powi(2)
+                    + x.powi(2) * (-1.0 - 2.0 * y.powi(2) + 4.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 8.0 * ((-1.0 + 2.0 * x.powi(2)) * z.powi(2)
-                + 2.0 * y.powi(2) * (-2.0 + 4.0 * x.powi(2) + z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 12.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 24.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 8.0
+                    * ((-1.0 + 2.0 * x.powi(2)) * z.powi(2)
+                        + 2.0 * y.powi(2) * (-2.0 + 4.0 * x.powi(2) + z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 12.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 24.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 16.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x.powi(2) - y.powi(2)).powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 16.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x.powi(2) - y.powi(2)).powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         _ => panic!("No combination of l1, m1, l2, m2 found!"),
@@ -2378,35 +2632,36 @@ pub fn slako_transformation_gradients(
     let grad1: f64 = match (l1, m1, l2, m2) {
         (0, 0, 0, 0) => y * splder_uniform(&s_or_h[&0].0, &s_or_h[&0].1, s_or_h[&0].2, r, 1),
         (0, 0, 1, -1) => {
-            -(((-1.0 + y.powi(2)) * splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r)) / r)
+            -(((-1.0 + y.powi(2)) * splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r))
+                / r)
                 + y.powi(2) * splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1)
         }
         (0, 0, 1, 0) => {
             y * z
                 * (-(splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r) / r)
-                + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
+                    + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
         }
         (0, 0, 1, 1) => {
             x * y
                 * (-(splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r) / r)
-                + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
+                    + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
         }
         (0, 0, 2, -2) => {
             (SQRT3
                 * x
                 * ((1.0 - 2.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
+                    + r * y.powi(2)
+                        * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, -1) => {
             (SQRT3
                 * z
                 * ((1.0 - 2.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
+                    + r * y.powi(2)
+                        * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, 0) => {
@@ -2414,8 +2669,8 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r))
                 / r
                 - (y * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1))
-                / 2.
+                    * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1))
+                    / 2.
         }
         (0, 0, 2, 1) => {
             (SQRT3
@@ -2423,22 +2678,23 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * (-2.0 * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    + r * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, 2) => {
             (SQRT3
                 * y
                 * (-2.0
-                * (1.0 + x.powi(2) - y.powi(2))
-                * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    * (1.0 + x.powi(2) - y.powi(2))
+                    * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
+                    + r * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / (2. * r)
         }
         (1, -1, 0, 0) => {
-            -(((-1.0 + y.powi(2)) * splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r)) / r)
+            -(((-1.0 + y.powi(2)) * splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r))
+                / r)
                 + y.powi(2) * splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1)
         }
         (1, -1, 1, -1) => {
@@ -2446,8 +2702,8 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + y.powi(2))
                 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 - (x.powi(2) + z.powi(2))
-                * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - r * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1))
+                    * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
+                        - r * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1))
                 + r * y.powi(2) * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))
                 / r
         }
@@ -2456,9 +2712,9 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + y.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, -1, 1, 1) => {
@@ -2466,72 +2722,76 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + y.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, -1, 2, -2) => {
             (x * y
                 * (-((2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r))
-                + SQRT3
-                * (2.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r))
+                    + SQRT3
+                        * (2.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * (x.powi(2) - y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, -1, 2, -1) => {
             (y * z
                 * (-((2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r))
-                + SQRT3
-                * (2.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r))
+                    + SQRT3
+                        * (2.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * (x.powi(2) - y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, -1, 2, 0) => {
-            -(2.0 * SQRT3
+            -(2.0
+                * SQRT3
                 * (1.0 - 3.0 * y.powi(2))
                 * z.powi(2)
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + x.powi(2) * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + (-2.0 * z.powi(2) - 3.0 * y.powi(2) * (-1.0 + x.powi(2) + y.powi(2) - 2.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                + (-2.0 * z.powi(2)
+                    - 3.0 * y.powi(2) * (-1.0 + x.powi(2) + y.powi(2) - 2.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
                 + r * y.powi(2)
-                * (2.0 * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * (2.0
+                        * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (1, -1, 2, 1) => {
             (x * z
-                * ((-2.0 + 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * y.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * y.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, -1, 2, 2) => {
@@ -2539,31 +2799,31 @@ pub fn slako_transformation_gradients(
                 * (2.0 * x.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + SQRT3
-                * (x.powi(2) - 3.0 * (1.0 + x.powi(2)) * y.powi(2) + 3.0 * y.powi(4))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    * (x.powi(2) - 3.0 * (1.0 + x.powi(2)) * y.powi(2) + 3.0 * y.powi(4))
+                    * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
                 + r * y.powi(2)
-                * (-2.0
-                * (2.0 * x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * (-2.0
+                        * (2.0 * x.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        + SQRT3
+                            * (x - y)
+                            * (x + y)
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (1, 0, 0, 0) => {
             y * z
                 * (-(splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r) / r)
-                + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
+                    + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
         }
         (1, 0, 1, -1) => {
             (z * ((-1.0 + 2.0 * y.powi(2))
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + y.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, 0, 1, 0) => {
@@ -2571,38 +2831,39 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + x.powi(2) + y.powi(2))
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + r * (x.powi(2) + y.powi(2))
-                * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                    * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
                 + z.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, 0, 1, 1) => {
             (x * y
                 * z
                 * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                    + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                        + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, 0, 2, -2) => {
             (x * z
-                * ((-2.0 + 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * y.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * y.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, 0, 2, -1) => {
@@ -2610,98 +2871,101 @@ pub fn slako_transformation_gradients(
                 + 3.0 * y.powi(2) * (1.0 - y.powi(2) + z.powi(2)))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + r * y.powi(2)
-                * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    * (x.powi(2) + y.powi(2) - z.powi(2))
+                    * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
                 + SQRT3
-                * z.powi(2)
-                * ((1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * z.powi(2)
+                    * ((1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                        + r * y.powi(2)
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, 0, 2, 0) => {
             -(y * z
-                * (2.0 * SQRT3
-                * (-2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + (2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * (-2.0
-                * SQRT3
-                * (x.powi(2) + y.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))))
+                * (2.0
+                    * SQRT3
+                    * (-2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + (2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * (-2.0
+                        * SQRT3
+                        * (x.powi(2) + y.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))))
                 / (2. * r)
         }
         (1, 0, 2, 1) => {
             (x * y
                 * ((2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + r * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * z.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + r * (x.powi(2) + y.powi(2) - z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + SQRT3
+                        * z.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&9].0,
+                                &s_or_h[&9].1,
+                                s_or_h[&9].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (1, 0, 2, 2) => {
             (y * z
-                * ((4.0 + 6.0 *x.powi(2) - 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                - 2.0 * SQRT3 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                - (x - y)
-                * (x + y)
-                * (3.0 * SQRT3
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + 2.0 * r
-                * splder_uniform(
-                &s_or_h[&8].0,
-                &s_or_h[&8].1,
-                s_or_h[&8].2,
-                r,
-                1,
-            )
-                - r * SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((4.0 + 6.0 * x.powi(2) - 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    - 2.0 * SQRT3 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    - (x - y)
+                        * (x + y)
+                        * (3.0
+                            * SQRT3
+                            * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + 2.0
+                                * r
+                                * splder_uniform(
+                                    &s_or_h[&8].0,
+                                    &s_or_h[&8].1,
+                                    s_or_h[&8].2,
+                                    r,
+                                    1,
+                                )
+                            - r * SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / (2. * r)
         }
         (1, 1, 0, 0) => {
             x * y
                 * (-(splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r) / r)
-                + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
+                    + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
         }
         (1, 1, 1, -1) => {
             (x * ((-1.0 + 2.0 * y.powi(2))
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + y.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, 1, 1, 0) => {
             (x * y
                 * z
                 * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                    + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                        + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, 1, 1, 1) => {
@@ -2709,10 +2973,10 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + y.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + r * (y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                    * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
                 + x.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, 1, 2, -2) => {
@@ -2720,132 +2984,135 @@ pub fn slako_transformation_gradients(
                 - 3.0 * y.powi(2) * (-1.0 + y.powi(2) + z.powi(2)))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + r * y.powi(2)
-                * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    * (-x.powi(2) + y.powi(2) + z.powi(2))
+                    * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
                 + SQRT3
-                * x.powi(2)
-                * ((1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * x.powi(2)
+                    * ((1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                        + r * y.powi(2)
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, 1, 2, -1) => {
             (x * z
-                * ((-2.0 + 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * y.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * y.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, 1, 2, 0) => {
             -(x * y
                 * ((2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + 2.0 * z.powi(2)
-                * (-3.0
-                * SQRT3
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + 3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * SQRT3
-                * splder_uniform(
-                &s_or_h[&8].0,
-                &s_or_h[&8].1,
-                s_or_h[&8].2,
-                r,
-                1,
-            ))
-                + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * (-3.0
+                            * SQRT3
+                            * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                            + 3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + r * SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&8].0,
+                                    &s_or_h[&8].1,
+                                    s_or_h[&8].2,
+                                    r,
+                                    1,
+                                ))
+                    + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (1, 1, 2, 1) => {
             (y * z
                 * ((2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + r * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * x.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + r * (-x.powi(2) + y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + SQRT3
+                        * x.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&9].0,
+                                &s_or_h[&9].1,
+                                s_or_h[&9].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (1, 1, 2, 2) => {
             (x * y
                 * (-2.0
-                * (-4.0 + 6.0 *y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (-2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + 2.0 * r
-                * (2.0 * y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * (-4.0 + 6.0 * y.powi(2) + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (-2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + 2.0
+                        * r
+                        * (2.0 * y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (2, -2, 0, 0) => {
             (SQRT3
                 * x
                 * ((1.0 - 2.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
+                    + r * y.powi(2)
+                        * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, -2, 1, -1) => {
             (x * y
                 * (-((2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r))
-                + SQRT3
-                * (2.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r))
+                    + SQRT3
+                        * (2.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (x.powi(2) - y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, -2, 1, 0) => {
             (x * z
-                * ((-2.0 + 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * y.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * y.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, -2, 1, 1) => {
@@ -2853,14 +3120,14 @@ pub fn slako_transformation_gradients(
                 - 3.0 * y.powi(2) * (-1.0 + y.powi(2) + z.powi(2)))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + r * y.powi(2)
-                * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    * (-x.powi(2) + y.powi(2) + z.powi(2))
+                    * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
                 + SQRT3
-                * x.powi(2)
-                * ((1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * x.powi(2)
+                    * ((1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                        + r * y.powi(2)
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, -2, 2, -2) => {
@@ -2868,191 +3135,226 @@ pub fn slako_transformation_gradients(
                 * (x.powi(2) + z.powi(2))
                 * (-1.0 + 2.0 * y.powi(2) + 2.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (-2.0 * (x - y) * (x + y) * (1.0 + x.powi(2) - y.powi(2))
-                + (1.0 - 2.0 * x.powi(2) - 2.0 * y.powi(2)) * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (-2.0 * (x - y) * (x + y) * (1.0 + x.powi(2) - y.powi(2))
+                        + (1.0 - 2.0 * x.powi(2) - 2.0 * y.powi(2)) * z.powi(2))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 6.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -2, 2, -1) => {
             (x * y
                 * z
-                * (4.0 * (x.powi(2) + z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 2.0 * (3.0 + 2.0 * x.powi(2) - 6.0 *y.powi(2) + 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * (x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                * (4.0
+                    * (x.powi(2) + z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 2.0
+                        * (3.0 + 2.0 * x.powi(2) - 6.0 * y.powi(2) + 2.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 6.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 12.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * (x.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + r * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 3.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + r * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 3.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -2, 2, 0) => {
             (SQRT3
                 * x
                 * ((x.powi(2) * (1.0 - 4.0 * y.powi(2))
-                + 2.0 * z.powi(2)
-                + y.powi(2) * (3.0 - 4.0 * y.powi(2) - 8.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (-1.0 + 4.0 * y.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 3.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 2.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * y.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    + 2.0 * z.powi(2)
+                    + y.powi(2) * (3.0 - 4.0 * y.powi(2) - 8.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 4.0
+                        * (-1.0 + 4.0 * y.powi(2))
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 3.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + r * y.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 4.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * y.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, -2, 2, 1) => {
             (z * ((4.0 * y.powi(4) - z.powi(2) + y.powi(2) * (-3.0 + 4.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
                 + (3.0 * x.powi(2) * (-1.0 + 4.0 * y.powi(2))
-                + z.powi(2)
-                + y.powi(2) * (3.0 - 4.0 * y.powi(2) - 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + z.powi(2)
+                    + y.powi(2) * (3.0 - 4.0 * y.powi(2) - 4.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -2, 2, 2) => {
             (x * ((x.powi(2) - (3.0 + 4.0 * x.powi(2)) * y.powi(2) + 4.0 * y.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (-x.powi(2) + (3.0 + 4.0 * x.powi(2)) * y.powi(2) - 4.0 * y.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 9.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 4.0
+                    * (-x.powi(2) + (3.0 + 4.0 * x.powi(2)) * y.powi(2) - 4.0 * y.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 9.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * y.powi(2)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 4.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * y.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x - y)
+                    * y.powi(2)
+                    * (x + y)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, -1, 0, 0) => {
             (SQRT3
                 * z
                 * ((1.0 - 2.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
+                    + r * y.powi(2)
+                        * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, -1, 1, -1) => {
             (y * z
                 * (-((2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r))
-                + SQRT3
-                * (2.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r))
+                    + SQRT3
+                        * (2.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (x.powi(2) - y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, -1, 1, 0) => {
@@ -3060,58 +3362,63 @@ pub fn slako_transformation_gradients(
                 + 3.0 * y.powi(2) * (1.0 - y.powi(2) + z.powi(2)))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + r * y.powi(2)
-                * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    * (x.powi(2) + y.powi(2) - z.powi(2))
+                    * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
                 + SQRT3
-                * z.powi(2)
-                * ((1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * y.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * z.powi(2)
+                    * ((1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                        + r * y.powi(2)
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, -1, 1, 1) => {
             (x * z
-                * ((-2.0 + 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * y.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * y.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, -1, 2, -2) => {
             (x * y
                 * z
-                * (4.0 * (x.powi(2) + z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 2.0 * (3.0 + 2.0 * x.powi(2) - 6.0 *y.powi(2) + 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * (x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + r * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                * (4.0
+                    * (x.powi(2) + z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 2.0
+                        * (3.0 + 2.0 * x.powi(2) - 6.0 * y.powi(2) + 2.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 6.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 12.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * (x.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + r * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 3.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + r * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 3.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -1, 2, -1) => {
@@ -3119,114 +3426,136 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2))
                 * (x.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) * (1.0 - 2.0 * y.powi(2) - 2.0 * z.powi(2))
-                - 2.0 * (y - z) * (y + z) * (-1.0 + y.powi(2) - z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *z.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (x.powi(2) * (1.0 - 2.0 * y.powi(2) - 2.0 * z.powi(2))
+                        - 2.0 * (y - z) * (y + z) * (-1.0 + y.powi(2) - z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 6.0
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -1, 2, 0) => {
             (SQRT3
                 * z
                 * ((-x.powi(2) + (-3.0 + 4.0 * x.powi(2)) * y.powi(2) + 4.0 * y.powi(4))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) + 3.0 * y.powi(2) - 4.0 * x.powi(2) * y.powi(2) - 4.0 * y.powi(4)
-                + (-1.0 + 4.0 * y.powi(2)) * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 3.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 2.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * y.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 2.0
+                        * (x.powi(2) + 3.0 * y.powi(2)
+                            - 4.0 * x.powi(2) * y.powi(2)
+                            - 4.0 * y.powi(4)
+                            + (-1.0 + 4.0 * y.powi(2)) * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 3.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(4)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * y.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, -1, 2, 1) => {
             (x * ((-x.powi(2) + (-3.0 + 4.0 * x.powi(2)) * y.powi(2) + 4.0 * y.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
                 + (x.powi(2) + 3.0 * y.powi(2) - 4.0 * x.powi(2) * y.powi(2) - 4.0 * y.powi(4)
-                + 3.0 * (-1.0 + 4.0 * y.powi(2)) * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * z.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 3.0 * (-1.0 + 4.0 * y.powi(2)) * z.powi(2))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -1, 2, 2) => {
@@ -3235,41 +3564,55 @@ pub fn slako_transformation_gradients(
                 + 2.0 * z.powi(2)
                 + y.powi(2) * (3.0 - 8.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (-8.0 * y.powi(4) + 6.0 *x.powi(2) * (-1.0 + 4.0 * y.powi(2)) - 2.0 * z.powi(2)
-                + y.powi(2) * (6.0 + 8.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 9.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + (-8.0 * y.powi(4) + 6.0 * x.powi(2) * (-1.0 + 4.0 * y.powi(2))
+                    - 2.0 * z.powi(2)
+                    + y.powi(2) * (6.0 + 8.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 9.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 6.0 *r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * y.powi(2)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 6.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 2.0
+                    * r
+                    * y.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x - y)
+                    * y.powi(2)
+                    * (x + y)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 0, 0) => {
@@ -3277,142 +3620,166 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r))
                 / r
                 - (y * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1))
-                / 2.
+                    * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1))
+                    / 2.
         }
         (2, 0, 1, -1) => {
-            -(2.0 * SQRT3
+            -(2.0
+                * SQRT3
                 * (1.0 - 3.0 * y.powi(2))
                 * z.powi(2)
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + (-3.0 * y.powi(4) + x.powi(2) * (1.0 - 3.0 * y.powi(2)) - 2.0 * z.powi(2)
-                + y.powi(2) * (3.0 + 6.0 *z.powi(2)))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + y.powi(2) * (3.0 + 6.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
                 + r * y.powi(2)
-                * (2.0 * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * (2.0
+                        * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 1, 0) => {
             -(y * z
-                * (2.0 * SQRT3
-                * (-2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + (2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (-2.0
-                * SQRT3
-                * (x.powi(2) + y.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
+                * (2.0
+                    * SQRT3
+                    * (-2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + (2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (-2.0
+                        * SQRT3
+                        * (x.powi(2) + y.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
                 / (2. * r)
         }
         (2, 0, 1, 1) => {
             -(x * y
                 * ((2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + 2.0 * z.powi(2)
-                * (-3.0
-                * SQRT3
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + 3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * SQRT3
-                * splder_uniform(
-                &s_or_h[&11].0,
-                &s_or_h[&11].1,
-                s_or_h[&11].2,
-                r,
-                1,
-            ))
-                + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * (-3.0
+                            * SQRT3
+                            * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                            + 3.0
+                                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                            + r * SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&11].0,
+                                    &s_or_h[&11].1,
+                                    s_or_h[&11].2,
+                                    r,
+                                    1,
+                                ))
+                    + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, -2) => {
             (SQRT3
                 * x
                 * ((x.powi(2) * (1.0 - 4.0 * y.powi(2))
-                + 2.0 * z.powi(2)
-                + y.powi(2) * (3.0 - 4.0 * y.powi(2) - 8.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (-1.0 + 4.0 * y.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 3.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 2.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * y.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    + 2.0 * z.powi(2)
+                    + y.powi(2) * (3.0 - 4.0 * y.powi(2) - 8.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 4.0
+                        * (-1.0 + 4.0 * y.powi(2))
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 3.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + r * y.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 4.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * y.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, -1) => {
             (SQRT3
                 * z
                 * ((-x.powi(2) + (-3.0 + 4.0 * x.powi(2)) * y.powi(2) + 4.0 * y.powi(4))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) + 3.0 * y.powi(2) - 4.0 * x.powi(2) * y.powi(2) - 4.0 * y.powi(4)
-                + (-1.0 + 4.0 * y.powi(2)) * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 3.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 2.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * y.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 2.0
+                        * (x.powi(2) + 3.0 * y.powi(2)
+                            - 4.0 * x.powi(2) * y.powi(2)
+                            - 4.0 * y.powi(4)
+                            + (-1.0 + 4.0 * y.powi(2)) * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 3.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 2.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(4)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * y.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, 0) => {
@@ -3420,44 +3787,65 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + x.powi(2) + y.powi(2))
                 * (x.powi(2) + y.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 24.0 * (-1.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 4.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 16.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 16.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 16.0 * z.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * r
-                * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 6.0 *r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 3.0 * r
-                * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 12.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 12.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 24.0
+                    * (-1.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2))
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 4.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 4.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 4.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 8.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 4.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 8.0
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 16.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 16.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 16.0
+                    * z.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * r
+                    * x.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 6.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 12.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 12.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2)).powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 0, 2, 1) => {
@@ -3466,81 +3854,98 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * ((-2.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (4.0 - 8.0 * x.powi(2) - 8.0 * y.powi(2) + 8.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + (4.0 - 8.0 * x.powi(2) - 8.0 * y.powi(2) + 8.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 2.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, 2) => {
             (SQRT3
                 * y
                 * (-4.0
-                * (x.powi(4) + y.powi(2) - y.powi(4)
-                + (1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2)) * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 8.0 * (1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 4.0 * x.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * y.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 8.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * (x - y)
-                * (x + y)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (x.powi(4) + y.powi(2) - y.powi(4)
+                        + (1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2)) * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 8.0
+                        * (1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2))
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 4.0
+                        * x.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 4.0
+                        * y.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 4.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 8.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * x.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 4.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 4.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * (x - y)
+                        * (x + y)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 1, 0, 0) => {
@@ -3549,124 +3954,134 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * (-2.0 * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    + r * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, 1, 1, -1) => {
             (x * z
-                * ((-2.0 + 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * y.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * y.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, 1, 1, 0) => {
             (x * y
                 * ((2.0 - 3.0 * x.powi(2) - 3.0 * y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + r * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * z.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + r * (x.powi(2) + y.powi(2) - z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + SQRT3
+                        * z.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&12].0,
+                                &s_or_h[&12].1,
+                                s_or_h[&12].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (2, 1, 1, 1) => {
             (y * z
                 * ((2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + r * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * x.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + r * (-x.powi(2) + y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + SQRT3
+                        * x.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&12].0,
+                                &s_or_h[&12].1,
+                                s_or_h[&12].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (2, 1, 2, -2) => {
             (z * ((4.0 * y.powi(4) - z.powi(2) + y.powi(2) * (-3.0 + 4.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
                 + (3.0 * x.powi(2) * (-1.0 + 4.0 * y.powi(2))
-                + z.powi(2)
-                + y.powi(2) * (3.0 - 4.0 * y.powi(2) - 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + z.powi(2)
+                    + y.powi(2) * (3.0 - 4.0 * y.powi(2) - 4.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, 1, 2, -1) => {
             (x * ((-x.powi(2) + (-3.0 + 4.0 * x.powi(2)) * y.powi(2) + 4.0 * y.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
                 + (x.powi(2) + 3.0 * y.powi(2) - 4.0 * x.powi(2) * y.powi(2) - 4.0 * y.powi(4)
-                + 3.0 * (-1.0 + 4.0 * y.powi(2)) * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * z.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 3.0 * (-1.0 + 4.0 * y.powi(2)) * z.powi(2))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, 1, 2, 0) => {
@@ -3675,119 +4090,139 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * ((-2.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (4.0 - 8.0 * x.powi(2) - 8.0 * y.powi(2) + 8.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + (4.0 - 8.0 * x.powi(2) - 8.0 * y.powi(2) + 8.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 2.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 1, 2, 1) => {
             (y * (2.0
                 * (z.powi(2) + x.powi(2) * (1.0 - 2.0 * y.powi(2) - 2.0 * z.powi(2))
-                - 2.0 * y.powi(2) * (-1.0 + y.powi(2) + z.powi(2)))
+                    - 2.0 * y.powi(2) * (-1.0 + y.powi(2) + z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (-2.0 * x.powi(4) + z.powi(2) - 2.0 * z.powi(2) * (y.powi(2) + z.powi(2))
-                + x.powi(2) * (1.0 - 2.0 * y.powi(2) + 4.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (-2.0 * x.powi(4) + z.powi(2) - 2.0 * z.powi(2) * (y.powi(2) + z.powi(2))
+                        + x.powi(2) * (1.0 - 2.0 * y.powi(2) + 4.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, 1, 2, 2) => {
             (x * y
                 * z
-                * (2.0 * (-3.0 + 2.0 * x.powi(2) + 6.0 *y.powi(2) + 4.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (3.0 + 2.0 * x.powi(2) - 6.0 *y.powi(2) - 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 6.0 *splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 3.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 6.0 *r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                * (2.0
+                    * (-3.0 + 2.0 * x.powi(2) + 6.0 * y.powi(2) + 4.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 4.0
+                        * (3.0 + 2.0 * x.powi(2) - 6.0 * y.powi(2) - 2.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 6.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 12.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 12.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 3.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 2.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 6.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 3.0
+                        * r
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 0, 0) => {
             (SQRT3
                 * y
                 * (-2.0
-                * (1.0 + x.powi(2) - y.powi(2))
-                * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    * (1.0 + x.powi(2) - y.powi(2))
+                    * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
+                    + r * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 1, -1) => {
@@ -3795,82 +4230,96 @@ pub fn slako_transformation_gradients(
                 * (2.0 * x.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + SQRT3
-                * (x.powi(2) - 3.0 * (1.0 + x.powi(2)) * y.powi(2) + 3.0 * y.powi(4))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    * (x.powi(2) - 3.0 * (1.0 + x.powi(2)) * y.powi(2) + 3.0 * y.powi(4))
+                    * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
                 + r * y.powi(2)
-                * (-2.0
-                * (2.0 * x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * (-2.0
+                        * (2.0 * x.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        + SQRT3
+                            * (x - y)
+                            * (x + y)
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 1, 0) => {
             -(y * z
-                * ((-4.0 - 6.0 *x.powi(2) + 6.0 *y.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (x - y)
-                * (x + y)
-                * (2.0 * splder_uniform(
-                &s_or_h[&11].0,
-                &s_or_h[&11].1,
-                s_or_h[&11].2,
-                r,
-                1,
-            ) - SQRT3
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
+                * ((-4.0 - 6.0 * x.powi(2) + 6.0 * y.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (x - y)
+                        * (x + y)
+                        * (2.0
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)
+                            - SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&11].0,
+                                    &s_or_h[&11].1,
+                                    s_or_h[&11].2,
+                                    r,
+                                    1,
+                                ))))
                 / (2. * r)
         }
         (2, 2, 1, 1) => {
             (x * y
                 * (-2.0
-                * (-4.0 + 6.0 *y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (-2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + 2.0 * r
-                * (2.0 * y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * (-4.0 + 6.0 * y.powi(2) + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (-2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + 2.0
+                        * r
+                        * (2.0 * y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, -2) => {
             (x * ((x.powi(2) - (3.0 + 4.0 * x.powi(2)) * y.powi(2) + 4.0 * y.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (-x.powi(2) + (3.0 + 4.0 * x.powi(2)) * y.powi(2) - 4.0 * y.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 9.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 4.0
+                    * (-x.powi(2) + (3.0 + 4.0 * x.powi(2)) * y.powi(2) - 4.0 * y.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 9.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * y.powi(2)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 4.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * y.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x - y)
+                    * y.powi(2)
+                    * (x + y)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, -1) => {
@@ -3879,178 +4328,231 @@ pub fn slako_transformation_gradients(
                 + 2.0 * z.powi(2)
                 + y.powi(2) * (3.0 - 8.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (-8.0 * y.powi(4) + 6.0 *x.powi(2) * (-1.0 + 4.0 * y.powi(2)) - 2.0 * z.powi(2)
-                + y.powi(2) * (6.0 + 8.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 9.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + (-8.0 * y.powi(4) + 6.0 * x.powi(2) * (-1.0 + 4.0 * y.powi(2))
+                    - 2.0 * z.powi(2)
+                    + y.powi(2) * (6.0 + 8.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 9.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 6.0 *r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * y.powi(2)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 6.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 2.0
+                    * r
+                    * y.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x - y)
+                    * y.powi(2)
+                    * (x + y)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, 0) => {
             (SQRT3
                 * y
                 * (-4.0
-                * (x.powi(4) + y.powi(2) - y.powi(4)
-                + (1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2)) * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 8.0 * (1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2))
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 4.0 * x.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * y.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 8.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * (x - y)
-                * (x + y)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (x.powi(4) + y.powi(2) - y.powi(4)
+                        + (1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2)) * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 8.0
+                        * (1.0 + 2.0 * x.powi(2) - 2.0 * y.powi(2))
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 4.0
+                        * x.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 4.0
+                        * y.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 4.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 8.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * x.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(4)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 4.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 4.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * (x - y)
+                        * (x + y)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 2, 2, 1) => {
             (x * y
                 * z
-                * (2.0 * (-3.0 + 2.0 * x.powi(2) + 6.0 *y.powi(2) + 4.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * (3.0 + 2.0 * x.powi(2) - 6.0 *y.powi(2) - 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 6.0 *splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 3.0 * r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 6.0 *r
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                * (2.0
+                    * (-3.0 + 2.0 * x.powi(2) + 6.0 * y.powi(2) + 4.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 4.0
+                        * (3.0 + 2.0 * x.powi(2) - 6.0 * y.powi(2) - 2.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 6.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 12.0
+                        * x.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 12.0
+                        * y.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 3.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - 2.0
+                        * r
+                        * x.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 6.0
+                        * r
+                        * y.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 3.0
+                        * r
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, 2) => {
             (y * (-4.0
                 * (x.powi(4)
-                + (-1.0 + y.powi(2) + 2.0 * z.powi(2)) * (y.powi(2) + 2.0 * z.powi(2))
-                + x.powi(2) * (1.0 - 2.0 * y.powi(2) + 4.0 * z.powi(2)))
+                    + (-1.0 + y.powi(2) + 2.0 * z.powi(2)) * (y.powi(2) + 2.0 * z.powi(2))
+                    + x.powi(2) * (1.0 - 2.0 * y.powi(2) + 4.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 8.0 * ((-1.0 + 2.0 * y.powi(2)) * z.powi(2)
-                + 2.0 * x.powi(2) * (-2.0 + 4.0 * y.powi(2) + z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 12.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 24.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 8.0
+                    * ((-1.0 + 2.0 * y.powi(2)) * z.powi(2)
+                        + 2.0 * x.powi(2) * (-2.0 + 4.0 * y.powi(2) + z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 24.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 16.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x.powi(2) - y.powi(2)).powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 16.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x.powi(2) - y.powi(2)).powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         _ => panic!("No combination of l1, m1, l2, m2 found!"),
@@ -4060,16 +4562,17 @@ pub fn slako_transformation_gradients(
         (0, 0, 1, -1) => {
             y * z
                 * (-(splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r) / r)
-                + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
+                    + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
         }
         (0, 0, 1, 0) => {
-            -(((-1.0 + z.powi(2)) * splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r)) / r)
+            -(((-1.0 + z.powi(2)) * splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r))
+                / r)
                 + z.powi(2) * splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1)
         }
         (0, 0, 1, 1) => {
             x * z
                 * (-(splev_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r) / r)
-                + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
+                    + splder_uniform(&s_or_h[&2].0, &s_or_h[&2].1, s_or_h[&2].2, r, 1))
         }
         (0, 0, 2, -2) => {
             (SQRT3
@@ -4077,16 +4580,16 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * (-2.0 * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    + r * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, -1) => {
             (SQRT3
                 * y
                 * ((1.0 - 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
+                    + r * z.powi(2)
+                        * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, 0) => {
@@ -4094,16 +4597,16 @@ pub fn slako_transformation_gradients(
                 * (2.0 + x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
                 - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / (2. * r)
         }
         (0, 0, 2, 1) => {
             (SQRT3
                 * x
                 * ((1.0 - 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
+                    + r * z.powi(2)
+                        * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / r
         }
         (0, 0, 2, 2) => {
@@ -4112,23 +4615,23 @@ pub fn slako_transformation_gradients(
                 * (x + y)
                 * z
                 * (-2.0 * splev_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r)
-                + r * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
+                    + r * splder_uniform(&s_or_h[&3].0, &s_or_h[&3].1, s_or_h[&3].2, r, 1)))
                 / (2. * r)
         }
         (1, -1, 0, 0) => {
             y * z
                 * (-(splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r) / r)
-                + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
+                    + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
         }
         (1, -1, 1, -1) => {
             (z * (-2.0
                 * (-1.0 + x.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + r * (x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                    * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
                 + y.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, -1, 1, 0) => {
@@ -4136,104 +4639,111 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + z.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, -1, 1, 1) => {
             (x * y
                 * z
                 * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                    + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                        + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, -1, 2, -2) => {
             (x * z
                 * ((2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + r * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * y.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + r * (x.powi(2) - y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + SQRT3
+                        * y.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&9].0,
+                                &s_or_h[&9].1,
+                                s_or_h[&9].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (1, -1, 2, -1) => {
-            ((x.powi(2) - y.powi(2) + 3.0 * (1.0 - x.powi(2) + y.powi(2)) * z.powi(2) - 3.0 * z.powi(4))
+            ((x.powi(2) - y.powi(2) + 3.0 * (1.0 - x.powi(2) + y.powi(2)) * z.powi(2)
+                - 3.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + r * z.powi(2)
-                * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    * (x.powi(2) - y.powi(2) + z.powi(2))
+                    * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
                 + SQRT3
-                * y.powi(2)
-                * ((1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * y.powi(2)
+                    * ((1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                        + r * z.powi(2)
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, -1, 2, 0) => {
             (y * z
-                * (2.0 * SQRT3
-                * (-2.0 + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + (4.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                - r * (2.0
-                * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))))
+                * (2.0
+                    * SQRT3
+                    * (-2.0 + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + (4.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    - r * (2.0
+                        * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))))
                 / (2. * r)
         }
         (1, -1, 2, 1) => {
             (x * y
-                * ((-2.0 + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * z.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * z.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, -1, 2, 2) => {
             (y * z
-                * (2.0 * (-2.0 + 6.0 *x.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + 3.0 * SQRT3
-                * (-x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                - 2.0 * r
-                * (2.0 * x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                * (2.0
+                    * (-2.0 + 6.0 * x.powi(2) + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + 3.0
+                        * SQRT3
+                        * (-x.powi(2) + y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    - 2.0
+                        * r
+                        * (2.0 * x.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (1, 0, 0, 0) => {
-            -(((-1.0 + z.powi(2)) * splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r)) / r)
+            -(((-1.0 + z.powi(2)) * splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r))
+                / r)
                 + z.powi(2) * splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1)
         }
         (1, 0, 1, -1) => {
@@ -4241,9 +4751,9 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + z.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, 0, 1, 0) => {
@@ -4251,8 +4761,8 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + z.powi(2))
                 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 - (x.powi(2) + y.powi(2))
-                * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - r * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1))
+                    * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
+                        - r * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1))
                 + r * z.powi(2) * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))
                 / r
         }
@@ -4261,108 +4771,113 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + z.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, 0, 2, -2) => {
             (x * y
-                * ((-2.0 + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * z.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * z.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, 0, 2, -1) => {
             (y * z
                 * (-((2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r))
-                + SQRT3
-                * (2.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r))
+                    + SQRT3
+                        * (2.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * (x.powi(2) + y.powi(2) - z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, 0, 2, 0) => {
-            (-2.0 * SQRT3
+            (-2.0
+                * SQRT3
                 * (x.powi(2) + y.powi(2))
                 * (-1.0 + 3.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + (-x.powi(2) - y.powi(2) + 3.0 * (2.0 + x.powi(2) + y.powi(2)) * z.powi(2)
-                - 6.0 *z.powi(4))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    - 6.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
                 + r * (x.powi(2) + y.powi(2))
-                * z.powi(2)
-                * (2.0 * SQRT3
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                - splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))
-                + 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))
+                    * z.powi(2)
+                    * (2.0
+                        * SQRT3
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        - splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))
+                + 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))
                 / (2. * r)
         }
         (1, 0, 2, 1) => {
             (x * z
                 * (-((2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r))
-                + SQRT3
-                * (2.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r))
+                    + SQRT3
+                        * (2.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * (x.powi(2) + y.powi(2) - z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, 0, 2, 2) => {
             ((x - y)
                 * (x + y)
-                * ((-2.0 + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * z.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * z.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / (2. * r)
         }
         (1, 1, 0, 0) => {
             x * z
                 * (-(splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r) / r)
-                + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
+                    + splder_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r, 1))
         }
         (1, 1, 1, -1) => {
             (x * y
                 * z
                 * (2.0 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
-                - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    - 2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                    + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                        + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, 1, 1, 0) => {
@@ -4370,9 +4885,9 @@ pub fn slako_transformation_gradients(
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
                 + z.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
-                + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * (-splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                            + splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1)))))
                 / r
         }
         (1, 1, 1, 1) => {
@@ -4380,93 +4895,98 @@ pub fn slako_transformation_gradients(
                 * (-1.0 + y.powi(2) + z.powi(2))
                 * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + r * (y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
+                    * splder_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r, 1)
                 + x.powi(2)
-                * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
-                + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
+                    * (-2.0 * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
+                        + r * splder_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r, 1))))
                 / r
         }
         (1, 1, 2, -2) => {
             (y * z
                 * ((2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + r * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * x.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + r * (-x.powi(2) + y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + SQRT3
+                        * x.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&9].0,
+                                &s_or_h[&9].1,
+                                s_or_h[&9].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (1, 1, 2, -1) => {
             (x * y
-                * ((-2.0 + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * z.powi(2)
-                * (-2.0 * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&9].0,
-                &s_or_h[&9].1,
-                s_or_h[&9].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + r * z.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&9].0,
+                                    &s_or_h[&9].1,
+                                    s_or_h[&9].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (1, 1, 2, 0) => {
             (x * z
-                * (2.0 * SQRT3
-                * (-2.0 + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + (4.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                - r * (2.0
-                * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))))
+                * (2.0
+                    * SQRT3
+                    * (-2.0 + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + (4.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    - r * (2.0
+                        * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1))))
                 / (2. * r)
         }
         (1, 1, 2, 1) => {
-            ((-x.powi(2) + y.powi(2) + 3.0 * (1.0 + x.powi(2) - y.powi(2)) * z.powi(2) - 3.0 * z.powi(4))
+            ((-x.powi(2) + y.powi(2) + 3.0 * (1.0 + x.powi(2) - y.powi(2)) * z.powi(2)
+                - 3.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
                 + r * z.powi(2)
-                * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    * (-x.powi(2) + y.powi(2) + z.powi(2))
+                    * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
                 + SQRT3
-                * x.powi(2)
-                * ((1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * x.powi(2)
+                    * ((1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                        + r * z.powi(2)
+                            * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / r
         }
         (1, 1, 2, 2) => {
             (x * z
                 * (-2.0
-                * (-2.0 + 6.0 *y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
-                + 3.0 * SQRT3
-                * (-x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
-                + 2.0 * r
-                * (2.0 * y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
-                + r * SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
+                    * (-2.0 + 6.0 * y.powi(2) + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r)
+                    + 3.0
+                        * SQRT3
+                        * (-x.powi(2) + y.powi(2))
+                        * splev_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r)
+                    + 2.0
+                        * r
+                        * (2.0 * y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&7].0, &s_or_h[&7].1, s_or_h[&7].2, r, 1)
+                    + r * SQRT3
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&8].0, &s_or_h[&8].1, s_or_h[&8].2, r, 1)))
                 / (2. * r)
         }
         (2, -2, 0, 0) => {
@@ -4475,138 +4995,148 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * (-2.0 * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    + r * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, -2, 1, -1) => {
             (x * z
                 * ((2.0 - 3.0 * x.powi(2) + 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + r * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * y.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + r * (x.powi(2) - y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + SQRT3
+                        * y.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&12].0,
+                                &s_or_h[&12].1,
+                                s_or_h[&12].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (2, -2, 1, 0) => {
             (x * y
-                * ((-2.0 + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * z.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * z.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, -2, 1, 1) => {
             (y * z
                 * ((2.0 + 3.0 * x.powi(2) - 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + r * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * x.powi(2)
-                * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + r * (-x.powi(2) + y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + SQRT3
+                        * x.powi(2)
+                        * (-3.0 * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&12].0,
+                                &s_or_h[&12].1,
+                                s_or_h[&12].2,
+                                r,
+                                1,
+                            ))))
                 / r
         }
         (2, -2, 2, -2) => {
             (z * (2.0
                 * (x.powi(2) + y.powi(2)
-                - 2.0 * x.powi(2) * y.powi(2)
-                - 2.0 * (-1.0 + x.powi(2) + y.powi(2)) * z.powi(2)
-                - 2.0 * z.powi(4))
+                    - 2.0 * x.powi(2) * y.powi(2)
+                    - 2.0 * (-1.0 + x.powi(2) + y.powi(2)) * z.powi(2)
+                    - 2.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) - 2.0 * x.powi(4) + y.powi(2) + 4.0 * x.powi(2) * y.powi(2)
-                - 2.0 * y.powi(4)
-                - 2.0 * (x.powi(2) + y.powi(2)) * z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 12.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (x.powi(2) - 2.0 * x.powi(4) + y.powi(2) + 4.0 * x.powi(2) * y.powi(2)
+                        - 2.0 * y.powi(4)
+                        - 2.0 * (x.powi(2) + y.powi(2)) * z.powi(2))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -2, 2, -1) => {
             (x * ((-x.powi(2) + (-3.0 + 4.0 * x.powi(2)) * z.powi(2) + 4.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (x.powi(2) - 3.0 * y.powi(2) + (3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2)) * z.powi(2)
-                - 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + (x.powi(2) - 3.0 * y.powi(2)
+                    + (3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2)) * z.powi(2)
+                    - 4.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -2, 2, 0) => {
@@ -4615,67 +5145,77 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * (-4.0
-                * (-1.0 + x.powi(2) + y.powi(2) + 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + (x.powi(2) + y.powi(2))
-                * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * splder_uniform(
-                &s_or_h[&13].0,
-                &s_or_h[&13].1,
-                s_or_h[&13].2,
-                r,
-                1,
-            ))
-                + 2.0 * z.powi(2)
-                * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (splder_uniform(
-                &s_or_h[&13].0,
-                &s_or_h[&13].1,
-                s_or_h[&13].2,
-                r,
-                1,
-            ) - 2.0 * splder_uniform(
-                &s_or_h[&14].0,
-                &s_or_h[&14].1,
-                s_or_h[&14].2,
-                r,
-                1,
-            )))
-                - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-1.0 + x.powi(2) + y.powi(2) + 2.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + (x.powi(2) + y.powi(2))
+                        * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&13].0,
+                                &s_or_h[&13].1,
+                                s_or_h[&13].2,
+                                r,
+                                1,
+                            ))
+                    + 2.0
+                        * z.powi(2)
+                        * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                            - 4.0
+                                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * (splder_uniform(
+                                &s_or_h[&13].0,
+                                &s_or_h[&13].1,
+                                s_or_h[&13].2,
+                                r,
+                                1,
+                            ) - 2.0
+                                * splder_uniform(
+                                    &s_or_h[&14].0,
+                                    &s_or_h[&14].1,
+                                    s_or_h[&14].2,
+                                    r,
+                                    1,
+                                )))
+                    - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, -2, 2, 1) => {
             (y * ((-y.powi(2) + (-3.0 + 4.0 * y.powi(2)) * z.powi(2) + 4.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (-3.0 * x.powi(2) + y.powi(2) + (3.0 + 12.0 * x.powi(2) - 4.0 * y.powi(2)) * z.powi(2)
-                - 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + (-3.0 * x.powi(2)
+                    + y.powi(2)
+                    + (3.0 + 12.0 * x.powi(2) - 4.0 * y.powi(2)) * z.powi(2)
+                    - 4.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -2, 2, 2) => {
@@ -4684,98 +5224,107 @@ pub fn slako_transformation_gradients(
                 * (x + y)
                 * z
                 * (-4.0 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 16.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 12.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1))))
+                    + 16.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 12.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * (splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                        - 4.0
+                            * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                        + 3.0
+                            * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1))))
                 / (2. * r)
         }
         (2, -1, 0, 0) => {
             (SQRT3
                 * y
                 * ((1.0 - 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
+                    + r * z.powi(2)
+                        * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, -1, 1, -1) => {
-            ((x.powi(2) - y.powi(2) + 3.0 * (1.0 - x.powi(2) + y.powi(2)) * z.powi(2) - 3.0 * z.powi(4))
+            ((x.powi(2) - y.powi(2) + 3.0 * (1.0 - x.powi(2) + y.powi(2)) * z.powi(2)
+                - 3.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + r * z.powi(2)
-                * (x.powi(2) - y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    * (x.powi(2) - y.powi(2) + z.powi(2))
+                    * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
                 + SQRT3
-                * y.powi(2)
-                * ((1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * y.powi(2)
+                    * ((1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                        + r * z.powi(2)
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, -1, 1, 0) => {
             (y * z
                 * (-((2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r))
-                + SQRT3
-                * (2.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r))
+                    + SQRT3
+                        * (2.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (x.powi(2) + y.powi(2) - z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, -1, 1, 1) => {
             (x * y
-                * ((-2.0 + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * z.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * z.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, -1, 2, -2) => {
             (x * ((-x.powi(2) + (-3.0 + 4.0 * x.powi(2)) * z.powi(2) + 4.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (x.powi(2) - 3.0 * y.powi(2) + (3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2)) * z.powi(2)
-                - 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + (x.powi(2) - 3.0 * y.powi(2)
+                    + (3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2)) * z.powi(2)
+                    - 4.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -1, 2, -1) => {
@@ -4783,160 +5332,190 @@ pub fn slako_transformation_gradients(
                 * (x.powi(2) + y.powi(2))
                 * (-1.0 + 2.0 * x.powi(2) + 2.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) * (1.0 - 2.0 * y.powi(2) - 2.0 * z.powi(2))
-                - 2.0 * (y - z) * (y + z) * (1.0 + y.powi(2) - z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (x.powi(2) * (1.0 - 2.0 * y.powi(2) - 2.0 * z.powi(2))
+                        - 2.0 * (y - z) * (y + z) * (1.0 + y.powi(2) - z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 6.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, -1, 2, 0) => {
             (SQRT3
                 * y
                 * ((x.powi(2) + y.powi(2))
-                * (-1.0 + 4.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) + y.powi(2)
-                - (3.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2)) * z.powi(2)
-                + 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 6.0 *z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * z.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-1.0 + 4.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 2.0
+                        * (x.powi(2) + y.powi(2)
+                            - (3.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2)) * z.powi(2)
+                            + 4.0 * z.powi(4))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 6.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * z.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(4)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * z.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, -1, 2, 1) => {
             (x * y
                 * z
-                * (4.0 * (x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 2.0 * (3.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2) - 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (x.powi(2) + y.powi(2))
-                * (-splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1))
-                - 3.0 * z.powi(2)
-                * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (splder_uniform(
-                &s_or_h[&14].0,
-                &s_or_h[&14].1,
-                s_or_h[&14].2,
-                r,
-                1,
-            ) - splder_uniform(
-                &s_or_h[&15].0,
-                &s_or_h[&15].1,
-                s_or_h[&15].2,
-                r,
-                1,
-            )))))
+                * (4.0
+                    * (x.powi(2) + y.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 2.0
+                        * (3.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2) - 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 6.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * (x.powi(2) + y.powi(2))
+                        * (-splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                            + splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1))
+                    - 3.0
+                        * z.powi(2)
+                        * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * (splder_uniform(
+                                &s_or_h[&14].0,
+                                &s_or_h[&14].1,
+                                s_or_h[&14].2,
+                                r,
+                                1,
+                            ) - splder_uniform(
+                                &s_or_h[&15].0,
+                                &s_or_h[&15].1,
+                                s_or_h[&15].2,
+                                r,
+                                1,
+                            )))))
                 / r
         }
         (2, -1, 2, 2) => {
             (y * ((3.0 * x.powi(2) + y.powi(2)
-                - 2.0 * (-3.0 + 6.0 *x.powi(2) + 2.0 * y.powi(2)) * z.powi(2)
+                - 2.0 * (-3.0 + 6.0 * x.powi(2) + 2.0 * y.powi(2)) * z.powi(2)
                 - 8.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (-3.0 * x.powi(2)
-                + y.powi(2)
-                + (-3.0 + 12.0 * x.powi(2) - 4.0 * y.powi(2)) * z.powi(2)
-                + 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * (-3.0 * x.powi(2)
+                        + y.powi(2)
+                        + (-3.0 + 12.0 * x.powi(2) - 4.0 * y.powi(2)) * z.powi(2)
+                        + 4.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 6.0 *r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * (x + y)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 6.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x - y)
+                    * (x + y)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 0, 0) => {
@@ -4944,55 +5523,60 @@ pub fn slako_transformation_gradients(
                 * (2.0 + x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
                 - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 1, -1) => {
             (y * z
-                * (2.0 * SQRT3
-                * (-2.0 + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + (4.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                - r * (2.0
-                * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
+                * (2.0
+                    * SQRT3
+                    * (-2.0 + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + (4.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    - r * (2.0
+                        * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
                 / (2. * r)
         }
         (2, 0, 1, 0) => {
-            (-2.0 * SQRT3
+            (-2.0
+                * SQRT3
                 * (x.powi(2) + y.powi(2))
                 * (-1.0 + 3.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + (-x.powi(2) - y.powi(2) + 3.0 * (2.0 + x.powi(2) + y.powi(2)) * z.powi(2)
-                - 6.0 *z.powi(4))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    - 6.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
                 + r * (x.powi(2) + y.powi(2))
-                * z.powi(2)
-                * (2.0 * SQRT3
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                - splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))
-                + 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))
+                    * z.powi(2)
+                    * (2.0
+                        * SQRT3
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        - splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))
+                + 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))
                 / (2. * r)
         }
         (2, 0, 1, 1) => {
             (x * z
-                * (2.0 * SQRT3
-                * (-2.0 + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + (4.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                - r * (2.0
-                * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
+                * (2.0
+                    * SQRT3
+                    * (-2.0 + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + (4.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    - r * (2.0
+                        * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1))))
                 / (2. * r)
         }
         (2, 0, 2, -2) => {
@@ -5001,148 +5585,176 @@ pub fn slako_transformation_gradients(
                 * y
                 * z
                 * (-4.0
-                * (-1.0 + x.powi(2) + y.powi(2) + 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + (x.powi(2) + y.powi(2))
-                * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * splder_uniform(
-                &s_or_h[&13].0,
-                &s_or_h[&13].1,
-                s_or_h[&13].2,
-                r,
-                1,
-            ))
-                + 2.0 * z.powi(2)
-                * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (splder_uniform(
-                &s_or_h[&13].0,
-                &s_or_h[&13].1,
-                s_or_h[&13].2,
-                r,
-                1,
-            ) - 2.0 * splder_uniform(
-                &s_or_h[&14].0,
-                &s_or_h[&14].1,
-                s_or_h[&14].2,
-                r,
-                1,
-            )))
-                - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-1.0 + x.powi(2) + y.powi(2) + 2.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + (x.powi(2) + y.powi(2))
+                        * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&13].0,
+                                &s_or_h[&13].1,
+                                s_or_h[&13].2,
+                                r,
+                                1,
+                            ))
+                    + 2.0
+                        * z.powi(2)
+                        * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                            - 4.0
+                                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * (splder_uniform(
+                                &s_or_h[&13].0,
+                                &s_or_h[&13].1,
+                                s_or_h[&13].2,
+                                r,
+                                1,
+                            ) - 2.0
+                                * splder_uniform(
+                                    &s_or_h[&14].0,
+                                    &s_or_h[&14].1,
+                                    s_or_h[&14].2,
+                                    r,
+                                    1,
+                                )))
+                    - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, -1) => {
             (SQRT3
                 * y
                 * ((x.powi(2) + y.powi(2))
-                * (-1.0 + 4.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) + y.powi(2)
-                - (3.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2)) * z.powi(2)
-                + 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 6.0 *z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * z.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-1.0 + 4.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 2.0
+                        * (x.powi(2) + y.powi(2)
+                            - (3.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2)) * z.powi(2)
+                            + 4.0 * z.powi(4))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 6.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * z.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(4)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * z.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, 0) => {
             (z * (-8.0
                 * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 4.0 * (3.0
-                * (x.powi(2) + y.powi(2))
-                * ((x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 4.0 * z.powi(2)
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r))
-                + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2)).powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r))
-                + 3.0 * (x.powi(2) + y.powi(2))
-                * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + r * (x.powi(2) + y.powi(2))
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1))
+                - 4.0
+                    * (3.0
+                        * (x.powi(2) + y.powi(2))
+                        * ((x.powi(2) + y.powi(2))
+                            * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                            + 4.0
+                                * z.powi(2)
+                                * splev_uniform(
+                                    &s_or_h[&13].0,
+                                    &s_or_h[&13].1,
+                                    s_or_h[&13].2,
+                                    r,
+                                ))
+                        + (x.powi(2) + y.powi(2) - 2.0 * z.powi(2)).powi(2)
+                            * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r))
+                + 3.0
+                    * (x.powi(2) + y.powi(2))
+                    * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                        + r * (x.powi(2) + y.powi(2))
+                            * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                        + 4.0
+                            * r
+                            * z.powi(2)
+                            * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1))
                 + r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2)).powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 0, 2, 1) => {
             (SQRT3
                 * x
                 * ((x.powi(2) + y.powi(2))
-                * (-1.0 + 4.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) + y.powi(2)
-                - (3.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2)) * z.powi(2)
-                + 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 6.0 *z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * z.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-1.0 + 4.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 2.0
+                        * (x.powi(2) + y.powi(2)
+                            - (3.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2)) * z.powi(2)
+                            + 4.0 * z.powi(4))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 6.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * z.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(4)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * z.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 0, 2, 2) => {
@@ -5151,196 +5763,218 @@ pub fn slako_transformation_gradients(
                 * (x + y)
                 * z
                 * (-4.0
-                * (-1.0 + x.powi(2) + y.powi(2) + 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + (x.powi(2) + y.powi(2))
-                * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * splder_uniform(
-                &s_or_h[&13].0,
-                &s_or_h[&13].1,
-                s_or_h[&13].2,
-                r,
-                1,
-            ))
-                + 2.0 * z.powi(2)
-                * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (splder_uniform(
-                &s_or_h[&13].0,
-                &s_or_h[&13].1,
-                s_or_h[&13].2,
-                r,
-                1,
-            ) - 2.0 * splder_uniform(
-                &s_or_h[&14].0,
-                &s_or_h[&14].1,
-                s_or_h[&14].2,
-                r,
-                1,
-            )))
-                - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-1.0 + x.powi(2) + y.powi(2) + 2.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + (x.powi(2) + y.powi(2))
+                        * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&13].0,
+                                &s_or_h[&13].1,
+                                s_or_h[&13].2,
+                                r,
+                                1,
+                            ))
+                    + 2.0
+                        * z.powi(2)
+                        * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                            - 4.0
+                                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * (splder_uniform(
+                                &s_or_h[&13].0,
+                                &s_or_h[&13].1,
+                                s_or_h[&13].2,
+                                r,
+                                1,
+                            ) - 2.0
+                                * splder_uniform(
+                                    &s_or_h[&14].0,
+                                    &s_or_h[&14].1,
+                                    s_or_h[&14].2,
+                                    r,
+                                    1,
+                                )))
+                    - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 1, 0, 0) => {
             (SQRT3
                 * x
                 * ((1.0 - 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
+                    + r * z.powi(2)
+                        * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / r
         }
         (2, 1, 1, -1) => {
             (x * y
-                * ((-2.0 + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * z.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * z.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / r
         }
         (2, 1, 1, 0) => {
             (x * z
                 * (-((2.0 + 3.0 * x.powi(2) + 3.0 * y.powi(2) - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r))
-                + SQRT3
-                * (2.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * (x.powi(2) + y.powi(2) - z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r))
+                    + SQRT3
+                        * (2.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * (x.powi(2) + y.powi(2) - z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, 1, 1, 1) => {
-            ((-x.powi(2) + y.powi(2) + 3.0 * (1.0 + x.powi(2) - y.powi(2)) * z.powi(2) - 3.0 * z.powi(4))
+            ((-x.powi(2) + y.powi(2) + 3.0 * (1.0 + x.powi(2) - y.powi(2)) * z.powi(2)
+                - 3.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
                 + r * z.powi(2)
-                * (-x.powi(2) + y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    * (-x.powi(2) + y.powi(2) + z.powi(2))
+                    * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
                 + SQRT3
-                * x.powi(2)
-                * ((1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * z.powi(2)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * x.powi(2)
+                    * ((1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                        + r * z.powi(2)
+                            * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / r
         }
         (2, 1, 2, -2) => {
             (y * ((-y.powi(2) + (-3.0 + 4.0 * y.powi(2)) * z.powi(2) + 4.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + (-3.0 * x.powi(2) + y.powi(2) + (3.0 + 12.0 * x.powi(2) - 4.0 * y.powi(2)) * z.powi(2)
-                - 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + (-3.0 * x.powi(2)
+                    + y.powi(2)
+                    + (3.0 + 12.0 * x.powi(2) - 4.0 * y.powi(2)) * z.powi(2)
+                    - 4.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 - r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 - r * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, 1, 2, -1) => {
             (x * y
                 * z
-                * (4.0 * (x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 2.0 * (3.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2) - 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (x.powi(2) + y.powi(2))
-                * (-splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1))
-                - 3.0 * z.powi(2)
-                * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (splder_uniform(
-                &s_or_h[&14].0,
-                &s_or_h[&14].1,
-                s_or_h[&14].2,
-                r,
-                1,
-            ) - splder_uniform(
-                &s_or_h[&15].0,
-                &s_or_h[&15].1,
-                s_or_h[&15].2,
-                r,
-                1,
-            )))))
+                * (4.0
+                    * (x.powi(2) + y.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 2.0
+                        * (3.0 + 2.0 * x.powi(2) + 2.0 * y.powi(2) - 6.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 6.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * (x.powi(2) + y.powi(2))
+                        * (-splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                            + splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1))
+                    - 3.0
+                        * z.powi(2)
+                        * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * (splder_uniform(
+                                &s_or_h[&14].0,
+                                &s_or_h[&14].1,
+                                s_or_h[&14].2,
+                                r,
+                                1,
+                            ) - splder_uniform(
+                                &s_or_h[&15].0,
+                                &s_or_h[&15].1,
+                                s_or_h[&15].2,
+                                r,
+                                1,
+                            )))))
                 / r
         }
         (2, 1, 2, 0) => {
             (SQRT3
                 * x
                 * ((x.powi(2) + y.powi(2))
-                * (-1.0 + 4.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) + y.powi(2)
-                - (3.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2)) * z.powi(2)
-                + 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 6.0 *z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 4.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 8.0 * z.powi(4)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - r * z.powi(2)
-                * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-1.0 + 4.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    + 2.0
+                        * (x.powi(2) + y.powi(2)
+                            - (3.0 + 4.0 * x.powi(2) + 4.0 * y.powi(2)) * z.powi(2)
+                            + 4.0 * z.powi(4))
+                        * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 6.0
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + 4.0
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - 8.0
+                        * z.powi(4)
+                        * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    - r * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    - r * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    + 2.0
+                        * r
+                        * x.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    + 2.0
+                        * r
+                        * y.powi(2)
+                        * z.powi(2)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - 2.0
+                        * r
+                        * z.powi(4)
+                        * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    - r * z.powi(2)
+                        * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 1, 2, 1) => {
@@ -5348,89 +5982,109 @@ pub fn slako_transformation_gradients(
                 * (x.powi(2) + y.powi(2))
                 * (-1.0 + 2.0 * y.powi(2) + 2.0 * z.powi(2))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (y.powi(2) + 2.0 * z.powi(2)
-                - 2.0 * (x.powi(4)
-                + x.powi(2) * (1.0 + y.powi(2) - 2.0 * z.powi(2))
-                + z.powi(2) * (y.powi(2) + z.powi(2))))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 6.0 *x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (y.powi(2) + 2.0 * z.powi(2)
+                        - 2.0
+                            * (x.powi(4)
+                                + x.powi(2) * (1.0 + y.powi(2) - 2.0 * z.powi(2))
+                                + z.powi(2) * (y.powi(2) + z.powi(2))))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 6.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
                 + r * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / r
         }
         (2, 1, 2, 2) => {
             -(x * ((x.powi(2) + 3.0 * y.powi(2)
-                - 2.0 * (-3.0 + 2.0 * x.powi(2) + 6.0 *y.powi(2)) * z.powi(2)
+                - 2.0 * (-3.0 + 2.0 * x.powi(2) + 6.0 * y.powi(2)) * z.powi(2)
                 - 8.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) - 3.0 * y.powi(2)
-                + (-3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2)) * z.powi(2)
-                + 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (x.powi(2) - 3.0 * y.powi(2)
+                        + (-3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2)) * z.powi(2)
+                        + 4.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 6.0 *r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * (x - y)
-                * (x + y)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 6.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * (x - y)
+                    * (x + y)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 0, 0) => {
@@ -5439,61 +6093,66 @@ pub fn slako_transformation_gradients(
                 * (x + y)
                 * z
                 * (-2.0 * splev_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r)
-                + r * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
+                    + r * splder_uniform(&s_or_h[&9].0, &s_or_h[&9].1, s_or_h[&9].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 1, -1) => {
             (y * z
-                * (2.0 * (-2.0 + 6.0 *x.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + 3.0 * SQRT3
-                * (-x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                - 2.0 * r
-                * (2.0 * x.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                * (2.0
+                    * (-2.0 + 6.0 * x.powi(2) + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + 3.0
+                        * SQRT3
+                        * (-x.powi(2) + y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    - 2.0
+                        * r
+                        * (2.0 * x.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 1, 0) => {
             ((x - y)
                 * (x + y)
-                * ((-2.0 + 6.0 *z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + SQRT3
-                * (1.0 - 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + r * z.powi(2)
-                * (-2.0
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + SQRT3
-                * splder_uniform(
-                &s_or_h[&12].0,
-                &s_or_h[&12].1,
-                s_or_h[&12].2,
-                r,
-                1,
-            ))))
+                * ((-2.0 + 6.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + SQRT3
+                        * (1.0 - 3.0 * z.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + r * z.powi(2)
+                        * (-2.0
+                            * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                            + SQRT3
+                                * splder_uniform(
+                                    &s_or_h[&12].0,
+                                    &s_or_h[&12].1,
+                                    s_or_h[&12].2,
+                                    r,
+                                    1,
+                                ))))
                 / (2. * r)
         }
         (2, 2, 1, 1) => {
             (x * z
                 * (-2.0
-                * (-2.0 + 6.0 *y.powi(2) + 3.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
-                + 3.0 * SQRT3
-                * (-x.powi(2) + y.powi(2))
-                * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
-                + 2.0 * r
-                * (2.0 * y.powi(2) + z.powi(2))
-                * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
-                + r * SQRT3
-                * (x - y)
-                * (x + y)
-                * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
+                    * (-2.0 + 6.0 * y.powi(2) + 3.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r)
+                    + 3.0
+                        * SQRT3
+                        * (-x.powi(2) + y.powi(2))
+                        * splev_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r)
+                    + 2.0
+                        * r
+                        * (2.0 * y.powi(2) + z.powi(2))
+                        * splder_uniform(&s_or_h[&10].0, &s_or_h[&10].1, s_or_h[&10].2, r, 1)
+                    + r * SQRT3
+                        * (x - y)
+                        * (x + y)
+                        * splder_uniform(&s_or_h[&11].0, &s_or_h[&11].1, s_or_h[&11].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, -2) => {
@@ -5502,57 +6161,72 @@ pub fn slako_transformation_gradients(
                 * (x + y)
                 * z
                 * (-4.0 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 16.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 12.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 4.0 * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1))))
+                    + 16.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    - 12.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + r * (splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                        - 4.0
+                            * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                        + 3.0
+                            * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1))))
                 / (2. * r)
         }
         (2, 2, 2, -1) => {
             (y * ((3.0 * x.powi(2) + y.powi(2)
-                - 2.0 * (-3.0 + 6.0 *x.powi(2) + 2.0 * y.powi(2)) * z.powi(2)
+                - 2.0 * (-3.0 + 6.0 * x.powi(2) + 2.0 * y.powi(2)) * z.powi(2)
                 - 8.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (-3.0 * x.powi(2)
-                + y.powi(2)
-                + (-3.0 + 12.0 * x.powi(2) - 4.0 * y.powi(2)) * z.powi(2)
-                + 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * (-3.0 * x.powi(2)
+                        + y.powi(2)
+                        + (-3.0 + 12.0 * x.powi(2) - 4.0 * y.powi(2)) * z.powi(2)
+                        + 4.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                + 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 6.0 *r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 2.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x - y)
-                * (x + y)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 6.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 2.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x - y)
+                    * (x + y)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, 0) => {
@@ -5561,135 +6235,164 @@ pub fn slako_transformation_gradients(
                 * (x + y)
                 * z
                 * (-4.0
-                * (-1.0 + x.powi(2) + y.powi(2) + 2.0 * z.powi(2))
-                * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                + 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + (x.powi(2) + y.powi(2))
-                * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * splder_uniform(
-                &s_or_h[&13].0,
-                &s_or_h[&13].1,
-                s_or_h[&13].2,
-                r,
-                1,
-            ))
-                + 2.0 * z.powi(2)
-                * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + r * (splder_uniform(
-                &s_or_h[&13].0,
-                &s_or_h[&13].1,
-                s_or_h[&13].2,
-                r,
-                1,
-            ) - 2.0 * splder_uniform(
-                &s_or_h[&14].0,
-                &s_or_h[&14].1,
-                s_or_h[&14].2,
-                r,
-                1,
-            )))
-                - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * (-1.0 + x.powi(2) + y.powi(2) + 2.0 * z.powi(2))
+                    * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
+                    - 8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                    + 4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                    + (x.powi(2) + y.powi(2))
+                        * (4.0 * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * splder_uniform(
+                                &s_or_h[&13].0,
+                                &s_or_h[&13].1,
+                                s_or_h[&13].2,
+                                r,
+                                1,
+                            ))
+                    + 2.0
+                        * z.powi(2)
+                        * (8.0 * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                            - 4.0
+                                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                            + r * (splder_uniform(
+                                &s_or_h[&13].0,
+                                &s_or_h[&13].1,
+                                s_or_h[&13].2,
+                                r,
+                                1,
+                            ) - 2.0
+                                * splder_uniform(
+                                    &s_or_h[&14].0,
+                                    &s_or_h[&14].1,
+                                    s_or_h[&14].2,
+                                    r,
+                                    1,
+                                )))
+                    - r * (x.powi(2) + y.powi(2) - 2.0 * z.powi(2))
+                        * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         (2, 2, 2, 1) => {
             -(x * ((x.powi(2) + 3.0 * y.powi(2)
-                - 2.0 * (-3.0 + 2.0 * x.powi(2) + 6.0 *y.powi(2)) * z.powi(2)
+                - 2.0 * (-3.0 + 2.0 * x.powi(2) + 6.0 * y.powi(2)) * z.powi(2)
                 - 8.0 * z.powi(4))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                + 2.0 * (x.powi(2) - 3.0 * y.powi(2)
-                + (-3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2)) * z.powi(2)
-                + 4.0 * z.powi(4))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 3.0 * x.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 3.0 * y.powi(2) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 12.0 * x.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(2)
-                * z.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 2.0
+                    * (x.powi(2) - 3.0 * y.powi(2)
+                        + (-3.0 - 4.0 * x.powi(2) + 12.0 * y.powi(2)) * z.powi(2)
+                        + 4.0 * z.powi(4))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 3.0
+                    * x.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 3.0
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 12.0
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 3.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 2.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 6.0 *r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 2.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                - 3.0 * r
-                * (x - y)
-                * (x + y)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 3.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 2.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 6.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 2.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                - 3.0
+                    * r
+                    * (x - y)
+                    * (x + y)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (2. * r)
         }
         (2, 2, 2, 2) => {
             (z * (-4.0
                 * (x.powi(4) - 2.0 * x.powi(2) * (1.0 + y.powi(2) - 2.0 * z.powi(2))
-                + (-2.0 + y.powi(2) + 2.0 * z.powi(2)) * (y.powi(2) + 2.0 * z.powi(2)))
+                    + (-2.0 + y.powi(2) + 2.0 * z.powi(2)) * (y.powi(2) + 2.0 * z.powi(2)))
                 * splev_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r)
-                - 8.0 * (y.powi(2) * (-1.0 + 2.0 * z.powi(2))
-                + x.powi(2) * (-1.0 + 8.0 * y.powi(2) + 2.0 * z.powi(2)))
-                * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
-                - 12.0 * x.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                + 24.0 * x.powi(2)
-                * y.powi(2)
-                * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
-                - 12.0 * y.powi(4) * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 8.0
+                    * (y.powi(2) * (-1.0 + 2.0 * z.powi(2))
+                        + x.powi(2) * (-1.0 + 8.0 * y.powi(2) + 2.0 * z.powi(2)))
+                    * splev_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r)
+                - 12.0
+                    * x.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                + 24.0
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
+                - 12.0
+                    * y.powi(4)
+                    * splev_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r)
                 + r * x.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                - 2.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                - 2.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
                 + r * y.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 4.0 * r
-                * z.powi(4)
-                * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
-                + 16.0 * r
-                * x.powi(2)
-                * y.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * x.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 4.0 * r
-                * y.powi(2)
-                * z.powi(2)
-                * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
-                + 3.0 * r
-                * (x.powi(2) - y.powi(2)).powi(2)
-                * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 4.0
+                    * r
+                    * z.powi(4)
+                    * splder_uniform(&s_or_h[&12].0, &s_or_h[&12].1, s_or_h[&12].2, r, 1)
+                + 16.0
+                    * r
+                    * x.powi(2)
+                    * y.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * x.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 4.0
+                    * r
+                    * y.powi(2)
+                    * z.powi(2)
+                    * splder_uniform(&s_or_h[&13].0, &s_or_h[&13].1, s_or_h[&13].2, r, 1)
+                + 3.0
+                    * r
+                    * (x.powi(2) - y.powi(2)).powi(2)
+                    * splder_uniform(&s_or_h[&14].0, &s_or_h[&14].1, s_or_h[&14].2, r, 1)))
                 / (4. * r)
         }
         _ => panic!("No combination of l1, m1, l2, m2 found!"),
     };
     return array![grad0, grad1, grad2];
 }
-
