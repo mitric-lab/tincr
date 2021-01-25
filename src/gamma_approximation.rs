@@ -1,8 +1,8 @@
-use ndarray::prelude::*;
 use crate::calculator::get_gamma_matrix;
 use crate::molecule::{distance_matrix, Molecule};
 use approx::AbsDiffEq;
 use libm;
+use ndarray::prelude::*;
 use ndarray::{array, Array1, Array2, Array3, ArrayView1, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
@@ -211,6 +211,7 @@ impl GammaFunction {
                 }
             }
         };
+        return result;
     }
 }
 
@@ -249,20 +250,18 @@ fn gamma_gradients_atomwise(
         for (j, z_j) in atomic_numbers.iter().enumerate() {
             if i == j {
                 g0[[i, j]] = gamma_func.eval_limit0(*z_i);
-                g1[[i, j]] = 0.0;
             } else if i < j {
                 let r_ij: f64 = distances[[i, j]];
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
                 g0[[i, j]] = gamma_func.eval(r_ij, *z_i, *z_j);
                 g1_val[[i, j]] = gamma_func.deriv(r_ij, *z_i, *z_j);
                 g1.slice_mut(s![3 * i..3 * i + 3, i, j])
-                    .assign(e_ij * g1_val[[i, j]]);
+                    .assign(&(&e_ij * g1_val[[i, j]]));
             } else {
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
                 g0[[i, j]] = g0[[j, i]];
-                g1[[i, j]] = g1[[j, i]];
                 g1.slice_mut(s![3 * i..3 * i + 3, i, j])
-                    .assign(e_ij * g1_val[[i, j]]);
+                    .assign(&(&e_ij * g1_val[[i, j]]));
             }
         }
     }
@@ -320,7 +319,7 @@ pub fn gamma_gradients_ao_wise(
                     if i != j {
                         g1_a0
                             .slice_mut(s![3 * i..3 * i + 3, mu, nu])
-                            .assign(g1[[i, j]].slice(s![3 * i..3 * i + 3, i, j]));
+                            .assign(&g1.slice(s![3 * i..3 * i + 3, i, j]));
                     }
                     nu = nu + 1;
                 }
