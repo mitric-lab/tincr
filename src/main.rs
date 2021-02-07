@@ -16,7 +16,8 @@ mod scc_routine;
 mod scc_routine_unrestricted;
 mod slako_transformations;
 mod zbrent;
-mod transition_charges;
+//mod transition_charges;
+//mod solver;
 //mod scc_routine_unrestricted;
 
 use crate::molecule::Molecule;
@@ -51,7 +52,7 @@ fn main() {
     let now = Instant::now();
     let (energy, orbs, orbe, s): (f64, Array2<f64>, Array1<f64>, Array2<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
-    gradient_nolc(&mol, or);
+    //gradient_nolc(&mol, or);
     println!("_______________________________________________________");
     println!("Time elapsed: {:.4} secs", now.elapsed().as_secs_f32());
 }
