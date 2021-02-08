@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-
+#![allow(warnings)]
 mod broyden;
 mod calculator;
 mod constants;
@@ -16,6 +16,7 @@ mod scc_routine;
 mod scc_routine_unrestricted;
 mod slako_transformations;
 mod zbrent;
+mod transition_charges;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
