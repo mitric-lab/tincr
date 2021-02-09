@@ -6,13 +6,19 @@
 ##### Warning: The features of the program are currently very limited! 
 To be able to compile and run the __tincr__ program it is necessary to have the Intel MKL libary
 installed, as the linear algebra operations are based on the MKL LAPACK and BLAS implementations. 
-You can just download the MKL library from the Intel webpage and after installation make sure that the 
-enviroment variables are set. If not you can just execute the `mklvars.sh` script which is located in the
-installation directory of the MKL Library. 
+You can just download the MKL library from the [Intel webpage](https://software.intel.com/content/www/us/en/develop/articles/oneapi-standalone-components.html) and after installation make sure that the 
+enviroment variables are set.  
+Since the end of 2020/beginning of 2021, MKL was made part of Intel's oneAPI toolkits. MKL can be installed via the link as before. 
+However, the environment variable $MKLROOT must now be set with the `setvars.sh` script, which is located in the root
+installation directory of MKL. In the case of the older versions you have to execute the `mklvars.sh` script that is located
+in the installation directory of the MKL Library. 
 ```bash
 source /path/to/MKL/mklvars.sh intel64
 ```  
-Make sure that the environment variable `$MKLROOT` was set. 
+Make sure that the environment variable `$MKLROOT` was set.
+Furthermore, you need the Open-SSL as some used Rust libraries depend on it. You can follow the guide 
+shown [here](https://www.howtoforge.com/tutorial/how-to-install-openssl-from-source-on-linux/) to install Open-SSL on 
+linux.  
 Of course you also need Rust itself. This is straightforward to install and explained in 
 detail on the [official site](https://www.rust-lang.org/tools/install). Furthermore, you need the [Rusty-FITPACK](https://github.com/mitric-lab/Rusty-FITPACK) ([see Documentation for details](http://jhoche.de/Rusty-FITPACK/rusty_fitpack/)) crate
 for the spline interpolation. This can be cloned from the Github repository and installed in the same way.
