@@ -10,6 +10,7 @@ use approx::AbsDiffEq;
 use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 
+// only ground state
 pub fn gradient_nolc(
     molecule: &Molecule,
     orbe_occ: Array1<f64>,
@@ -27,6 +28,92 @@ pub fn gradient_nolc(
             &molecule.calculator.hubbard_u,
             &molecule.calculator.valorbs,
             Some(0.0),
+        );
+
+    let (grad_s, grad_h0): (Array3<f64>, Array3<f64>) = h0_and_s_gradients(
+        &molecule.atomic_numbers,
+        molecule.positions.view(),
+        molecule.calculator.n_orbs,
+        &molecule.calculator.valorbs,
+        molecule.proximity_matrix.view(),
+        &molecule.calculator.skt,
+        &molecule.calculator.orbital_energies,
+    );
+
+    let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
+    let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
+
+    // density matrix
+    let d = orbs_occ.dot(&orbs_occ.t());
+    // reference density matrix
+    let d_ref: Array2<f64> = density_matrix_ref(&molecule);
+
+    let diff_d: Array2<f64> = &d - &d_ref;
+    // computing F(D-D0)
+    let fdmd0: Array3<f64> = f_v(
+        diff_d.view(),
+        s.view(),
+        grad_s.view(),
+        g0_ao.view(),
+        g1_ao.view(),
+        molecule.n_atoms,
+        molecule.calculator.n_orbs,
+    );
+
+    // energy weighted density matrix
+    let d_en = 2.0 * orbs_occ.dot(&ei.dot(&orbs_occ.t()));
+
+    // at the time of writing the code there is no tensordot/einsum functionality availaible
+    // in ndarray or other packages. therefore we use indexed loops at the moment
+    // tensordot grad_h0, d, axes=([1,2], [0,1])
+    // tensordot fdmd0, diff_d, axes=([1,2], [0,1])
+    // tensordot grad_s, d_en, axes=([1,2], [0,1])
+    let mut grad_e0: Array1<f64> = Array1::zeros([3 * molecule.n_atoms]);
+    for i in 0..(3 * molecule.n_atoms) {
+        grad_e0[i] += (&grad_h0.slice(s![i, .., ..]) * &d).sum();
+        grad_e0[i] += 0.5 * (&fdmd0.slice(s![i, .., ..]) * &diff_d).sum();
+        grad_e0[i] -= (&grad_s.slice(s![i, .., ..]) * &d_en).sum();
+    }
+
+    let grad_v_rep: Array1<f64> = gradient_v_rep(
+        &molecule.atomic_numbers,
+        molecule.distance_matrix.view(),
+        molecule.directions_matrix.view(),
+        &molecule.calculator.v_rep,
+    );
+
+    return (grad_e0, grad_v_rep);
+}
+
+pub fn gradient_lc(
+    molecule: &Molecule,
+    orbe_occ: Array1<f64>,
+    orbe_virt: Array1<f64>,
+    orbs_occ: Array2<f64>,
+    s: Array2<f64>,
+) -> (Array1<f64>, Array1<f64>) {
+    let (g0, g1, g0_ao, g1_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
+        get_gamma_gradient_matrix(
+            &molecule.atomic_numbers,
+            molecule.n_atoms,
+            molecule.calculator.n_orbs,
+            molecule.distance_matrix.view(),
+            molecule.directions_matrix.view(),
+            &molecule.calculator.hubbard_u,
+            &molecule.calculator.valorbs,
+            Some(0.0),
+        );
+
+    let (g0lr, g1lr, g0lr_ao, g1lr_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
+        get_gamma_gradient_matrix(
+            &molecule.atomic_numbers,
+            molecule.n_atoms,
+            molecule.calculator.n_orbs,
+            molecule.distance_matrix.view(),
+            molecule.directions_matrix.view(),
+            &molecule.calculator.hubbard_u,
+            &molecule.calculator.valorbs,
+            None,
         );
 
     let (grad_s, grad_h0): (Array3<f64>, Array3<f64>) = h0_and_s_gradients(
