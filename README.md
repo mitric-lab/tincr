@@ -11,7 +11,7 @@ enviroment variables are set.
 Since the end of 2020/beginning of 2021, MKL was made part of Intel's oneAPI toolkits. MKL can be installed via the link as before. 
 However, the environment variable $MKLROOT must now be set with the `setvars.sh` script, which is located in the root
 installation directory of MKL. In the case of the older versions you have to execute the `mklvars.sh` script that is located
-in the installation directory of the MKL Library. 
+in the installation directory of the MKL Library. s
 ```bash
 source /path/to/MKL/mklvars.sh intel64
 ```  
