@@ -15,7 +15,7 @@ in the installation directory of the MKL Library.
 ```bash
 source /path/to/MKL/mklvars.sh intel64
 ```  
-Make sure that the environment variable `$MKLROOT` was set.
+Make sure that the environment variable `$MKLROOT` was set.  
 Furthermore, you need the Open-SSL as some used Rust libraries depend on it. You can follow the guide 
 shown [here](https://www.howtoforge.com/tutorial/how-to-install-openssl-from-source-on-linux/) to install Open-SSL on 
 linux.  
