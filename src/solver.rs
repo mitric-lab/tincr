@@ -1,10 +1,10 @@
+use approx::AbsDiffEq;
 use ndarray::prelude::*;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::AddAssign;
-use approx::AbsDiffEq;
 
 pub fn build_a_matrix(
     gamma: ArrayView2<f64>,
@@ -28,8 +28,8 @@ pub fn build_a_matrix(
         &[Axis(0)],
         &[Axis(0)],
     )
-        .into_dimensionality::<Ix4>()
-        .unwrap();
+    .into_dimensionality::<Ix4>()
+    .unwrap();
     // K_lr_A = np.swapaxes(K_lr_A, 1, 2)
     // swap axes still missing
     k_lr_a.swap_axes(1, 2);
@@ -40,11 +40,11 @@ pub fn build_a_matrix(
         //K_A += K_singlet
         k_singlet = 2.0
             * tensordot(
-            &q_trans_ov,
-            &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
-            &[Axis(0)],
-            &[Axis(0)],
-        )
+                &q_trans_ov,
+                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+                &[Axis(0)],
+                &[Axis(0)],
+            )
             .into_dimensionality::<Ix4>()
             .unwrap();
         k_a = k_a + k_singlet;
@@ -78,8 +78,8 @@ pub fn build_b_matrix(
         &[Axis(0)],
         &[Axis(0)],
     )
-        .into_dimensionality::<Ix4>()
-        .unwrap();
+    .into_dimensionality::<Ix4>()
+    .unwrap();
     //# got K_ia_jb but we need K_ib_ja
     //K_lr_B = np.swapaxes(K_lr_B, 1, 3)
     k_lr_b.swap_axes(1, 3);
@@ -90,11 +90,11 @@ pub fn build_b_matrix(
         //K_A += K_singlet
         k_singlet = 2.0
             * tensordot(
-            &q_trans_ov,
-            &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
-            &[Axis(0)],
-            &[Axis(0)],
-        )
+                &q_trans_ov,
+                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+                &[Axis(0)],
+                &[Axis(0)],
+            )
             .into_dimensionality::<Ix4>()
             .unwrap();
         k_b = k_b + k_singlet;
@@ -268,7 +268,6 @@ fn casida(
     );
 }
 
-
 fn hermitian_davidson(
     gamma: ArrayView2<f64>,
     qtrans_ov: ArrayView3<f64>,
@@ -308,14 +307,12 @@ fn hermitian_davidson(
     let kmax = &n_occ * &n_virt;
     let lmax = (&ifact * &nstates).min(kmax);
 
-    let mut bs:Array3<f64> = Array::zeros((n_occ,n_virt,lmax));
-    if XpYguess.is_some() == false{
-        let omega_guess:Array2<f64> = om.map(|om| ndarray_linalg::Scalar::sqrt(om));
+    let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+    if XpYguess.is_some() == false {
+        let omega_guess: Array2<f64> = om.map(|om| ndarray_linalg::Scalar::sqrt(om));
         // new function to calculate bs
     }
 }
-
-
 
 #[test]
 fn tda_routine() {
@@ -386,17 +383,30 @@ fn tda_routine() {
         [0.6599559603234070, 0.7123394788771799]
     ];
     let df: Array2<f64> = array![[2., 2.], [2., 2.]];
-    let omega_ref: Array1<f64> = array![0.3837776010960228, 0.4376185583677501, 0.4777844855653459,
- 0.529392732956824];
+    let omega_ref: Array1<f64> = array![
+        0.3837776010960228,
+        0.4376185583677501,
+        0.4777844855653459,
+        0.529392732956824
+    ];
     let c_ij_ref: Array3<f64> = array![
-    [[ 7.1048609280539423e-16, -1.2491679807793276e-17],
-     [-9.9999999999684230e-01,  2.5130863202938214e-06]],
-    [[ 1.0807435052922551e-16, -7.0715300399956809e-16],
-     [ 2.5130863202798792e-06,  9.9999999999684219e-01]],
-    [[-9.9999999999915401e-01,  1.3008338757459926e-06],
-     [-7.1048583744966613e-16,  1.0807705593029713e-16]],
-    [[-1.3008338757459926e-06, -9.9999999999915401e-01],
-     [ 1.2488978235912678e-17, -7.0715289477295315e-16]]];
+        [
+            [7.1048609280539423e-16, -1.2491679807793276e-17],
+            [-9.9999999999684230e-01, 2.5130863202938214e-06]
+        ],
+        [
+            [1.0807435052922551e-16, -7.0715300399956809e-16],
+            [2.5130863202798792e-06, 9.9999999999684219e-01]
+        ],
+        [
+            [-9.9999999999915401e-01, 1.3008338757459926e-06],
+            [-7.1048583744966613e-16, 1.0807705593029713e-16]
+        ],
+        [
+            [-1.3008338757459926e-06, -9.9999999999915401e-01],
+            [1.2488978235912678e-17, -7.0715289477295315e-16]
+        ]
+    ];
 
     let (omega, c_ij): (Array1<f64>, Array3<f64>) = tda(
         gamma.view(),
@@ -412,5 +422,4 @@ fn tda_routine() {
     println!("omega_ref {}", omega_ref);
     assert!(omega.abs_diff_eq(&omega_ref, 1e-14));
     assert!(c_ij.abs_diff_eq(&c_ij_ref, 1e-14));
-
 }
