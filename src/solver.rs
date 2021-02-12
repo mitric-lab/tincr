@@ -268,6 +268,7 @@ fn casida(
     );
 }
 
+
 fn hermitian_davidson(
     gamma: ArrayView2<f64>,
     qtrans_ov: ArrayView3<f64>,
@@ -308,6 +309,8 @@ fn hermitian_davidson(
         // new function to calculate bs
     }
 }
+
+
 
 #[test]
 fn tda_routine() {
