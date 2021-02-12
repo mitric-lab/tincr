@@ -1,5 +1,6 @@
 use ndarray::prelude::*;
-use ndarray::{Array, Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
+use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
+use ndarray_einsum_beta::*;
 use std::ops::AddAssign;
 
 pub fn build_a_matrix(
@@ -11,55 +12,46 @@ pub fn build_a_matrix(
     omega: ArrayView2<f64>,
     df: ArrayView2<f64>,
     multiplicity: u8,
-) -> () {
+) -> (Array2<f64>) {
     let n_occ: usize = q_trans_oo.dim().1;
     let n_virt: usize = q_trans_vv.dim().1;
     let mut k_lr_a: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+    let mut k_a: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+    let mut k_singlet: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
     // K_lr_A = np.tensordot(qtrans_oo, np.tensordot(gamma_lr, qtrans_vv, axes=(1,0)),axes=(0,0))
+    k_lr_a = tensordot(
+        &q_trans_oo,
+        &tensordot(&gamma_lr, &q_trans_vv, &[Axis(1)], &[Axis(0)]),
+        &[Axis(0)],
+        &[Axis(0)],
+    )
+    .into_dimensionality::<Ix4>()
+    .unwrap();
     // K_lr_A = np.swapaxes(K_lr_A, 1, 2)
-    // K_A = - K_lr_A
-    // electrostatic Coulomb interaction 2*(ov|o'v'), only needed for Singlets
+    // swap axes still missing
+    k_lr_a.swap_axes(1, 2);
+    k_a.assign(&-k_lr_a);
+
     if multiplicity == 1 {
-        for i in 0..n_occ {
-            for j in 0..n_occ {
-                for a in 0..n_virt {
-                    for b in 0..n_virt {
-                        k_lr_a.slice_mut(s![i, a, j, b]).add_assign(
-                            -1.0 * (&q_trans_oo.slice(s![.., i, j])
-                                * &gamma_lr.dot(&q_trans_vv.slice(s![.., a, b])))
-                                .sum(),
-                        );
-                        k_lr_a.slice_mut(s![i, a, j, b]).add_assign(
-                            2.0 * (&q_trans_ov.slice(s![.., i, j])
-                                * &gamma.dot(&q_trans_ov.slice(s![.., a, b])))
-                                .sum(),
-                        );
-                    }
-                }
-            }
-        }
-    } else if multiplicity == 3 {
-        for i in 0..n_occ {
-            for j in 0..n_occ {
-                for a in 0..n_virt {
-                    for b in 0..n_virt {
-                        k_lr_a.slice_mut(s![i, a, j, b]).add_assign(
-                            -1.0 * (&q_trans_oo.slice(s![.., i, j])
-                                * &gamma_lr.dot(&q_trans_vv.slice(s![.., a, b])))
-                                .sum(),
-                        );
-                    }
-                }
-            }
-        }
+        //K_singlet = 2.0*np.tensordot(qtrans_ov, np.tensordot(gamma, qtrans_ov, axes=(1,0)),axes=(0,0))
+        //K_A += K_singlet
+        k_singlet = 2.0
+            * tensordot(
+                &q_trans_ov,
+                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+                &[Axis(0)],
+                &[Axis(0)],
+            )
+            .into_dimensionality::<Ix4>()
+            .unwrap();
+        k_a = k_a + k_singlet;
     }
-    let mut k_a: Array2<f64> = k_lr_a.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
+    let mut k_coupling: Array2<f64> = k_a.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
     let mut df_half: Array2<f64> =
         Array2::from_diag(&df.map(|x| x / 2.0).into_shape((n_occ * n_virt)).unwrap());
     let omega: Array2<f64> = Array2::from_diag(&omega.into_shape((n_occ * n_virt)).unwrap());
-    return df_half.dot(&omega) + &df_half.dot(k_a.dot(&df_half));
+    return df_half.dot(&omega) + &df_half.dot(&k_coupling.dot(&df_half));
 }
-
 
 pub fn build_b_matrix(
     gamma: ArrayView2<f64>,
@@ -70,56 +62,46 @@ pub fn build_b_matrix(
     omega: ArrayView2<f64>,
     df: ArrayView2<f64>,
     multiplicity: u8,
-) -> () {
+) -> (Array2<f64>) {
     let n_occ: usize = q_trans_oo.dim().1;
     let n_virt: usize = q_trans_vv.dim().1;
-    let mut k_lr_b: Array4<f64> = Array4::zeros([n_occ, n_virt, n_virt, n_occ]);
-    // ... and for B matrix, (ia|jb)
-    // K_lr_B = np.tensordot(qtrans_ov, np.tensordot(gamma_lr, qtrans_ov, axes=(1,0)),axes=(0,0))
-    //  got K_ia_jb but we need K_ib_ja
+    let mut k_lr_b: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+    let mut k_b: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+    let mut k_singlet: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+    //K_lr_B = np.tensordot(qtrans_ov, np.tensordot(gamma_lr, qtrans_ov, axes=(1,0)),axes=(0,0))
+    k_lr_b = tensordot(
+        &q_trans_ov,
+        &tensordot(&gamma_lr, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+        &[Axis(0)],
+        &[Axis(0)],
+    )
+    .into_dimensionality::<Ix4>()
+    .unwrap();
+    //# got K_ia_jb but we need K_ib_ja
     //K_lr_B = np.swapaxes(K_lr_B, 1, 3)
-    // electrostatic Coulomb interaction 2*(ov|o'v'), only needed for Singlets
+    k_lr_b.swap_axes(1, 3);
+    k_b.assign(&-k_lr_b);
+
     if multiplicity == 1 {
-        for i in 0..n_occ {
-            for j in 0..n_occ {
-                for a in 0..n_virt {
-                    for b in 0..n_virt {
-                        k_lr_b.slice_mut(s![i, b, a, j]).add_assign(
-                            -1.0 * (&q_trans_ov.slice(s![.., i, j])
-                                * &gamma_lr.dot(&q_trans_ov.slice(s![.., a, b])))
-                                .sum(),
-                        );
-                        k_lr_b.slice_mut(s![i, b, a, j]).add_assign(
-                            2.0 * (&q_trans_ov.slice(s![.., i, j])
-                                * &gamma.dot(&q_trans_ov.slice(s![.., a, b])))
-                                .sum(),
-                        );
-                    }
-                }
-            }
-        }
-    } else if multiplicity == 3 {
-        for i in 0..n_occ {
-            for j in 0..n_occ {
-                for a in 0..n_virt {
-                    for b in 0..n_virt {
-                        k_lr_b.slice_mut(s![i, b, a, j]).add_assign(
-                            -1.0 * (&q_trans_ov.slice(s![.., i, j])
-                                * &gamma_lr.dot(&q_trans_ov.slice(s![.., a, b])))
-                                .sum(),
-                        );
-                    }
-                }
-            }
-        }
+        //K_singlet = 2.0*np.tensordot(qtrans_ov, np.tensordot(gamma, qtrans_ov, axes=(1,0)),axes=(0,0))
+        //K_A += K_singlet
+        k_singlet = 2.0
+            * tensordot(
+                &q_trans_ov,
+                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+                &[Axis(0)],
+                &[Axis(0)],
+            )
+            .into_dimensionality::<Ix4>()
+            .unwrap();
+        k_b = k_b + (k_singlet);
     }
-    let mut k_b: Array2<f64> = k_lr_b.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
+    let mut k_coupling: Array2<f64> = k_b.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
     let mut df_half: Array2<f64> =
         Array2::from_diag(&df.map(|x| x / 2.0).into_shape((n_occ * n_virt)).unwrap());
     let omega: Array2<f64> = Array2::from_diag(&omega.into_shape((n_occ * n_virt)).unwrap());
-    return df_half.dot(k_b.dot(&df_half));
+    return df_half.dot(&k_coupling.dot(&df_half));
 }
-
 
 fn get_orbital_en_diff(
     orbe: ArrayView1<f64>,

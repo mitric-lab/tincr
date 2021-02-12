@@ -83,7 +83,6 @@ pub fn run_scc(
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
 
         let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
-
         // C = X.C'
         orbs= x.dot(&cp);
 
