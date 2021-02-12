@@ -1,8 +1,9 @@
 use ndarray::prelude::*;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
-use std::ops::AddAssign;
 use ndarray_linalg::*;
+use peroxide::prelude::*;
+use std::ops::AddAssign;
 
 pub fn build_a_matrix(
     gamma: ArrayView2<f64>,
@@ -95,7 +96,7 @@ pub fn build_b_matrix(
             )
             .into_dimensionality::<Ix4>()
             .unwrap();
-        k_b = k_b + (k_singlet);
+        k_b = k_b + k_singlet;
     }
     let mut k_coupling: Array2<f64> = k_b.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
     let mut df_half: Array2<f64> =
@@ -140,18 +141,114 @@ fn get_orbital_occ_diff(
     return df;
 }
 
-fn TDA(
-    A:ArrayView2<f64>,
-    n_occ: usize,
-    n_virt: usize,
-)->(Array1<f64>,Array3<f64>){
+fn tda(A: ArrayView2<f64>, n_occ: usize, n_virt: usize) -> (Array1<f64>, Array3<f64>) {
     // diagonalize A with eigh
     let tmp: (Array1<f64>, Array2<f64>) = A.eigh(UPLO::Upper).unwrap();
     let omega: Array1<f64> = tmp.0;
     let x: Array2<f64> = tmp.1;
-    let c_ij: Array3<f64> = x.reversed_axes().into_shape((n_occ*n_virt,n_occ,n_virt)).unwrap();
+    let c_ij: Array3<f64> = x
+        .reversed_axes()
+        .into_shape((n_occ * n_virt, n_occ, n_virt))
+        .unwrap();
 
     //assert!(((c_ij.slice(s![0,..,..])*c_ij.slice(s![0,..,..])).sum()-1.0).abs()<1.0e-10);
 
     return (omega, c_ij);
+}
+
+fn casida(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    q_trans_ov: ArrayView3<f64>,
+    q_trans_oo: ArrayView3<f64>,
+    q_trans_vv: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    df: ArrayView2<f64>,
+    multiplicity: u8,
+) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
+    let A: Array2<f64> = build_a_matrix(
+        gamma,
+        gamma_lr,
+        q_trans_ov,
+        q_trans_oo,
+        q_trans_vv,
+        omega,
+        df,
+        multiplicity,
+    );
+    let B: Array2<f64> = build_b_matrix(
+        gamma,
+        gamma_lr,
+        q_trans_ov,
+        q_trans_oo,
+        q_trans_vv,
+        omega,
+        df,
+        multiplicity,
+    );
+    //check whether A - B is diagonal
+    let AmB: Array2<f64> = &A - &B;
+    let ApB: Array2<f64> = &A + &B;
+    let n_occ: usize = q_trans_oo.dim().1;
+    let n_virt: usize = q_trans_vv.dim().1;
+    let mut sqAmB: Array2<f64> = Array2::zeros((n_occ * n_virt, n_occ * n_virt));
+    let offdiag: f64 = (Array2::from_diag(&AmB.diag()) - &AmB).norm();
+    if offdiag < 1.0e-10 {
+        // calculate the sqareroot of the diagonal and transform to 2d matrix
+        sqAmB = Array2::from_diag(&AmB.diag().mapv(f64::sqrt));
+    } else {
+        // calculate matrix squareroot
+        sqAmB = AmB.ssqrt(UPLO::Upper).unwrap();
+    }
+
+    // construct hermitian eigenvalue problem
+    // (A-B)^(1/2) (A+B) (A-B)^(1/2) F = Omega^2 F
+    let R: Array2<f64> = sqAmB.dot(&ApB.dot(&sqAmB));
+    let tmp: (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Upper).unwrap();
+    let omega2: Array1<f64> = tmp.0;
+    let F: Array2<f64> = tmp.1;
+    let omega: Array1<f64> = omega2.mapv(f64::sqrt);
+
+    // compute X-Y and X+Y
+    // X+Y = 1/sqrt(Omega) * (A-B)^(1/2).F
+    // X-Y = 1/Omega * (A+B).(X+Y)
+
+    let XpY: Array2<f64> = &sqAmB.dot(&F) / &omega.mapv(f64::sqrt);
+    let XmY: Array2<f64> = &ApB.dot(&XpY) / &omega;
+
+    //assert!((XpY.slice(s![..,0]).to_owned()*XmY.slice(s![..,0]).to_owned()).sum().abs()<1.0e-10);
+    //assert!((ApB.dot(&XpY)-omega*XmY).abs().sum() < 1.0e-5);
+
+    //C = (A-B)^(-1/2).((X+Y) * sqrt(Omega))
+    // so that C^T.C = (X+Y)^T.(A-B)^(-1).(X+Y) * Omega
+    //               = (X+Y)^T.(X-Y)
+    // since (A-B).(X-Y) = Omega * (X+Y)
+    let temp = &XpY * &omega.mapv(f64::sqrt);
+    let mut c_matrix: Array2<f64> = Array2::zeros((omega.len(), omega.len()));
+    for i in 0..(omega.len()) {
+        c_matrix
+            .slice_mut(s![.., i])
+            .assign((&sqAmB.solve(&temp.slice(s![.., i])).unwrap()));
+    }
+    assert!(
+        ((&c_matrix.slice(s![.., 0]).to_owned() * &c_matrix.slice(s![.., 0])).to_owned())
+            .sum()
+            .abs()
+            < 1.0e-10
+    );
+
+    let XmY_transformed: Array3<f64> = XmY.into_shape((n_occ * n_virt, n_occ, n_virt)).unwrap();
+    let XpY_transformed: Array3<f64> = XpY.into_shape((n_occ * n_virt, n_occ, n_virt)).unwrap();
+
+    let c_matrix_transformed: Array3<f64> = c_matrix
+        .reversed_axes()
+        .into_shape((n_occ * n_virt, n_occ, n_virt))
+        .unwrap();
+
+    return (
+        omega,
+        c_matrix_transformed,
+        XmY_transformed,
+        XpY_transformed,
+    );
 }
