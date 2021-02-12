@@ -143,7 +143,7 @@ fn get_orbital_occ_diff(
 
 fn tda(A: ArrayView2<f64>, n_occ: usize, n_virt: usize) -> (Array1<f64>, Array3<f64>) {
     // diagonalize A with eigh
-    let (omega,x): (Array1<f64>, Array2<f64>) = A.eigh(UPLO::Upper).unwrap();
+    let (omega, x): (Array1<f64>, Array2<f64>) = A.eigh(UPLO::Upper).unwrap();
     let c_ij: Array3<f64> = x
         .reversed_axes()
         .into_shape((n_occ * n_virt, n_occ, n_virt))
@@ -202,7 +202,7 @@ fn casida(
     // construct hermitian eigenvalue problem
     // (A-B)^(1/2) (A+B) (A-B)^(1/2) F = Omega^2 F
     let R: Array2<f64> = sqAmB.dot(&ApB.dot(&sqAmB));
-    let (omega2,F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Upper).unwrap();
+    let (omega2, F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Upper).unwrap();
     let omega: Array1<f64> = omega2.mapv(f64::sqrt);
 
     // compute X-Y and X+Y
@@ -219,7 +219,7 @@ fn casida(
     // so that C^T.C = (X+Y)^T.(A-B)^(-1).(X+Y) * Omega
     //               = (X+Y)^T.(X-Y)
     // since (A-B).(X-Y) = Omega * (X+Y)
-    let temp = &XpY * &omega.mapv(f64::sqrt);
+    let temp: Array2<f64> = &XpY * &omega.mapv(f64::sqrt);
     let mut c_matrix: Array2<f64> = Array2::zeros((omega.len(), omega.len()));
     for i in 0..(omega.len()) {
         c_matrix
@@ -247,4 +247,45 @@ fn casida(
         XmY_transformed,
         XpY_transformed,
     );
+}
+
+fn hermitian_davidson(
+    gamma: ArrayView2<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    omega_shift: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    XmYguess: Option<ArrayView2<f64>>,
+    XpYguess: Option<ArrayView2<f64>>,
+    Oia: ArrayView2<f64>,
+    multiplicity: usize,
+) -> () {
+    // f A-B is diagonal the TD-DFT equations can be made hermitian
+    //       (A-B)^(1/2).(A+B).(A-B)^(1/2).T = Omega^2 T
+    //                    R               .T = Omega^2 T
+
+    let nstates: usize = 4;
+    let ifact: usize = 1;
+    let maxiter: u8 = 10;
+    let conv: f64 = 1.0e-14;
+    let l2_treshold: f64 = 0.5;
+
+    let omega2: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::powi(omega, 2));
+    let omega_sq: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::sqrt(omega));
+    let omega_sq_inv: Array2<f64> = 1.0 / &omega_sq;
+    let wq_ov = &qtrans_ov * &omega_sq;
+    //# diagonal elements of R
+    let om: Array2<f64> = omega2 + &omega * &omega_shift * 2.0;
+
+    // initial number of expansion vectors
+    // at most there are nocc*nvirt excited states
+    let kmax = &n_occ * &n_virt;
+    let lmax = (&ifact * &nstates).min(kmax);
+
+    let mut bs:Array3<f64> = Array::zeros((n_occ,n_virt,lmax));
+    if XpYguess.contains() == false{
+        let omega_guess:Array2<f64> = om.map(|om| ndarray_linalg::Scalar::sqrt(om));
+        // new function to calculate bs
+    }
 }
