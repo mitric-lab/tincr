@@ -143,9 +143,7 @@ fn get_orbital_occ_diff(
 
 fn tda(A: ArrayView2<f64>, n_occ: usize, n_virt: usize) -> (Array1<f64>, Array3<f64>) {
     // diagonalize A with eigh
-    let tmp: (Array1<f64>, Array2<f64>) = A.eigh(UPLO::Upper).unwrap();
-    let omega: Array1<f64> = tmp.0;
-    let x: Array2<f64> = tmp.1;
+    let (omega,x): (Array1<f64>, Array2<f64>) = A.eigh(UPLO::Upper).unwrap();
     let c_ij: Array3<f64> = x
         .reversed_axes()
         .into_shape((n_occ * n_virt, n_occ, n_virt))
@@ -204,9 +202,7 @@ fn casida(
     // construct hermitian eigenvalue problem
     // (A-B)^(1/2) (A+B) (A-B)^(1/2) F = Omega^2 F
     let R: Array2<f64> = sqAmB.dot(&ApB.dot(&sqAmB));
-    let tmp: (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Upper).unwrap();
-    let omega2: Array1<f64> = tmp.0;
-    let F: Array2<f64> = tmp.1;
+    let (omega2,F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Upper).unwrap();
     let omega: Array1<f64> = omega2.mapv(f64::sqrt);
 
     // compute X-Y and X+Y
