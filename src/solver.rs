@@ -2,6 +2,7 @@ use ndarray::prelude::*;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use std::ops::AddAssign;
+use ndarray_linalg::*;
 
 pub fn build_a_matrix(
     gamma: ArrayView2<f64>,
@@ -137,4 +138,20 @@ fn get_orbital_occ_diff(
         }
     }
     return df;
+}
+
+fn TDA(
+    A:ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+)->(Array1<f64>,Array3<f64>){
+    // diagonalize A with eigh
+    let tmp: (Array1<f64>, Array2<f64>) = A.eigh(UPLO::Upper).unwrap();
+    let omega: Array1<f64> = tmp.0;
+    let x: Array2<f64> = tmp.1;
+    let c_ij: Array3<f64> = x.reversed_axes().into_shape((n_occ*n_virt,n_occ,n_virt)).unwrap();
+
+    //assert!(((c_ij.slice(s![0,..,..])*c_ij.slice(s![0,..,..])).sum()-1.0).abs()<1.0e-10);
+
+    return (omega, c_ij);
 }
