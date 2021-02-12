@@ -303,7 +303,7 @@ fn hermitian_davidson(
     let lmax = (&ifact * &nstates).min(kmax);
 
     let mut bs:Array3<f64> = Array::zeros((n_occ,n_virt,lmax));
-    if XpYguess.contains() == false{
+    if XpYguess.is_some() == false{
         let omega_guess:Array2<f64> = om.map(|om| ndarray_linalg::Scalar::sqrt(om));
         // new function to calculate bs
     }
