@@ -28,8 +28,8 @@ pub fn build_a_matrix(
         &[Axis(0)],
         &[Axis(0)],
     )
-    .into_dimensionality::<Ix4>()
-    .unwrap();
+        .into_dimensionality::<Ix4>()
+        .unwrap();
     // K_lr_A = np.swapaxes(K_lr_A, 1, 2)
     // swap axes still missing
     k_lr_a.swap_axes(1, 2);
@@ -40,11 +40,11 @@ pub fn build_a_matrix(
         //K_A += K_singlet
         k_singlet = 2.0
             * tensordot(
-                &q_trans_ov,
-                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
-                &[Axis(0)],
-                &[Axis(0)],
-            )
+            &q_trans_ov,
+            &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+            &[Axis(0)],
+            &[Axis(0)],
+        )
             .into_dimensionality::<Ix4>()
             .unwrap();
         k_a = k_a + k_singlet;
@@ -78,8 +78,8 @@ pub fn build_b_matrix(
         &[Axis(0)],
         &[Axis(0)],
     )
-    .into_dimensionality::<Ix4>()
-    .unwrap();
+        .into_dimensionality::<Ix4>()
+        .unwrap();
     //# got K_ia_jb but we need K_ib_ja
     //K_lr_B = np.swapaxes(K_lr_B, 1, 3)
     k_lr_b.swap_axes(1, 3);
@@ -90,11 +90,11 @@ pub fn build_b_matrix(
         //K_A += K_singlet
         k_singlet = 2.0
             * tensordot(
-                &q_trans_ov,
-                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
-                &[Axis(0)],
-                &[Axis(0)],
-            )
+            &q_trans_ov,
+            &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+            &[Axis(0)],
+            &[Axis(0)],
+        )
             .into_dimensionality::<Ix4>()
             .unwrap();
         k_b = k_b + k_singlet;
@@ -267,6 +267,50 @@ fn casida(
         XpY_transformed,
     );
 }
+
+
+fn hermitian_davidson(
+    gamma: ArrayView2<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    omega_shift: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    XmYguess: Option<ArrayView2<f64>>,
+    XpYguess: Option<ArrayView2<f64>>,
+    Oia: ArrayView2<f64>,
+    multiplicity: usize,
+) -> () {
+    // f A-B is diagonal the TD-DFT equations can be made hermitian
+    //       (A-B)^(1/2).(A+B).(A-B)^(1/2).T = Omega^2 T
+    //                    R               .T = Omega^2 T
+
+    let nstates: usize = 4;
+    let ifact: usize = 1;
+    let maxiter: u8 = 10;
+    let conv: f64 = 1.0e-14;
+    let l2_treshold: f64 = 0.5;
+
+    let omega2: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::powi(omega, 2));
+    let omega_sq: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::sqrt(omega));
+    let omega_sq_inv: Array2<f64> = 1.0 / &omega_sq;
+    let wq_ov = &qtrans_ov * &omega_sq;
+    //# diagonal elements of R
+    let om: Array2<f64> = omega2 + &omega * &omega_shift * 2.0;
+
+    // initial number of expansion vectors
+    // at most there are nocc*nvirt excited states
+    let kmax = &n_occ * &n_virt;
+    let lmax = (&ifact * &nstates).min(kmax);
+
+    let mut bs:Array3<f64> = Array::zeros((n_occ,n_virt,lmax));
+    if XpYguess.contains() == false{
+        let omega_guess:Array2<f64> = om.map(|om| ndarray_linalg::Scalar::sqrt(om));
+        // new function to calculate bs
+    }
+}
+
+
 
 #[test]
 fn tda_routine() {
