@@ -82,9 +82,8 @@ pub fn run_scc(
         // H' = X^t.H.X
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
 
-        let w_v_tmp: (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
-        orbe = w_v_tmp.0;
-        let cp: Array2<f64> = w_v_tmp.1;
+        let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
+
         // C = X.C'
         orbs= x.dot(&cp);
 
