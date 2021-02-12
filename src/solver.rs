@@ -275,8 +275,8 @@ fn hermitian_davidson(
     omega_shift: ArrayView2<f64>,
     n_occ: usize,
     n_virt: usize,
-    XmYguess: Option<ArrayView2<f64>>,
-    XpYguess: Option<ArrayView2<f64>>,
+    XmYguess: Option<ArrayView3<f64>>,
+    XpYguess: Option<ArrayView3<f64>>,
     Oia: ArrayView2<f64>,
     multiplicity: usize,
     nstates: Option<usize>,
@@ -310,8 +310,24 @@ fn hermitian_davidson(
     let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     if XpYguess.is_some() == false {
         let omega_guess: Array2<f64> = om.map(|om| ndarray_linalg::Scalar::sqrt(om));
-        // new function to calculate bs
+    // new function to calculate bs
+    } else {
+        for i in 0..lmax {
+            bs.slice_mut(s![.., .., i])
+                .assign(&(&omega_sq_inv * &XpYguess.unwrap().slice(s![i, .., ..])));
+            // Error about only 2 indices at slice at the end of the next line
+            bs.slice_mut(s![.., .., i])
+                .assign(&(&bs.slice(s![.., .., i]) / &norm_special(bs.slice(s![.., .., i]))));
+        }
     }
+}
+
+fn norm_special(array: ArrayView3<f64>) -> (Array3<f64>) {
+    let v = tensordot(&array, &array, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)]);
+    return v
+        .map(|v| ndarray_linalg::Scalar::sqrt(v))
+        .into_dimensionality::<Ix3>()
+        .unwrap();
 }
 
 #[test]
