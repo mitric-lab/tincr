@@ -280,16 +280,21 @@ fn hermitian_davidson(
     XpYguess: Option<ArrayView2<f64>>,
     Oia: ArrayView2<f64>,
     multiplicity: usize,
+    nstates: Option<usize>,
+    ifact: Option<usize>,
+    maxiter: Option<u8>,
+    conv: Option<f64>,
+    l2_treshold: Option<f64>,
 ) -> () {
     // f A-B is diagonal the TD-DFT equations can be made hermitian
     //       (A-B)^(1/2).(A+B).(A-B)^(1/2).T = Omega^2 T
     //                    R               .T = Omega^2 T
 
-    let nstates: usize = 4;
-    let ifact: usize = 1;
-    let maxiter: u8 = 10;
-    let conv: f64 = 1.0e-14;
-    let l2_treshold: f64 = 0.5;
+    let nstates: usize = nstates.unwrap_or(4);
+    let ifact: usize = ifact.unwrap_or(1);
+    let maxiter: u8 = maxiter.unwrap_or(10);
+    let conv: f64 = conv.unwrap_or(1.0e-14);
+    let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
 
     let omega2: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::powi(omega, 2));
     let omega_sq: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::sqrt(omega));
