@@ -17,6 +17,7 @@ mod scc_routine_unrestricted;
 mod slako_transformations;
 mod zbrent;
 mod transition_charges;
+mod solver;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
