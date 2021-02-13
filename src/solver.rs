@@ -281,7 +281,7 @@ fn hermitian_davidson(
     multiplicity: usize,
     nstates: Option<usize>,
     ifact: Option<usize>,
-    maxiter: Option<u8>,
+    maxiter: Option<usize>,
     conv: Option<f64>,
     l2_treshold: Option<f64>,
 ) -> () {
@@ -291,14 +291,14 @@ fn hermitian_davidson(
 
     let nstates: usize = nstates.unwrap_or(4);
     let ifact: usize = ifact.unwrap_or(1);
-    let maxiter: u8 = maxiter.unwrap_or(10);
+    let maxiter: usize = maxiter.unwrap_or(10);
     let conv: f64 = conv.unwrap_or(1.0e-14);
     let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
 
     let omega2: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::powi(omega, 2));
     let omega_sq: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::sqrt(omega));
     let omega_sq_inv: Array2<f64> = 1.0 / &omega_sq;
-    let wq_ov = &qtrans_ov * &omega_sq;
+    let wq_ov: Array3<f64> = &qtrans_ov * &omega_sq;
     //# diagonal elements of R
     let om: Array2<f64> = omega2 + &omega * &omega_shift * 2.0;
 
@@ -313,21 +313,77 @@ fn hermitian_davidson(
     // new function to calculate bs
     } else {
         for i in 0..lmax {
+            //bs.slice_mut(s![.., .., i]).assign(&(&omega_sq_inv * &XpYguess.unwrap().slice(s![i, .., ..])));
+            let tmp_array: Array2<f64> = (&omega_sq_inv * &XpYguess.unwrap().slice(s![i, .., ..]));
+            let norm_temp: f64 = norm_special(&tmp_array);
+            //tmp_array = tmp_array / norm_special(&tmp_array);
             bs.slice_mut(s![.., .., i])
-                .assign(&(&omega_sq_inv * &XpYguess.unwrap().slice(s![i, .., ..])));
-            // Error about only 2 indices at slice at the end of the next line
-            bs.slice_mut(s![.., .., i])
-                .assign(&(&bs.slice(s![.., .., i]) / &norm_special(bs.slice(s![.., .., i]))));
+                .assign(&(&tmp_array / norm_temp));
+        }
+    }
+    let l: usize = lmax;
+    let k: usize = nstates;
+    for it in 0..maxiter {
+        let r_bs: Array3<f64> = matrix_v_product(&bs, lmax, &om, &wq_ov, &gamma);
+        let Hb: Array2<f64> = tensordot(&bs, &r_bs, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+        let (w2, Tb): (Array1<f64>, Array2<f64>) = Hb.eigh(UPLO::Upper).unwrap();
+        let T: Array3<f64> = tensordot(&bs, &Tb, &[Axis(2)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+
+        // In DFTBaby a selector of symmetry could be used here
+        if l2_treshold > 0.0 {
+            let (w2_new, T_new): (Array1<f64>, Array3<f64>) =
+                reorder_vectors_lambda2(&Oia, &w2, &T, &l2_treshold);
         }
     }
 }
 
-fn norm_special(array: ArrayView3<f64>) -> (Array3<f64>) {
-    let v = tensordot(&array, &array, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)]);
-    return v
-        .map(|v| ndarray_linalg::Scalar::sqrt(v))
+fn reorder_vectors_lambda2(
+    Oia: &ArrayView2<f64>,
+    w2: &Array1<f64>,
+    T: &Array3<f64>,
+    l2_treshold: &f64,
+) -> (Array1<f64>, Array3<f64>) {
+
+}
+
+fn norm_special(array: &Array2<f64>) -> (f64) {
+    let v: f64 = tensordot(&array, &array, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+        .into_dimensionality::<Ix0>()
+        .unwrap()
+        .into_scalar();
+    return v.sqrt();
+}
+
+fn matrix_v_product(
+    vs: &Array3<f64>,
+    lmax: usize,
+    om: &Array2<f64>,
+    wq_ov: &Array3<f64>,
+    gamma: &ArrayView2<f64>,
+) -> (Array3<f64>) {
+    let mut us: Array3<f64> = Array::zeros(vs.shape())
         .into_dimensionality::<Ix3>()
         .unwrap();
+    for i in 0..lmax {
+        let v: ArrayView2<f64> = vs.slice(s![.., .., i]);
+        // # matrix product u = sum_jb (A-B)^(1/2).(A+B).(A-B)^(1/2).v
+        // # 1st term in (A+B).v  - KS orbital energy differences
+        let mut u: Array2<f64> = om * &v;
+        let tmp: Array1<f64> = tensordot(&wq_ov, &v, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
+            .into_dimensionality::<Ix1>()
+            .unwrap();
+        let tmp2: Array1<f64> = gamma.dot(&tmp);
+        u = u + 4.0
+            * tensordot(&wq_ov, &tmp2, &[Axis(0)], &[Axis(0)])
+                .into_dimensionality::<Ix2>()
+                .unwrap();
+        us.slice_mut(s![.., .., i]).assign(&u);
+    }
+    return us;
 }
 
 #[test]
