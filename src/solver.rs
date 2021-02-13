@@ -336,7 +336,7 @@ fn hermitian_davidson(
         // In DFTBaby a selector of symmetry could be used here
         if l2_treshold > 0.0 {
             let (w2_new, T_new): (Array1<f64>, Array3<f64>) =
-                reorder_vectors_lambda2(&Oia, &w2, &T, &l2_treshold);
+                reorder_vectors_lambda2(&Oia, &w2, &T, l2_treshold);
         }
     }
 }
@@ -345,9 +345,44 @@ fn reorder_vectors_lambda2(
     Oia: &ArrayView2<f64>,
     w2: &Array1<f64>,
     T: &Array3<f64>,
-    l2_treshold: &f64,
-) -> (Array1<f64>, Array3<f64>) {
+    l2_treshold: f64,
+) ->(Array1<f64>,Array3<f64>){
+    // reorder the expansion vectors so that those with Lambda2 values
+    // above a certain threshold come first
+    let n_occ: usize = T.dim().0;
+    let n_virt: usize = T.dim().1;
+    let n_st: usize = T.dim().2;
+    let mut l2: Array1<f64> = Array::zeros(n_st);
 
+    for i in 0..n_st {
+        let T_temp: Array2<f64> = T
+            .slice(s![.., .., i])
+            .to_owned()
+            .map(|T| ndarray_linalg::Scalar::powi(T, 2));
+        l2[i] = tensordot(&T_temp, &Oia, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+            .into_dimensionality::<Ix0>()
+            .unwrap()
+            .into_scalar();
+    }
+    //get indeces
+    let over_l2: Array1<_> = l2.indexed_iter().filter_map(|(index, &item)| if item > l2_treshold { Some(index) } else { None }).collect();
+    let under_l2: Array1<_> = l2.indexed_iter().filter_map(|(index, &item)| if item < l2_treshold { Some(index) } else { None }).collect();
+
+    let mut T_new:Array3<f64> = Array::zeros((n_occ,n_virt,n_st));
+    let mut w2_new: Array1<f64> = Array::zeros(n_st);
+
+    //construct new matrices
+    for i in 0.. over_l2.len(){
+        T_new.slice_mut(s![..,..,i]).assign(&T.slice(s![..,..,over_l2[i]]));
+        w2_new[i] = w2[over_l2[i]];
+    }
+    let len_over_l2:usize = over_l2.len();
+    for i in 0.. under_l2.len(){
+        T_new.slice_mut(s![..,..,i+len_over_l2]).assign(&T.slice(s![..,..,under_l2[i]]));
+        w2_new[i+len_over_l2] = w2[under_l2[i]];
+    }
+
+    return (w2_new, T_new);
 }
 
 fn norm_special(array: &Array2<f64>) -> (f64) {
