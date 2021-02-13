@@ -284,7 +284,7 @@ fn hermitian_davidson(
     maxiter: Option<usize>,
     conv: Option<f64>,
     l2_treshold: Option<f64>,
-) -> () {
+) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
     // f A-B is diagonal the TD-DFT equations can be made hermitian
     //       (A-B)^(1/2).(A+B).(A-B)^(1/2).T = Omega^2 T
     //                    R               .T = Omega^2 T
@@ -321,24 +321,124 @@ fn hermitian_davidson(
                 .assign(&(&tmp_array / norm_temp));
         }
     }
-    let l: usize = lmax;
+    let mut l: usize = lmax;
     let k: usize = nstates;
+    let mut w: Array1<f64> = Array::zeros(lmax);
+    let mut T_new: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     for it in 0..maxiter {
         let r_bs: Array3<f64> = matrix_v_product(&bs, lmax, &om, &wq_ov, &gamma);
+        // shape of Hb: (lmax, lmax)
         let Hb: Array2<f64> = tensordot(&bs, &r_bs, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
             .into_dimensionality::<Ix2>()
             .unwrap();
         let (w2, Tb): (Array1<f64>, Array2<f64>) = Hb.eigh(UPLO::Upper).unwrap();
+        // shape of T : (n_occ,n_virt,lmax)
         let T: Array3<f64> = tensordot(&bs, &Tb, &[Axis(2)], &[Axis(0)])
             .into_dimensionality::<Ix3>()
             .unwrap();
 
         // In DFTBaby a selector of symmetry could be used here
+        let temp: (Array1<f64>, Array3<f64>);
         if l2_treshold > 0.0 {
-            let (w2_new, T_new): (Array1<f64>, Array3<f64>) =
-                reorder_vectors_lambda2(&Oia, &w2, &T, l2_treshold);
+            temp = reorder_vectors_lambda2(&Oia, &w2, &T, l2_treshold);
+        } else {
+            temp = (Array::zeros(lmax), Array::zeros((n_occ, n_virt, lmax)));
         }
+        let (w2_new, T_temp): (Array1<f64>, Array3<f64>) = temp;
+        T_new = T_temp;
+
+        w = w2_new.mapv(f64::sqrt);
+        //residual vectors
+        let W_res: Array3<f64> = matrix_v_product(&T, lmax, &om, &wq_ov, &gamma) - &w2_new * &T;
+        let mut norms_res: Array1<f64> = Array::zeros(k);
+        for i in 0..k {
+            norms_res[i] = norm_special(&W_res.slice(s![.., .., i]).to_owned());
+        }
+        // check if all norms are below the convergence criteria
+        // maybe there is a faster method
+        let indices_norms: Array1<usize> = norms_res
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item < conv { Some(index) } else { None })
+            .collect();
+        if indices_norms.len() == norms_res.len() {
+            break;
+        }
+
+        // # enlarge dimension of subspace by dk vectors
+        // # At most k new expansion vectors are added
+        let dkmax = (kmax - l).min(k);
+        // # count number of non-converged vectors
+        // # residual vectors that are zero cannot be used as new expansion vectors
+        //1.0e-16
+        let eps = 0.01 * conv;
+        // version for nc = np.sum(norms > eps)
+        let indices_norm_over_eps: Array1<usize> = norms_res
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
+            .collect();
+        let mut norms_over_eps: Array1<f64> = Array::zeros(indices_norm_over_eps.len());
+        for i in 0..indices_norm_over_eps.len() {
+            norms_over_eps[i] = norms_res[indices_norm_over_eps[i]];
+        }
+        let nc: f64 = norms_over_eps.sum();
+        let dk: usize = dkmax.min(nc as usize);
+        let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
+        let mut nb: i32 = 0;
+        // # select new expansion vectors among the residual vectors
+        for i in 0..dkmax {
+            let wD: Array2<f64> = w[i] - &omega.to_owned();
+            // quite the ugly method in order to reproduce
+            // indx = abs(wD) < 1.0e-6
+            // wD[indx] = 1.0e-6 * omega[indx]
+            // from numpy
+            let temp: Array2<f64> = wD.map(|wD| if wD < &1.0e-6 { 1.0e-6 } else { 0.0 });
+            let temp_2: Array2<f64> = wD.map(|&wD| if wD < 1.0e-6 { 0.0 } else { wD });
+            let mut wD_new: Array2<f64> = &temp * &omega.to_owned();
+            wD_new = wD_new + temp_2;
+            if norms_res[i] > eps {
+                Qs.slice_mut(s![.., .., nb])
+                    .assign(&((1.0 / &wD_new) * W_res.slice(s![.., .., i])));
+                nb += 1;
+            }
+        }
+        // new expansion vectors are bs + Qs
+        let mut bs_new: Array3<f64> = Array::zeros((n_occ, n_virt, l + dk));
+        bs_new.slice_mut(s![.., .., ..l]).assign(&bs);
+        bs_new.slice_mut(s![.., .., l..]).assign(&Qs);
+
+        //QR decomposition
+        let nvec: usize = l + dk;
+        let bs_flat: Array2<f64> = bs_new.into_shape((n_occ * n_virt, nvec)).unwrap();
+        let (Q, R): (Array2<f64>, Array2<f64>) = bs_flat.qr().unwrap();
+        bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
+        l = bs.dim().2;
     }
+    let Omega: Array1<f64> = w.slice(s![..k]).to_owned();
+    let mut XpY: Array3<f64> = Array::zeros((n_occ, n_virt, k));
+    let mut XmY: Array3<f64> = Array::zeros((n_occ, n_virt, k));
+    let mut c_matrix: Array3<f64> = Array::zeros((n_occ, n_virt, k));
+
+    for i in 0..k {
+        let temp_T: Array2<f64> = T_new.slice(s![.., .., i]).to_owned();
+        // # X+Y = 1/sqrt(Omega)*(A-B)^(1/2).T
+        XpY.slice_mut(s![.., .., i])
+            .assign(&(&(&omega_sq / &Omega.mapv(f64::sqrt)) * &temp_T));
+        // # X-Y = sqrt(Omega)*(A-B)^(-1).(X+Y)
+        XmY.slice_mut(s![.., .., i])
+            .assign(&(&Omega.mapv(f64::sqrt) * &omega_sq_inv * &temp_T));
+        // # C = (A-B)^(-1/2).(X+Y) * sqrt(Omega)
+        c_matrix.slice_mut(s![.., .., i]).assign(&temp_T);
+    }
+    // # XmY, XpY and C have shape (nocc,nvirt, nstates)
+    // # bring the last axis to the front
+    XpY.swap_axes(1, 2);
+    XpY.swap_axes(0, 1);
+    XmY.swap_axes(1, 2);
+    XmY.swap_axes(0, 1);
+    c_matrix.swap_axes(1, 2);
+    c_matrix.swap_axes(0, 1);
+
+    return (Omega, c_matrix, XmY, XpY);
 }
 
 fn reorder_vectors_lambda2(
@@ -346,7 +446,7 @@ fn reorder_vectors_lambda2(
     w2: &Array1<f64>,
     T: &Array3<f64>,
     l2_treshold: f64,
-) ->(Array1<f64>,Array3<f64>){
+) -> (Array1<f64>, Array3<f64>) {
     // reorder the expansion vectors so that those with Lambda2 values
     // above a certain threshold come first
     let n_occ: usize = T.dim().0;
@@ -365,21 +465,43 @@ fn reorder_vectors_lambda2(
             .into_scalar();
     }
     //get indeces
-    let over_l2: Array1<_> = l2.indexed_iter().filter_map(|(index, &item)| if item > l2_treshold { Some(index) } else { None }).collect();
-    let under_l2: Array1<_> = l2.indexed_iter().filter_map(|(index, &item)| if item < l2_treshold { Some(index) } else { None }).collect();
+    let over_l2: Array1<_> = l2
+        .indexed_iter()
+        .filter_map(|(index, &item)| {
+            if item > l2_treshold {
+                Some(index)
+            } else {
+                None
+            }
+        })
+        .collect();
+    let under_l2: Array1<_> = l2
+        .indexed_iter()
+        .filter_map(|(index, &item)| {
+            if item < l2_treshold {
+                Some(index)
+            } else {
+                None
+            }
+        })
+        .collect();
 
-    let mut T_new:Array3<f64> = Array::zeros((n_occ,n_virt,n_st));
+    let mut T_new: Array3<f64> = Array::zeros((n_occ, n_virt, n_st));
     let mut w2_new: Array1<f64> = Array::zeros(n_st);
 
     //construct new matrices
-    for i in 0.. over_l2.len(){
-        T_new.slice_mut(s![..,..,i]).assign(&T.slice(s![..,..,over_l2[i]]));
+    for i in 0..over_l2.len() {
+        T_new
+            .slice_mut(s![.., .., i])
+            .assign(&T.slice(s![.., .., over_l2[i]]));
         w2_new[i] = w2[over_l2[i]];
     }
-    let len_over_l2:usize = over_l2.len();
-    for i in 0.. under_l2.len(){
-        T_new.slice_mut(s![..,..,i+len_over_l2]).assign(&T.slice(s![..,..,under_l2[i]]));
-        w2_new[i+len_over_l2] = w2[under_l2[i]];
+    let len_over_l2: usize = over_l2.len();
+    for i in 0..under_l2.len() {
+        T_new
+            .slice_mut(s![.., .., i + len_over_l2])
+            .assign(&T.slice(s![.., .., under_l2[i]]));
+        w2_new[i + len_over_l2] = w2[under_l2[i]];
     }
 
     return (w2_new, T_new);
