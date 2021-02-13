@@ -311,7 +311,6 @@ fn hermitian_davidson(
     if XpYguess.is_some() == false {
         let omega_guess: Array2<f64> = om.map(|om| ndarray_linalg::Scalar::sqrt(om));
         bs = initial_expansion_vectors(omega_guess, lmax);
-    // new function to calculate bs
     } else {
         for i in 0..lmax {
             //bs.slice_mut(s![.., .., i]).assign(&(&omega_sq_inv * &XpYguess.unwrap().slice(s![i, .., ..])));
@@ -440,6 +439,119 @@ fn hermitian_davidson(
     c_matrix.swap_axes(0, 1);
 
     return (Omega, c_matrix, XmY, XpY);
+}
+
+fn non_hermitian_davidson(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    qtrans_oo: ArrayView3<f64>,
+    qtrans_vv: ArrayView3<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    XmYguess: Option<ArrayView3<f64>>,
+    XpYguess: Option<ArrayView3<f64>>,
+    w_guess: Option<ArrayView1<f64>>,
+    multiplicity: usize,
+    nstates: Option<usize>,
+    ifact: Option<usize>,
+    maxiter: Option<usize>,
+    conv: Option<f64>,
+    l2_treshold: Option<f64>,
+    lc: Option<usize>,
+) -> () {
+    // set values or defaults
+    let nstates: usize = nstates.unwrap_or(4);
+    let ifact: usize = ifact.unwrap_or(1);
+    let maxiter: usize = maxiter.unwrap_or(10);
+    let conv: f64 = conv.unwrap_or(1.0e-14);
+    let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
+    let lc:usize = lc.unwrap_or(1);
+
+
+}
+
+fn get_apbv(
+    gamma: &ArrayView2<f64>,
+    gamma_lr: &ArrayView2<f64>,
+    qtrans_oo: &ArrayView3<f64>,
+    qtrans_vv: &ArrayView3<f64>,
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
+    vs: &Array3<f64>,
+    lc:usize,
+)->(Array3<f64>){
+    let lmax:usize = vs.dim().2;
+    let mut us:Array3<f64> = Array::zeros((vs.shape())).into_dimensionality().unwrap();
+
+    for i in 0.. lmax{
+        let v:Array2<f64> = vs.slice(s![..,..,i]).to_owned();
+        // # matrix product u_ia = sum_jb (A+B)_(ia,jb) v_jb
+        // # 1st term in (A+B).v  - KS orbital energy differences
+        let mut u:Array2<f64> = omega * &v;
+        // 2nd term Coulomb
+        let tmp:Array1<f64> = tensordot(&qtrans_ov,&v,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix1>().unwrap();
+        let tmp_2:Array1<f64> = gamma.dot(&tmp);
+        u = u + 4.0 * tensordot(&qtrans_ov,&tmp_2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix2>().unwrap();
+
+        if lc == 1 {
+            // 3rd term - Exchange
+            let tmp:Array3<f64> = tensordot(&qtrans_vv,&v,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+            let tmp_2:Array3<f64> = tensordot(&gamma_lr,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+            u = u - tensordot(&qtrans_oo,&tmp_2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix2>().unwrap();
+
+            //4th term - Exchange
+            let tmp:Array3<f64> = tensordot(&qtrans_ov,&v,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+            let tmp_2:Array3<f64> = tensordot(&gamma_lr,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+            u = u - tensordot(&qtrans_ov,&tmp_2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix2>().unwrap();
+        }
+        else{
+            println!("Turn on long range correction!");
+        }
+
+        us.slice_mut(s![..,..,i]).assign(&u);
+    }
+    return us;
+}
+
+fn get_ambv(
+    gamma: &ArrayView2<f64>,
+    gamma_lr: &ArrayView2<f64>,
+    qtrans_oo: &ArrayView3<f64>,
+    qtrans_vv: &ArrayView3<f64>,
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
+    vs: &Array3<f64>,
+    lc:usize,
+)->(Array3<f64>){
+    let lmax:usize = vs.dim().2;
+    let mut us:Array3<f64> = Array::zeros((vs.shape())).into_dimensionality().unwrap();
+
+    for i in 0.. lmax{
+        let v:Array2<f64> = vs.slice(s![..,..,i]).to_owned();
+        // # matrix product u_ia = sum_jb (A-B)_(ia,jb) v_jb
+        // # 1st term, differences in orbital energies
+        let mut u:Array2<f64> = omega * &v;
+
+        if lc == 1 {
+            // 2nd term - Coulomb
+            let tmp:Array3<f64> = tensordot(&qtrans_ov,&v,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+            let tmp_2:Array3<f64> = tensordot(&gamma_lr,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+            u = u + tensordot(&qtrans_ov,&tmp_2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix2>().unwrap();
+
+            //3rd term - Exchange
+            let tmp:Array3<f64> = tensordot(&qtrans_vv,&v,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+            let tmp_2:Array3<f64> = tensordot(&gamma_lr,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+            u = u - tensordot(&qtrans_oo,&tmp_2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix2>().unwrap();
+        }
+        else{
+            println!("Turn on long range correction!");
+        }
+
+        us.slice_mut(s![..,..,i]).assign(&u);
+    }
+    return us;
 }
 
 fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Array3<f64>) {
