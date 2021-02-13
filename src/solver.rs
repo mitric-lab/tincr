@@ -310,6 +310,7 @@ fn hermitian_davidson(
     let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     if XpYguess.is_some() == false {
         let omega_guess: Array2<f64> = om.map(|om| ndarray_linalg::Scalar::sqrt(om));
+        bs = initial_expansion_vectors(omega_guess, lmax);
     // new function to calculate bs
     } else {
         for i in 0..lmax {
@@ -439,6 +440,36 @@ fn hermitian_davidson(
     c_matrix.swap_axes(0, 1);
 
     return (Omega, c_matrix, XmY, XpY);
+}
+
+fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Array3<f64>) {
+    //     The initial guess vectors are the lmax lowest energy
+    //     single excitations
+    let n_occ: usize = omega_guess.dim().0;
+    let n_virt: usize = omega_guess.dim().1;
+    let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+    // flatten omega, python: numpy.ravel(omega)
+    let omega_length: usize = omega_guess.iter().len();
+    let omega_flat = omega_guess.into_shape(omega_length).unwrap();
+    // sort omega, only possible for vectors
+    let mut omega_vec = omega_flat.to_vec();
+    omega_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let omega_flat = Array::from_vec(omega_vec);
+    let indices: Array1<usize> = omega_flat
+        .indexed_iter()
+        .filter_map(|(index, &item)| Some(index))
+        .collect();
+
+    for j in 0..lmax {
+        let idx = indices[j];
+        // row - occupied index
+        let i: usize = (idx / n_virt) as usize;
+        // col - virtual index
+        let a: usize = idx % n_virt;
+
+        bs[[i, a, j]] = 1.0;
+    }
+    return bs;
 }
 
 fn reorder_vectors_lambda2(
