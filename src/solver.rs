@@ -531,7 +531,7 @@ fn non_hermitian_davidson(
     let k: usize = nstates;
 
     let mut w: Array1<f64> = Array::zeros(lmax);
-    let mut T_b: Array2<f64> = Array::zeros((lmax, lmax));
+    let mut Tb: Array2<f64> = Array::zeros((lmax, lmax));
 
     let mut l_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     let mut r_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
@@ -570,8 +570,9 @@ fn non_hermitian_davidson(
                 // could raise error here
                 println!("Mh is not hermitian");
             }
-            let (w2, Tb): (Array1<f64>, Array2<f64>) = mh.eigh(UPLO::Upper).unwrap();
-
+            let tmp: (Array1<f64>,Array2<f64>) = mh.eigh(UPLO::Upper).unwrap();
+            let w2:Array1<f64> = tmp.0;
+            Tb = tmp.1;
             //In DFTBaby check for selector(symmetry checker)
 
             w = w2.mapv(f64::sqrt);
@@ -625,14 +626,11 @@ fn non_hermitian_davidson(
         let mut norms_l: Array1<f64> = Array::zeros(k);
         let mut norms_r: Array1<f64> = Array::zeros(k);
 
-        println!("test 3");
-
         for i in 0..k {
             norms_l[i] = norm_special(&wl.slice(s![.., .., i]).to_owned());
             norms_r[i] = norm_special(&wr.slice(s![.., .., i]).to_owned());
             norms[i] = norms_l[i] + norms_r[i];
         }
-        println!("Test 4");
         // check for convergence
         let indices_norms: Array1<usize> = norms
             .indexed_iter()
@@ -649,7 +647,6 @@ fn non_hermitian_davidson(
         //1.0e-16
         let eps = 0.01 * conv;
 
-        println!("Test 5");
 
         let indices_norm_r_over_eps: Array1<usize> = norms_r
             .indexed_iter()
@@ -674,8 +671,6 @@ fn non_hermitian_davidson(
         let dk_r: usize = ((dkmax as f64 / 2.0) as usize).min(nc_l as usize);
         let dk_l: usize = (dkmax - dk_r).min(nc_r as usize);
         let dk: usize = dk_r + dk_l;
-
-        println!("Test 6");
 
         let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
         let mut nb: i32 = 0;
@@ -732,12 +727,11 @@ fn non_hermitian_davidson(
         bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
         l = bs.dim().2;
     }
-    println!("Test End of fn");
     let Omega: Array1<f64> = w.slice(s![..k]).to_owned();
     let mut XpY: Array3<f64> = r_canon.slice(s![.., .., ..k]).to_owned();
     let mut XmY: Array3<f64> = l_canon.slice(s![.., .., ..k]).to_owned();
-    println!("Test 7");
-    let t_matrix: Array3<f64> = tensordot(&bs, &T_b, &[Axis(2)], &[Axis(0)])
+
+    let t_matrix: Array3<f64> = tensordot(&bs, &Tb, &[Axis(2)], &[Axis(0)])
         .into_dimensionality::<Ix3>()
         .unwrap();
     let mut c_matrix: Array3<f64> = t_matrix.slice(s![.., .., ..k]).to_owned();
