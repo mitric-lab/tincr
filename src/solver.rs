@@ -1012,6 +1012,45 @@ fn matrix_v_product(
     return us;
 }
 
+fn krylov_solver_zvector(
+    a_diag:ArrayView2<f64>,
+    b_matrix:ArrayView3<f64>,
+    x_0: Option<ArrayView3<f64>>,
+    maxiter: Option<usize>,
+    conv: Option<f64>,
+){
+    // Parameters:
+    // ===========
+    // A: linear operator, such that A(X) = A.X
+    // Adiag: diagonal elements of A-matrix, with dimension (nocc,nvirt)
+    // B: right hand side of equation, (nocc,nvirt, k)
+    // X0: initial guess vectors or None
+
+    let maxiter:usize = maxiter.unwrap_or(1000);
+    let conv:f64 = conv.unwrap_or(1.0e-14);
+
+    let n_occ:usize = b_matrix.dim().0;
+    let n_virt:usize = b_matrix.dim().1;
+    let k:usize = b_matrix.dim().2;
+    // number of vectors
+    let kmax:usize = n_occ * n_virt;
+    let l:usize = k;
+
+    // bs are expansion vectors
+    let a_inv:Array2<f64> = 1.0/&a_diag.to_owned();
+    let mut bs:Array3<f64> = Array::zeros((n_occ,n_virt,k));
+
+    if x_0.is_none(){
+        for i in 0.. k{
+            bs.slice_mut(s![..,..,i]).assign(&(&a_inv*&b_matrix.slice(s![..,..,i])));
+        }
+    }
+    else{
+        bs = x_0;
+    }
+
+}
+
 #[test]
 fn tda_routine() {
     let orbe: Array1<f64> = array![
