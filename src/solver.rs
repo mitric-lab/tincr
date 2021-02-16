@@ -1018,6 +1018,11 @@ fn krylov_solver_zvector(
     x_0: Option<ArrayView3<f64>>,
     maxiter: Option<usize>,
     conv: Option<f64>,
+    g0:ArrayView2<f64>,
+    g0_lr:ArrayView2<f64>,
+    qtrans_oo:ArrayView3<f64>,
+    qtrans_vv:ArrayView3<f64>,
+    qtrans_ov:ArrayView3<f64>,
 ){
     // Parameters:
     // ===========
@@ -1046,7 +1051,30 @@ fn krylov_solver_zvector(
         }
     }
     else{
-        bs = x_0;
+        bs = x_0.unwrap().to_owned();
+    }
+
+    for it in 0.. maxiter{
+        // representation of A in the basis of expansion vectors
+        let a_b:Array2<f64> = tensordot(&bs,&get_apbv(&g0,&g0_lr,&qtrans_oo,&qtrans_vv,&qtrans_ov,&a_diag,&bs,1),&[Axis(0),Axis(1)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
+        // RHS in basis of expansion vectors
+        let b_b:Array2<f64> = tensordot(&bs, &b_matrix, &[Axis(0),Axis(1)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
+        // solve
+        let mut x_b: Array2<f64> = Array2::zeros((k,k));
+        for i in 0.. k{
+            x_b.slice_mut(s![i, ..]).assign((&a_b.solve(&b_b.slice(s![.., i])).unwrap()));
+        }
+        x_b = x_b.reversed_axes();
+        // transform solution vector back into canonical basis
+        let x_matrix:Array3<f64> = tensordot(&bs, &x_b, &[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+        // residual vectors
+        let w_res:Array3<f64> = &get_apbv(&g0,&g0_lr,&qtrans_oo,&qtrans_vv,&qtrans_ov,&a_diag,&x_matrix,1)-&b_matrix;
+        let mut norms:Array1<f64> = Array::zeros(k);
+        for i in 0.. k{
+            norms[k] = norm_special(&w_res.slice(s![..,..,i]).to_owned());
+        }
+
+
     }
 
 }
