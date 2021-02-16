@@ -1054,6 +1054,8 @@ fn krylov_solver_zvector(
         bs = x_0.unwrap().to_owned();
     }
 
+    let mut x_matrix:Array3<f64> = Array::zeros((n_occ,n_virt,k));
+
     for it in 0.. maxiter{
         // representation of A in the basis of expansion vectors
         let a_b:Array2<f64> = tensordot(&bs,&get_apbv(&g0,&g0_lr,&qtrans_oo,&qtrans_vv,&qtrans_ov,&a_diag,&bs,1),&[Axis(0),Axis(1)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
@@ -1066,7 +1068,7 @@ fn krylov_solver_zvector(
         }
         x_b = x_b.reversed_axes();
         // transform solution vector back into canonical basis
-        let x_matrix:Array3<f64> = tensordot(&bs, &x_b, &[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+        x_matrix = tensordot(&bs, &x_b, &[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
         // residual vectors
         let w_res:Array3<f64> = &get_apbv(&g0,&g0_lr,&qtrans_oo,&qtrans_vv,&qtrans_ov,&a_diag,&x_matrix,1)-&b_matrix;
         let mut norms:Array1<f64> = Array::zeros(k);
