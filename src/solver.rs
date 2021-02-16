@@ -1039,7 +1039,7 @@ fn krylov_solver_zvector(
     let k:usize = b_matrix.dim().2;
     // number of vectors
     let kmax:usize = n_occ * n_virt;
-    let l:usize = k;
+    let mut l:usize = k;
 
     // bs are expansion vectors
     let a_inv:Array2<f64> = 1.0/&a_diag.to_owned();
@@ -1073,8 +1073,59 @@ fn krylov_solver_zvector(
         for i in 0.. k{
             norms[k] = norm_special(&w_res.slice(s![..,..,i]).to_owned());
         }
+        // check if all values of the norms are under the convergence criteria
+        let indices_norms: Array1<usize> = norms
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item < conv { Some(index) } else { None })
+            .collect();
+        if indices_norms.len() == norms.len() {
+            break;
+        }
 
+        // # enlarge dimension of subspace by dk vectors
+        // # At most k new expansion vectors are added
+        let dkmax = (kmax - l).min(k);
+        // # count number of non-converged vectors
+        // # residual vectors that are zero cannot be used as new expansion vectors
+        //1.0e-16
+        let eps = 0.01 * conv;
+        // version for nc = np.sum(norms > eps)
+        let indices_norm_over_eps: Array1<usize> = norms
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
+            .collect();
+        let mut norms_over_eps: Array1<f64> = Array::zeros(indices_norm_over_eps.len());
+        for i in 0..indices_norm_over_eps.len() {
+            norms_over_eps[i] = norms[indices_norm_over_eps[i]];
+        }
+        let nc: f64 = norms_over_eps.sum();
+        let dk: usize = dkmax.min(nc as usize);
+        let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
+        let mut nb: i32 = 0;
 
+        for i in 0.. dkmax{
+            if norms[i] > eps {
+                Qs.slice_mut(s![.., .., nb])
+                    .assign(&((&a_inv) * &w_res.slice(s![.., .., i])));
+                nb += 1;
+            }
+        }
+        assert!(nb as usize == dk);
+        // new expansion vectors are bs + Qs
+        let mut bs_new: Array3<f64> = Array::zeros((n_occ,n_virt,l+dk));
+        bs_new.slice_mut(s![..,..,..l]).assign(&bs);
+        bs_new.slice_mut(s![..,..,l..]).assign(&Qs);
+
+        // QR decomposition as in hermitian davidson
+        // to receive orthogonalized vectors
+        // alternative: implement gram schmidt orthogonalization
+        // Alexander also uses this method in hermitian davidson
+
+        let nvec: usize = l + dk;
+        let bs_flat: Array2<f64> = bs_new.into_shape((n_occ * n_virt, nvec)).unwrap();
+        let (Q, R): (Array2<f64>, Array2<f64>) = bs_flat.qr().unwrap();
+        bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
+        l = bs.dim().2;
     }
 
 }
