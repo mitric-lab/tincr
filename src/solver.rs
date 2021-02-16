@@ -7,7 +7,7 @@ use peroxide::prelude::*;
 use std::cmp::Ordering;
 use std::ops::AddAssign;
 
-fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
+pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
     idx.sort_unstable_by(|&i, &j| v[i].partial_cmp(&v[j]).unwrap_or(Ordering::Equal));
     idx
@@ -112,7 +112,7 @@ pub fn build_b_matrix(
     return df_half.dot(&k_coupling.dot(&df_half));
 }
 
-fn get_orbital_en_diff(
+pub fn get_orbital_en_diff(
     orbe: ArrayView1<f64>,
     n_occ: usize,
     n_virt: usize,
@@ -130,7 +130,7 @@ fn get_orbital_en_diff(
     return omega;
 }
 
-fn get_orbital_occ_diff(
+pub fn get_orbital_occ_diff(
     f: ArrayView1<f64>,
     n_occ: usize,
     n_virt: usize,
@@ -148,7 +148,7 @@ fn get_orbital_occ_diff(
     return df;
 }
 
-fn tda(
+pub fn tda(
     gamma: ArrayView2<f64>,
     gamma_lr: ArrayView2<f64>,
     q_trans_ov: ArrayView3<f64>,
@@ -179,7 +179,7 @@ fn tda(
     return (omega, c_ij);
 }
 
-fn casida(
+pub fn casida(
     gamma: ArrayView2<f64>,
     gamma_lr: ArrayView2<f64>,
     q_trans_ov: ArrayView3<f64>,
@@ -299,7 +299,7 @@ fn casida(
     return (omega, c_matrix_transformed, XmY_final, XpY_final);
 }
 
-fn hermitian_davidson(
+pub fn hermitian_davidson(
     gamma: ArrayView2<f64>,
     qtrans_ov: ArrayView3<f64>,
     omega: ArrayView2<f64>,
@@ -481,7 +481,7 @@ fn hermitian_davidson(
     return (Omega, c_matrix, XmY, XpY);
 }
 
-fn non_hermitian_davidson(
+pub fn non_hermitian_davidson(
     gamma: ArrayView2<f64>,
     gamma_lr: ArrayView2<f64>,
     qtrans_oo: ArrayView3<f64>,
@@ -616,7 +616,6 @@ fn non_hermitian_davidson(
             r_canon = tensordot(&bs, &rb, &[Axis(2)], &[Axis(0)])
                 .into_dimensionality::<Ix3>()
                 .unwrap();
-
         } else {
             // bring axis with state indeces to the back
             let mut XmY_temp: Array3<f64> = XmYguess.unwrap().to_owned();
@@ -761,7 +760,7 @@ fn non_hermitian_davidson(
     return (Omega, c_matrix, XmY, XpY);
 }
 
-fn get_apbv(
+pub fn get_apbv(
     gamma: &ArrayView2<f64>,
     gamma_lr: &ArrayView2<f64>,
     qtrans_oo: &ArrayView3<f64>,
@@ -820,7 +819,7 @@ fn get_apbv(
     return us;
 }
 
-fn get_ambv(
+pub fn get_ambv(
     gamma: &ArrayView2<f64>,
     gamma_lr: &ArrayView2<f64>,
     qtrans_oo: &ArrayView3<f64>,
@@ -870,7 +869,7 @@ fn get_ambv(
     return us;
 }
 
-fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Array3<f64>) {
+pub fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Array3<f64>) {
     //     The initial guess vectors are the lmax lowest energy
     //     single excitations
     let n_occ: usize = omega_guess.dim().0;
@@ -909,7 +908,7 @@ fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Array3<f
     return bs;
 }
 
-fn reorder_vectors_lambda2(
+pub fn reorder_vectors_lambda2(
     Oia: &ArrayView2<f64>,
     w2: &Array1<f64>,
     T: &Array3<f64>,
@@ -975,7 +974,7 @@ fn reorder_vectors_lambda2(
     return (w2_new, T_new);
 }
 
-fn norm_special(array: &Array2<f64>) -> (f64) {
+pub fn norm_special(array: &Array2<f64>) -> (f64) {
     let v: f64 = tensordot(&array, &array, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
         .into_dimensionality::<Ix0>()
         .unwrap()
@@ -983,7 +982,7 @@ fn norm_special(array: &Array2<f64>) -> (f64) {
     return v.sqrt();
 }
 
-fn matrix_v_product(
+pub fn matrix_v_product(
     vs: &Array3<f64>,
     lmax: usize,
     n_occ: usize,
@@ -1012,18 +1011,18 @@ fn matrix_v_product(
     return us;
 }
 
-fn krylov_solver_zvector(
-    a_diag:ArrayView2<f64>,
-    b_matrix:ArrayView3<f64>,
+pub fn krylov_solver_zvector(
+    a_diag: ArrayView2<f64>,
+    b_matrix: ArrayView3<f64>,
     x_0: Option<ArrayView3<f64>>,
     maxiter: Option<usize>,
     conv: Option<f64>,
-    g0:ArrayView2<f64>,
-    g0_lr:ArrayView2<f64>,
-    qtrans_oo:ArrayView3<f64>,
-    qtrans_vv:ArrayView3<f64>,
-    qtrans_ov:ArrayView3<f64>,
-)->(Array3<f64>){
+    g0: ArrayView2<f64>,
+    g0_lr: ArrayView2<f64>,
+    qtrans_oo: ArrayView3<f64>,
+    qtrans_vv: ArrayView3<f64>,
+    qtrans_ov: ArrayView3<f64>,
+) -> (Array3<f64>) {
     // Parameters:
     // ===========
     // A: linear operator, such that A(X) = A.X
@@ -1031,49 +1030,65 @@ fn krylov_solver_zvector(
     // B: right hand side of equation, (nocc,nvirt, k)
     // X0: initial guess vectors or None
 
-    let maxiter:usize = maxiter.unwrap_or(1000);
-    let conv:f64 = conv.unwrap_or(1.0e-14);
+    let maxiter: usize = maxiter.unwrap_or(1000);
+    let conv: f64 = conv.unwrap_or(1.0e-14);
 
-    let n_occ:usize = b_matrix.dim().0;
-    let n_virt:usize = b_matrix.dim().1;
-    let k:usize = b_matrix.dim().2;
+    let n_occ: usize = b_matrix.dim().0;
+    let n_virt: usize = b_matrix.dim().1;
+    let k: usize = b_matrix.dim().2;
     // number of vectors
-    let kmax:usize = n_occ * n_virt;
-    let mut l:usize = k;
+    let kmax: usize = n_occ * n_virt;
+    let mut l: usize = k;
 
     // bs are expansion vectors
-    let a_inv:Array2<f64> = 1.0/&a_diag.to_owned();
-    let mut bs:Array3<f64> = Array::zeros((n_occ,n_virt,k));
+    let a_inv: Array2<f64> = 1.0 / &a_diag.to_owned();
+    let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, k));
 
-    if x_0.is_none(){
-        for i in 0.. k{
-            bs.slice_mut(s![..,..,i]).assign(&(&a_inv*&b_matrix.slice(s![..,..,i])));
+    if x_0.is_none() {
+        for i in 0..k {
+            bs.slice_mut(s![.., .., i])
+                .assign(&(&a_inv * &b_matrix.slice(s![.., .., i])));
         }
-    }
-    else{
+    } else {
         bs = x_0.unwrap().to_owned();
     }
 
-    let mut x_matrix:Array3<f64> = Array::zeros((n_occ,n_virt,k));
+    let mut x_matrix: Array3<f64> = Array::zeros((n_occ, n_virt, k));
 
-    for it in 0.. maxiter{
+    for it in 0..maxiter {
         // representation of A in the basis of expansion vectors
-        let a_b:Array2<f64> = tensordot(&bs,&get_apbv(&g0,&g0_lr,&qtrans_oo,&qtrans_vv,&qtrans_ov,&a_diag,&bs,1),&[Axis(0),Axis(1)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
+        let a_b: Array2<f64> = tensordot(
+            &bs,
+            &get_apbv(
+                &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &bs, 1,
+            ),
+            &[Axis(0), Axis(1)],
+            &[Axis(0), Axis(1)],
+        )
+        .into_dimensionality::<Ix2>()
+        .unwrap();
         // RHS in basis of expansion vectors
-        let b_b:Array2<f64> = tensordot(&bs, &b_matrix, &[Axis(0),Axis(1)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
+        let b_b: Array2<f64> = tensordot(&bs, &b_matrix, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+            .into_dimensionality::<Ix2>()
+            .unwrap();
         // solve
-        let mut x_b: Array2<f64> = Array2::zeros((k,k));
-        for i in 0.. k{
-            x_b.slice_mut(s![i, ..]).assign((&a_b.solve(&b_b.slice(s![.., i])).unwrap()));
+        let mut x_b: Array2<f64> = Array2::zeros((k, k));
+        for i in 0..k {
+            x_b.slice_mut(s![i, ..])
+                .assign((&a_b.solve(&b_b.slice(s![.., i])).unwrap()));
         }
         x_b = x_b.reversed_axes();
         // transform solution vector back into canonical basis
-        x_matrix = tensordot(&bs, &x_b, &[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+        x_matrix = tensordot(&bs, &x_b, &[Axis(2)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
         // residual vectors
-        let w_res:Array3<f64> = &get_apbv(&g0,&g0_lr,&qtrans_oo,&qtrans_vv,&qtrans_ov,&a_diag,&x_matrix,1)-&b_matrix;
-        let mut norms:Array1<f64> = Array::zeros(k);
-        for i in 0.. k{
-            norms[k] = norm_special(&w_res.slice(s![..,..,i]).to_owned());
+        let w_res: Array3<f64> = &get_apbv(
+            &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &x_matrix, 1,
+        ) - &b_matrix;
+        let mut norms: Array1<f64> = Array::zeros(k);
+        for i in 0..k {
+            norms[k] = norm_special(&w_res.slice(s![.., .., i]).to_owned());
         }
         // check if all values of the norms are under the convergence criteria
         let indices_norms: Array1<usize> = norms
@@ -1105,7 +1120,7 @@ fn krylov_solver_zvector(
         let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
         let mut nb: i32 = 0;
 
-        for i in 0.. dkmax{
+        for i in 0..dkmax {
             if norms[i] > eps {
                 Qs.slice_mut(s![.., .., nb])
                     .assign(&((&a_inv) * &w_res.slice(s![.., .., i])));
@@ -1114,9 +1129,9 @@ fn krylov_solver_zvector(
         }
         assert!(nb as usize == dk);
         // new expansion vectors are bs + Qs
-        let mut bs_new: Array3<f64> = Array::zeros((n_occ,n_virt,l+dk));
-        bs_new.slice_mut(s![..,..,..l]).assign(&bs);
-        bs_new.slice_mut(s![..,..,l..]).assign(&Qs);
+        let mut bs_new: Array3<f64> = Array::zeros((n_occ, n_virt, l + dk));
+        bs_new.slice_mut(s![.., .., ..l]).assign(&bs);
+        bs_new.slice_mut(s![.., .., l..]).assign(&Qs);
 
         // QR decomposition as in hermitian davidson
         // to receive orthogonalized vectors

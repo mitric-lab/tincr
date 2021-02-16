@@ -6,6 +6,7 @@ use crate::molecule::{distance_matrix, Molecule};
 use crate::parameters::*;
 use crate::scc_routine::density_matrix_ref;
 use crate::slako_transformations::*;
+use crate::solver::*;
 use approx::AbsDiffEq;
 use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
@@ -237,9 +238,12 @@ fn gradients_lc_es(
     qtrans_ov: ArrayView3<f64>,
     orbe_occ: Array1<f64>,
     orbe_virt: Array1<f64>,
+    check_z_vec: Option<usize>,
 ) {
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
+    let n_occ: usize = orbe_occ.len();
+    let n_virt: usize = orbe_virt.len();
 
     //select state in XpY and XmY
     let XmY_state: Array2<f64> = XmY.slice(s![state, .., ..]).to_owned();
@@ -413,12 +417,46 @@ fn gradients_lc_es(
         .unwrap();
 
     //q_ab
-    let q_ab:Array2<f64> = omega_state * u_ab + v_ab;
+    let q_ab: Array2<f64> = omega_state * u_ab + v_ab;
 
     // right hand side
-    let r_ia:Array2<f64> = &q_ai.t() - &q_ia;
+    let r_ia: Array2<f64> = &q_ai.t() - &q_ia;
 
     // solve z-vector equation
+    // build omega
+    let omega: Array2<f64> = get_outer_product(&Array::ones(orbe_occ.len()).view(), &orbe_virt.view())
+        - get_outer_product(&orbe_occ.view(), &Array::ones(orbe_virt.len()).view());
+    let b_matrix_input: Array3<f64> = r_ia.into_shape((n_occ, n_virt, 1)).unwrap();
+    let z_ia: Array3<f64> = krylov_solver_zvector(
+        omega.view(),
+        b_matrix_input.view(),
+        None,
+        None,
+        None,
+        g0,
+        g0lr,
+        qtrans_oo,
+        qtrans_vv,
+        qtrans_ov,
+    );
+    let z_ia_transformed:Array2<f64> = z_ia.into_shape((n_occ,n_virt)).unwrap();
+
+    if check_z_vec.unwrap() == 1{
+        // compare with full solution
+
+    }
+    // build w
+
+}
+
+fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>) {
+    let mut matrix: Array2<f64> = Array::zeros((v1.len(), v2.len()));
+    for (i, i_value) in v1.outer_iter().enumerate() {
+        for (j, j_value) in v2.outer_iter().enumerate() {
+            matrix[[i, j]] = (&i_value * &j_value).into_scalar();
+        }
+    }
+    return matrix;
 }
 
 fn f_lr(
