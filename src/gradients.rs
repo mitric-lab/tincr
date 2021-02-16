@@ -9,6 +9,10 @@ use crate::slako_transformations::*;
 use approx::AbsDiffEq;
 use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
 use std::collections::HashMap;
+use std::cmp::Ordering;
+use std::ops::AddAssign;
+use ndarray_einsum_beta::*;
+use ndarray_linalg::*;
 
 // only ground state
 pub fn gradient_nolc(
@@ -211,6 +215,96 @@ fn f_v(
     }
     f *= 0.25;
     return f;
+}
+
+fn f_lr(
+    v: ArrayView2<f64>,
+    s: ArrayView2<f64>,
+    grad_s: ArrayView3<f64>,
+    g0_ao: ArrayView2<f64>,
+    g0_lr_a0:ArrayView2<f64>,
+    g1_ao: ArrayView3<f64>,
+    g1_lr_ao:ArrayView3<f64>,
+    n_atoms: usize,
+    n_orb: usize,
+) ->(Array3<f64>){
+    let sv:Array2<f64> = s.dot(&v);
+    let svt:Array2<f64> = s.dot(&v.t());
+    let gv:Array2<f64> = &g0_lr_a0 * &v;
+    let dsv24:Array3<f64> = tensordot(&grad_s,&v,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    let dsv23:Array3<f64> = tensordot(&grad_s,&v,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    let mut dgv:Array3<f64> = Array::zeros((3*n_atoms,n_orb,n_orb));
+
+    let mut flr:Array3<f64> = Array::zeros((3*n_atoms,n_orb,n_orb));
+    let tmp1:Array3<f64> = tensordot(&grad_s,&sv,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+
+    let mut tmp2:Array3<f64> = Array::zeros((3*n_atoms,n_orb,n_orb));
+    let mut tmp7:Array3<f64> = Array::zeros((3*n_atoms,n_orb,n_orb));
+    let mut tmp10:Array3<f64> = Array::zeros((3*n_atoms,n_orb,n_orb));
+    let mut tmp11:Array3<f64> = Array::zeros((3*n_atoms,n_orb,n_orb));
+
+    //for nc in 0..(3*n_atoms){
+    //    dgv.slice_mut(s![nc,..,..]).assign(&(g1_lr_ao.slice(s![nc,..,..]).to_owned()*&v));
+    //    flr.slice_mut(s![nc,..,..]).add_assign(&(&g0_lr_a0*&tmp1.slice(s![nc,..,..])));
+    //    tmp2.slice_mut(s![nc,..,..]).assign(&(&dsv24.slice(s![nc,..,..])*&g0_lr_a0));
+    //    tmp7.slice_mut(s![nc,..,..]).assign(&(&dsv23.slice(s![nc,..,..])*&g0_lr_a0));
+    //    tmp10.slice_mut(s![nc,..,..]).assign(&(&svt*&g1_lr_ao.slice(s![nc,..,..])));
+    //    tmp11.slice_mut(s![nc,..,..]).assign(&(&sv*&g1_lr_ao.slice(s![nc,..,..])));
+    //}
+
+    // replace loop with einsums
+    dgv = einsum("ijk,jk->ijk",&[&g1_lr_ao,&v]).unwrap().into_dimensionality::<Ix3>().unwrap();
+    flr =  flr + einsum("jk,ijk->ijk",&[&g0_lr_a0,&tmp1]).unwrap().into_dimensionality::<Ix3>().unwrap();
+    tmp2 = einsum("ijk,jk->ijk",&[&dsv24,&g0_lr_a0]).unwrap().into_dimensionality::<Ix3>().unwrap();
+    tmp7 = einsum("ijk,jk->ijk",&[&dsv23,&g0_lr_a0]).unwrap().into_dimensionality::<Ix3>().unwrap();
+    tmp10 = einsum("jk,ijk->ijk",&[&svt,&g1_lr_ao]).unwrap().into_dimensionality::<Ix3>().unwrap();
+    tmp11 = einsum("jk,ijk->ijk",&[&sv,&g1_lr_ao]).unwrap().into_dimensionality::<Ix3>().unwrap();
+
+    flr = flr + tensordot(&tmp2,&s,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    flr = flr + tensordot(&grad_s,&(&sv*&g0_lr_a0),&[Axis(2)],&[Axis(1)]);
+    flr = flr + tensordot(&grad_s, &s.dot(&gv),&[Axis(2)],&[Axis(1)]);
+
+    let mut tmp5:Array3<f64> = tensordot(&s, &dsv23, &[Axis(1)],&[Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    tmp5.swap_axes(0,1);
+
+    for nc in 0.. (3*n_atoms){
+        flr.slice_mut(s![nc,..,..]).add_assign(&(&g0_lr_a0*&tmp5.slice(s![nc,..,..])));
+    }
+    let mut tmp_6:Array3<f64> = tensordot(&(&svt*&g0_lr_a0),&grad_s,&[Axis(1)],&[Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    tmp_6.swap_axes(0,1);
+
+    flr = flr + tmp_6;
+
+    let mut tmp_7:Array3<f64> = tensordot(&s,&tmp7,&[Axis(1)],&[Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    tmp_7.swap_axes(0,1);
+
+    flr = flr +tmp_7;
+
+    let mut tmp8:Array3<f64> = tensordot(&grad_s,&gv, &[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    tmp8.swap_axes(0,1);
+
+    flr = flr + tmp8;
+
+    let tmp9:Array2<f64> = s.dot(&sv.t());
+
+    for nc in 0..(3*n_atoms){
+        flr.slice_mut(s![nc,..,..]).add_assign(&(&g1_lr_ao.slice(s![nc,..,..])*&tmp9));
+    }
+
+    flr = flr + tensordot(&tmp10, &s, &[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+
+    let mut tmp_11:Array3<f64> = tensordot(&s,&tmp11, &[Axis(1)],&[Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    tmp_11.swap_axes(0,1);
+    flr = flr + tmp_11;
+
+    let mut tmp12:Array3<f64> = tensordot(&dgv,&s,&[Axis(1)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    tmp12.swap_axes(0,1);
+
+    flr = flr + tmp12;
+
+    flr = flr * 0.25;
+
+    return flr;
 }
 
 //  Compute the gradient of the repulsive potential
