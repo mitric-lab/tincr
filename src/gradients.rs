@@ -307,6 +307,99 @@ fn f_lr(
     return flr;
 }
 
+fn h_plus_lr_3dim(
+    g0_ao: ArrayView2<f64>,
+    g0_lr_a0:ArrayView2<f64>,
+    q_pq:ArrayView3<f64>,
+    q_rs:ArrayView3<f64>,
+    q_pr:ArrayView3<f64>,
+    q_qs:ArrayView3<f64>,
+    q_ps:ArrayView3<f64>,
+    q_qr:ArrayView3<f64>,
+    v_rs:ArrayView3<f64>,
+)->(Array3<f64>){
+    // term 1
+    let tmp:Array2<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
+    let tmp2:Array2<f64> = g0_ao.to_owned().dot(&tmp);
+    let mut hplus_pq:Array3<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    // term 2
+    let tmp:Array4<f64> = tensordot(&q_qs,&v_rs,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix4>().unwrap();
+    let tmp2:Array4<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    hplus_pq = hplus_pq - tensordot(&q_pr, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    // term 3
+    let tmp:Array4<f64> = tensordot(&q_qr,&v_rs,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    let tmp2:Array4<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    hplus_pq = hplus_pq - tensordot(&q_ps, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    return hplus_pq;
+}
+
+fn h_plus_lr_4dim(
+    g0_ao: ArrayView2<f64>,
+    g0_lr_a0:ArrayView2<f64>,
+    q_pq:ArrayView3<f64>,
+    q_rs:ArrayView3<f64>,
+    q_pr:ArrayView3<f64>,
+    q_qs:ArrayView3<f64>,
+    q_ps:ArrayView3<f64>,
+    q_qr:ArrayView3<f64>,
+    v_rs:ArrayView4<f64>,
+)->(Array4<f64>){
+    // term 1
+    let tmp:Array3<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    // dot not defined for Array2.dot(Array3)
+    // numpy If a is an N-D array and b is an M-D array (where M>=2), it is a sum product over the last axis of a and the second-to-last axis of b
+    // use tensordot
+    let tmp2:Array3<f64> =tensordot(&g0_ao,&v_rs,&[Axis(1)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    let mut hplus_pq:Array4<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    // term 2
+    let tmp:Array5<f64> = tensordot(&q_qs,&v_rs,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix5>().unwrap();
+    let tmp2:Array5<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix5>().unwrap();
+    hplus_pq = hplus_pq - tensordot(&q_pr, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix4>().unwrap();
+    // term 3
+    let tmp:Array5<f64> = tensordot(&q_qr,&v_rs,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix5>().unwrap();
+    let tmp2:Array5<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix5>().unwrap();
+    hplus_pq = hplus_pq - tensordot(&q_ps, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix4>().unwrap();
+    return hplus_pq;
+}
+
+fn h_plus_no_lr_3dim(
+    g0_ao: ArrayView2<f64>,
+    q_pq:ArrayView3<f64>,
+    q_rs:ArrayView3<f64>,
+    q_pr:ArrayView3<f64>,
+    q_qs:ArrayView3<f64>,
+    q_ps:ArrayView3<f64>,
+    q_qr:ArrayView3<f64>,
+    v_rs:ArrayView3<f64>,
+)->(Array3<f64>){
+    // term 1
+    let tmp:Array2<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
+    let tmp2:Array2<f64> = g0_ao.to_owned().dot(&tmp);
+    let hplus_pq:Array3<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    return hplus_pq;
+}
+
+fn h_plus_no_lr_4dim(
+    g0_ao: ArrayView2<f64>,
+    g0_lr_a0:ArrayView2<f64>,
+    q_pq:ArrayView3<f64>,
+    q_rs:ArrayView3<f64>,
+    q_pr:ArrayView3<f64>,
+    q_qs:ArrayView3<f64>,
+    q_ps:ArrayView3<f64>,
+    q_qr:ArrayView3<f64>,
+    v_rs:ArrayView4<f64>,
+)->(Array4<f64>){
+    // term 1
+    let tmp:Array3<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    // dot not defined for Array2.dot(Array3)
+    // numpy If a is an N-D array and b is an M-D array (where M>=2), it is a sum product over the last axis of a and the second-to-last axis of b
+    // use tensordot
+    let tmp2:Array3<f64> =tensordot(&g0_ao,&v_rs,&[Axis(1)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    let hplus_pq:Array4<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    return hplus_pq;
+}
+
 //  Compute the gradient of the repulsive potential
 //  Parameters:
 //  ===========
