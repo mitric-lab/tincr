@@ -227,7 +227,7 @@ fn casida(
     // construct hermitian eigenvalue problem
     // (A-B)^(1/2) (A+B) (A-B)^(1/2) F = Omega^2 F
     let R: Array2<f64> = sqAmB.dot(&ApB.dot(&sqAmB));
-    let (omega2, F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Upper).unwrap();
+    let (omega2, F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Lower).unwrap();
 
     let omega: Array1<f64> = omega2.mapv(f64::sqrt);
     //let omega: Array1<f64> = omega2.map(|omega2| ndarray_linalg::Scalar::sqrt(omega2));
@@ -262,24 +262,41 @@ fn casida(
             < 1.0e-10
     );
 
-    let XmY_transformed: Array3<f64> = XmY.reversed_axes().into_shape((n_occ * n_virt, n_occ, n_virt)).unwrap();
-    let XpY_transformed: Array3<f64> = XpY.reversed_axes().into_shape((n_occ * n_virt, n_occ, n_virt)).unwrap();
+    let XmY_transformed: Array3<f64> = XmY
+        .reversed_axes()
+        .into_shape((n_occ * n_virt, n_occ, n_virt))
+        .unwrap();
+    let XpY_transformed: Array3<f64> = XpY
+        .reversed_axes()
+        .into_shape((n_occ * n_virt, n_occ, n_virt))
+        .unwrap();
 
-    println!("F {}", F);
-    println!("XpY {}", XpY_transformed);
-    println!("XmY {}", XmY_transformed);
+    // wrong shape of XmY and XpY
+    // Another reversed axes of the inner Array2's necessary
+    let mut XmY_final: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
+    let mut XpY_final: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
+
+    for i in 0..(n_occ * n_virt) {
+        XmY_final.slice_mut(s![i, .., ..]).assign(
+            &XmY_transformed
+                .slice(s![i, .., ..])
+                .to_owned()
+                .reversed_axes(),
+        );
+        XpY_final.slice_mut(s![i, .., ..]).assign(
+            &XpY_transformed
+                .slice(s![i, .., ..])
+                .to_owned()
+                .reversed_axes(),
+        );
+    }
 
     let c_matrix_transformed: Array3<f64> = c_matrix
         .reversed_axes()
         .into_shape((n_occ * n_virt, n_occ, n_virt))
         .unwrap();
 
-    return (
-        omega,
-        c_matrix_transformed,
-        XmY_transformed,
-        XpY_transformed,
-    );
+    return (omega, c_matrix_transformed, XmY_final, XpY_final);
 }
 
 fn hermitian_davidson(
@@ -342,7 +359,6 @@ fn hermitian_davidson(
     let mut T_new: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     let mut r_bs_first: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     for it in 0..maxiter {
-        println!("bs matrix {}", bs);
         let r_bs: Array3<f64> = matrix_v_product(&bs, lmax, n_occ, n_virt, &om, &wq_ov, &gamma);
         r_bs_first = r_bs.clone();
         // shape of Hb: (lmax, lmax)
@@ -378,7 +394,6 @@ fn hermitian_davidson(
         for i in 0..k {
             norms_res[i] = norm_special(&W_res.slice(s![.., .., i]).to_owned());
         }
-        println!("residual norms {}", norms_res);
         // check if all norms are below the convergence criteria
         // maybe there is a faster method
         let indices_norms: Array1<usize> = norms_res
@@ -541,7 +556,6 @@ fn non_hermitian_davidson(
 
     for it in 0..maxiter {
         if XpYguess.is_none() || it > 0 {
-            println!("Test1");
             // # evaluate (A+B).b and (A-B).b
             let bp: Array3<f64> = get_apbv(
                 &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
@@ -603,7 +617,6 @@ fn non_hermitian_davidson(
                 .into_dimensionality::<Ix3>()
                 .unwrap();
 
-            println!("Test End of if");
         } else {
             // bring axis with state indeces to the back
             let mut XmY_temp: Array3<f64> = XmYguess.unwrap().to_owned();
@@ -1240,6 +1253,33 @@ fn casida_routine() {
         [
             [-1.2639212061172028e-06, -9.8539721874173636e-01],
             [6.4161949064153771e-17, -6.3535071248490153e-16]
+        ]
+    ];
+
+    let R_ref: Array2<f64> = array![
+        [
+            2.2800287272843536e-01,
+            6.7291574249027377e-08,
+            -8.0918247294654886e-18,
+            4.5208604071418659e-18
+        ],
+        [
+            6.7291574245366408e-08,
+            2.8001957797042176e-01,
+            7.4756755570666384e-18,
+            -1.0527565605136828e-17
+        ],
+        [
+            -4.3611325146181644e-18,
+            7.4756759226502550e-18,
+            1.4728980222431723e-01,
+            1.1114001261467662e-07
+        ],
+        [
+            4.3449084290177176e-18,
+            -1.0527565620779261e-17,
+            1.1114001261503358e-07,
+            1.9151592870718942e-01
         ]
     ];
 
