@@ -89,7 +89,7 @@ pub fn gradient_nolc(
     return (grad_e0, grad_v_rep);
 }
 
-pub fn gradient_lc(
+pub fn gradient_lc_gs(
     molecule: &Molecule,
     orbe_occ: Array1<f64>,
     orbe_virt: Array1<f64>,
@@ -217,6 +217,35 @@ fn f_v(
     return f;
 }
 
+fn gradients_lc_es(
+    state:usize,
+    g0:ArrayView2<f64>,
+    g1:ArrayView3<f64>,
+    g0_ao:ArrayView2<f64>,
+    g1_ao:ArrayView3<f64>,
+    g0lr:ArrayView2<f64>,
+    g1lr:ArrayView3<f64>,
+    g0lr_ao:ArrayView2<f64>,
+    g1lr_ao:ArrayView3<f64>,
+    grad_s:ArrayView3<f64>,
+    grad_h0:ArrayView3<f64>,
+    XmY:ArrayView3<f64>,
+    XpY:ArrayView3<f64>,
+    omega:ArrayView1<f64>,
+    qtrans_oo:ArrayView3<f64>,
+    qtrans_vv:ArrayView3<f64>,
+    q_trans_ov:ArrayView3<f64>,
+    orbe_occ: Array1<f64>,
+    orbe_virt: Array1<f64>,
+){
+    let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
+    let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
+
+    //select state in XpY and XmY
+    let XmY_state:Array2<f64>
+
+}
+
 fn f_lr(
     v: ArrayView2<f64>,
     s: ArrayView2<f64>,
@@ -313,20 +342,20 @@ fn h_minus(
     q_qs:ArrayView3<f64>,
     q_ps:ArrayView3<f64>,
     q_qr:ArrayView3<f64>,
-    v_rs:ArrayView3<f64>,
-)->(Array3<f64>){
+    v_rs:ArrayView2<f64>,
+)->(Array2<f64>){
     // term 1
-    let tmp:Array4<f64> = tensordot(&q_qr,&v_rs,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
-    let tmp2:Array4<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
-    let mut h_minus_pq:Array3<f64> = tensordot(&q_ps,&tmp2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp:Array3<f64> = tensordot(&q_qr,&v_rs,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp2:Array3<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    let mut h_minus_pq:Array2<f64> = tensordot(&q_ps,&tmp2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix2>().unwrap();
     // term 2
-    let tmp:Array4<f64> = tensordot(&q_qs,&v_rs,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix4>().unwrap();
-    let tmp2:Array4<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    let tmp:Array3<f64> = tensordot(&q_qs,&v_rs,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp2:Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
     h_minus_pq = h_minus_pq - tensordot(&q_pr, &tmp2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix3>().unwrap();
     return h_minus_pq;
 }
 
-fn h_plus_lr_3dim(
+fn h_plus_lr(
     g0_ao: ArrayView2<f64>,
     g0_lr_a0:ArrayView2<f64>,
     q_pq:ArrayView3<f64>,
@@ -335,53 +364,24 @@ fn h_plus_lr_3dim(
     q_qs:ArrayView3<f64>,
     q_ps:ArrayView3<f64>,
     q_qr:ArrayView3<f64>,
-    v_rs:ArrayView3<f64>,
-)->(Array3<f64>){
+    v_rs:ArrayView2<f64>,
+)->(Array2<f64>){
     // term 1
-    let tmp:Array2<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
-    let tmp2:Array2<f64> = g0_ao.to_owned().dot(&tmp);
-    let mut hplus_pq:Array3<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp:Array1<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix1>().unwrap();
+    let tmp2:Array1<f64> = g0_ao.to_owned().dot(&tmp);
+    let mut hplus_pq:Array2<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix2>().unwrap();
     // term 2
-    let tmp:Array4<f64> = tensordot(&q_qs,&v_rs,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix4>().unwrap();
-    let tmp2:Array4<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
-    hplus_pq = hplus_pq - tensordot(&q_pr, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp:Array3<f64> = tensordot(&q_qs,&v_rs,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp2:Array3<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    hplus_pq = hplus_pq - tensordot(&q_pr, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix2>().unwrap();
     // term 3
-    let tmp:Array4<f64> = tensordot(&q_qr,&v_rs,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
-    let tmp2:Array4<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
-    hplus_pq = hplus_pq - tensordot(&q_ps, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp:Array3<f64> = tensordot(&q_qr,&v_rs,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp2:Array3<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    hplus_pq = hplus_pq - tensordot(&q_ps, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix2>().unwrap();
     return hplus_pq;
 }
 
-fn h_plus_lr_4dim(
-    g0_ao: ArrayView2<f64>,
-    g0_lr_a0:ArrayView2<f64>,
-    q_pq:ArrayView3<f64>,
-    q_rs:ArrayView3<f64>,
-    q_pr:ArrayView3<f64>,
-    q_qs:ArrayView3<f64>,
-    q_ps:ArrayView3<f64>,
-    q_qr:ArrayView3<f64>,
-    v_rs:ArrayView4<f64>,
-)->(Array4<f64>){
-    // term 1
-    let tmp:Array3<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix3>().unwrap();
-    // dot not defined for Array2.dot(Array3)
-    // numpy If a is an N-D array and b is an M-D array (where M>=2), it is a sum product over the last axis of a and the second-to-last axis of b
-    // use tensordot
-    let tmp2:Array3<f64> =tensordot(&g0_ao,&v_rs,&[Axis(1)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
-    let mut hplus_pq:Array4<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
-    // term 2
-    let tmp:Array5<f64> = tensordot(&q_qs,&v_rs,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix5>().unwrap();
-    let tmp2:Array5<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix5>().unwrap();
-    hplus_pq = hplus_pq - tensordot(&q_pr, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix4>().unwrap();
-    // term 3
-    let tmp:Array5<f64> = tensordot(&q_qr,&v_rs,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix5>().unwrap();
-    let tmp2:Array5<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix5>().unwrap();
-    hplus_pq = hplus_pq - tensordot(&q_ps, &tmp2, &[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix4>().unwrap();
-    return hplus_pq;
-}
-
-fn h_plus_no_lr_3dim(
+fn h_plus_no_lr(
     g0_ao: ArrayView2<f64>,
     q_pq:ArrayView3<f64>,
     q_rs:ArrayView3<f64>,
@@ -389,35 +389,15 @@ fn h_plus_no_lr_3dim(
     q_qs:ArrayView3<f64>,
     q_ps:ArrayView3<f64>,
     q_qr:ArrayView3<f64>,
-    v_rs:ArrayView3<f64>,
-)->(Array3<f64>){
+    v_rs:ArrayView2<f64>,
+)->(Array2<f64>){
     // term 1
-    let tmp:Array2<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix2>().unwrap();
-    let tmp2:Array2<f64> = g0_ao.to_owned().dot(&tmp);
-    let hplus_pq:Array3<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    let tmp:Array1<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix1>().unwrap();
+    let tmp2:Array1<f64> = g0_ao.to_owned().dot(&tmp);
+    let hplus_pq:Array2<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix2>().unwrap();
     return hplus_pq;
 }
 
-fn h_plus_no_lr_4dim(
-    g0_ao: ArrayView2<f64>,
-    g0_lr_a0:ArrayView2<f64>,
-    q_pq:ArrayView3<f64>,
-    q_rs:ArrayView3<f64>,
-    q_pr:ArrayView3<f64>,
-    q_qs:ArrayView3<f64>,
-    q_ps:ArrayView3<f64>,
-    q_qr:ArrayView3<f64>,
-    v_rs:ArrayView4<f64>,
-)->(Array4<f64>){
-    // term 1
-    let tmp:Array3<f64> = tensordot(&q_rs,&v_rs,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix3>().unwrap();
-    // dot not defined for Array2.dot(Array3)
-    // numpy If a is an N-D array and b is an M-D array (where M>=2), it is a sum product over the last axis of a and the second-to-last axis of b
-    // use tensordot
-    let tmp2:Array3<f64> =tensordot(&g0_ao,&v_rs,&[Axis(1)],&[Axis(1)]).into_dimensionality::<Ix3>().unwrap();
-    let hplus_pq:Array4<f64> = 4.0* tensordot(&q_pq,&tmp2,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
-    return hplus_pq;
-}
 
 //  Compute the gradient of the repulsive potential
 //  Parameters:
