@@ -1023,7 +1023,7 @@ fn krylov_solver_zvector(
     qtrans_oo:ArrayView3<f64>,
     qtrans_vv:ArrayView3<f64>,
     qtrans_ov:ArrayView3<f64>,
-){
+)->(Array3<f64>){
     // Parameters:
     // ===========
     // A: linear operator, such that A(X) = A.X
@@ -1127,7 +1127,7 @@ fn krylov_solver_zvector(
         bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
         l = bs.dim().2;
     }
-
+    return x_matrix;
 }
 
 #[test]
