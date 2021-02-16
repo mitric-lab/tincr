@@ -307,6 +307,25 @@ fn f_lr(
     return flr;
 }
 
+fn h_minus(
+    g0_lr_a0:ArrayView2<f64>,
+    q_pr:ArrayView3<f64>,
+    q_qs:ArrayView3<f64>,
+    q_ps:ArrayView3<f64>,
+    q_qr:ArrayView3<f64>,
+    v_rs:ArrayView3<f64>,
+)->(Array3<f64>){
+    // term 1
+    let tmp:Array4<f64> = tensordot(&q_qr,&v_rs,&[Axis(2)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    let tmp2:Array4<f64> = tensordot(&g0_lr_a0,&tmp,&[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    let mut h_minus_pq:Array3<f64> = tensordot(&q_ps,&tmp2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    // term 2
+    let tmp:Array4<f64> = tensordot(&q_qs,&v_rs,&[Axis(2)],&[Axis(1)]).into_dimensionality::<Ix4>().unwrap();
+    let tmp2:Array4<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)],&[Axis(0)]).into_dimensionality::<Ix4>().unwrap();
+    h_minus_pq = h_minus_pq - tensordot(&q_pr, &tmp2,&[Axis(0),Axis(2)],&[Axis(0),Axis(2)]).into_dimensionality::<Ix3>().unwrap();
+    return h_minus_pq;
+}
+
 fn h_plus_lr_3dim(
     g0_ao: ArrayView2<f64>,
     g0_lr_a0:ArrayView2<f64>,
