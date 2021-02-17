@@ -1054,6 +1054,7 @@ pub fn krylov_solver_zvector(
 
     for it in 0..maxiter {
         // representation of A in the basis of expansion vectors
+        println!("krylov test");
         let a_b: Array2<f64> = tensordot(
             &bs,
             &get_apbv(
@@ -1069,7 +1070,7 @@ pub fn krylov_solver_zvector(
             .into_dimensionality::<Ix2>()
             .unwrap();
         // solve
-        let mut x_b: Array2<f64> = Array2::zeros((k, k));
+        let mut x_b: Array2<f64> = Array2::zeros((k, l));
         for i in 0..k {
             x_b.slice_mut(s![i, ..])
                 .assign((&a_b.solve(&b_b.slice(s![.., i])).unwrap()));
@@ -1084,8 +1085,8 @@ pub fn krylov_solver_zvector(
             &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &x_matrix, lc,
         ) - &b_matrix;
         let mut norms: Array1<f64> = Array::zeros(k);
-        for i in 0..k {
-            norms[k] = norm_special(&w_res.slice(s![.., .., i]).to_owned());
+        for i in 0.. k {
+            norms[i] = norm_special(&w_res.slice(s![.., .., i]).to_owned());
         }
         // check if all values of the norms are under the convergence criteria
         let indices_norms: Array1<usize> = norms
@@ -1095,7 +1096,6 @@ pub fn krylov_solver_zvector(
         if indices_norms.len() == norms.len() {
             break;
         }
-
         // # enlarge dimension of subspace by dk vectors
         // # At most k new expansion vectors are added
         let dkmax = (kmax - l).min(k);
@@ -1113,7 +1113,7 @@ pub fn krylov_solver_zvector(
             norms_over_eps[i] = norms[indices_norm_over_eps[i]];
         }
         let nc: f64 = norms_over_eps.sum();
-        let dk: usize = dkmax.min(nc as usize);
+        let dk: usize = dkmax.min((1.0+nc) as usize);
         let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
         let mut nb: i32 = 0;
 
