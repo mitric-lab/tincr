@@ -218,7 +218,7 @@ fn f_v(
     return f;
 }
 
-fn gradients_lc_es(
+fn gradients_lc_ex(
     state: usize,
     g0: ArrayView2<f64>,
     g1: ArrayView3<f64>,
@@ -228,6 +228,7 @@ fn gradients_lc_es(
     g1lr: ArrayView3<f64>,
     g0lr_ao: ArrayView2<f64>,
     g1lr_ao: ArrayView3<f64>,
+    s: ArrayView2<f64>,
     grad_s: ArrayView3<f64>,
     grad_h0: ArrayView3<f64>,
     XmY: ArrayView3<f64>,
@@ -238,12 +239,18 @@ fn gradients_lc_es(
     qtrans_ov: ArrayView3<f64>,
     orbe_occ: Array1<f64>,
     orbe_virt: Array1<f64>,
+    orbs_occ: ArrayView2<f64>,
+    orbs_virt: ArrayView2<f64>,
+    f_dmd0: ArrayView3<f64>,
+    f_lrdmd0: ArrayView3<f64>,
     check_z_vec: Option<usize>,
-) {
+) -> (Array1<f64>) {
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
     let n_occ: usize = orbe_occ.len();
     let n_virt: usize = orbe_virt.len();
+    let n_at: usize = g0.dim().0;
+    let n_orb: usize = g0_ao.dim().0;
 
     //select state in XpY and XmY
     let XmY_state: Array2<f64> = XmY.slice(s![state, .., ..]).to_owned();
@@ -424,11 +431,20 @@ fn gradients_lc_es(
 
     // solve z-vector equation
     // build omega
-    let omega: Array2<f64> = get_outer_product(&Array::ones(orbe_occ.len()).view(), &orbe_virt.view())
-        - get_outer_product(&orbe_occ.view(), &Array::ones(orbe_virt.len()).view());
-    let b_matrix_input: Array3<f64> = r_ia.into_shape((n_occ, n_virt, 1)).unwrap();
+    //let omega_input: Array2<f64> =
+    //    get_outer_product(&Array::ones(orbe_occ.len()).view(), &orbe_virt.view())
+    //        - get_outer_product(&orbe_occ.view(), &Array::ones(orbe_virt.len()).view());
+    let omega_input: Array2<f64> = einsum("i,j->ij", &[&Array::ones(orbe_occ.len()), &orbe_virt])
+        .unwrap()
+        .into_dimensionality::<Ix2>()
+        .unwrap()
+        - einsum("i,j->ij", &[&orbe_occ, &Array::ones(orbe_virt.len())])
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+    let b_matrix_input: Array3<f64> = r_ia.clone().into_shape((n_occ, n_virt, 1)).unwrap();
     let z_ia: Array3<f64> = krylov_solver_zvector(
-        omega.view(),
+        omega_input.view(),
         b_matrix_input.view(),
         None,
         None,
@@ -439,14 +455,176 @@ fn gradients_lc_es(
         qtrans_vv,
         qtrans_ov,
     );
-    let z_ia_transformed:Array2<f64> = z_ia.into_shape((n_occ,n_virt)).unwrap();
+    let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
 
-    if check_z_vec.unwrap() == 1{
+    if check_z_vec.unwrap() == 1 {
         // compare with full solution
+        let gq_ov: Array3<f64> = tensordot(&g0, &qtrans_ov, &[Axis(1)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+        let gq_lr_oo: Array3<f64> = tensordot(&g0lr, &qtrans_oo, &[Axis(1)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+        let gq_lr_ov: Array3<f64> = tensordot(&g0lr, &qtrans_ov, &[Axis(1)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+        let gq_lr_vv: Array3<f64> = tensordot(&g0lr, &qtrans_vv, &[Axis(1)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
 
+        // build (A+B)_(ia,jb)
+        let omega_temp: Array1<f64> = omega_input.into_shape((n_occ * n_virt)).unwrap();
+        let tmp: Array2<f64> = Array::from_diag(&omega_temp);
+        let mut apb: Array4<f64> = tmp.into_shape((n_occ, n_virt, n_occ, n_virt)).unwrap();
+        apb = apb
+            + 4.0
+                * tensordot(&qtrans_ov, &gq_ov, &[Axis(0)], &[Axis(0)])
+                    .into_dimensionality::<Ix4>()
+                    .unwrap();
+        let mut tmp: Array4<f64> = tensordot(&qtrans_oo, &gq_lr_vv, &[Axis(0)], &[Axis(0)])
+            .into_dimensionality::<Ix4>()
+            .unwrap();
+        tmp.swap_axes(1, 2);
+        apb = apb - tmp;
+        let mut tmp: Array4<f64> = tensordot(&qtrans_ov, &gq_lr_ov, &[Axis(0)], &[Axis(0)])
+            .into_dimensionality::<Ix4>()
+            .unwrap();
+        tmp.swap_axes(1, 3);
+        apb = apb - tmp;
+
+        let apb_transformed: Array2<f64> =
+            apb.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
+        let err_1: Array1<f64> = apb_transformed
+            .dot(&XpY_state.clone().into_shape(n_occ * n_virt).unwrap())
+            - omega_state * XmY_state.clone().into_shape(n_occ * n_virt).unwrap();
+        let err_sum: f64 = err_1.mapv(|err_1| err_1.abs()).sum();
+        assert!(err_sum < 1.0e-5);
+
+        let r_ia_flat: Array1<f64> = r_ia.into_shape(n_occ * n_virt).unwrap();
+        // solve for Z
+        let z_matrix: Array1<f64> = apb_transformed.solve(&r_ia_flat).unwrap();
+        let z_ia_full: Array2<f64> = z_matrix.into_shape((n_occ, n_virt)).unwrap();
+
+        // compare with iterative solution
+        let z_diff: Array2<f64> = z_ia_transformed.clone() - z_ia_full;
+        let err: f64 = z_diff.mapv(|z_diff| z_diff.abs()).sum();
+        assert!(err < 1e-10);
     }
     // build w
+    let mut w_ij: Array2<f64> = q_ij
+        + h_plus_lr(
+            g0,
+            g0lr,
+            qtrans_oo,
+            qtrans_ov,
+            qtrans_oo,
+            qtrans_ov,
+            qtrans_ov,
+            qtrans_oo,
+            z_ia_transformed.view(),
+        );
+    for i in 0..w_ij.dim().0 {
+        w_ij[[i, i]] = w_ij[[i, i]] / 2.0;
+    }
+    let w_ia: Array2<f64> = &q_ai.t() - &ei.dot(&z_ia_transformed);
+    let w_ai: Array2<f64> = w_ia.clone().reversed_axes();
+    let mut w_ab: Array2<f64> = q_ab;
+    for i in 0..w_ab.dim().0 {
+        w_ab[[i, i]] = w_ab[[i, i]] / 2.0;
+    }
+    let length: usize = w_ab.dim().0;
+    let mut w_matrix: Array2<f64> = Array::zeros((2 * length, 2 * length));
+    for i in 0..length {
+        w_matrix
+            .slice_mut(s![i, ..length])
+            .assign(&w_ij.slice(s![i, ..]));
+        w_matrix
+            .slice_mut(s![i, length..])
+            .assign(&w_ia.slice(s![i, ..]));
+        w_matrix
+            .slice_mut(s![length + i, ..length])
+            .assign(&w_ai.slice(s![i, ..]));
+        w_matrix
+            .slice_mut(s![length + i, length..])
+            .assign(&w_ab.slice(s![i, ..]));
+    }
+    // assemble gradient
 
+    //dh/dr
+    let grad_h: Array3<f64> = &grad_h0 + &f_dmd0 - 0.5 * &f_lrdmd0;
+
+    // transform vectors to a0 basis
+    let t_oo: Array2<f64> = orbs_occ.dot(&t_ij.dot(&orbs_occ.t()));
+    let t_vv: Array2<f64> = orbs_virt.dot(&t_ab.dot(&orbs_virt.t()));
+    let z_ao: Array2<f64> = orbs_occ.dot(&z_ia_transformed.dot(&orbs_virt.t()));
+    let mut orbs: Array2<f64> = Array::zeros((orbs_occ.dim().0 * 2, orbs_occ.dim().1 * 2));
+    let length: usize = orbs_occ.dim().0 * 2;
+    for i in 0..(length) {
+        orbs.slice_mut(s![..length, i])
+            .assign(&orbs_occ.slice(s![.., i]));
+        orbs.slice_mut(s![length.., i])
+            .assign(&orbs_virt.slice(s![.., i]));
+    }
+    let w_triangular: Array2<f64> = w_matrix.into_triangular(UPLO::Upper);
+    let w_ao: Array2<f64> = orbs.dot(&w_triangular.dot(&orbs.t()));
+
+    let XpY_ao = orbs_occ.dot(&XpY_state.dot(&orbs_virt.t()));
+    let XmY_ao = orbs_occ.dot(&XmY_state.dot(&orbs_virt.t()));
+
+    let mut gradExc: Array1<f64> = Array::zeros(3 * n_at);
+    let f: Array3<f64> = f_v(XpY_ao.view(), s, grad_s, g0_ao, g1_ao, n_at, n_orb);
+    let flr_p = f_lr(
+        (&XpY_ao + &XpY_ao.t()).view(),
+        s,
+        grad_s,
+        g0_ao,
+        g0lr_ao,
+        g1_ao,
+        g1lr_ao,
+        n_at,
+        n_orb,
+    );
+    let flr_m = -f_lr(
+        (&XmY_ao - &XmY_ao.t()).view(),
+        s,
+        grad_s,
+        g0_ao,
+        g0lr_ao,
+        g1_ao,
+        g1lr_ao,
+        n_at,
+        n_orb,
+    );
+    gradExc = gradExc
+        + tensordot(
+            &grad_h,
+            &(t_vv - t_oo + z_ao),
+            &[Axis(1), Axis(2)],
+            &[Axis(0), Axis(1)],
+        )
+        .into_dimensionality::<Ix1>()
+        .unwrap();
+    gradExc = gradExc
+        - tensordot(&grad_s, &w_ao, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
+            .into_dimensionality::<Ix1>()
+            .unwrap();
+    gradExc = gradExc
+        + 2.0
+            * tensordot(&XpY_ao, &f, &[Axis(0), Axis(1)], &[Axis(1), Axis(2)])
+                .into_dimensionality::<Ix1>()
+                .unwrap();
+    gradExc = gradExc
+        - 0.5
+            * tensordot(&XpY_ao, &flr_p, &[Axis(0), Axis(1)], &[Axis(1), Axis(2)])
+                .into_dimensionality::<Ix1>()
+                .unwrap();
+    gradExc = gradExc
+        - 0.5
+            * tensordot(&XmY_ao, &flr_m, &[Axis(0), Axis(1)], &[Axis(1), Axis(2)])
+                .into_dimensionality::<Ix1>()
+                .unwrap();
+
+    return gradExc;
 }
 
 fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>) {
