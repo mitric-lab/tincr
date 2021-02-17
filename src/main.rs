@@ -28,7 +28,7 @@ use ndarray_linalg::*;
 use std::env;
 use std::ptr::eq;
 use std::time::{Duration, Instant};
-use crate::gradients::gradient_nolc;
+use crate::gradients::*;
 
 fn main() {
     println!(

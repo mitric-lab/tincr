@@ -558,7 +558,7 @@ pub fn non_hermitian_davidson(
         if XpYguess.is_none() || it > 0 {
             // # evaluate (A+B).b and (A-B).b
             let bp: Array3<f64> = get_apbv(
-                &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
+                &gamma, &Some(gamma_lr), &Some(qtrans_oo), &Some(qtrans_vv), &qtrans_ov, &omega, &bs, lc,
             );
             let bm: Array3<f64> = get_ambv(
                 &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
@@ -631,7 +631,7 @@ pub fn non_hermitian_davidson(
         }
         // residual vectors
         let wl = get_apbv(
-            &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &r_canon, lc,
+            &gamma, &Some(gamma_lr), &Some(qtrans_oo), &Some(qtrans_vv), &qtrans_ov, &omega, &r_canon, lc,
         ) - &l_canon * &w;
         let wr = get_ambv(
             &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &l_canon, lc,
@@ -762,9 +762,9 @@ pub fn non_hermitian_davidson(
 
 pub fn get_apbv(
     gamma: &ArrayView2<f64>,
-    gamma_lr: &ArrayView2<f64>,
-    qtrans_oo: &ArrayView3<f64>,
-    qtrans_vv: &ArrayView3<f64>,
+    gamma_lr: &Option<ArrayView2<f64>>,
+    qtrans_oo: &Option<ArrayView3<f64>>,
+    qtrans_vv: &Option<ArrayView3<f64>>,
     qtrans_ov: &ArrayView3<f64>,
     omega: &ArrayView2<f64>,
     vs: &Array3<f64>,
@@ -790,13 +790,13 @@ pub fn get_apbv(
 
         if lc == 1 {
             // 3rd term - Exchange
-            let tmp: Array3<f64> = tensordot(&qtrans_vv, &v, &[Axis(2)], &[Axis(1)])
+            let tmp: Array3<f64> = tensordot(&qtrans_vv.unwrap(), &v, &[Axis(2)], &[Axis(1)])
                 .into_dimensionality::<Ix3>()
                 .unwrap();
-            let tmp_2: Array3<f64> = tensordot(&gamma_lr, &tmp, &[Axis(1)], &[Axis(0)])
+            let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
                 .into_dimensionality::<Ix3>()
                 .unwrap();
-            u = u - tensordot(&qtrans_oo, &tmp_2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+            u = u - tensordot(&qtrans_oo.unwrap(), &tmp_2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
                 .into_dimensionality::<Ix2>()
                 .unwrap();
 
@@ -804,14 +804,12 @@ pub fn get_apbv(
             let tmp: Array3<f64> = tensordot(&qtrans_ov, &v, &[Axis(1)], &[Axis(0)])
                 .into_dimensionality::<Ix3>()
                 .unwrap();
-            let tmp_2: Array3<f64> = tensordot(&gamma_lr, &tmp, &[Axis(1)], &[Axis(0)])
+            let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
                 .into_dimensionality::<Ix3>()
                 .unwrap();
             u = u - tensordot(&qtrans_ov, &tmp_2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
                 .into_dimensionality::<Ix2>()
                 .unwrap();
-        } else {
-            println!("Turn on long range correction!");
         }
 
         us.slice_mut(s![.., .., i]).assign(&u);
@@ -860,8 +858,6 @@ pub fn get_ambv(
             u = u - tensordot(&qtrans_oo, &tmp_2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
                 .into_dimensionality::<Ix2>()
                 .unwrap();
-        } else {
-            println!("Turn on long range correction!");
         }
 
         us.slice_mut(s![.., .., i]).assign(&u);
@@ -1018,9 +1014,9 @@ pub fn krylov_solver_zvector(
     maxiter: Option<usize>,
     conv: Option<f64>,
     g0: ArrayView2<f64>,
-    g0_lr: ArrayView2<f64>,
-    qtrans_oo: ArrayView3<f64>,
-    qtrans_vv: ArrayView3<f64>,
+    g0_lr: Option<ArrayView2<f64>>,
+    qtrans_oo: Option<ArrayView3<f64>>,
+    qtrans_vv: Option<ArrayView3<f64>>,
     qtrans_ov: ArrayView3<f64>,
 ) -> (Array3<f64>) {
     // Parameters:
