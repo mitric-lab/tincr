@@ -22,7 +22,7 @@ pub fn gradient_lc_gs(
     orbe_virt: Array1<f64>,
     orbs_occ: Array2<f64>,
     s: Array2<f64>,
-    lc: Option<usize>,
+    r_lc: Option<f64>,
 ) -> (Array1<f64>, Array1<f64>) {
     let (g0, g1, g0_ao, g1_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
         get_gamma_gradient_matrix(
@@ -80,7 +80,7 @@ pub fn gradient_lc_gs(
         molecule.calculator.n_orbs,
     );
     let mut flr_dmd0: Array3<f64> = Array::zeros((3 * n_at, n_orb, n_orb));
-    if lc.unwrap() == 1 {
+    if r_lc.is_some() {
         flr_dmd0 = f_lr(
             diff_d.view(),
             s.view(),
@@ -108,7 +108,7 @@ pub fn gradient_lc_gs(
         grad_e0[i] += 0.5 * (&fdmd0.slice(s![i, .., ..]) * &diff_d).sum();
         grad_e0[i] -= (&grad_s.slice(s![i, .., ..]) * &d_en).sum();
     }
-    if lc.unwrap() == 1 {
+    if r_lc.is_some() {
         grad_e0 = grad_e0
             - 0.25
                 * tensordot(&flr_dmd0, &diff_d, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
@@ -365,6 +365,7 @@ fn gradients_nolc_ex(
         None,
         None,
         qtrans_ov,
+        0
     );
     let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
 
@@ -722,6 +723,7 @@ fn gradients_lc_ex(
         Some(qtrans_oo),
         Some(qtrans_vv),
         qtrans_ov,
+        1
     );
     let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
 

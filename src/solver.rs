@@ -1018,6 +1018,7 @@ pub fn krylov_solver_zvector(
     qtrans_oo: Option<ArrayView3<f64>>,
     qtrans_vv: Option<ArrayView3<f64>>,
     qtrans_ov: ArrayView3<f64>,
+    lc:usize,
 ) -> (Array3<f64>) {
     // Parameters:
     // ===========
@@ -1056,7 +1057,7 @@ pub fn krylov_solver_zvector(
         let a_b: Array2<f64> = tensordot(
             &bs,
             &get_apbv(
-                &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &bs, 1,
+                &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &bs, lc,
             ),
             &[Axis(0), Axis(1)],
             &[Axis(0), Axis(1)],
@@ -1080,7 +1081,7 @@ pub fn krylov_solver_zvector(
             .unwrap();
         // residual vectors
         let w_res: Array3<f64> = &get_apbv(
-            &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &x_matrix, 1,
+            &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &x_matrix, lc,
         ) - &b_matrix;
         let mut norms: Array1<f64> = Array::zeros(k);
         for i in 0..k {
