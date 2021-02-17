@@ -1,5 +1,6 @@
 #[macro_use(array)]
 use ndarray::prelude::*;
+use crate::defaults;
 use crate::calculator::get_gamma_gradient_matrix;
 use crate::h0_and_s::h0_and_s_gradients;
 use crate::molecule::{distance_matrix, Molecule};
@@ -80,7 +81,7 @@ pub fn gradient_lc_gs(
         molecule.calculator.n_orbs,
     );
     let mut flr_dmd0: Array3<f64> = Array::zeros((3 * n_at, n_orb, n_orb));
-    if r_lc.is_some() {
+    if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS)>0.0 {
         flr_dmd0 = f_lr(
             diff_d.view(),
             s.view(),
@@ -108,7 +109,7 @@ pub fn gradient_lc_gs(
         grad_e0[i] += 0.5 * (&fdmd0.slice(s![i, .., ..]) * &diff_d).sum();
         grad_e0[i] -= (&grad_s.slice(s![i, .., ..]) * &d_en).sum();
     }
-    if r_lc.is_some() {
+    if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS)>0.0 {
         grad_e0 = grad_e0
             - 0.25
                 * tensordot(&flr_dmd0, &diff_d, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
