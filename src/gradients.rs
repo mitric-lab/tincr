@@ -436,6 +436,10 @@ fn gradients_nolc_ex(
     for i in 0..w_ab.dim().0 {
         w_ab[[i, i]] = w_ab[[i, i]] / 2.0;
     }
+    println!("w ab {:?}",w_ab);
+    println!("w ij {:?}",w_ij);
+    println!("w ia {:?}",w_ia);
+    println!("w ai {:?}",w_ai);
     let length: usize = w_ab.dim().0;
     let mut w_matrix: Array2<f64> = Array::zeros((2 * length, 2 * length));
     for i in 0..length {
@@ -453,6 +457,7 @@ fn gradients_nolc_ex(
             .assign(&w_ab.slice(s![i, ..]));
     }
     // assemble gradient
+    println!("Test 1234556");
 
     //dh/dr
     let grad_h: Array3<f64> = &grad_h0 + &f_dmd0;

@@ -1054,7 +1054,6 @@ pub fn krylov_solver_zvector(
 
     for it in 0..maxiter {
         // representation of A in the basis of expansion vectors
-        println!("krylov test");
         let a_b: Array2<f64> = tensordot(
             &bs,
             &get_apbv(
