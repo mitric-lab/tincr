@@ -487,8 +487,8 @@ fn gradients_lc_ex(
         let apb_transformed: Array2<f64> =
             apb.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
         let err_1: Array1<f64> = apb_transformed
-            .dot(&XpY_state.into_shape(n_occ * n_virt).unwrap())
-            - omega_state * XmY_state.into_shape(n_occ * n_virt).unwrap();
+            .dot(&XpY_state.clone().into_shape(n_occ * n_virt).unwrap())
+            - omega_state * XmY_state.clone().into_shape(n_occ * n_virt).unwrap();
         let err_sum: f64 = err_1.mapv(|err_1| err_1.abs()).sum();
         assert!(err_sum < 1.0e-5);
 
@@ -555,8 +555,8 @@ fn gradients_lc_ex(
 
     let mut gradExc:Array1<f64> = Array::zeros(3*n_at);
     let f:Array3<f64> = f_v(XpY_ao.view(),s,grad_s,g0_ao,g1_ao,n_at,n_orb);
-    let flr_p = f_lr(&XpY_ao+&XpY_ao.t(),s,grad_s,g0_ao,g0lr_ao,g1_ao,g1lr_ao,n_at,n_orb);
-    let flr_m = -f_lr(&XmY_ao-&XmY_ao.t(),s,grad_s,g0_ao,g0lr_ao,g1_ao,g1lr_ao,n_at,n_orb);
+    let flr_p = f_lr((&XpY_ao+&XpY_ao.t()).view(),s,grad_s,g0_ao,g0lr_ao,g1_ao,g1lr_ao,n_at,n_orb);
+    let flr_m = -f_lr((&XmY_ao-&XmY_ao.t()).view(),s,grad_s,g0_ao,g0lr_ao,g1_ao,g1lr_ao,n_at,n_orb);
     gradExc = gradExc + tensordot(&grad_h,&(t_vv-t_oo+z_ao),&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix1>().unwrap();
     gradExc = gradExc - tensordot(&grad_s,&w_ao,&[Axis(1),Axis(2)],&[Axis(0),Axis(1)]).into_dimensionality::<Ix1>().unwrap();
     gradExc = gradExc + 2.0* tensordot(&XpY_ao,&f,&[Axis(0),Axis(1)],&[Axis(1),Axis(2)]).into_dimensionality::<Ix1>().unwrap();
