@@ -255,16 +255,21 @@ fn gamma_gradients_atomwise(
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
                 g0[[i, j]] = gamma_func.eval(r_ij, *z_i, *z_j);
                 g1_val[[i, j]] = gamma_func.deriv(r_ij, *z_i, *z_j);
-                g1.slice_mut(s![3 * i..3 * i + 3, i, j])
+                println!("g1_val {}",g1_val);
+                g1.slice_mut(s![(3 * i) .. (3 * i+ 3), i, j])
                     .assign(&(&e_ij * g1_val[[i, j]]));
             } else {
+                g1_val[[i, j]] = g1_val[[j, i]];
+                println!("g1_val {}",g1_val);
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
                 g0[[i, j]] = g0[[j, i]];
-                g1.slice_mut(s![3 * i..3 * i + 3, i, j])
+                g1.slice_mut(s![(3 * i) .. (3 * i+ 3), i, j])
                     .assign(&(&e_ij * g1_val[[i, j]]));
             }
         }
     }
+    println!("dorections{}",directions);
+    println!("g1 {}",g1);
     return (g0, g1);
 }
 
@@ -318,8 +323,11 @@ pub fn gamma_gradients_ao_wise(
                     g0_a0[[mu, nu]] = g0[[i, j]];
                     if i != j {
                         g1_a0
-                            .slice_mut(s![3 * i..3 * i + 3, mu, nu])
-                            .assign(&g1.slice(s![3 * i..3 * i + 3, i, j]));
+                            .slice_mut(s![(3 * i) .. (3 * i+ 3), mu, nu])
+                            .assign(&g1.slice(s![(3 * i) .. (3 * i+ 3), i, j]));
+                        g1_a0
+                            .slice_mut(s![(3 * i) .. (3 * i+ 3), nu, mu])
+                            .assign(&g1.slice(s![(3 * i) .. (3 * i+ 3), i, j]));
                     }
                     nu = nu + 1;
                 }

@@ -66,12 +66,13 @@ pub fn gradient_lc_gs(
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
 
     // density matrix
-    let d = orbs_occ.dot(&orbs_occ.t());
+    let d = 2.0*orbs_occ.dot(&orbs_occ.t());
     // reference density matrix
     let d_ref: Array2<f64> = density_matrix_ref(&molecule);
 
     let diff_d: Array2<f64> = &d - &d_ref;
     // computing F(D-D0)
+
     let fdmd0: Array3<f64> = f_v(
         diff_d.view(),
         s.view(),
@@ -83,6 +84,7 @@ pub fn gradient_lc_gs(
     );
     let mut flr_dmd0: Array3<f64> = Array::zeros((3 * n_at, n_orb, n_orb));
     if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS) > 0.0 {
+        println!("Test lc");
         flr_dmd0 = f_lr(
             diff_d.view(),
             s.view(),
@@ -111,6 +113,7 @@ pub fn gradient_lc_gs(
         grad_e0[i] -= (&grad_s.slice(s![i, .., ..]) * &d_en).sum();
     }
     if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS) > 0.0 {
+        println!("Test lc");
         grad_e0 = grad_e0
             - 0.25
                 * tensordot(&flr_dmd0, &diff_d, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
@@ -1215,6 +1218,84 @@ fn gradient_v_rep(
     }
     return grad;
 }
+
+#[test]
+fn gs_gradients_no_lc_routine(){
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+
+    let  S: Array2<f64> = array![
+       [ 1.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+         0.0000000000000000,  0.3074918525690681,  0.3074937992389065],
+       [ 0.0000000000000000,  1.0000000000000000,  0.0000000000000000,
+         0.0000000000000000,  0.0000000000000000, -0.1987769748092704],
+       [ 0.0000000000000000,  0.0000000000000000,  1.0000000000000000,
+         0.0000000000000000,  0.0000000000000000, -0.3185054221819456],
+       [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+         1.0000000000000000, -0.3982160222204482,  0.1327383036929333],
+       [ 0.3074918525690681,  0.0000000000000000,  0.0000000000000000,
+        -0.3982160222204482,  1.0000000000000000,  0.0268024699984349],
+       [ 0.3074937992389065, -0.1987769748092704, -0.3185054221819456,
+         0.1327383036929333,  0.0268024699984349,  1.0000000000000000]
+];
+    let  orbe_occ: Array1<f64> = array![
+       -0.8688942612301258, -0.4499991998360209, -0.3563323833222918,
+       -0.2833072445491910
+];
+    let  orbe_virt: Array1<f64> = array![
+       0.3766541361485015, 0.4290384545096518
+];
+    let  orbs_occ: Array2<f64> = array![
+       [-8.6192454822475639e-01, -1.2183272343139559e-06,
+        -2.9726068852089849e-01,  2.6222307203584133e-16],
+       [ 2.6757514101551499e-03, -2.0080751179749709e-01,
+        -3.6133406147264924e-01,  8.4834397825097341e-01],
+       [ 4.2874248054290296e-03, -3.2175900344462377e-01,
+        -5.7897479277210717e-01, -5.2944545948124977e-01],
+       [ 3.5735935812255637e-03,  5.3637854372423877e-01,
+        -4.8258565481599014e-01,  3.4916084620212056e-16],
+       [-1.7925702667910837e-01, -3.6380704327437935e-01,
+         2.3851989294050652e-01, -2.0731761365694774e-16],
+       [-1.7925784113431714e-01,  3.6380666541125695e-01,
+         2.3851861974976313e-01, -9.2582148396003538e-17]
+];
+
+    let  gradVrep_ref: Array1<f64> = array![
+        0.1578504879797087,  0.1181937590058072,  0.1893848779393944,
+       -0.2367773309532266,  0.0000000000000000,  0.0000000000000000,
+        0.0789268429735179, -0.1181937590058072, -0.1893848779393944
+];
+    let  gradE0_ref: Array1<f64> = array![
+       -0.1198269660296263, -0.0897205271709892, -0.1437614915530440,
+        0.1981679566666738, -0.0068989246413182, -0.0110543231055452,
+       -0.0783409906370475,  0.0966194518123075,  0.1548158146585892
+];
+
+
+    let (gradE0,grad_v_rep):(Array1<f64>,Array1<f64>) = gradient_lc_gs(
+        &mol,
+        orbe_occ,
+        orbe_virt,
+        orbs_occ,
+        S,
+        Some(0.0),
+    );
+    println!("gradE0 {}",gradE0);
+    println!("gradE0_ref {}", gradE0_ref);
+    assert!(gradE0.abs_diff_eq(&gradE0_ref,1.0e-6));
+    assert!(grad_v_rep.abs_diff_eq(&gradVrep_ref,1.0e-5));
+
+}
+
 
 #[test]
 fn exc_gradient_no_lc_routine() {
