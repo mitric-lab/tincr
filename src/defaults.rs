@@ -45,3 +45,6 @@ pub const BROYDEN_WEIGHT_FACTOR: f64 = 1.0e-2;
 pub const BROYDEN_MIXING_PARAMETER: f64 = 0.2;
 
 pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
+
+// Number of active orbitals
+pub const ACTIVE_ORBITALS:(usize,usize) = (1000,1000);

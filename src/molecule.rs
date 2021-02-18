@@ -31,6 +31,7 @@ impl Molecule {
         positions: Array2<f64>,
         charge: Option<i8>,
         multiplicity: Option<u8>,
+        active_orbitals:Option<(usize,usize)>
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
@@ -41,7 +42,7 @@ impl Molecule {
 
         let n_atoms: usize = positions.nrows();
 
-        let calculator: DFTBCalculator = DFTBCalculator::new(&atomic_numbers, &atomtypes);
+        let calculator: DFTBCalculator = DFTBCalculator::new(&atomic_numbers, &atomtypes, active_orbitals);
         //(&atomic_numbers, &atomtypes, model);
 
         let mol = Molecule {

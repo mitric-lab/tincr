@@ -52,7 +52,7 @@ fn main() {
     println!("Start calculation");
     println!("_______________________________________________________");
     let now = Instant::now();
-    let (energy, orbs, orbe, s): (f64, Array2<f64>, Array1<f64>, Array2<f64>) =
+    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     //gradient_nolc(&mol, or);
     println!("_______________________________________________________");
@@ -78,6 +78,6 @@ fn read_xyz(path: &str) -> Molecule {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomnos, positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomnos, positions, charge, multiplicity,None);
     return mol;
 }
