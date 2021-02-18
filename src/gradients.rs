@@ -204,11 +204,11 @@ pub fn get_gradients(
     else{
         // no active space, use full range of orbitals
 
-        let orbe_occ: Array1<f64> = active_occ
+        let orbe_occ: Array1<f64> = full_occ
             .iter()
             .map(|&full_occ| orbe[full_occ])
             .collect();
-        let orbe_virt: Array1<f64> = active_virt
+        let orbe_virt: Array1<f64> = full_virt
             .iter()
             .map(|&full_virt| orbe[full_virt])
             .collect();
