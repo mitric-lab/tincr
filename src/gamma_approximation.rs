@@ -399,7 +399,7 @@ fn gamma_ao_matrix() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers.clone(), positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomic_numbers.clone(), positions, charge, multiplicity,None);
     // get gamma matrix without LRC
     let hubbard_u: HashMap<u8, f64>;
     let mut sigma: HashMap<u8, f64> = HashMap::new();

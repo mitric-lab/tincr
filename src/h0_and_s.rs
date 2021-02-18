@@ -285,6 +285,7 @@ fn test_h0_and_s() {
         positions.clone(),
         charge,
         multiplicity,
+        None
     );
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
         &atomic_numbers,
@@ -348,6 +349,7 @@ fn test_grad_H0_andS(){
         positions.clone(),
         charge,
         multiplicity,
+        None
     );
 
     let  gradS_ref: Array3<f64> = array![

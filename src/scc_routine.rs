@@ -37,6 +37,7 @@ pub fn run_scc(
     let mut scf_energy: f64 = 0.0;
     let mut orbs: Array2<f64> = Array2::zeros([molecule.calculator.n_orbs, molecule.calculator.n_orbs]);
     let mut orbe: Array1<f64> = Array1::zeros([molecule.calculator.n_orbs]);
+    let mut f:Vec<f64> = Array1::zeros([molecule.calculator.n_orbs]).to_vec();
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
         &molecule.atomic_numbers,
         molecule.positions.view(),
@@ -94,7 +95,7 @@ pub fn run_scc(
             temperature,
         );
         let mu: f64 = tmp.0;
-        let f: Vec<f64> = tmp.1;
+        f = tmp.1;
 
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
@@ -265,7 +266,7 @@ fn h1_construction() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
         &mol.atomic_numbers,
         mol.n_atoms,
@@ -449,7 +450,7 @@ fn reference_density_matrix() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
     let p0: Array2<f64> = density_matrix_ref(&mol);
     let p0_ref: Array2<f64> = array![
         [2., 0., 0., 0., 0., 0.],
@@ -475,7 +476,7 @@ fn self_consistent_charge_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     assert_eq!(1, 2);
@@ -503,7 +504,7 @@ fn self_consistent_charge_routine_near_coin() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     assert_eq!(1, 2);
