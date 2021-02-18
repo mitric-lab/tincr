@@ -102,6 +102,8 @@ pub fn get_gradients(
         grad_e0 = gradE0;
         grad_vrep = grad_v_rep;
 
+        // if an excited state is specified in the input, calculate gradients for it
+        // otherwise just return ground state
         if exc_state.is_some() {
 
             for index in active_virt.iter() {
