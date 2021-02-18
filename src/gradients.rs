@@ -1582,7 +1582,7 @@ fn gs_gradients_no_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
 
     let S: Array2<f64> = array![
         [
@@ -1733,7 +1733,7 @@ fn gs_gradients_no_lc_routine() {
         Array3<f64>,
         Array2<f64>,
         Array3<f64>,
-    ) = gradient_lc_gs(&mol, orbe_occ, orbe_virt, orbs_occ, S, Some(0.0));
+    ) = gradient_lc_gs(&mol, &orbe_occ, &orbe_virt, &orbs_occ, &S, Some(0.0));
     println!("gradE0 {}", gradE0);
     println!("gradE0_ref {}", gradE0_ref);
     assert!(gradE0.abs_diff_eq(&gradE0_ref, 1.0e-6));
@@ -1751,7 +1751,7 @@ fn gs_gradients_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
 
     let S: Array2<f64> = array![
         [
@@ -1909,7 +1909,7 @@ fn gs_gradients_lc_routine() {
         Array3<f64>,
         Array2<f64>,
         Array3<f64>,
-    ) = gradient_lc_gs(&mol, orbe_occ, orbe_virt, orbs_occ, S, Some(1.0));
+    ) = gradient_lc_gs(&mol, &orbe_occ, &orbe_virt, &orbs_occ, &S, Some(1.0));
     println!("gradE0 {}", gradE0);
     println!("gradE0_ref {}", gradE0_ref);
     assert!(gradE0.abs_diff_eq(&gradE0_ref, 1.0e-6));
