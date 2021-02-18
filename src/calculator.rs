@@ -87,7 +87,7 @@ fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {
     return (confined_atom, free_atom);
 }
 
-pub fn set_active_orbitals(f:Vec<f64>,active_orbitals:Option<(usize,usize)>)->(ArrayView1<usize>,ArrayView1<usize>){
+pub fn set_active_orbitals(f:Vec<f64>,active_orbitals:Option<(usize,usize)>)->(Array1<usize>,Array1<usize>){
     let tmp:(usize,usize) = active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
     let mut nr_active_occ:usize = tmp.0;
     let mut nr_active_virt:usize = tmp.1;
@@ -105,8 +105,8 @@ pub fn set_active_orbitals(f:Vec<f64>,active_orbitals:Option<(usize,usize)>)->(A
         nr_active_virt = virt_indices.len();
     }
 
-    let active_occ_indices:ArrayView1<usize> = occ_indices.slice(s![(occ_indices.len()-nr_active_occ)..]);
-    let active_virt_indices:ArrayView1<usize> = virt_indices.slice(s![..nr_active_virt]);
+    let active_occ_indices:Array1<usize> = occ_indices.slice(s![(occ_indices.len()-nr_active_occ)..]).to_owned();
+    let active_virt_indices:Array1<usize> = virt_indices.slice(s![..nr_active_virt]).to_owned();
 
     return (active_occ_indices, active_virt_indices);
 }
