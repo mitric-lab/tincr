@@ -94,7 +94,7 @@ fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {
 pub fn set_active_orbitals(
     f: Vec<f64>,
     active_orbitals: Option<(usize, usize)>,
-) -> (Vec<usize>, Vec<usize>) {
+) -> (Vec<usize>, Vec<usize>,Vec<usize>, Vec<usize>) {
     let tmp: (usize, usize) = active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
     let mut nr_active_occ: usize = tmp.0;
     let mut nr_active_virt: usize = tmp.1;
@@ -120,7 +120,10 @@ pub fn set_active_orbitals(
         .to_owned()).to_vec();
     let active_virt_indices: Vec<usize> = (virt_indices.slice(s![..nr_active_virt]).to_owned()).to_vec();
 
-    return (active_occ_indices, active_virt_indices);
+    let full_occ_indices:Vec<usize> = occ_indices.to_vec();
+    let full_virt_indices:Vec<usize> = virt_indices.to_vec();
+
+    return (active_occ_indices, active_virt_indices, full_occ_indices, full_virt_indices);
 }
 
 pub fn get_gamma_matrix(

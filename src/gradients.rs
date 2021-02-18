@@ -8,9 +8,10 @@ use crate::parameters::*;
 use crate::scc_routine::density_matrix_ref;
 use crate::slako_transformations::*;
 use crate::solver::*;
+use crate::transition_charges::trans_charges;
 use approx::AbsDiffEq;
 use ndarray::Data;
-use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3,Slice};
+use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3, Slice};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use std::cmp::Ordering;
@@ -18,42 +19,361 @@ use std::collections::HashMap;
 use std::ops::AddAssign;
 
 pub fn get_gradients(
-    orbe:&Array1<f64>,
-    orbs:&Array2<f64>,
-    active_occ:Vec<usize>,
-    active_virt:Vec<usize>,
-){
-    let n_occ:usize = active_occ.len();
-    let n_virt:usize = active_virt.len();
+    orbe: &Array1<f64>,
+    orbs: &Array2<f64>,
+    active_occ: &Vec<usize>,
+    active_virt: &Vec<usize>,
+    full_occ: &Vec<usize>,
+    full_virt: &Vec<usize>,
+    r_lc: &Option<f64>,
+    s: &Array2<f64>,
+    molecule: &Molecule,
+    XmY: &Option<Array3<f64>>,
+    XpY: &Option<Array3<f64>>,
+    exc_state: Option<usize>,
+    omega: &Option<Array1<f64>>,
+) ->(Array1<f64>,Array1<f64>,Array1<f64>){
+    let n_at: usize = molecule.n_atoms;
+    let n_occ: usize = active_occ.len();
+    let n_virt: usize = active_virt.len();
 
-    let mut orbe_occ:Array1<f64> = Array::zeros(n_occ);
-    let mut orbe_virt:Array1<f64> = Array::zeros(n_virt);
-    let mut orbs_occ:Array2<f64> = Array::zeros((orbs.dim().0,n_occ));
-    let mut orbs_virt:Array2<f64> = Array::zeros((orbs.dim().0,n_virt));
+    let n_occ_full: usize = full_occ.len();
+    let n_virt_full: usize = full_virt.len();
 
-    if (n_occ+n_virt) < orbe.len(){
+    let mut grad_e0:Array1<f64> = Array::zeros((3*n_at));
+    let mut grad_ex:Array1<f64> = Array::zeros((3*n_at));
+    let mut grad_vrep:Array1<f64> = Array::zeros((3*n_at));
+
+    if (n_occ + n_virt) < orbe.len() {
         // set arrays of orbitals energies of the active space
-        orbe_occ = active_occ.iter().map(|&active_occ| orbe[active_occ]).collect();
-        orbe_virt = active_virt.iter().map(|&active_virt| orbe[active_virt]).collect();
+        let orbe_occ: Array1<f64> = active_occ
+            .iter()
+            .map(|&active_occ| orbe[active_occ])
+            .collect();
+        let orbe_virt: Array1<f64> = active_virt
+            .iter()
+            .map(|&active_virt| orbe[active_virt])
+            .collect();
 
-        for index in active_occ.iter(){
-            orbs_occ.slice_mut(s![..,*index]).assign(&orbs.column(*index));
+        let mut orbs_occ: Array2<f64> = Array::zeros((orbs.dim().0, n_occ));
+        let mut orbs_virt: Array2<f64> = Array::zeros((orbs.dim().0, n_virt));
+
+        for index in active_occ.iter() {
+            orbs_occ
+                .slice_mut(s![.., *index])
+                .assign(&orbs.column(*index));
         }
-        for index in active_virt.iter(){
-            orbs_virt.slice_mut(s![..,*index]).assign(&orbs.column(*index));
+
+        let (
+            gradE0,
+            grad_v_rep,
+            grad_s,
+            grad_h0,
+            fdmdO,
+            flrdmdO,
+            g0,
+            g1,
+            g0_ao,
+            g1_ao,
+            g0lr,
+            g1lr,
+            g0lr_ao,
+            g1lr_ao,
+        ): (
+            Array1<f64>,
+            Array1<f64>,
+            Array3<f64>,
+            Array3<f64>,
+            Array3<f64>,
+            Array3<f64>,
+            Array2<f64>,
+            Array3<f64>,
+            Array2<f64>,
+            Array3<f64>,
+            Array2<f64>,
+            Array3<f64>,
+            Array2<f64>,
+            Array3<f64>,
+        ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, *r_lc);
+
+        // set values for return of the gradients
+        grad_e0 = gradE0;
+        grad_vrep = grad_v_rep;
+
+        if exc_state.is_some() {
+
+            for index in active_virt.iter() {
+                orbs_virt
+                    .slice_mut(s![.., *index])
+                    .assign(&orbs.column(*index));
+            }
+
+            let nstates: usize = XmY.as_ref().unwrap().dim().0;
+            // get transition charges of the complete range of orbitals
+            let (qtrans_ov, qtrans_oo, qtrans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) =
+                trans_charges(
+                    &[n_at as u8],
+                    &molecule.calculator.valorbs,
+                    orbs.view(),
+                    s.view(),
+                    &full_occ[..],
+                    &full_virt[..],
+                );
+
+            // construct XY matrices for active space
+            let mut XmY_active: Array3<f64> = Array::zeros((nstates, n_occ_full, n_virt_full));
+            let mut XpY_active: Array3<f64> = Array::zeros((nstates, n_occ_full, n_virt_full));
+
+            for n in 0..nstates {
+                for (i, occ) in active_occ.iter().enumerate() {
+                    for (j, virt) in active_virt.iter().enumerate() {
+                        XmY_active
+                            .slice_mut(s![n, *occ, *virt - n_occ_full])
+                            .assign(&XmY.as_ref().unwrap().slice(s![n, i, j]));
+                        XpY_active
+                            .slice_mut(s![n, *occ, *virt - n_occ_full])
+                            .assign(&XpY.as_ref().unwrap().slice(s![n, i, j]));
+                    }
+                }
+            }
+            if r_lc.unwrap() > 0.0 {
+                let grad_ex: Array1<f64> = gradients_lc_ex(
+                    exc_state.unwrap(),
+                    g0.view(),
+                    g1.view(),
+                    g0_ao.view(),
+                    g1_ao.view(),
+                    g0lr.view(),
+                    g1lr.view(),
+                    g0lr_ao.view(),
+                    g1lr_ao.view(),
+                    s.view(),
+                    grad_s.view(),
+                    grad_h0.view(),
+                    XmY_active.view(),
+                    XpY_active.view(),
+                    omega.as_ref().unwrap().view(),
+                    qtrans_oo.view(),
+                    qtrans_vv.view(),
+                    qtrans_ov.view(),
+                    orbe_occ,
+                    orbe_virt,
+                    orbs_occ.view(),
+                    orbs_virt.view(),
+                    fdmdO.view(),
+                    flrdmdO.view(),
+                    None,
+                );
+
+            } else {
+                let grad_ex: Array1<f64> = gradients_nolc_ex(
+                    exc_state.unwrap(),
+                    g0.view(),
+                    g1.view(),
+                    g0_ao.view(),
+                    g1_ao.view(),
+                    g0lr.view(),
+                    g1lr.view(),
+                    g0lr_ao.view(),
+                    g1lr_ao.view(),
+                    s.view(),
+                    grad_s.view(),
+                    grad_h0.view(),
+                    XmY_active.view(),
+                    XpY_active.view(),
+                    omega.as_ref().unwrap().view(),
+                    qtrans_oo.view(),
+                    qtrans_vv.view(),
+                    qtrans_ov.view(),
+                    orbe_occ,
+                    orbe_virt,
+                    orbs_occ.view(),
+                    orbs_virt.view(),
+                    fdmdO.view(),
+                    None,
+                );
+
+            }
         }
     }
+    else{
+        // no active space, use full range of orbitals
+
+        let orbe_occ: Array1<f64> = active_occ
+            .iter()
+            .map(|&full_occ| orbe[full_occ])
+            .collect();
+        let orbe_virt: Array1<f64> = active_virt
+            .iter()
+            .map(|&full_virt| orbe[full_virt])
+            .collect();
+
+        let mut orbs_occ: Array2<f64> = Array::zeros((orbs.dim().0, n_occ));
+        let mut orbs_virt: Array2<f64> = Array::zeros((orbs.dim().0, n_virt));
+
+        for index in full_occ.iter() {
+            orbs_occ
+                .slice_mut(s![.., *index])
+                .assign(&orbs.column(*index));
+        }
+
+        let (
+            gradE0,
+            grad_v_rep,
+            grad_s,
+            grad_h0,
+            fdmdO,
+            flrdmdO,
+            g0,
+            g1,
+            g0_ao,
+            g1_ao,
+            g0lr,
+            g1lr,
+            g0lr_ao,
+            g1lr_ao,
+        ): (
+            Array1<f64>,
+            Array1<f64>,
+            Array3<f64>,
+            Array3<f64>,
+            Array3<f64>,
+            Array3<f64>,
+            Array2<f64>,
+            Array3<f64>,
+            Array2<f64>,
+            Array3<f64>,
+            Array2<f64>,
+            Array3<f64>,
+            Array2<f64>,
+            Array3<f64>,
+        ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, *r_lc);
+
+        // set values for return of the gradients
+        grad_e0 = gradE0;
+        grad_vrep = grad_v_rep;
+
+        if exc_state.is_some() {
+            for index in active_virt.iter() {
+                orbs_virt
+                    .slice_mut(s![.., *index])
+                    .assign(&orbs.column(*index));
+            }
+
+            let nstates: usize = XmY.as_ref().unwrap().dim().0;
+            // get transition charges of the complete range of orbitals
+            let (qtrans_ov, qtrans_oo, qtrans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) =
+                trans_charges(
+                    &[n_at as u8],
+                    &molecule.calculator.valorbs,
+                    orbs.view(),
+                    s.view(),
+                    &full_occ[..],
+                    &full_virt[..],
+                );
+
+            // construct XY matrices for active space
+            let mut XmY_active: Array3<f64> = Array::zeros((nstates, n_occ_full, n_virt_full));
+            let mut XpY_active: Array3<f64> = Array::zeros((nstates, n_occ_full, n_virt_full));
+
+            for n in 0..nstates {
+                for (i, occ) in active_occ.iter().enumerate() {
+                    for (j, virt) in active_virt.iter().enumerate() {
+                        XmY_active
+                            .slice_mut(s![n, *occ, *virt - n_occ_full])
+                            .assign(&XmY.as_ref().unwrap().slice(s![n, i, j]));
+                        XpY_active
+                            .slice_mut(s![n, *occ, *virt - n_occ_full])
+                            .assign(&XpY.as_ref().unwrap().slice(s![n, i, j]));
+                    }
+                }
+            }
+            if r_lc.unwrap() > 0.0 {
+                let grad_ex: Array1<f64> = gradients_lc_ex(
+                    exc_state.unwrap(),
+                    g0.view(),
+                    g1.view(),
+                    g0_ao.view(),
+                    g1_ao.view(),
+                    g0lr.view(),
+                    g1lr.view(),
+                    g0lr_ao.view(),
+                    g1lr_ao.view(),
+                    s.view(),
+                    grad_s.view(),
+                    grad_h0.view(),
+                    XmY_active.view(),
+                    XpY_active.view(),
+                    omega.as_ref().unwrap().view(),
+                    qtrans_oo.view(),
+                    qtrans_vv.view(),
+                    qtrans_ov.view(),
+                    orbe_occ,
+                    orbe_virt,
+                    orbs_occ.view(),
+                    orbs_virt.view(),
+                    fdmdO.view(),
+                    flrdmdO.view(),
+                    None,
+                );
+            } else {
+                let grad_ex: Array1<f64> = gradients_nolc_ex(
+                    exc_state.unwrap(),
+                    g0.view(),
+                    g1.view(),
+                    g0_ao.view(),
+                    g1_ao.view(),
+                    g0lr.view(),
+                    g1lr.view(),
+                    g0lr_ao.view(),
+                    g1lr_ao.view(),
+                    s.view(),
+                    grad_s.view(),
+                    grad_h0.view(),
+                    XmY_active.view(),
+                    XpY_active.view(),
+                    omega.as_ref().unwrap().view(),
+                    qtrans_oo.view(),
+                    qtrans_vv.view(),
+                    qtrans_ov.view(),
+                    orbe_occ,
+                    orbe_virt,
+                    orbs_occ.view(),
+                    orbs_virt.view(),
+                    fdmdO.view(),
+                    None,
+                );
+            }
+        }
+    }
+
+    return (grad_e0,grad_vrep,grad_ex);
 }
 
 // only ground state
 pub fn gradient_lc_gs(
     molecule: &Molecule,
-    orbe_occ: Array1<f64>,
-    orbe_virt: Array1<f64>,
-    orbs_occ: Array2<f64>,
-    s: Array2<f64>,
+    orbe_occ: &Array1<f64>,
+    orbe_virt: &Array1<f64>,
+    orbs_occ: &Array2<f64>,
+    s: &Array2<f64>,
     r_lc: Option<f64>,
-) -> (Array1<f64>, Array1<f64>) {
+) -> (
+    Array1<f64>,
+    Array1<f64>,
+    Array3<f64>,
+    Array3<f64>,
+    Array3<f64>,
+    Array3<f64>,
+    Array2<f64>,
+    Array3<f64>,
+    Array2<f64>,
+    Array3<f64>,
+    Array2<f64>,
+    Array3<f64>,
+    Array2<f64>,
+    Array3<f64>,
+) {
     let (g0, g1, g0_ao, g1_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
         get_gamma_gradient_matrix(
             &molecule.atomic_numbers,
@@ -94,7 +414,7 @@ pub fn gradient_lc_gs(
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
 
     // density matrix
-    let d = 2.0*orbs_occ.dot(&orbs_occ.t());
+    let d = 2.0 * orbs_occ.dot(&orbs_occ.t());
     // reference density matrix
     let d_ref: Array2<f64> = density_matrix_ref(&molecule);
 
@@ -155,7 +475,10 @@ pub fn gradient_lc_gs(
         &molecule.calculator.v_rep,
     );
 
-    return (grad_e0, grad_v_rep);
+    return (
+        grad_e0, grad_v_rep, grad_s, grad_h0, fdmd0, flr_dmd0, g0, g1, g0_ao, g1_ao, g0lr, g1lr,
+        g0lr_ao, g1lr_ao,
+    );
 }
 
 // linear operators
@@ -1248,7 +1571,7 @@ fn gradient_v_rep(
 }
 
 #[test]
-fn gs_gradients_no_lc_routine(){
+fn gs_gradients_no_lc_routine() {
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let mut positions: Array2<f64> = array![
         [0.34215, 1.17577, 0.00000],
@@ -1261,70 +1584,163 @@ fn gs_gradients_no_lc_routine(){
     let multiplicity: Option<u8> = Some(1);
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
 
-    let  S: Array2<f64> = array![
-       [ 1.0000000000000000,  0.0000000000000000,  0.0000000000000000,
-         0.0000000000000000,  0.3074918525690681,  0.3074937992389065],
-       [ 0.0000000000000000,  1.0000000000000000,  0.0000000000000000,
-         0.0000000000000000,  0.0000000000000000, -0.1987769748092704],
-       [ 0.0000000000000000,  0.0000000000000000,  1.0000000000000000,
-         0.0000000000000000,  0.0000000000000000, -0.3185054221819456],
-       [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
-         1.0000000000000000, -0.3982160222204482,  0.1327383036929333],
-       [ 0.3074918525690681,  0.0000000000000000,  0.0000000000000000,
-        -0.3982160222204482,  1.0000000000000000,  0.0268024699984349],
-       [ 0.3074937992389065, -0.1987769748092704, -0.3185054221819456,
-         0.1327383036929333,  0.0268024699984349,  1.0000000000000000]
-];
-    let  orbe_occ: Array1<f64> = array![
-       -0.8688942612301258, -0.4499991998360209, -0.3563323833222918,
-       -0.2833072445491910
-];
-    let  orbe_virt: Array1<f64> = array![
-       0.3766541361485015, 0.4290384545096518
-];
-    let  orbs_occ: Array2<f64> = array![
-       [-8.6192454822475639e-01, -1.2183272343139559e-06,
-        -2.9726068852089849e-01,  2.6222307203584133e-16],
-       [ 2.6757514101551499e-03, -2.0080751179749709e-01,
-        -3.6133406147264924e-01,  8.4834397825097341e-01],
-       [ 4.2874248054290296e-03, -3.2175900344462377e-01,
-        -5.7897479277210717e-01, -5.2944545948124977e-01],
-       [ 3.5735935812255637e-03,  5.3637854372423877e-01,
-        -4.8258565481599014e-01,  3.4916084620212056e-16],
-       [-1.7925702667910837e-01, -3.6380704327437935e-01,
-         2.3851989294050652e-01, -2.0731761365694774e-16],
-       [-1.7925784113431714e-01,  3.6380666541125695e-01,
-         2.3851861974976313e-01, -9.2582148396003538e-17]
-];
+    let S: Array2<f64> = array![
+        [
+            1.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.3074918525690681,
+            0.3074937992389065
+        ],
+        [
+            0.0000000000000000,
+            1.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            -0.1987769748092704
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            -0.3185054221819456
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0000000000000000,
+            -0.3982160222204482,
+            0.1327383036929333
+        ],
+        [
+            0.3074918525690681,
+            0.0000000000000000,
+            0.0000000000000000,
+            -0.3982160222204482,
+            1.0000000000000000,
+            0.0268024699984349
+        ],
+        [
+            0.3074937992389065,
+            -0.1987769748092704,
+            -0.3185054221819456,
+            0.1327383036929333,
+            0.0268024699984349,
+            1.0000000000000000
+        ]
+    ];
+    let orbe_occ: Array1<f64> = array![
+        -0.8688942612301258,
+        -0.4499991998360209,
+        -0.3563323833222918,
+        -0.2833072445491910
+    ];
+    let orbe_virt: Array1<f64> = array![0.3766541361485015, 0.4290384545096518];
+    let orbs_occ: Array2<f64> = array![
+        [
+            -8.6192454822475639e-01,
+            -1.2183272343139559e-06,
+            -2.9726068852089849e-01,
+            2.6222307203584133e-16
+        ],
+        [
+            2.6757514101551499e-03,
+            -2.0080751179749709e-01,
+            -3.6133406147264924e-01,
+            8.4834397825097341e-01
+        ],
+        [
+            4.2874248054290296e-03,
+            -3.2175900344462377e-01,
+            -5.7897479277210717e-01,
+            -5.2944545948124977e-01
+        ],
+        [
+            3.5735935812255637e-03,
+            5.3637854372423877e-01,
+            -4.8258565481599014e-01,
+            3.4916084620212056e-16
+        ],
+        [
+            -1.7925702667910837e-01,
+            -3.6380704327437935e-01,
+            2.3851989294050652e-01,
+            -2.0731761365694774e-16
+        ],
+        [
+            -1.7925784113431714e-01,
+            3.6380666541125695e-01,
+            2.3851861974976313e-01,
+            -9.2582148396003538e-17
+        ]
+    ];
 
-    let  gradVrep_ref: Array1<f64> = array![
-        0.1578504879797087,  0.1181937590058072,  0.1893848779393944,
-       -0.2367773309532266,  0.0000000000000000,  0.0000000000000000,
-        0.0789268429735179, -0.1181937590058072, -0.1893848779393944
-];
-    let  gradE0_ref: Array1<f64> = array![
-       -0.1198269660296263, -0.0897205271709892, -0.1437614915530440,
-        0.1981679566666738, -0.0068989246413182, -0.0110543231055452,
-       -0.0783409906370475,  0.0966194518123075,  0.1548158146585892
-];
+    let gradVrep_ref: Array1<f64> = array![
+        0.1578504879797087,
+        0.1181937590058072,
+        0.1893848779393944,
+        -0.2367773309532266,
+        0.0000000000000000,
+        0.0000000000000000,
+        0.0789268429735179,
+        -0.1181937590058072,
+        -0.1893848779393944
+    ];
+    let gradE0_ref: Array1<f64> = array![
+        -0.1198269660296263,
+        -0.0897205271709892,
+        -0.1437614915530440,
+        0.1981679566666738,
+        -0.0068989246413182,
+        -0.0110543231055452,
+        -0.0783409906370475,
+        0.0966194518123075,
+        0.1548158146585892
+    ];
 
-
-    let (gradE0,grad_v_rep):(Array1<f64>,Array1<f64>) = gradient_lc_gs(
-        &mol,
-        orbe_occ,
-        orbe_virt,
-        orbs_occ,
-        S,
-        Some(0.0),
-    );
-    println!("gradE0 {}",gradE0);
+    let (
+        gradE0,
+        grad_v_rep,
+        grad_s,
+        grad_h0,
+        fdmdO,
+        flrdmdO,
+        g0,
+        g1,
+        g0_ao,
+        g1_ao,
+        g0lr,
+        g1lr,
+        g0lr_ao,
+        g1lr_ao,
+    ): (
+        Array1<f64>,
+        Array1<f64>,
+        Array3<f64>,
+        Array3<f64>,
+        Array3<f64>,
+        Array3<f64>,
+        Array2<f64>,
+        Array3<f64>,
+        Array2<f64>,
+        Array3<f64>,
+        Array2<f64>,
+        Array3<f64>,
+        Array2<f64>,
+        Array3<f64>,
+    ) = gradient_lc_gs(&mol, orbe_occ, orbe_virt, orbs_occ, S, Some(0.0));
+    println!("gradE0 {}", gradE0);
     println!("gradE0_ref {}", gradE0_ref);
-    assert!(gradE0.abs_diff_eq(&gradE0_ref,1.0e-6));
-    assert!(grad_v_rep.abs_diff_eq(&gradVrep_ref,1.0e-5));
-
+    assert!(gradE0.abs_diff_eq(&gradE0_ref, 1.0e-6));
+    assert!(grad_v_rep.abs_diff_eq(&gradVrep_ref, 1.0e-5));
 }
 #[test]
-fn gs_gradients_lc_routine(){
+fn gs_gradients_lc_routine() {
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let mut positions: Array2<f64> = array![
         [0.34215, 1.17577, 0.00000],
@@ -1337,75 +1753,167 @@ fn gs_gradients_lc_routine(){
     let multiplicity: Option<u8> = Some(1);
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity);
 
-    let  S: Array2<f64> = array![
-       [ 1.0000000000000000,  0.0000000000000000,  0.0000000000000000,
-         0.0000000000000000,  0.3074918525690681,  0.3074937992389065],
-       [ 0.0000000000000000,  1.0000000000000000,  0.0000000000000000,
-         0.0000000000000000,  0.0000000000000000, -0.1987769748092704],
-       [ 0.0000000000000000,  0.0000000000000000,  1.0000000000000000,
-         0.0000000000000000,  0.0000000000000000, -0.3185054221819456],
-       [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
-         1.0000000000000000, -0.3982160222204482,  0.1327383036929333],
-       [ 0.3074918525690681,  0.0000000000000000,  0.0000000000000000,
-        -0.3982160222204482,  1.0000000000000000,  0.0268024699984349],
-       [ 0.3074937992389065, -0.1987769748092704, -0.3185054221819456,
-         0.1327383036929333,  0.0268024699984349,  1.0000000000000000]
-];
-    let  orbe_occ: Array1<f64> = array![
-       -0.8274698453897348, -0.4866977301135286, -0.4293504173916549,
-       -0.3805317623354842
-];
-    let  orbe_virt: Array1<f64> = array![
-       0.4597732058522500, 0.5075648555895175
-];
-    let  orbs_occ: Array2<f64> = array![
-       [ 8.7633817073096332e-01, -7.3282333460513933e-07,
-        -2.5626946551477814e-01,  3.5545737574547093e-16],
-       [ 1.5609825393248001e-02, -1.9781346650256848e-01,
-        -3.5949496391504693e-01, -8.4834397825097241e-01],
-       [ 2.5012021798970618e-02, -3.1696156822050980e-01,
-        -5.7602795979720633e-01,  5.2944545948125143e-01],
-       [ 2.0847651645094598e-02,  5.2838144790875974e-01,
-        -4.8012913249888561e-01,  1.3290510512115002e-15],
-       [ 1.6641905232447368e-01, -3.7146604214648776e-01,
-         2.5136102811675498e-01, -5.9695075273495377e-16],
-       [ 1.6641962261693885e-01,  3.7146556016201521e-01,
-         2.5135992631729770e-01,  4.7826699854874327e-17]
-];
-    let  orbs_virt: Array2<f64> = array![
-       [ 4.4638746430458731e-05,  6.5169208620107999e-01],
-       [ 2.8325035872464788e-01, -2.9051011756322664e-01],
-       [ 4.5385928211929927e-01, -4.6549177907242634e-01],
-       [-7.5667687027917274e-01, -3.8791257751172398e-01],
-       [-7.2004450606556147e-01, -7.6949321868972742e-01],
-       [ 7.1993590540307117e-01, -7.6959837575446877e-01]
-];
-    let  gradVrep_ref: Array1<f64> = array![
-        0.1578504879797087,  0.1181937590058072,  0.1893848779393944,
-       -0.2367773309532266,  0.0000000000000000,  0.0000000000000000,
-        0.0789268429735179, -0.1181937590058072, -0.1893848779393944
-];
-    let  gradE0_ref: Array1<f64> = array![
-       -0.0955096709004110, -0.0715133858595269, -0.1145877241401038,
-        0.1612048707194388, -0.0067164109317917, -0.0107618767285816,
-       -0.0656951998190278,  0.0782297967913186,  0.1253496008686854
-];
+    let S: Array2<f64> = array![
+        [
+            1.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.3074918525690681,
+            0.3074937992389065
+        ],
+        [
+            0.0000000000000000,
+            1.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            -0.1987769748092704
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            -0.3185054221819456
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0000000000000000,
+            -0.3982160222204482,
+            0.1327383036929333
+        ],
+        [
+            0.3074918525690681,
+            0.0000000000000000,
+            0.0000000000000000,
+            -0.3982160222204482,
+            1.0000000000000000,
+            0.0268024699984349
+        ],
+        [
+            0.3074937992389065,
+            -0.1987769748092704,
+            -0.3185054221819456,
+            0.1327383036929333,
+            0.0268024699984349,
+            1.0000000000000000
+        ]
+    ];
+    let orbe_occ: Array1<f64> = array![
+        -0.8274698453897348,
+        -0.4866977301135286,
+        -0.4293504173916549,
+        -0.3805317623354842
+    ];
+    let orbe_virt: Array1<f64> = array![0.4597732058522500, 0.5075648555895175];
+    let orbs_occ: Array2<f64> = array![
+        [
+            8.7633817073096332e-01,
+            -7.3282333460513933e-07,
+            -2.5626946551477814e-01,
+            3.5545737574547093e-16
+        ],
+        [
+            1.5609825393248001e-02,
+            -1.9781346650256848e-01,
+            -3.5949496391504693e-01,
+            -8.4834397825097241e-01
+        ],
+        [
+            2.5012021798970618e-02,
+            -3.1696156822050980e-01,
+            -5.7602795979720633e-01,
+            5.2944545948125143e-01
+        ],
+        [
+            2.0847651645094598e-02,
+            5.2838144790875974e-01,
+            -4.8012913249888561e-01,
+            1.3290510512115002e-15
+        ],
+        [
+            1.6641905232447368e-01,
+            -3.7146604214648776e-01,
+            2.5136102811675498e-01,
+            -5.9695075273495377e-16
+        ],
+        [
+            1.6641962261693885e-01,
+            3.7146556016201521e-01,
+            2.5135992631729770e-01,
+            4.7826699854874327e-17
+        ]
+    ];
+    let orbs_virt: Array2<f64> = array![
+        [4.4638746430458731e-05, 6.5169208620107999e-01],
+        [2.8325035872464788e-01, -2.9051011756322664e-01],
+        [4.5385928211929927e-01, -4.6549177907242634e-01],
+        [-7.5667687027917274e-01, -3.8791257751172398e-01],
+        [-7.2004450606556147e-01, -7.6949321868972742e-01],
+        [7.1993590540307117e-01, -7.6959837575446877e-01]
+    ];
+    let gradVrep_ref: Array1<f64> = array![
+        0.1578504879797087,
+        0.1181937590058072,
+        0.1893848779393944,
+        -0.2367773309532266,
+        0.0000000000000000,
+        0.0000000000000000,
+        0.0789268429735179,
+        -0.1181937590058072,
+        -0.1893848779393944
+    ];
+    let gradE0_ref: Array1<f64> = array![
+        -0.0955096709004110,
+        -0.0715133858595269,
+        -0.1145877241401038,
+        0.1612048707194388,
+        -0.0067164109317917,
+        -0.0107618767285816,
+        -0.0656951998190278,
+        0.0782297967913186,
+        0.1253496008686854
+    ];
 
-
-
-    let (gradE0,grad_v_rep):(Array1<f64>,Array1<f64>) = gradient_lc_gs(
-        &mol,
-        orbe_occ,
-        orbe_virt,
-        orbs_occ,
-        S,
-        Some(1.0),
-    );
-    println!("gradE0 {}",gradE0);
+    let (
+        gradE0,
+        grad_v_rep,
+        grad_s,
+        grad_h0,
+        fdmdO,
+        flrdmdO,
+        g0,
+        g1,
+        g0_ao,
+        g1_ao,
+        g0lr,
+        g1lr,
+        g0lr_ao,
+        g1lr_ao,
+    ): (
+        Array1<f64>,
+        Array1<f64>,
+        Array3<f64>,
+        Array3<f64>,
+        Array3<f64>,
+        Array3<f64>,
+        Array2<f64>,
+        Array3<f64>,
+        Array2<f64>,
+        Array3<f64>,
+        Array2<f64>,
+        Array3<f64>,
+        Array2<f64>,
+        Array3<f64>,
+    ) = gradient_lc_gs(&mol, orbe_occ, orbe_virt, orbs_occ, S, Some(1.0));
+    println!("gradE0 {}", gradE0);
     println!("gradE0_ref {}", gradE0_ref);
-    assert!(gradE0.abs_diff_eq(&gradE0_ref,1.0e-6));
-    assert!(grad_v_rep.abs_diff_eq(&gradVrep_ref,1.0e-5));
-
+    assert!(gradE0.abs_diff_eq(&gradE0_ref, 1.0e-6));
+    assert!(grad_v_rep.abs_diff_eq(&gradVrep_ref, 1.0e-5));
 }
 
 #[test]
@@ -5510,7 +6018,7 @@ fn exc_gradient_no_lc_routine() {
         ]
     ];
 
-    let gradEx_test:Array1<f64> = gradients_nolc_ex(
+    let gradEx_test: Array1<f64> = gradients_nolc_ex(
         1,
         gamma0.view(),
         gamma1.view(),
