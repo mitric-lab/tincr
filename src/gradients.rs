@@ -32,7 +32,7 @@ pub fn get_gradients(
     XpY: &Option<Array3<f64>>,
     exc_state: Option<usize>,
     omega: &Option<Array1<f64>>,
-) ->(Array1<f64>,Array1<f64>,Array1<f64>){
+) -> (Array1<f64>, Array1<f64>, Array1<f64>) {
     let n_at: usize = molecule.n_atoms;
     let n_occ: usize = active_occ.len();
     let n_virt: usize = active_virt.len();
@@ -40,9 +40,9 @@ pub fn get_gradients(
     let n_occ_full: usize = full_occ.len();
     let n_virt_full: usize = full_virt.len();
 
-    let mut grad_e0:Array1<f64> = Array::zeros((3*n_at));
-    let mut grad_ex:Array1<f64> = Array::zeros((3*n_at));
-    let mut grad_vrep:Array1<f64> = Array::zeros((3*n_at));
+    let mut grad_e0: Array1<f64> = Array::zeros((3 * n_at));
+    let mut grad_ex: Array1<f64> = Array::zeros((3 * n_at));
+    let mut grad_vrep: Array1<f64> = Array::zeros((3 * n_at));
 
     // check if active space is smaller than full space
     // otherwise this part is unnecessary
@@ -105,7 +105,6 @@ pub fn get_gradients(
         // if an excited state is specified in the input, calculate gradients for it
         // otherwise just return ground state
         if exc_state.is_some() {
-
             for index in active_virt.iter() {
                 orbs_virt
                     .slice_mut(s![.., *index])
@@ -169,7 +168,6 @@ pub fn get_gradients(
                     flrdmdO.view(),
                     None,
                 );
-
             } else {
                 let grad_ex: Array1<f64> = gradients_nolc_ex(
                     exc_state.unwrap(),
@@ -197,21 +195,13 @@ pub fn get_gradients(
                     fdmdO.view(),
                     None,
                 );
-
             }
         }
-    }
-    else{
+    } else {
         // no active space, use full range of orbitals
 
-        let orbe_occ: Array1<f64> = full_occ
-            .iter()
-            .map(|&full_occ| orbe[full_occ])
-            .collect();
-        let orbe_virt: Array1<f64> = full_virt
-            .iter()
-            .map(|&full_virt| orbe[full_virt])
-            .collect();
+        let orbe_occ: Array1<f64> = full_occ.iter().map(|&full_occ| orbe[full_occ]).collect();
+        let orbe_virt: Array1<f64> = full_virt.iter().map(|&full_virt| orbe[full_virt]).collect();
 
         let mut orbs_occ: Array2<f64> = Array::zeros((orbs.dim().0, n_occ));
         let mut orbs_virt: Array2<f64> = Array::zeros((orbs.dim().0, n_virt));
@@ -352,7 +342,7 @@ pub fn get_gradients(
         }
     }
 
-    return (grad_e0,grad_vrep,grad_ex);
+    return (grad_e0, grad_vrep, grad_ex);
 }
 
 // only ground state
@@ -1587,7 +1577,7 @@ fn gs_gradients_no_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None);
 
     let S: Array2<f64> = array![
         [
@@ -1756,7 +1746,7 @@ fn gs_gradients_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None);
 
     let S: Array2<f64> = array![
         [
