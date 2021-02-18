@@ -44,6 +44,8 @@ pub fn get_gradients(
     let mut grad_ex:Array1<f64> = Array::zeros((3*n_at));
     let mut grad_vrep:Array1<f64> = Array::zeros((3*n_at));
 
+    // check if active space is smaller than full space
+    // otherwise this part is unnecessary
     if (n_occ + n_virt) < orbe.len() {
         // set arrays of orbitals energies of the active space
         let orbe_occ: Array1<f64> = active_occ
@@ -136,6 +138,7 @@ pub fn get_gradients(
                     }
                 }
             }
+            //check for lc correction
             if r_lc.unwrap() > 0.0 {
                 let grad_ex: Array1<f64> = gradients_lc_ex(
                     exc_state.unwrap(),
