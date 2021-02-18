@@ -22,7 +22,7 @@ pub fn run_scc(
     max_iter: Option<usize>,
     scf_conv: Option<f64>,
     temperature: Option<f64>,
-) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>) {
+) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
     let max_iter: usize = max_iter.unwrap_or(defaults::MAX_ITER);
     let scf_conv: f64 = scf_conv.unwrap_or(defaults::SCF_CONV);
     let temperature: f64 = temperature.unwrap_or(defaults::TEMPERATURE);
@@ -135,7 +135,7 @@ pub fn run_scc(
         }
     }
     println!("SCF Converged!");
-    return (scf_energy + rep_energy, orbs, orbe, s);
+    return (scf_energy + rep_energy, orbs, orbe, s, f);
 }
 
 /// Compute energy due to core electrons and nuclear repulsion

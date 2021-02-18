@@ -27,10 +27,11 @@ pub struct DFTBCalculator {
     pub nr_unpaired_electrons: usize,
     pub orbs_per_atom: Vec<usize>,
     pub n_orbs: usize,
+    pub active_orbitals:Option<(usize,usize)>
 }
 
 impl DFTBCalculator {
-    pub fn new(atomic_numbers: &[u8], atomtypes: &HashMap<u8, String>) -> DFTBCalculator {
+    pub fn new(atomic_numbers: &[u8], atomtypes: &HashMap<u8, String>,active_orbitals:Option<(usize,usize)>) -> DFTBCalculator {
         let mut unique_numbers: Vec<u8> = Vec::from(atomic_numbers);
         unique_numbers.sort_unstable(); // fast sort of atomic numbers
         unique_numbers.dedup(); // delete duplicates
@@ -74,6 +75,7 @@ impl DFTBCalculator {
             nr_unpaired_electrons: 0,
             orbs_per_atom: orbs_per_atom,
             n_orbs: n_orbs,
+            active_orbitals: active_orbitals,
         }
     }
 }
@@ -83,6 +85,30 @@ fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {
     let free_atom: PseudoAtom = get_free_pseudo_atom(symbol);
     let confined_atom: PseudoAtom = get_confined_pseudo_atom(symbol);
     return (confined_atom, free_atom);
+}
+
+pub fn set_active_orbitals(f:Vec<f64>,active_orbitals:Option<(usize,usize)>)->(ArrayView1<usize>,ArrayView1<usize>){
+    let tmp:(usize,usize) = active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
+    let mut nr_active_occ:usize = tmp.0;
+    let mut nr_active_virt:usize = tmp.1;
+    let occ_indices:Array1<usize> = f.indexed_iter()
+        .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
+        .collect();
+    let virt_indices:Array1<usize> = f.indexed_iter()
+        .filter_map(|(index, &item)| if item <= 0.1 { Some(index) } else { None })
+        .collect();
+
+    if nr_active_occ >= occ_indices.len(){
+        nr_active_occ = occ_indices.len();
+    }
+    if nr_active_virt >= virt_indices.len(){
+        nr_active_virt = virt_indices.len();
+    }
+
+    let active_occ_indices:ArrayView1<usize> = occ_indices.slice(s![(occ_indices.len()-nr_active_occ)..]);
+    let active_virt_indices:ArrayView1<usize> = virt_indices.slice(s![..nr_active_virt]);
+
+    return (active_occ_indices, active_virt_indices);
 }
 
 pub fn get_gamma_matrix(
