@@ -37,6 +37,7 @@ pub fn run_scc(
     let mut scf_energy: f64 = 0.0;
     let mut orbs: Array2<f64> = Array2::zeros([molecule.calculator.n_orbs, molecule.calculator.n_orbs]);
     let mut orbe: Array1<f64> = Array1::zeros([molecule.calculator.n_orbs]);
+    let mut f:Vec<f64> = Array1::zeros([molecule.calculator.n_orbs]).to_vec();
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
         &molecule.atomic_numbers,
         molecule.positions.view(),
@@ -94,7 +95,7 @@ pub fn run_scc(
             temperature,
         );
         let mu: f64 = tmp.0;
-        let f: Vec<f64> = tmp.1;
+        f = tmp.1;
 
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);

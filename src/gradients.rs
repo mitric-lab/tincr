@@ -10,12 +10,40 @@ use crate::slako_transformations::*;
 use crate::solver::*;
 use approx::AbsDiffEq;
 use ndarray::Data;
-use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
+use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3,Slice};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::AddAssign;
+
+pub fn get_gradients(
+    orbe:&Array1<f64>,
+    orbs:&Array2<f64>,
+    active_occ:Vec<usize>,
+    active_virt:Vec<usize>,
+){
+    let n_occ:usize = active_occ.len();
+    let n_virt:usize = active_virt.len();
+
+    let mut orbe_occ:Array1<f64> = Array::zeros(n_occ);
+    let mut orbe_virt:Array1<f64> = Array::zeros(n_virt);
+    let mut orbs_occ:Array2<f64> = Array::zeros((orbs.dim().0,n_occ));
+    let mut orbs_virt:Array2<f64> = Array::zeros((orbs.dim().0,n_virt));
+
+    if (n_occ+n_virt) < orbe.len(){
+        // set arrays of orbitals energies of the active space
+        orbe_occ = active_occ.iter().map(|&active_occ| orbe[active_occ]).collect();
+        orbe_virt = active_virt.iter().map(|&active_virt| orbe[active_virt]).collect();
+
+        for index in active_occ.iter(){
+            orbs_occ.slice_mut(s![..,*index]).assign(&orbs.column(*index));
+        }
+        for index in active_virt.iter(){
+            orbs_virt.slice_mut(s![..,*index]).assign(&orbs.column(*index));
+        }
+    }
+}
 
 // only ground state
 pub fn gradient_lc_gs(
@@ -172,7 +200,7 @@ fn f_v(
     return f;
 }
 
-fn gradients_nolc_ex(
+pub fn gradients_nolc_ex(
     state: usize,
     g0: ArrayView2<f64>,
     g1: ArrayView3<f64>,
@@ -506,7 +534,7 @@ fn gradients_nolc_ex(
     return gradExc;
 }
 
-fn gradients_lc_ex(
+pub fn gradients_lc_ex(
     state: usize,
     g0: ArrayView2<f64>,
     g1: ArrayView3<f64>,
