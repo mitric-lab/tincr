@@ -11,7 +11,7 @@ use peroxide::prelude::*;
 use std::cmp::Ordering;
 use std::ops::AddAssign;
 
-pub fn get_energies(
+pub fn get_ex_energies(
     f_occ: &Vec<f64>,
     molecule: &Molecule,
     nstates: Option<usize>,
