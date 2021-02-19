@@ -73,13 +73,9 @@ pub fn get_gradients(
             grad_h0,
             fdmdO,
             flrdmdO,
-            g0,
             g1,
-            g0_ao,
             g1_ao,
-            g0lr,
             g1lr,
-            g0lr_ao,
             g1lr_ao,
         ): (
             Array1<f64>,
@@ -88,13 +84,9 @@ pub fn get_gradients(
             Array3<f64>,
             Array3<f64>,
             Array3<f64>,
-            Array2<f64>,
             Array3<f64>,
-            Array2<f64>,
             Array3<f64>,
-            Array2<f64>,
             Array3<f64>,
-            Array2<f64>,
             Array3<f64>,
         ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, *r_lc);
 
@@ -143,13 +135,13 @@ pub fn get_gradients(
             if r_lc.unwrap() > 0.0 {
                 let grad_ex: Array1<f64> = gradients_lc_ex(
                     exc_state.unwrap(),
-                    g0.view(),
+                    (&molecule.calculator.g0).view(),
                     g1.view(),
-                    g0_ao.view(),
+                    (&molecule.calculator.g0_ao).view(),
                     g1_ao.view(),
-                    g0lr.view(),
+                    (&molecule.calculator.g0_lr).view(),
                     g1lr.view(),
-                    g0lr_ao.view(),
+                    (&molecule.calculator.g0_lr_ao).view(),
                     g1lr_ao.view(),
                     s.view(),
                     grad_s.view(),
@@ -171,13 +163,13 @@ pub fn get_gradients(
             } else {
                 let grad_ex: Array1<f64> = gradients_nolc_ex(
                     exc_state.unwrap(),
-                    g0.view(),
+                    (&molecule.calculator.g0).view(),
                     g1.view(),
-                    g0_ao.view(),
+                    (&molecule.calculator.g0_ao).view(),
                     g1_ao.view(),
-                    g0lr.view(),
+                    (&molecule.calculator.g0_lr).view(),
                     g1lr.view(),
-                    g0lr_ao.view(),
+                    (&molecule.calculator.g0_lr_ao).view(),
                     g1lr_ao.view(),
                     s.view(),
                     grad_s.view(),
@@ -219,13 +211,9 @@ pub fn get_gradients(
             grad_h0,
             fdmdO,
             flrdmdO,
-            g0,
             g1,
-            g0_ao,
             g1_ao,
-            g0lr,
             g1lr,
-            g0lr_ao,
             g1lr_ao,
         ): (
             Array1<f64>,
@@ -234,13 +222,9 @@ pub fn get_gradients(
             Array3<f64>,
             Array3<f64>,
             Array3<f64>,
-            Array2<f64>,
             Array3<f64>,
-            Array2<f64>,
             Array3<f64>,
-            Array2<f64>,
             Array3<f64>,
-            Array2<f64>,
             Array3<f64>,
         ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, *r_lc);
 
@@ -286,13 +270,13 @@ pub fn get_gradients(
             if r_lc.unwrap() > 0.0 {
                 let grad_ex: Array1<f64> = gradients_lc_ex(
                     exc_state.unwrap(),
-                    g0.view(),
+                    (&molecule.calculator.g0_ao).view(),
                     g1.view(),
-                    g0_ao.view(),
+                    (&molecule.calculator.g0_ao).view(),
                     g1_ao.view(),
-                    g0lr.view(),
+                    (&molecule.calculator.g0_lr).view(),
                     g1lr.view(),
-                    g0lr_ao.view(),
+                    (&molecule.calculator.g0_lr_ao).view(),
                     g1lr_ao.view(),
                     s.view(),
                     grad_s.view(),
@@ -314,13 +298,13 @@ pub fn get_gradients(
             } else {
                 let grad_ex: Array1<f64> = gradients_nolc_ex(
                     exc_state.unwrap(),
-                    g0.view(),
+                    (&molecule.calculator.g0_ao).view(),
                     g1.view(),
-                    g0_ao.view(),
+                    (&molecule.calculator.g0_ao).view(),
                     g1_ao.view(),
-                    g0lr.view(),
+                    (&molecule.calculator.g0_lr).view(),
                     g1lr.view(),
-                    g0lr_ao.view(),
+                    (&molecule.calculator.g0_lr_ao).view(),
                     g1lr_ao.view(),
                     s.view(),
                     grad_s.view(),
@@ -360,16 +344,12 @@ pub fn gradient_lc_gs(
     Array3<f64>,
     Array3<f64>,
     Array3<f64>,
-    Array2<f64>,
     Array3<f64>,
-    Array2<f64>,
     Array3<f64>,
-    Array2<f64>,
     Array3<f64>,
-    Array2<f64>,
-    Array3<f64>,
+    Array3<f64>
 ) {
-    let (g0, g1, g0_ao, g1_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
+    let (g1,g1_ao): (Array3<f64>, Array3<f64>) =
         get_gamma_gradient_matrix(
             &molecule.atomic_numbers,
             molecule.n_atoms,
@@ -381,7 +361,7 @@ pub fn gradient_lc_gs(
             Some(0.0),
         );
 
-    let (g0lr, g1lr, g0lr_ao, g1lr_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
+    let (g1lr, g1lr_ao): (Array3<f64>, Array3<f64>) =
         get_gamma_gradient_matrix(
             &molecule.atomic_numbers,
             molecule.n_atoms,
@@ -392,8 +372,8 @@ pub fn gradient_lc_gs(
             &molecule.calculator.valorbs,
             None,
         );
-    let n_at: usize = g0.dim().0;
-    let n_orb: usize = g0_ao.dim().0;
+    let n_at: usize = *&molecule.calculator.g0.dim().0;
+    let n_orb: usize = *&molecule.calculator.g0_ao.dim().0;
 
     let (grad_s, grad_h0): (Array3<f64>, Array3<f64>) = h0_and_s_gradients(
         &molecule.atomic_numbers,
@@ -420,7 +400,7 @@ pub fn gradient_lc_gs(
         diff_d.view(),
         s.view(),
         grad_s.view(),
-        g0_ao.view(),
+        (&molecule.calculator.g0_ao).view(),
         g1_ao.view(),
         molecule.n_atoms,
         molecule.calculator.n_orbs,
@@ -432,8 +412,8 @@ pub fn gradient_lc_gs(
             diff_d.view(),
             s.view(),
             grad_s.view(),
-            g0_ao.view(),
-            g0lr_ao.view(),
+            (&molecule.calculator.g0_ao).view(),
+            (&molecule.calculator.g0_lr_ao).view(),
             g1_ao.view(),
             g1lr_ao.view(),
             n_at,
@@ -470,10 +450,7 @@ pub fn gradient_lc_gs(
         &molecule.calculator.v_rep,
     );
 
-    return (
-        grad_e0, grad_v_rep, grad_s, grad_h0, fdmd0, flr_dmd0, g0, g1, g0_ao, g1_ao, g0lr, g1lr,
-        g0lr_ao, g1lr_ao,
-    );
+    return (grad_e0, grad_v_rep, grad_s, grad_h0, fdmd0, flr_dmd0, g1, g1_ao, g1lr, g1lr_ao);
 }
 
 // linear operators
@@ -1577,7 +1554,7 @@ fn gs_gradients_no_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None,None);
 
     let S: Array2<f64> = array![
         [
@@ -1705,13 +1682,9 @@ fn gs_gradients_no_lc_routine() {
         grad_h0,
         fdmdO,
         flrdmdO,
-        g0,
         g1,
-        g0_ao,
         g1_ao,
-        g0lr,
         g1lr,
-        g0lr_ao,
         g1lr_ao,
     ): (
         Array1<f64>,
@@ -1720,13 +1693,9 @@ fn gs_gradients_no_lc_routine() {
         Array3<f64>,
         Array3<f64>,
         Array3<f64>,
-        Array2<f64>,
         Array3<f64>,
-        Array2<f64>,
         Array3<f64>,
-        Array2<f64>,
         Array3<f64>,
-        Array2<f64>,
         Array3<f64>,
     ) = gradient_lc_gs(&mol, &orbe_occ, &orbe_virt, &orbs_occ, &S, Some(0.0));
     println!("gradE0 {}", gradE0);
@@ -1746,7 +1715,7 @@ fn gs_gradients_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None,None);
 
     let S: Array2<f64> = array![
         [
@@ -1881,13 +1850,9 @@ fn gs_gradients_lc_routine() {
         grad_h0,
         fdmdO,
         flrdmdO,
-        g0,
         g1,
-        g0_ao,
         g1_ao,
-        g0lr,
         g1lr,
-        g0lr_ao,
         g1lr_ao,
     ): (
         Array1<f64>,
@@ -1896,13 +1861,9 @@ fn gs_gradients_lc_routine() {
         Array3<f64>,
         Array3<f64>,
         Array3<f64>,
-        Array2<f64>,
         Array3<f64>,
-        Array2<f64>,
         Array3<f64>,
-        Array2<f64>,
         Array3<f64>,
-        Array2<f64>,
         Array3<f64>,
     ) = gradient_lc_gs(&mol, &orbe_occ, &orbe_virt, &orbs_occ, &S, Some(1.0));
     println!("gradE0 {}", gradE0);
