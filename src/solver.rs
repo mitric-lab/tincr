@@ -2,14 +2,32 @@ use crate::calculator::{get_gamma_gradient_matrix, lambda2_calc_oia, set_active_
 use crate::defaults;
 use crate::transition_charges::trans_charges;
 use crate::Molecule;
+use crate::gradients;
 use approx::AbsDiffEq;
 use ndarray::prelude::*;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
+use ndarray::Data;
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::cmp::Ordering;
 use std::ops::AddAssign;
+
+pub trait ToOwnedF<A, D> {
+    fn to_owned_f(&self) -> Array<A, D>;
+}
+impl<A, S, D> ToOwnedF<A, D> for ArrayBase<S, D>
+    where
+        A: Copy + Clone,
+        S: Data<Elem = A>,
+        D: Dimension,
+{
+    fn to_owned_f(&self) -> Array<A, D> {
+        let mut tmp = unsafe { Array::uninitialized(self.dim().f()) };
+        tmp.assign(self);
+        tmp
+    }
+}
 
 pub fn get_exc_energies(
     f_occ: &Vec<f64>,
@@ -25,6 +43,8 @@ pub fn get_exc_energies(
         set_active_orbitals((&f_occ).to_vec(), molecule.calculator.active_orbitals);
     let active_occ: Vec<usize> = tmp.0;
     let active_virt: Vec<usize> = tmp.1;
+    println!("active_orbs {:?}",&active_occ);
+    println!("active_virts {:?}",&active_virt);
     let n_occ: usize = active_occ.len();
     let n_virt: usize = active_virt.len();
 
@@ -99,14 +119,6 @@ pub fn get_exc_energies(
                 molecule.multiplicity.clone(),
             );
         } else {
-            println!("Casida");
-            println!("gamm0 {}",(&molecule.calculator.g0).view());
-            println!("gamm0_lr {}", &gamma0_lr);
-            println!("qtrans_ov {}", &qtrans_ov);
-            println!("qtrans_oo {}", &qtrans_oo);
-            println!("qtrans_vv {}", &qtrans_vv);
-            println!("omega_in {}", &omega);
-            println!("df {}", &df);
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
                 (&molecule.calculator.g0).view(),
                 gamma0_lr.view(),
@@ -116,6 +128,8 @@ pub fn get_exc_energies(
                 omega.view(),
                 df.view(),
                 molecule.multiplicity.clone(),
+                n_occ,
+                n_virt,
             );
             omega_out = tmp.0;
             c_ij = tmp.1;
@@ -129,6 +143,7 @@ pub fn get_exc_energies(
 
         //check for lr_correction
         if *&molecule.calculator.r_lr.unwrap() == 0.0 {
+            println!("Hermitian Davidson");
             // calculate o_ia
             let o_ia: Array2<f64> =
                 lambda2_calc_oia(molecule, &active_occ, &active_virt, &qtrans_oo, &qtrans_vv);
@@ -319,7 +334,7 @@ pub fn get_orbital_occ_diff(
     let mut df: Array2<f64> = Array2::zeros([n_occ, n_virt]);
     for (i, occ_i) in active_occupied_orbs.iter().enumerate() {
         for (a, virt_a) in active_virtual_orbs.iter().enumerate() {
-            df[[i, a]] = f[*virt_a] - f[*occ_i];
+            df[[i, a]] = f[*occ_i] - f[*virt_a];
         }
     }
     return df;
@@ -365,6 +380,8 @@ pub fn casida(
     omega: ArrayView2<f64>,
     df: ArrayView2<f64>,
     multiplicity: u8,
+    n_occ:usize,
+    n_virt:usize,
 ) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
     let A: Array2<f64> = build_a_matrix(
         gamma,
@@ -389,8 +406,8 @@ pub fn casida(
     //check whether A - B is diagonal
     let AmB: Array2<f64> = &A - &B;
     let ApB: Array2<f64> = &A + &B;
-    let n_occ: usize = q_trans_oo.dim().1;
-    let n_virt: usize = q_trans_vv.dim().1;
+    //let n_occ: usize = q_trans_oo.dim().1;
+    //let n_virt: usize = q_trans_vv.dim().1;
     let mut sqAmB: Array2<f64> = Array2::zeros((n_occ * n_virt, n_occ * n_virt));
     let offdiag: f64 = (Array2::from_diag(&AmB.diag()) - &AmB).norm();
     if offdiag < 1.0e-10 {
@@ -439,34 +456,8 @@ pub fn casida(
             < 1.0e-10
     );
 
-    let XmY_transformed: Array3<f64> = XmY
-        .reversed_axes()
-        .into_shape((n_occ * n_virt, n_occ, n_virt))
-        .unwrap();
-    let XpY_transformed: Array3<f64> = XpY
-        .reversed_axes()
-        .into_shape((n_occ * n_virt, n_occ, n_virt))
-        .unwrap();
-
-    // wrong shape of XmY and XpY
-    // Another reversed axes of the inner Array2's necessary
-    let mut XmY_final: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
-    let mut XpY_final: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
-
-    for i in 0..(n_occ * n_virt) {
-        XmY_final.slice_mut(s![i, .., ..]).assign(
-            &XmY_transformed
-                .slice(s![i, .., ..])
-                .to_owned()
-                .reversed_axes(),
-        );
-        XpY_final.slice_mut(s![i, .., ..]).assign(
-            &XpY_transformed
-                .slice(s![i, .., ..])
-                .to_owned()
-                .reversed_axes(),
-        );
-    }
+    let XmY_final:Array3<f64> = XmY.to_owned_f().t().into_shape((n_occ * n_virt, n_occ, n_virt)).unwrap().to_owned();
+    let XpY_final:Array3<f64> = XpY.to_owned_f().t().into_shape((n_occ * n_virt, n_occ, n_virt)).unwrap().to_owned();
 
     let c_matrix_transformed: Array3<f64> = c_matrix
         .reversed_axes()
@@ -509,7 +500,6 @@ pub fn hermitian_davidson(
     let wq_ov: Array3<f64> = &qtrans_ov * &omega_sq;
     //# diagonal elements of R
     let om: Array2<f64> = omega2 + &omega * &omega_shift * 2.0;
-
     // initial number of expansion vectors
     // at most there are nocc*nvirt excited states
     let kmax = &n_occ * &n_virt;
@@ -535,10 +525,13 @@ pub fn hermitian_davidson(
     let mut w: Array1<f64> = Array::zeros(lmax);
     let mut T_new: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     let mut r_bs_first: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+
     for it in 0..maxiter {
+        let lmax:usize = bs.dim().2;
         let r_bs: Array3<f64> = matrix_v_product(&bs, lmax, n_occ, n_virt, &om, &wq_ov, &gamma);
         r_bs_first = r_bs.clone();
         // shape of Hb: (lmax, lmax)
+
         let Hb: Array2<f64> = tensordot(&bs, &r_bs, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
             .into_dimensionality::<Ix2>()
             .unwrap();
@@ -550,6 +543,7 @@ pub fn hermitian_davidson(
 
         // In DFTBaby a selector of symmetry could be used here
         let temp: (Array1<f64>, Array3<f64>);
+
         if l2_treshold > 0.0 {
             temp = reorder_vectors_lambda2(&Oia, &w2, &T, l2_treshold);
         } else {
@@ -580,6 +574,7 @@ pub fn hermitian_davidson(
         if indices_norms.len() == norms_res.len() {
             break;
         }
+
         // # enlarge dimension of subspace by dk vectors
         // # At most k new expansion vectors are added
         let dkmax = (kmax - l).min(k);
@@ -588,16 +583,15 @@ pub fn hermitian_davidson(
         //1.0e-16
         let eps = 0.01 * conv;
         // version for nc = np.sum(norms > eps)
+
         let indices_norm_over_eps: Array1<usize> = norms_res
             .indexed_iter()
             .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
             .collect();
-        let mut norms_over_eps: Array1<f64> = Array::zeros(indices_norm_over_eps.len());
-        for i in 0..indices_norm_over_eps.len() {
-            norms_over_eps[i] = norms_res[indices_norm_over_eps[i]];
-        }
-        let nc: f64 = norms_over_eps.sum();
+
+        let nc: usize = indices_norm_over_eps.len();
         let dk: usize = dkmax.min(nc as usize);
+
         let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
         let mut nb: i32 = 0;
 
@@ -608,16 +602,19 @@ pub fn hermitian_davidson(
             // indx = abs(wD) < 1.0e-6
             // wD[indx] = 1.0e-6 * omega[indx]
             // from numpy
+
             let temp: Array2<f64> = wD.map(|wD| if wD < &1.0e-6 { 1.0e-6 } else { 0.0 });
             let temp_2: Array2<f64> = wD.map(|&wD| if wD < 1.0e-6 { 0.0 } else { wD });
             let mut wD_new: Array2<f64> = &temp * &omega.to_owned();
             wD_new = wD_new + temp_2;
+
             if norms_res[i] > eps {
                 Qs.slice_mut(s![.., .., nb])
                     .assign(&((1.0 / &wD_new) * W_res.slice(s![.., .., i])));
                 nb += 1;
             }
         }
+
         // new expansion vectors are bs + Qs
         let mut bs_new: Array3<f64> = Array::zeros((n_occ, n_virt, l + dk));
         bs_new.slice_mut(s![.., .., ..l]).assign(&bs);
@@ -625,6 +622,7 @@ pub fn hermitian_davidson(
 
         //QR decomposition
         let nvec: usize = l + dk;
+
         let bs_flat: Array2<f64> = bs_new.into_shape((n_occ * n_virt, nvec)).unwrap();
         let (Q, R): (Array2<f64>, Array2<f64>) = bs_flat.qr().unwrap();
         bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
@@ -1108,6 +1106,7 @@ pub fn reorder_vectors_lambda2(
 ) -> (Array1<f64>, Array3<f64>) {
     // reorder the expansion vectors so that those with Lambda2 values
     // above a certain threshold come first
+
     let n_occ: usize = T.dim().0;
     let n_virt: usize = T.dim().1;
     let n_st: usize = T.dim().2;
@@ -1360,221 +1359,103 @@ fn excited_energies_routine() {
         None,
     );
 
-    let S: Array2<f64> = array![
-        [
-            1.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            0.3074918525690681,
-            0.3074937992389065
-        ],
-        [
-            0.0000000000000000,
-            1.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            -0.1987769748092704
-        ],
-        [
-            0.0000000000000000,
-            0.0000000000000000,
-            1.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            -0.3185054221819456
-        ],
-        [
-            0.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            1.0000000000000000,
-            -0.3982160222204482,
-            0.1327383036929333
-        ],
-        [
-            0.3074918525690681,
-            0.0000000000000000,
-            0.0000000000000000,
-            -0.3982160222204482,
-            1.0000000000000000,
-            0.0268024699984349
-        ],
-        [
-            0.3074937992389065,
-            -0.1987769748092704,
-            -0.3185054221819456,
-            0.1327383036929333,
-            0.0268024699984349,
-            1.0000000000000000
-        ]
-    ];
-    let f_occ: Array1<f64> = array![
-        2.0000000000000000,
-        2.0000000000000000,
-        2.0000000000000000,
-        2.0000000000000000,
-        0.0000000000000000,
-        0.0000000000000000
-    ];
-    let orbe: Array1<f64> = array![
-        -0.8688947761291694,
-        -0.4499995482542977,
-        -0.3563328959810789,
-        -0.2833078663602301,
-        0.3766539028637694,
-        0.4290382785534342
-    ];
-    let orbs: Array2<f64> = array![
-        [
-            -8.6192475509337374e-01,
-            -1.2183336763751098e-06,
-            -2.9726029578790070e-01,
-            -1.0617173035797705e-16,
-            4.3204846337269176e-05,
-            6.5350381550742609e-01
-        ],
-        [
-            2.6757349898771515e-03,
-            -2.0080763751606209e-01,
-            -3.6133415221394610e-01,
-            8.4834397825097296e-01,
-            2.8113666974634488e-01,
-            -2.8862829713723015e-01
-        ],
-        [
-            4.2873984947983486e-03,
-            -3.2175920488669046e-01,
-            -5.7897493816920131e-01,
-            -5.2944545948125077e-01,
-            4.5047246429977195e-01,
-            -4.6247649015464443e-01
-        ],
-        [
-            3.5735716506930821e-03,
-            5.3637887951745156e-01,
-            -4.8258577602132369e-01,
-            -1.0229037571655944e-16,
-            -7.5102755864519533e-01,
-            -3.8540254135808827e-01
-        ],
-        [
-            -1.7925680721591991e-01,
-            -3.6380671959263217e-01,
-            2.3851969138617155e-01,
-            2.2055761208820838e-16,
-            -7.2394310468946377e-01,
-            -7.7069773456574175e-01
-        ],
-        [
-            -1.7925762167314863e-01,
-            3.6380634174056053e-01,
-            2.3851841819041375e-01,
-            2.5181078277624383e-17,
-            7.2383801990121355e-01,
-            -7.7079988940061905e-01
-        ]
-    ];
-
+    let  S: Array2<f64> = array![
+       [ 1.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+         0.0000000000000000,  0.3074918525690681,  0.3074937992389065],
+       [ 0.0000000000000000,  1.0000000000000000,  0.0000000000000000,
+         0.0000000000000000,  0.0000000000000000, -0.1987769748092704],
+       [ 0.0000000000000000,  0.0000000000000000,  1.0000000000000000,
+         0.0000000000000000,  0.0000000000000000, -0.3185054221819456],
+       [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+         1.0000000000000000, -0.3982160222204482,  0.1327383036929333],
+       [ 0.3074918525690681,  0.0000000000000000,  0.0000000000000000,
+        -0.3982160222204482,  1.0000000000000000,  0.0268024699984349],
+       [ 0.3074937992389065, -0.1987769748092704, -0.3185054221819456,
+         0.1327383036929333,  0.0268024699984349,  1.0000000000000000]
+];
+    let  f_occ: Array1<f64> = array![
+       2.0000000000000000, 2.0000000000000000, 2.0000000000000000,
+       2.0000000000000000, 0.0000000000000000, 0.0000000000000000
+];
+    let  orbe: Array1<f64> = array![
+       -0.8688942612301258, -0.4499991998360209, -0.3563323833222918,
+       -0.2833072445491910,  0.3766541361485015,  0.4290384545096518
+];
+    let  orbs: Array2<f64> = array![
+       [-8.6192454822475639e-01, -1.2183272343139559e-06,
+        -2.9726068852089849e-01,  2.6222307203584133e-16,
+         4.3204927822809713e-05,  6.5350390970909367e-01],
+       [ 2.6757514101551499e-03, -2.0080751179749709e-01,
+        -3.6133406147264924e-01,  8.4834397825097341e-01,
+         2.8113675949215844e-01, -2.8862841063399913e-01],
+       [ 4.2874248054290296e-03, -3.2175900344462377e-01,
+        -5.7897479277210717e-01, -5.2944545948124977e-01,
+         4.5047260810178097e-01, -4.6247667201341525e-01],
+       [ 3.5735935812255637e-03,  5.3637854372423877e-01,
+        -4.8258565481599014e-01,  3.4916084620212056e-16,
+        -7.5102779853473878e-01, -3.8540269278994982e-01],
+       [-1.7925702667910837e-01, -3.6380704327437935e-01,
+         2.3851989294050652e-01, -2.0731761365694774e-16,
+        -7.2394294209812204e-01, -7.7069762107665973e-01],
+       [-1.7925784113431714e-01,  3.6380666541125695e-01,
+         2.3851861974976313e-01, -9.2582148396003538e-17,
+         7.2383785715168458e-01, -7.7079977605735461e-01]
+];
     let  omega_ref_out: Array1<f64> = array![
-       0.6599613806976925, 0.7123456990588429, 0.7456810724193919,
-       0.7930925652350215, 0.8714866033195531, 0.9348736014087142,
-       1.2756452171931041, 1.3231856682450711
+       0.6599613806976925, 0.7123456990588427, 0.7456810724193917,
+       0.7930925652350208
 ];
     let  XmY_ref: Array3<f64> = array![
-       [[ 1.2521414892619180e-17, -3.0731988457045628e-18],
-        [-2.0314998941993035e-17,  6.1984001001408129e-17],
-        [-1.1949222929340009e-16,  1.8444992477011119e-17],
-        [-9.9999999999999978e-01, -8.5678264450787104e-18]],
+       [[ 0.0000000000000000e+00,  0.0000000000000000e+00],
+        [ 0.0000000000000000e+00,  0.0000000000000000e+00],
+        [ 0.0000000000000000e+00,  0.0000000000000000e+00],
+        [ 1.0000000000000000e+00,  0.0000000000000000e+00]],
 
-       [[-5.6554497734654670e-33, -1.6132260882333921e-17],
-        [-1.4165350977779408e-16, -1.2680008989475773e-17],
-        [ 1.8003860860678714e-17,  1.5123402272838473e-16],
-        [-7.1090761021361151e-18,  9.9999999999999967e-01]],
+       [[ 1.5749879276249671e-16, -1.1816552815381077e-16],
+        [-4.3162985565594223e-16,  1.6579200843862024e-16],
+        [ 1.5322713275954383e-15,  1.4406376429873231e-15],
+        [ 0.0000000000000000e+00,  9.9999999999999989e-01]],
 
-       [[ 2.1571381149267578e-02, -3.0272950933503227e-07],
-        [ 2.9991274783090719e-05,  1.4821884853203227e-01],
-        [ 9.9507889372419056e-01,  3.2471746769845221e-06],
-        [-1.1917605251843160e-16, -4.4289966266035466e-17]],
+       [[-2.1571381149267595e-02,  3.0272950957152545e-07],
+        [-2.9991274781835619e-05, -1.4821884853203318e-01],
+        [-9.9507889372419100e-01, -3.2471746790841304e-06],
+        [ 0.0000000000000000e+00,  1.8197135800568093e-15]],
 
-       [[ 1.1109010931003951e-06, -1.2585514282188778e-02],
-        [-3.2069605724216654e-01,  2.8289343609923937e-05],
-        [ 9.1191885302142574e-06, -9.4937779050842874e-01],
-        [-1.2601161265688548e-17,  1.0521007298293138e-16]],
-
-       [[ 9.1609974782184502e-06,  6.0701873653873452e-02],
-        [-9.6788599240172246e-01,  1.0919490802280248e-05],
-        [ 2.9445559547715203e-05,  3.4280398643331461e-01],
-        [ 3.1783829909643794e-17, -2.1447832161459006e-16]],
-
-       [[-1.0110298012913056e-01,  9.9804621433036054e-06],
-        [ 1.5702586864624103e-05,  1.0113993758544988e+00],
-        [-1.7694318737762263e-01,  2.6156157292985052e-05],
-        [ 1.0459553569289232e-16,  5.5045412199529119e-18]],
-
-       [[ 1.0046988096296818e+00,  9.6514695327939874e-06],
-        [ 1.5280031987729607e-05,  1.3343212650518221e-01],
-        [-6.0845305188051618e-02,  1.2489695961642065e-07],
-        [ 4.2508419260228061e-17,  2.0822376030340786e-18]],
-
-       [[ 9.3758930989162589e-06, -1.0067757866575049e+00],
-        [-8.1915557416596632e-02,  1.5848191461915825e-05],
-        [-1.1132783884542197e-06,  5.1182023937152175e-02],
-        [ 9.2945083674210509e-18, -5.1592764951007866e-17]]
+       [[-1.1109010931921683e-06,  1.2585514282188594e-02],
+        [ 3.2069605724216904e-01, -2.8289343610101130e-05],
+        [-9.1191885320066824e-06,  9.4937779050842697e-01],
+        [ 0.0000000000000000e+00, -1.1660604437441687e-15]]
 ];
     let  XpY_ref: Array3<f64> = array![
-       [[ 2.3631728626191835e-17, -6.0439980808443620e-18],
-        [-2.5446127779063410e-17,  8.2559786740300318e-17],
-        [-1.3271411906099627e-16,  2.1950010553683349e-17],
-        [-9.9999999999999989e-01, -7.9377675442458068e-18]],
+       [[ 0.0000000000000000e+00,  0.0000000000000000e+00],
+        [ 0.0000000000000000e+00,  0.0000000000000000e+00],
+        [ 0.0000000000000000e+00,  0.0000000000000000e+00],
+        [ 1.0000000000000000e+00,  0.0000000000000000e+00]],
 
-       [[ 0.0000000000000000e+00, -2.9394105266280956e-17],
-        [-1.6438371325218934e-16, -1.0269716205837895e-17],
-        [ 1.7497024539465256e-17,  1.6673760312079509e-16],
-        [-7.6733577656998602e-18,  9.9999999999999989e-01]],
+       [[ 2.7538927963428562e-16, -2.1530403716360706e-16],
+        [-5.0089199746684879e-16,  2.0458805099784026e-16],
+        [ 1.5766701880603285e-15,  1.5883226278758355e-15],
+        [ 0.0000000000000000e+00,  9.9999999999999989e-01]],
 
-       [[ 3.6031757025210380e-02, -5.2693108210990112e-07],
-        [ 3.3247977274044169e-05,  1.7472610444661485e-01],
-        [ 9.7813856605377092e-01,  3.4200094262767256e-06],
-        [-1.0544215582531297e-16, -4.5125435583086571e-17]],
+       [[-3.6031757025210311e-02,  5.2693108223585217e-07],
+        [-3.3247977273169895e-05, -1.7472610444661563e-01],
+        [-9.7813856605377103e-01, -3.4200094284606595e-06],
+        [ 0.0000000000000000e+00,  1.7383640140772968e-15]],
 
-       [[ 1.7446652973543630e-06, -2.0596777031218809e-02],
-        [-3.3426673906312654e-01,  3.1354975875389786e-05],
-        [ 8.4280732845994917e-06, -9.4013443503872962e-01],
-        [-1.0485887863620174e-17,  9.4498355264689231e-17]],
-
-       [[ 1.3093105142292459e-05,  9.0405231040797618e-02],
-        [-9.1809349842431853e-01,  1.1014103424022125e-05],
-        [ 2.4765955236613057e-05,  3.0892988258425691e-01],
-        [ 2.4069331860443143e-17, -1.7531274647429604e-16]],
-
-       [[-1.3470126301596952e-01,  1.3856384771384507e-05],
-        [ 1.3884867211514623e-05,  9.5099287606168215e-01],
-        [-1.3873209262146027e-01,  2.1973326807706339e-05],
-        [ 7.3838432359937210e-17,  4.0866099935227155e-18]],
-
-       [[ 9.8099453932498049e-01,  9.8200956604003138e-06],
-        [ 9.9018827855576371e-06,  9.1947088357024670e-02],
-        [-3.4961749454179805e-02,  7.6894757644272947e-08],
-        [ 2.1531794612538988e-17,  1.1603416683232019e-18]],
-
-       [[ 8.8257671645045328e-06, -9.8756150574886925e-01],
-        [-5.1176316697317654e-02,  1.0528497536484679e-05],
-        [-6.1670714154333164e-07,  3.0378857620766524e-02],
-        [ 4.6357942979609401e-18, -2.7775304023765253e-17]]
+       [[-1.7446652975011026e-06,  2.0596777031218448e-02],
+        [ 3.3426673906312915e-01, -3.1354975875524647e-05],
+        [-8.4280732861148150e-06,  9.4013443503872907e-01],
+        [ 0.0000000000000000e+00, -1.0473407245945591e-15]]
 ];
-    let  omega_ref_out2: Array1<f64> = array![
-       0.6599613806976925, 0.7123456990588429, 0.7456810724193919,
-       0.7930925652350215, 0.8714866033195531, 0.9348736014087142,
-       1.2756452171931041, 1.3231856682450711
-];
+
+
     println!("valorbs {:?}",mol.calculator.valorbs);
     println!("atomic numbers {:?}", mol.atomic_numbers);
 
     let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies(&f_occ.to_vec(), &mol, None, &S, &orbe, &orbs, None);
-
+        get_exc_energies(&f_occ.to_vec(), &mol, Some(4), &S, &orbe, &orbs, None);
+    println!("omega_out{}",&omega_out);
+    println!("omega_diff {}",&omega_out-&omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out,1e-10));
     assert!((&XpY*&XpY).abs_diff_eq(&(&XpY_ref*&XpY_ref),1e-10));
     assert!((&XmY*&XmY).abs_diff_eq(&(&XmY_ref*&XmY_ref),1e-10));
@@ -1860,6 +1741,8 @@ fn casida_routine() {
         omega_0.view(),
         df.view(),
         1,
+        2,
+        2,
     );
 
     assert!(omega.abs_diff_eq(&omega_ref, 1e-14));

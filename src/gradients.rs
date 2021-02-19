@@ -18,6 +18,22 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::AddAssign;
 
+pub trait ToOwnedF<A, D> {
+    fn to_owned_f(&self) -> Array<A, D>;
+}
+impl<A, S, D> ToOwnedF<A, D> for ArrayBase<S, D>
+    where
+        A: Copy + Clone,
+        S: Data<Elem = A>,
+        D: Dimension,
+{
+    fn to_owned_f(&self) -> Array<A, D> {
+        let mut tmp = unsafe { Array::uninitialized(self.dim().f()) };
+        tmp.assign(self);
+        tmp
+    }
+}
+
 pub fn get_gradients(
     orbe: &Array1<f64>,
     orbs: &Array2<f64>,
@@ -9842,18 +9858,3 @@ fn exc_gradient_lc_routine() {
     assert!(gradEx_test.abs_diff_eq(&gradExc, 1e-10));
 }
 
-pub trait ToOwnedF<A, D> {
-    fn to_owned_f(&self) -> Array<A, D>;
-}
-impl<A, S, D> ToOwnedF<A, D> for ArrayBase<S, D>
-where
-    A: Copy + Clone,
-    S: Data<Elem = A>,
-    D: Dimension,
-{
-    fn to_owned_f(&self) -> Array<A, D> {
-        let mut tmp = unsafe { Array::uninitialized(self.dim().f()) };
-        tmp.assign(self);
-        tmp
-    }
-}
