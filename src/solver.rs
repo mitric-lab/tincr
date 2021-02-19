@@ -855,24 +855,17 @@ pub fn non_hermitian_davidson(
             .indexed_iter()
             .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
             .collect();
-        let mut norms_r_over_eps: Array1<f64> = Array::zeros(indices_norm_r_over_eps.len());
-        for i in 0..indices_norm_r_over_eps.len() {
-            norms_r_over_eps[i] = norms_r[indices_norm_r_over_eps[i]];
-        }
         let indices_norm_l_over_eps: Array1<usize> = norms_l
             .indexed_iter()
             .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
             .collect();
-        let mut norms_l_over_eps: Array1<f64> = Array::zeros(indices_norm_l_over_eps.len());
-        for i in 0..indices_norm_l_over_eps.len() {
-            norms_l_over_eps[i] = norms_l[indices_norm_l_over_eps[i]];
-        }
-        let nc_l: f64 = norms_l_over_eps.sum();
-        let nc_r: f64 = norms_r_over_eps.sum();
+
+        let nc_l:usize = indices_norm_r_over_eps.len();
+        let nc_r:usize = indices_norm_l_over_eps.len();
         // Half the new expansion vectors should come from the left residual vectors
         // the other half from the right residual vectors.
-        let dk_r: usize = ((dkmax as f64 / 2.0) as usize).min(nc_l as usize);
-        let dk_l: usize = (dkmax - dk_r).min(nc_r as usize);
+        let dk_r: usize = ((dkmax as f64 / 2.0) as usize).min(nc_l);
+        let dk_l: usize = (dkmax - dk_r).min(nc_r);
         let dk: usize = dk_r + dk_l;
 
         let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
