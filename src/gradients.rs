@@ -22,10 +22,10 @@ pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
 }
 impl<A, S, D> ToOwnedF<A, D> for ArrayBase<S, D>
-    where
-        A: Copy + Clone,
-        S: Data<Elem = A>,
-        D: Dimension,
+where
+    A: Copy + Clone,
+    S: Data<Elem = A>,
+    D: Dimension,
 {
     fn to_owned_f(&self) -> Array<A, D> {
         let mut tmp = unsafe { Array::uninitialized(self.dim().f()) };
@@ -82,18 +82,7 @@ pub fn get_gradients(
                 .assign(&orbs.column(*index));
         }
 
-        let (
-            gradE0,
-            grad_v_rep,
-            grad_s,
-            grad_h0,
-            fdmdO,
-            flrdmdO,
-            g1,
-            g1_ao,
-            g1lr,
-            g1lr_ao,
-        ): (
+        let (gradE0, grad_v_rep, grad_s, grad_h0, fdmdO, flrdmdO, g1, g1_ao, g1lr, g1lr_ao): (
             Array1<f64>,
             Array1<f64>,
             Array3<f64>,
@@ -220,18 +209,7 @@ pub fn get_gradients(
                 .assign(&orbs.column(*index));
         }
 
-        let (
-            gradE0,
-            grad_v_rep,
-            grad_s,
-            grad_h0,
-            fdmdO,
-            flrdmdO,
-            g1,
-            g1_ao,
-            g1lr,
-            g1lr_ao,
-        ): (
+        let (gradE0, grad_v_rep, grad_s, grad_h0, fdmdO, flrdmdO, g1, g1_ao, g1lr, g1lr_ao): (
             Array1<f64>,
             Array1<f64>,
             Array3<f64>,
@@ -363,31 +341,29 @@ pub fn gradient_lc_gs(
     Array3<f64>,
     Array3<f64>,
     Array3<f64>,
-    Array3<f64>
+    Array3<f64>,
 ) {
-    let (g1,g1_ao): (Array3<f64>, Array3<f64>) =
-        get_gamma_gradient_matrix(
-            &molecule.atomic_numbers,
-            molecule.n_atoms,
-            molecule.calculator.n_orbs,
-            molecule.distance_matrix.view(),
-            molecule.directions_matrix.view(),
-            &molecule.calculator.hubbard_u,
-            &molecule.calculator.valorbs,
-            Some(0.0),
-        );
+    let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
+        &molecule.atomic_numbers,
+        molecule.n_atoms,
+        molecule.calculator.n_orbs,
+        molecule.distance_matrix.view(),
+        molecule.directions_matrix.view(),
+        &molecule.calculator.hubbard_u,
+        &molecule.calculator.valorbs,
+        Some(0.0),
+    );
 
-    let (g1lr, g1lr_ao): (Array3<f64>, Array3<f64>) =
-        get_gamma_gradient_matrix(
-            &molecule.atomic_numbers,
-            molecule.n_atoms,
-            molecule.calculator.n_orbs,
-            molecule.distance_matrix.view(),
-            molecule.directions_matrix.view(),
-            &molecule.calculator.hubbard_u,
-            &molecule.calculator.valorbs,
-            None,
-        );
+    let (g1lr, g1lr_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
+        &molecule.atomic_numbers,
+        molecule.n_atoms,
+        molecule.calculator.n_orbs,
+        molecule.distance_matrix.view(),
+        molecule.directions_matrix.view(),
+        &molecule.calculator.hubbard_u,
+        &molecule.calculator.valorbs,
+        None,
+    );
     let n_at: usize = *&molecule.calculator.g0.dim().0;
     let n_orb: usize = *&molecule.calculator.g0_ao.dim().0;
 
@@ -466,7 +442,9 @@ pub fn gradient_lc_gs(
         &molecule.calculator.v_rep,
     );
 
-    return (grad_e0, grad_v_rep, grad_s, grad_h0, fdmd0, flr_dmd0, g1, g1_ao, g1lr, g1lr_ao);
+    return (
+        grad_e0, grad_v_rep, grad_s, grad_h0, fdmd0, flr_dmd0, g1, g1_ao, g1lr, g1lr_ao,
+    );
 }
 
 // linear operators
@@ -1570,7 +1548,7 @@ fn gs_gradients_no_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [
@@ -1691,18 +1669,7 @@ fn gs_gradients_no_lc_routine() {
         0.1548158146585892
     ];
 
-    let (
-        gradE0,
-        grad_v_rep,
-        grad_s,
-        grad_h0,
-        fdmdO,
-        flrdmdO,
-        g1,
-        g1_ao,
-        g1lr,
-        g1lr_ao,
-    ): (
+    let (gradE0, grad_v_rep, grad_s, grad_h0, fdmdO, flrdmdO, g1, g1_ao, g1lr, g1lr_ao): (
         Array1<f64>,
         Array1<f64>,
         Array3<f64>,
@@ -1731,7 +1698,7 @@ fn gs_gradients_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [
@@ -1859,18 +1826,7 @@ fn gs_gradients_lc_routine() {
         0.1253496008686854
     ];
 
-    let (
-        gradE0,
-        grad_v_rep,
-        grad_s,
-        grad_h0,
-        fdmdO,
-        flrdmdO,
-        g1,
-        g1_ao,
-        g1lr,
-        g1lr_ao,
-    ): (
+    let (gradE0, grad_v_rep, grad_s, grad_h0, fdmdO, flrdmdO, g1, g1_ao, g1lr, g1lr_ao): (
         Array1<f64>,
         Array1<f64>,
         Array3<f64>,
@@ -9857,4 +9813,3 @@ fn exc_gradient_lc_routine() {
     println!("gradEx_ref {}", gradExc);
     assert!(gradEx_test.abs_diff_eq(&gradExc, 1e-10));
 }
-
