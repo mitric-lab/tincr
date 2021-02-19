@@ -16,7 +16,7 @@ pub struct Molecule {
     pub(crate) atomic_numbers: Vec<u8>,
     pub(crate) positions: Array2<f64>,
     pub charge: i8,
-    multiplicity: u8,
+    pub multiplicity: u8,
     pub n_atoms: usize,
     atomtypes: HashMap<u8, String>,
     pub proximity_matrix: Array2<bool>,
@@ -31,6 +31,7 @@ impl Molecule {
         positions: Array2<f64>,
         charge: Option<i8>,
         multiplicity: Option<u8>,
+        r_lr:Option<f64>,
         active_orbitals:Option<(usize,usize)>
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
@@ -42,7 +43,7 @@ impl Molecule {
 
         let n_atoms: usize = positions.nrows();
 
-        let calculator: DFTBCalculator = DFTBCalculator::new(&atomic_numbers, &atomtypes, active_orbitals);
+        let calculator: DFTBCalculator = DFTBCalculator::new(&atomic_numbers, &atomtypes, active_orbitals,&dist_matrix,r_lr);
         //(&atomic_numbers, &atomtypes, model);
 
         let mol = Molecule {

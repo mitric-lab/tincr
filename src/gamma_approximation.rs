@@ -242,7 +242,7 @@ fn gamma_gradients_atomwise(
     n_atoms: usize,
     distances: ArrayView2<f64>,
     directions: ArrayView3<f64>,
-) -> (Array2<f64>, Array3<f64>) {
+) -> (Array3<f64>) {
     let mut g0: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1_val: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1: Array3<f64> = Array3::zeros((3 * n_atoms, n_atoms, n_atoms));
@@ -255,12 +255,10 @@ fn gamma_gradients_atomwise(
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
                 g0[[i, j]] = gamma_func.eval(r_ij, *z_i, *z_j);
                 g1_val[[i, j]] = gamma_func.deriv(r_ij, *z_i, *z_j);
-                println!("g1_val {}",g1_val);
                 g1.slice_mut(s![(3 * i) .. (3 * i+ 3), i, j])
                     .assign(&(&e_ij * g1_val[[i, j]]));
             } else {
                 g1_val[[i, j]] = g1_val[[j, i]];
-                println!("g1_val {}",g1_val);
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
                 g0[[i, j]] = g0[[j, i]];
                 g1.slice_mut(s![(3 * i) .. (3 * i+ 3), i, j])
@@ -268,9 +266,7 @@ fn gamma_gradients_atomwise(
             }
         }
     }
-    println!("dorections{}",directions);
-    println!("g1 {}",g1);
-    return (g0, g1);
+    return g1;
 }
 
 pub fn gamma_ao_wise(
@@ -308,10 +304,9 @@ pub fn gamma_gradients_ao_wise(
     distances: ArrayView2<f64>,
     directions: ArrayView3<f64>,
     valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
-) -> (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) {
-    let (g0, g1): (Array2<f64>, Array3<f64>) =
+) -> (Array3<f64>, Array3<f64>) {
+    let  g1: Array3<f64> =
         gamma_gradients_atomwise(gamma_func, atomic_numbers, n_atoms, distances, directions);
-    let mut g0_a0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
     let mut g1_a0: Array3<f64> = Array3::zeros((3 * n_atoms, n_orbs, n_orbs));
     let mut mu: usize = 0;
     let mut nu: usize;
@@ -320,7 +315,6 @@ pub fn gamma_gradients_ao_wise(
             nu = 0;
             for (j, z_j) in atomic_numbers.iter().enumerate() {
                 for _ in &valorbs[z_j] {
-                    g0_a0[[mu, nu]] = g0[[i, j]];
                     if i != j {
                         g1_a0
                             .slice_mut(s![(3 * i) .. (3 * i+ 3), mu, nu])
@@ -335,7 +329,7 @@ pub fn gamma_gradients_ao_wise(
             mu = mu + 1;
         }
     }
-    return (g0, g1, g0_a0, g1_a0);
+    return (g1, g1_a0);
 }
 /// Test of Gaussian decay function on a water molecule. The xyz geometry of the
 /// water molecule is
@@ -399,7 +393,7 @@ fn gamma_ao_matrix() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers.clone(), positions, charge, multiplicity,None);
+    let mol: Molecule = Molecule::new(atomic_numbers.clone(), positions, charge, multiplicity,None,None);
     // get gamma matrix without LRC
     let hubbard_u: HashMap<u8, f64>;
     let mut sigma: HashMap<u8, f64> = HashMap::new();

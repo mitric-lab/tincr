@@ -78,6 +78,6 @@ fn read_xyz(path: &str) -> Molecule {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomnos, positions, charge, multiplicity,None);
+    let mol: Molecule = Molecule::new(atomnos, positions, charge, multiplicity,None,None);
     return mol;
 }

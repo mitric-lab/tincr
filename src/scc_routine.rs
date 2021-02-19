@@ -15,6 +15,7 @@ use ndarray_linalg::*;
 use ndarray_stats::QuantileExt;
 use std::cmp::max;
 use std::iter::FromIterator;
+use std::ops::Deref;
 
 // This routine is very messy und should be rewritten in a clean form
 pub fn run_scc(
@@ -47,15 +48,6 @@ pub fn run_scc(
         &molecule.calculator.skt,
         &molecule.calculator.orbital_energies,
     );
-    let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-        &molecule.atomic_numbers,
-        molecule.n_atoms,
-        molecule.calculator.n_orbs,
-        molecule.distance_matrix.view(),
-        &molecule.calculator.hubbard_u,
-        &molecule.calculator.valorbs,
-        Some(0.0),
-    );
 
     let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
 
@@ -76,7 +68,7 @@ pub fn run_scc(
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
     'scf_loop: for i in 0..max_iter {
-        let h1: Array2<f64> = construct_h1(&molecule, gm.view(), dq.view());
+        let h1: Array2<f64> = construct_h1(&molecule, (&molecule.calculator.g0).deref().view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
 
@@ -121,7 +113,7 @@ pub fn run_scc(
         q = new_q;
 
         // compute electronic energy
-        scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), gm.view());
+        scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), (&molecule.calculator.g0).deref().view());
 
         energy_old = scf_energy;
         println!(
@@ -266,7 +258,7 @@ fn h1_construction() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
         &mol.atomic_numbers,
         mol.n_atoms,
@@ -450,7 +442,7 @@ fn reference_density_matrix() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
     let p0: Array2<f64> = density_matrix_ref(&mol);
     let p0_ref: Array2<f64> = array![
         [2., 0., 0., 0., 0., 0.],
@@ -476,7 +468,7 @@ fn self_consistent_charge_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     assert_eq!(1, 2);
@@ -504,7 +496,7 @@ fn self_consistent_charge_routine_near_coin() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     assert_eq!(1, 2);

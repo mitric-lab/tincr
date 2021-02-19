@@ -1,3 +1,7 @@
+use crate::calculator::{get_gamma_gradient_matrix, lambda2_calc_oia, set_active_orbitals};
+use crate::defaults;
+use crate::transition_charges::trans_charges;
+use crate::Molecule;
 use approx::AbsDiffEq;
 use ndarray::prelude::*;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
@@ -6,6 +10,171 @@ use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::cmp::Ordering;
 use std::ops::AddAssign;
+
+pub fn get_energies(
+    f_occ: &Vec<f64>,
+    molecule: &Molecule,
+    nstates: Option<usize>,
+    s: &Array2<f64>,
+    orbe: &Array1<f64>,
+    orbs: &Array2<f64>,
+    response_method: Option<String>,
+) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
+    // set active orbitals first
+    let tmp: (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) =
+        set_active_orbitals((&f_occ).to_vec(), molecule.calculator.active_orbitals);
+    let active_occ: Vec<usize> = tmp.0;
+    let active_virt: Vec<usize> = tmp.1;
+    let n_occ: usize = active_occ.len();
+    let n_virt: usize = active_virt.len();
+
+    let n_at: usize = *&molecule.n_atoms;
+
+    // set transtition charges of the active space
+    let (qtrans_ov, qtrans_oo, qtrans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) = trans_charges(
+        &[n_at as u8],
+        &molecule.calculator.valorbs,
+        orbs.view(),
+        s.view(),
+        &active_occ[..],
+        &active_virt[..],
+    );
+
+    // check for selected number of excited states
+    let mut complete_states: bool = false;
+    let mut nstates: usize = nstates.unwrap_or(defaults::EXCITED_STATES);
+    // if number is bigger than theoretically possible, set the number to the
+    // complete range of states. Thus, casida is required.
+    if nstates > (n_occ * n_virt) {
+        nstates = active_occ.len() * active_virt.len();
+        complete_states = true;
+    }
+
+    // get gamma matrices
+    let mut gamma0_lr: Array2<f64> = Array::zeros((*&molecule.calculator.g0.shape()))
+        .into_dimensionality::<Ix2>()
+        .unwrap();
+    if *&molecule.calculator.r_lr.unwrap() == 0.0 {
+        gamma0_lr = &molecule.calculator.g0 * 0.0;
+    } else {
+        gamma0_lr = molecule.calculator.g0_lr.clone();
+    }
+    // get omega
+    // omega_ia = en_a - en_i
+    // energy differences between occupied and virtual Kohn-Sham orbitals
+    let omega: Array2<f64> = get_orbital_en_diff(
+        orbe.view(),
+        n_occ,
+        n_virt,
+        &active_occ[..],
+        &active_virt[..],
+    );
+    // get df
+    // occupation differences between occupied and virtual Kohn-Sham orbitals
+    let df: Array2<f64> = get_orbital_occ_diff(
+        Array::from_vec(f_occ.clone()).view(),
+        n_occ,
+        n_virt,
+        &active_occ[..],
+        &active_virt[..],
+    );
+
+    let mut omega_out: Array1<f64> = Array::zeros((n_occ * n_virt));
+    let mut c_ij: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
+    let mut XpY: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
+    let mut XmY: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
+
+    // check if complete nstates is used
+    if complete_states {
+        // check if Tamm-Dancoff is demanded
+        if response_method.is_some() && response_method.unwrap() == "TDA" {
+            let tmp: (Array1<f64>, Array3<f64>) = tda(
+                (&molecule.calculator.g0).view(),
+                gamma0_lr.view(),
+                qtrans_ov.view(),
+                qtrans_oo.view(),
+                qtrans_vv.view(),
+                omega.view(),
+                df.view(),
+                molecule.multiplicity.clone(),
+            );
+        } else {
+            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
+                (&molecule.calculator.g0).view(),
+                gamma0_lr.view(),
+                qtrans_ov.view(),
+                qtrans_oo.view(),
+                qtrans_vv.view(),
+                omega.view(),
+                df.view(),
+                molecule.multiplicity.clone(),
+            );
+            omega_out = tmp.0;
+            c_ij = tmp.1;
+            XmY = tmp.2;
+            XpY = tmp.3;
+        }
+    } else {
+        // solve the eigenvalue problem
+        // for nstates using an iterative
+        // approach
+
+        //check for lr_correction
+        if *&molecule.calculator.r_lr.unwrap() == 0.0 {
+            // calculate o_ia
+            let o_ia: Array2<f64> =
+                lambda2_calc_oia(molecule, &active_occ, &active_virt, &qtrans_oo, &qtrans_vv);
+            // use hermitian davidson routine, only possible with lc off
+            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = hermitian_davidson(
+                (&molecule.calculator.g0).view(),
+                qtrans_ov.view(),
+                omega.view(),
+                (0.0 * &omega).view(),
+                n_occ,
+                n_virt,
+                None,
+                None,
+                o_ia.view(),
+                molecule.multiplicity.clone() as usize,
+                Some(nstates),
+                None,
+                None,
+                None,
+                None,
+            );
+            omega_out = tmp.0;
+            c_ij = tmp.1;
+            XmY = tmp.2;
+            XpY = tmp.3;
+        } else {
+            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = non_hermitian_davidson(
+                (&molecule.calculator.g0).view(),
+                (&molecule.calculator.g0_lr).view(),
+                qtrans_oo.view(),
+                qtrans_vv.view(),
+                qtrans_ov.view(),
+                omega.view(),
+                n_occ,
+                n_virt,
+                None,
+                None,
+                None,
+                molecule.multiplicity.clone() as usize,
+                Some(nstates),
+                None,
+                None,
+                None,
+                None,
+                Some(1),
+            );
+            omega_out = tmp.0;
+            c_ij = tmp.1;
+            XmY = tmp.2;
+            XpY = tmp.3;
+        }
+    }
+    return (omega_out, c_ij, XmY, XpY);
+}
 
 pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
@@ -558,7 +727,14 @@ pub fn non_hermitian_davidson(
         if XpYguess.is_none() || it > 0 {
             // # evaluate (A+B).b and (A-B).b
             let bp: Array3<f64> = get_apbv(
-                &gamma, &Some(gamma_lr), &Some(qtrans_oo), &Some(qtrans_vv), &qtrans_ov, &omega, &bs, lc,
+                &gamma,
+                &Some(gamma_lr),
+                &Some(qtrans_oo),
+                &Some(qtrans_vv),
+                &qtrans_ov,
+                &omega,
+                &bs,
+                lc,
             );
             let bm: Array3<f64> = get_ambv(
                 &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
@@ -631,7 +807,14 @@ pub fn non_hermitian_davidson(
         }
         // residual vectors
         let wl = get_apbv(
-            &gamma, &Some(gamma_lr), &Some(qtrans_oo), &Some(qtrans_vv), &qtrans_ov, &omega, &r_canon, lc,
+            &gamma,
+            &Some(gamma_lr),
+            &Some(qtrans_oo),
+            &Some(qtrans_vv),
+            &qtrans_ov,
+            &omega,
+            &r_canon,
+            lc,
         ) - &l_canon * &w;
         let wr = get_ambv(
             &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &l_canon, lc,
@@ -796,9 +979,14 @@ pub fn get_apbv(
             let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
                 .into_dimensionality::<Ix3>()
                 .unwrap();
-            u = u - tensordot(&qtrans_oo.unwrap(), &tmp_2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            u = u - tensordot(
+                &qtrans_oo.unwrap(),
+                &tmp_2,
+                &[Axis(0), Axis(2)],
+                &[Axis(0), Axis(2)],
+            )
+            .into_dimensionality::<Ix2>()
+            .unwrap();
 
             //4th term - Exchange
             let tmp: Array3<f64> = tensordot(&qtrans_ov, &v, &[Axis(1)], &[Axis(0)])
@@ -1018,7 +1206,7 @@ pub fn krylov_solver_zvector(
     qtrans_oo: Option<ArrayView3<f64>>,
     qtrans_vv: Option<ArrayView3<f64>>,
     qtrans_ov: ArrayView3<f64>,
-    lc:usize,
+    lc: usize,
 ) -> (Array3<f64>) {
     // Parameters:
     // ===========
@@ -1084,7 +1272,7 @@ pub fn krylov_solver_zvector(
             &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &x_matrix, lc,
         ) - &b_matrix;
         let mut norms: Array1<f64> = Array::zeros(k);
-        for i in 0.. k {
+        for i in 0..k {
             norms[i] = norm_special(&w_res.slice(s![.., .., i]).to_owned());
         }
         // check if all values of the norms are under the convergence criteria
@@ -1112,7 +1300,7 @@ pub fn krylov_solver_zvector(
             norms_over_eps[i] = norms[indices_norm_over_eps[i]];
         }
         let nc: f64 = norms_over_eps.sum();
-        let dk: usize = dkmax.min((1.0+nc) as usize);
+        let dk: usize = dkmax.min((1.0 + nc) as usize);
         let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
         let mut nb: i32 = 0;
 

@@ -8,8 +8,9 @@ use ndarray::prelude::*;
 use ndarray::*;
 use ndarray_linalg::*;
 use std::collections::HashMap;
+use std::f64::consts::{E, PI};
 use std::hash::Hash;
-use std::ops::Neg;
+use std::ops::{Deref, Neg};
 
 pub enum Calculator {
     DFTB(DFTBCalculator),
@@ -28,6 +29,11 @@ pub struct DFTBCalculator {
     pub orbs_per_atom: Vec<usize>,
     pub n_orbs: usize,
     pub active_orbitals: Option<(usize, usize)>,
+    pub g0: Array2<f64>,
+    pub g0_lr: Array2<f64>,
+    pub g0_ao: Array2<f64>,
+    pub g0_lr_ao: Array2<f64>,
+    pub r_lr: Option<f64>,
 }
 
 impl DFTBCalculator {
@@ -35,6 +41,8 @@ impl DFTBCalculator {
         atomic_numbers: &[u8],
         atomtypes: &HashMap<u8, String>,
         active_orbitals: Option<(usize, usize)>,
+        distance_matrix: &Array2<f64>,
+        r_lr: Option<f64>,
     ) -> DFTBCalculator {
         let mut unique_numbers: Vec<u8> = Vec::from(atomic_numbers);
         unique_numbers.sort_unstable(); // fast sort of atomic numbers
@@ -67,6 +75,24 @@ impl DFTBCalculator {
         for zi in atomic_numbers {
             n_orbs = n_orbs + &valorbs[zi].len();
         }
+        let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+            atomic_numbers,
+            atomic_numbers.len(),
+            n_orbs,
+            distance_matrix.view(),
+            &hubbard_u,
+            &valorbs,
+            Some(0.0),
+        );
+        let (g0_lr, g0_lr_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+            atomic_numbers,
+            atomic_numbers.len(),
+            n_orbs,
+            distance_matrix.view(),
+            &hubbard_u,
+            &valorbs,
+            None,
+        );
         DFTBCalculator {
             valorbs: valorbs,
             hubbard_u: hubbard_u,
@@ -80,6 +106,11 @@ impl DFTBCalculator {
             orbs_per_atom: orbs_per_atom,
             n_orbs: n_orbs,
             active_orbitals: active_orbitals,
+            g0: g0,
+            g0_lr: g0_lr,
+            g0_ao: g0_a0,
+            g0_lr_ao: g0_lr_a0,
+            r_lr: r_lr,
         }
     }
 }
@@ -94,11 +125,11 @@ fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {
 pub fn set_active_orbitals(
     f: Vec<f64>,
     active_orbitals: Option<(usize, usize)>,
-) -> (Vec<usize>, Vec<usize>,Vec<usize>, Vec<usize>) {
+) -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) {
     let tmp: (usize, usize) = active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
     let mut nr_active_occ: usize = tmp.0;
     let mut nr_active_virt: usize = tmp.1;
-    let f:Array1<f64> = Array::from_vec(f);
+    let f: Array1<f64> = Array::from_vec(f);
     let occ_indices: Array1<usize> = f
         .indexed_iter()
         .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
@@ -117,13 +148,71 @@ pub fn set_active_orbitals(
 
     let active_occ_indices: Vec<usize> = (occ_indices
         .slice(s![(occ_indices.len() - nr_active_occ)..])
-        .to_owned()).to_vec();
-    let active_virt_indices: Vec<usize> = (virt_indices.slice(s![..nr_active_virt]).to_owned()).to_vec();
+        .to_owned())
+    .to_vec();
+    let active_virt_indices: Vec<usize> =
+        (virt_indices.slice(s![..nr_active_virt]).to_owned()).to_vec();
 
-    let full_occ_indices:Vec<usize> = occ_indices.to_vec();
-    let full_virt_indices:Vec<usize> = virt_indices.to_vec();
+    let full_occ_indices: Vec<usize> = occ_indices.to_vec();
+    let full_virt_indices: Vec<usize> = virt_indices.to_vec();
 
-    return (active_occ_indices, active_virt_indices, full_occ_indices, full_virt_indices);
+    return (
+        active_occ_indices,
+        active_virt_indices,
+        full_occ_indices,
+        full_virt_indices,
+    );
+}
+
+pub fn construct_gaussian_overlap(molecule: &Molecule) -> (Array2<f64>) {
+    let n_at = molecule.n_atoms;
+    let mut gauss_omega: Array2<f64> = Array::zeros((n_at, n_at));
+    let mut sigma: Array1<f64> = Array::zeros(n_at);
+
+    for (i, z_i) in molecule.calculator.hubbard_u.iter() {
+        sigma[*i as usize] = 1.329 / (8.0 * 2.0_f64.log(E)) * 1.0 / (*z_i);
+    }
+
+    for (i, pos_i) in molecule.positions.outer_iter().enumerate() {
+        for (j, pos_j) in molecule.positions.outer_iter().enumerate() {
+            let r_ij: Array1<f64> = pos_i.to_owned() - pos_j.to_owned();
+            let sig_ab: f64 = sigma[i].powi(2) + sigma[j].powi(2);
+            let exp_arg: f64 = -0.5 * 1.0 / sig_ab * r_ij.dot(&r_ij);
+            gauss_omega[[i, j]] = 1.0 / (2.0_f64 * PI * sig_ab).powf(3.0 / 2.0) * exp_arg.exp();
+        }
+    }
+    return gauss_omega;
+}
+
+pub fn lambda2_calc_oia(
+    molecule: &Molecule,
+    active_occ: &Vec<usize>,
+    active_virt: &Vec<usize>,
+    qtrans_oo: &Array3<f64>,
+    qtrans_vv: &Array3<f64>,
+) -> (Array2<f64>) {
+    let gauss_omega: Array2<f64> = construct_gaussian_overlap(molecule);
+    let n_at: usize = molecule.n_atoms;
+    let dim_o: usize = active_occ.len();
+    let dim_v: usize = active_virt.len();
+
+    let mut o_ia: Array2<f64> = Array::zeros((dim_o, dim_v));
+    for (i, index_occ) in active_occ.iter().enumerate() {
+        let o_ii: f64 = qtrans_oo
+            .slice(s![.., i, i])
+            .dot(&gauss_omega.dot(&qtrans_oo.slice(s![.., i, i])));
+
+        for (j, index_virt) in active_virt.iter().enumerate() {
+            let o_jj: f64 = qtrans_vv
+                .slice(s![.., i, i])
+                .dot(&gauss_omega.dot(&qtrans_vv.slice(s![.., i, i])));
+            o_ia[[i, j]] = qtrans_oo
+                .slice(s![.., i, i])
+                .dot(&gauss_omega.dot(&qtrans_vv.slice(s![.., j, j])));
+            o_ia[[i, j]] = o_ia[[i, j]] / (o_ii * o_jj).sqrt();
+        }
+    }
+    return o_ia;
 }
 
 pub fn get_gamma_matrix(
@@ -155,24 +244,23 @@ pub fn get_gamma_gradient_matrix(
     hubbard_u: &HashMap<u8, f64>,
     valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
     r_lr: Option<f64>,
-) -> (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) {
+) -> (Array3<f64>, Array3<f64>) {
     // initialize gamma matrix
     let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(hubbard_u);
     let mut c: HashMap<(u8, u8), f64> = HashMap::new();
     let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
     let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
-    let (g0, g1, g0_ao, g1_ao): (Array2<f64>, Array3<f64>, Array2<f64>, Array3<f64>) =
-        gamma_approximation::gamma_gradients_ao_wise(
-            gf,
-            atomic_numbers,
-            n_atoms,
-            n_orbs,
-            distances,
-            directions,
-            valorbs,
-        );
-    return (g0, g1, g0_ao, g1_ao);
+    let (g1, g1_ao): (Array3<f64>, Array3<f64>) = gamma_approximation::gamma_gradients_ao_wise(
+        gf,
+        atomic_numbers,
+        n_atoms,
+        n_orbs,
+        distances,
+        directions,
+        valorbs,
+    );
+    return (g1, g1_ao);
 }
 
 fn get_parameters(
