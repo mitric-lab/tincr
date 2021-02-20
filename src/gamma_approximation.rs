@@ -255,13 +255,13 @@ fn gamma_gradients_atomwise(
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
                 g0[[i, j]] = gamma_func.eval(r_ij, *z_i, *z_j);
                 g1_val[[i, j]] = gamma_func.deriv(r_ij, *z_i, *z_j);
-                g1.slice_mut(s![(3 * i) .. (3 * i+ 3), i, j])
+                g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
                     .assign(&(&e_ij * g1_val[[i, j]]));
             } else {
                 g1_val[[i, j]] = g1_val[[j, i]];
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
                 g0[[i, j]] = g0[[j, i]];
-                g1.slice_mut(s![(3 * i) .. (3 * i+ 3), i, j])
+                g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
                     .assign(&(&e_ij * g1_val[[i, j]]));
             }
         }
@@ -305,7 +305,7 @@ pub fn gamma_gradients_ao_wise(
     directions: ArrayView3<f64>,
     valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
 ) -> (Array3<f64>, Array3<f64>) {
-    let  g1: Array3<f64> =
+    let g1: Array3<f64> =
         gamma_gradients_atomwise(gamma_func, atomic_numbers, n_atoms, distances, directions);
     let mut g1_a0: Array3<f64> = Array3::zeros((3 * n_atoms, n_orbs, n_orbs));
     let mut mu: usize = 0;
@@ -317,11 +317,11 @@ pub fn gamma_gradients_ao_wise(
                 for _ in &valorbs[z_j] {
                     if i != j {
                         g1_a0
-                            .slice_mut(s![(3 * i) .. (3 * i+ 3), mu, nu])
-                            .assign(&g1.slice(s![(3 * i) .. (3 * i+ 3), i, j]));
+                            .slice_mut(s![(3 * i)..(3 * i + 3), mu, nu])
+                            .assign(&g1.slice(s![(3 * i)..(3 * i + 3), i, j]));
                         g1_a0
-                            .slice_mut(s![(3 * i) .. (3 * i+ 3), nu, mu])
-                            .assign(&g1.slice(s![(3 * i) .. (3 * i+ 3), i, j]));
+                            .slice_mut(s![(3 * i)..(3 * i + 3), nu, mu])
+                            .assign(&g1.slice(s![(3 * i)..(3 * i + 3), i, j]));
                     }
                     nu = nu + 1;
                 }
@@ -393,7 +393,14 @@ fn gamma_ao_matrix() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers.clone(), positions, charge, multiplicity,None,None);
+    let mol: Molecule = Molecule::new(
+        atomic_numbers.clone(),
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
     // get gamma matrix without LRC
     let hubbard_u: HashMap<u8, f64>;
     let mut sigma: HashMap<u8, f64> = HashMap::new();
