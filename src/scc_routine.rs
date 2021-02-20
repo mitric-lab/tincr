@@ -471,7 +471,7 @@ fn self_consistent_charge_routine() {
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
-    assert_eq!(1, 2);
+    //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
 }
 
 #[test]
@@ -499,5 +499,5 @@ fn self_consistent_charge_routine_near_coin() {
     let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
-    assert_eq!(1, 2);
+    //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
 }

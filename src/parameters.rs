@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
+use approx::AbsDiffEq;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -322,7 +323,7 @@ fn test_spline_overlap_integrals() {
         0.4724037942538298,
         0.4214524357395346
     ];
-    assert!(y_values.all_close(&y_values_ref, 1e-08));
+    assert!(y_values.abs_diff_eq(&y_values_ref, 1e-16));
 }
 
 #[test]
@@ -355,5 +356,5 @@ fn test_spline_h0() {
         -0.3577041260543390,
         -0.3335812815557643
     ];
-    assert!(y_values.all_close(&y_values_ref, 1e-08));
+    assert!(y_values.abs_diff_eq(&y_values_ref, 1e-16));
 }
