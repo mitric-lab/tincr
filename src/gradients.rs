@@ -41,7 +41,6 @@ pub fn get_gradients(
     active_virt: &Vec<usize>,
     full_occ: &Vec<usize>,
     full_virt: &Vec<usize>,
-    r_lc: &Option<f64>,
     s: &Array2<f64>,
     molecule: &Molecule,
     XmY: &Option<Array3<f64>>,
@@ -55,6 +54,11 @@ pub fn get_gradients(
 
     let n_occ_full: usize = full_occ.len();
     let n_virt_full: usize = full_virt.len();
+
+    let r_lr = molecule
+        .calculator
+        .r_lr
+        .unwrap_or(defaults::LONG_RANGE_RADIUS);
 
     let mut grad_e0: Array1<f64> = Array::zeros((3 * n_at));
     let mut grad_ex: Array1<f64> = Array::zeros((3 * n_at));
@@ -93,7 +97,7 @@ pub fn get_gradients(
             Array3<f64>,
             Array3<f64>,
             Array3<f64>,
-        ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, *r_lc);
+        ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
 
         // set values for return of the gradients
         grad_e0 = gradE0;
@@ -112,7 +116,7 @@ pub fn get_gradients(
             // get transition charges of the complete range of orbitals
             let (qtrans_ov, qtrans_oo, qtrans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) =
                 trans_charges(
-                    &[n_at as u8],
+                    &molecule.atomic_numbers,
                     &molecule.calculator.valorbs,
                     orbs.view(),
                     s.view(),
@@ -137,7 +141,7 @@ pub fn get_gradients(
                 }
             }
             //check for lc correction
-            if r_lc.unwrap() > 0.0 {
+            if r_lr > 0.0 {
                 let grad_ex: Array1<f64> = gradients_lc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
@@ -220,7 +224,7 @@ pub fn get_gradients(
             Array3<f64>,
             Array3<f64>,
             Array3<f64>,
-        ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, *r_lc);
+        ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
 
         // set values for return of the gradients
         grad_e0 = gradE0;
@@ -237,7 +241,7 @@ pub fn get_gradients(
             // get transition charges of the complete range of orbitals
             let (qtrans_ov, qtrans_oo, qtrans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) =
                 trans_charges(
-                    &[n_at as u8],
+                    &molecule.atomic_numbers,
                     &molecule.calculator.valorbs,
                     orbs.view(),
                     s.view(),
