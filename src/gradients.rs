@@ -265,7 +265,7 @@ pub fn get_gradients(
                     }
                 }
             }
-            if r_lc.unwrap() > 0.0 {
+            if r_lr > 0.0 {
                 let grad_ex: Array1<f64> = gradients_lc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0_ao).view(),

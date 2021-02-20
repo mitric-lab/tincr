@@ -43,8 +43,7 @@ pub fn get_exc_energies(
         set_active_orbitals((&f_occ).to_vec(), molecule.calculator.active_orbitals);
     let active_occ: Vec<usize> = tmp.0;
     let active_virt: Vec<usize> = tmp.1;
-    println!("active_orbs {:?}", &active_occ);
-    println!("active_virts {:?}", &active_virt);
+
     let n_occ: usize = active_occ.len();
     let n_virt: usize = active_virt.len();
 
