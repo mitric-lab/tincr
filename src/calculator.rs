@@ -168,7 +168,7 @@ pub fn construct_gaussian_overlap(molecule: &Molecule) -> (Array2<f64>) {
     let n_at = molecule.n_atoms;
     let mut gauss_omega: Array2<f64> = Array::zeros((n_at, n_at));
     let mut sigma: Array1<f64> = Array::zeros(n_at);
-    for (index,i)  in molecule.atomic_numbers.iter().enumerate() {
+    for (index, i) in molecule.atomic_numbers.iter().enumerate() {
         sigma[index] = 1.329 / (8.0 * 2.0_f64.log(E)) * 1.0 / (molecule.calculator.hubbard_u[i]);
     }
     for (i, pos_i) in molecule.positions.outer_iter().enumerate() {
@@ -190,7 +190,6 @@ pub fn lambda2_calc_oia(
     qtrans_vv: &Array3<f64>,
 ) -> (Array2<f64>) {
     let gauss_omega: Array2<f64> = construct_gaussian_overlap(molecule);
-    println!("gauss omega {}",gauss_omega);
     let n_at: usize = molecule.n_atoms;
     let dim_o: usize = active_occ.len();
     let dim_v: usize = active_virt.len();
