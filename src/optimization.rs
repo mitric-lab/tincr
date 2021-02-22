@@ -24,14 +24,18 @@ use std::ops::Deref;
 // ----------
 // [1] J. Nocedal, S. Wright, 'Numerical Optimization', Springer, 2006
 
-pub fn geometry_optimization(state: Option<usize>, coord_system: Option<String>, mol:&Molecule) {
+pub fn geometry_optimization(
+    state: Option<usize>,
+    coord_system: Option<String>,
+    mol: &Molecule,
+) -> (Array2<f64>, Array1<f64>) {
     // defaults
     let state: usize = state.unwrap_or(0);
     let coord_system: String = coord_system.unwrap_or(String::from("internal"));
     let mut cart_coord: bool = false;
 
-    let mut final_coord: Array1<f64> = Array::zeros(3*mol.n_atoms);
-    let mut final_grad: Array1<f64> = Array::zeros(3*mol.n_atoms));
+    let mut final_coord: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+    let mut final_grad: Array1<f64> = Array::zeros(3 * mol.n_atoms);
 
     if coord_system == "cartesian" {
         cart_coord = true;
@@ -39,20 +43,23 @@ pub fn geometry_optimization(state: Option<usize>, coord_system: Option<String>,
         let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
         // start the geometry optimization
         let tmp: (Array1<f64>, Array1<f64>, usize) = minimize(
-            &coords, cart_coord, state, mol, None, None, None, None, None,);
+            &coords, cart_coord, state, mol, None, None, None, None, None,
+        );
         final_coord = tmp.0;
         final_grad = tmp.1;
-
     } else {
         // transform to internal
 
         // and start optimization
     }
+    let final_cartesian: Array2<f64> = final_coord.into_shape((mol.n_atoms, 3)).unwrap();
+
+    return (final_cartesian, final_grad);
 }
 
 pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &Molecule) -> (f64, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
-    let mut molecule:Molecule = mol.clone();
+    let mut molecule: Molecule = mol.clone();
     molecule.positions = coords;
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
@@ -67,7 +74,7 @@ pub fn get_energies_and_gradient(
     ex_state: usize,
 ) -> (Array1<f64>, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
-    let mut molecule:Molecule = mol.clone();
+    let mut molecule: Molecule = mol.clone();
     molecule.positions = coords;
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
