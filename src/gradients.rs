@@ -38,10 +38,6 @@ where
 pub fn get_gradients(
     orbe: &Array1<f64>,
     orbs: &Array2<f64>,
-    active_occ: &Vec<usize>,
-    active_virt: &Vec<usize>,
-    full_occ: &Vec<usize>,
-    full_virt: &Vec<usize>,
     s: &Array2<f64>,
     molecule: &Molecule,
     XmY: &Option<Array3<f64>>,
@@ -64,6 +60,11 @@ pub fn get_gradients(
     let mut grad_e0: Array1<f64> = Array::zeros((3 * n_at));
     let mut grad_ex: Array1<f64> = Array::zeros((3 * n_at));
     let mut grad_vrep: Array1<f64> = Array::zeros((3 * n_at));
+
+    let active_occ: Vec<usize> = molecule.calculator.active_occ.unwrap();
+    let active_virt: Vec<usize> = molecule.calculator.active_virt.unwrap();
+    let full_occ: Vec<usize> = molecule.calculator.full_occ.unwrap();
+    let full_virt: Vec<usize> = molecule.calculator.full_virt.unwrap();
 
     // check if active space is smaller than full space
     // otherwise this part is unnecessary
@@ -1678,7 +1679,7 @@ fn get_gradients_gs_routine() {
     let active_occ: Vec<usize> = tmp.0;
     let active_virt: Vec<usize> = tmp.1;
     let full_occ: Vec<usize> = tmp.2;
-    let full__virt: Vec<usize> = tmp.3;
+    let full_virt: Vec<usize> = tmp.3;
 
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
         &orbe,
@@ -1686,7 +1687,7 @@ fn get_gradients_gs_routine() {
         &active_occ,
         &active_virt,
         &full_occ,
-        &full__virt,
+        &full_virt,
         &S,
         &mol,
         &None,

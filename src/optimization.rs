@@ -1,5 +1,8 @@
 use crate::defaults;
 use crate::gradients;
+use crate::gradients::get_gradients;
+use crate::scc_routine;
+use crate::solver::get_exc_energies;
 use crate::Molecule;
 use ndarray::prelude::*;
 use ndarray::Data;
@@ -20,109 +23,153 @@ use peroxide::prelude::*;
 // ----------
 // [1] J. Nocedal, S. Wright, 'Numerical Optimization', Springer, 2006
 
+pub fn geometry_optimization() {}
+
+pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, Array1<f64>) {
+    let coords: Array2<f64> = x.into_shape((mol.n_atoms, 3)).unwrap();
+    mol.positions = coords;
+    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+        scc_routine::run_scc(&mol, None, None, None);
+    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
+        get_gradients(&orbe, &orbs, &s, mol, &None, &None, None, &None);
+    return (energy, grad_e0);
+}
+
+pub fn get_energies_and_gradient(x: &Array1<f64>, mol: &mut Molecule, ex_state:usize)->(Array1<f64>, Array1<f64>) {
+    let coords: Array2<f64> = x.into_shape((mol.n_atoms, 3)).unwrap();
+    mol.positions = coords;
+    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+        scc_routine::run_scc(&mol, None, None, None);
+    let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
+        get_exc_energies(mol, None, &s, &orbe, &orbs, None);
+    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
+        get_gradients(&orbe, &orbs, &s, mol, &Some(tmp.2), &Some(tmp.3), Some(ex_state), &Some(tmp.0));
+    let grad_tot:Array1<f64> = grad_e0 + grad_vrep + grad_exc;
+    let energy_tot:Array1<f64> = &tmp.0 + energy;
+    return (energy_tot, grad_tot);
+}
+
+pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
+    let mut energy: f64 = 0.0;
+    let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+    if state == 0 {
+        let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
+        energy = en;
+        gradient = grad;
+    } else {
+        let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(x, mol,state-1);
+        energy = en[state-1];
+        gradient = grad;
+    }
+    return (energy, gradient);
+}
+
+pub fn objective_intern(x: Array1<f64>) {}
+
 pub fn minimize(
     x0: &Array1<f64>,
-    method:Option<String>,
-    line_search:Option<String>,
+    method: Option<String>,
+    line_search: Option<String>,
     cart_coord: bool,
     maxiter: Option<usize>,
     gtol: Option<f64>,
     ftol: Option<f64>,
-)->(Array1<f64>,f64,Array1<f64>,usize) {
+    state: usize,
+    mol: &mut Molecule,
+) -> (Array1<f64>, f64, Array1<f64>, usize) {
     // minimize a scalar function ``objfunc``(x) possibly subject to constraints.
     // The minimization is converged if
     //      * |df/dx| < gtol and
     //      * |f(k+1)-f(k)| < ftol
 
     // set defaults
-    let maxiter:usize = maxiter.unwrap_or(100000);
-    let gtol:f64 = gtol.unwrap_or(1.0e-6);
-    let ftol:f64 = ftol.unwrap_or(1.0e-8);
-    let method:String = method.unwrap_or(String::from("BFGS"));
-    let line_search:String = line_search.unwrap_or(String::from("Wolfe"));
+    let maxiter: usize = maxiter.unwrap_or(100000);
+    let gtol: f64 = gtol.unwrap_or(1.0e-6);
+    let ftol: f64 = ftol.unwrap_or(1.0e-8);
+    let method: String = method.unwrap_or(String::from("BFGS"));
+    let line_search: String = line_search.unwrap_or(String::from("Wolfe"));
 
-    let n:usize = x0.len();
-    let mut xk:Array1<f64> = x0.clone();
-    let mut fk:f64 = 0.0;
-    let mut grad_fk:Array1<f64> = Array::zeros(n);
+    let n: usize = x0.len();
+    let mut xk: Array1<f64> = x0.clone();
+    let mut fk: f64 = 0.0;
+    let mut grad_fk: Array1<f64> = Array::zeros(n);
 
-    if cart_coord{
-        let tmp:(f64,Array1<f64>) = objective_cart(xk);
+    if cart_coord {
+        let tmp: (f64, Array1<f64>) = objective_cart(&xk, state, mol);
+        fk = tmp.0;
+        grad_fk = tmp.1;
+    } else {
+        let tmp: (f64, Array1<f64>) = objective_intern(xk);
         fk = tmp.0;
         grad_fk = tmp.1;
     }
-    else{
-        let tmp:(f64,Array1<f64>) = objective_intern(xk);
-        fk = tmp.0;
-        grad_fk = tmp.1;
-    }
-    let mut converged:bool = false;
+    let mut converged: bool = false;
     //smallest representable positive number such that 1.0+eps != 1.0.
-    let epsilon:f64 = 1.0 + 1.0e-16;
+    let epsilon: f64 = 1.0 + 1.0e-16;
 
-    let mut pk:Array1<f64> = Array::zeros(n);
-    let mut x_kp1:Array1<f64> = Array::zeros(n);
-    let mut iter_index:usize = 0;
-    let mut sk:Array1<f64> = Array::zeros(n);
-    let mut yk:Array1<f64> = Array::zeros(n);
+    let mut pk: Array1<f64> = Array::zeros(n);
+    let mut x_kp1: Array1<f64> = Array::zeros(n);
+    let mut iter_index: usize = 0;
+    let mut sk: Array1<f64> = Array::zeros(n);
+    let mut yk: Array1<f64> = Array::zeros(n);
 
-    for k in 0.. maxiter{
-
-        if method == "BFGS"{
-            let mut inv_hk:Array2<f64> = Array::zeros((n,n));
-            if k == 0{
+    for k in 0..maxiter {
+        if method == "BFGS" {
+            let mut inv_hk: Array2<f64> = Array::zeros((n, n));
+            if k == 0 {
                 inv_hk = Array::eye(n);
-            }
-            else{
-                if yk.dot(&sk) <= 0.0{
+            } else {
+                if yk.dot(&sk) <= 0.0 {
                     println!("Warning: positive definiteness of Hessian approximation lost in BFGS update, since yk.sk <= 0!")
                 }
-                inv_hk = bfgs_update(&inv_hk,&sk,&yk,k);
+                inv_hk = bfgs_update(&inv_hk, &sk, &yk, k);
             }
             pk = inv_hk.dot(&-grad_fk);
-        }
-        else if method == "Steepest Descent"{
+        } else if method == "Steepest Descent" {
             pk = -grad_fk;
         }
-        if line_search == "Armijo"{
-            x_kp1 = line_search_backtracking(&xk,fk,&grad_fk,&pk,None,None,None,None,cart_coord);
+        if line_search == "Armijo" {
+            x_kp1 = line_search_backtracking(
+                &xk, fk, &grad_fk, &pk, None, None, None, None, cart_coord,
+            );
         }
-        if line_search == "Wolfe"{
-            x_kp1 = line_search_wolfe(&xk,fk,&grad_fk,&pk,None,None,None,None,None,cart_coord);
+        if line_search == "Wolfe" {
+            x_kp1 = line_search_wolfe(
+                &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord,
+            );
         }
-        let mut f_kp1:f64 = 0.0;
-        let mut grad_f_kp1:Array1<f64> = Array::zeros(n);
-        if cart_coord{
-            let tmp:(f64,Array1<f64>) = objective_cart(&x_kp1);
+        let mut f_kp1: f64 = 0.0;
+        let mut grad_f_kp1: Array1<f64> = Array::zeros(n);
+        if cart_coord {
+            let tmp: (f64, Array1<f64>) = objective_cart(&x_kp1, state, mol);
+            f_kp1 = tmp.0;
+            grad_f_kp1 = tmp.1;
+        } else {
+            let tmp: (f64, Array1<f64>) = objective_intern(&x_kp1);
             f_kp1 = tmp.0;
             grad_f_kp1 = tmp.1;
         }
-        else{
-            let tmp:(f64,Array1<f64>) = objective_intern(&x_kp1);
-            f_kp1 = tmp.0;
-            grad_f_kp1 = tmp.1;
-        }
-        let f_change:f64 = (f_kp1 - fk).abs();
-        let gnorm:f64 = grad_f_kp1.norm();
-        if f_change < ftol && gnorm < gtol{
+        let f_change: f64 = (f_kp1 - fk).abs();
+        let gnorm: f64 = grad_f_kp1.norm();
+        if f_change < ftol && gnorm < gtol {
             converged = true;
         }
-        if f_change < epsilon{
+        if f_change < epsilon {
             println!("WARNING: |f(k+1) - f(k)| < epsilon  (numerical precision) !");
             converged = true;
         }
         // step vector
         sk = &x_kp1 - &xk;
         // gradient difference vector
-        yk = &grad_f_kp1 -&grad_fk;
+        yk = &grad_f_kp1 - &grad_fk;
         // new variables for step k become old ones for step k+1
         xk = x_kp1;
         fk = f_kp1;
         grad_fk = grad_f_kp1;
-        if converged{
-            break
+        if converged {
+            break;
         }
-        iter_index +=1;
+        iter_index += 1;
     }
     return (xk, fk, grad_fk, iter_index);
 }
@@ -192,7 +239,7 @@ pub fn line_search_backtracking(
         for i in 0..lmax {
             x_interp = xk + &(a * pk);
 
-            if objective_cart(&x_interp) <= fk + c * a * df {
+            if objective_cart(&x_interp, state, mol) <= fk + c * a * df {
                 break;
             } else {
                 a = a * rho;
@@ -293,12 +340,19 @@ pub fn line_search_wolfe(
     return x_wolfe;
 }
 
-pub fn s_wolfe(a: f64, cart_coord: bool, xk: &Array1<f64>, pk: &Array1<f64>) -> (f64, f64) {
+pub fn s_wolfe(
+    a: f64,
+    cart_coord: bool,
+    xk: &Array1<f64>,
+    pk: &Array1<f64>,
+    state: usize,
+    mol: &mut molecule,
+) -> (f64, f64) {
     // computes scalar function s: a -> f(xk + a*pk) and its derivative ds/da
     let mut fx: f64 = 0.0;
     let mut dsda: f64 = 0.0;
     if cart_coord {
-        let tmp: (f64, Array1<f64>) = objective_cart(xk + &(a * pk));
+        let tmp: (f64, Array1<f64>) = objective_cart(xk + &(a * pk), state, mol);
         fx = tmp.0;
         let dfdx: Array1<f64> = tmp.1;
         dsda = dfdx.dot(pk);

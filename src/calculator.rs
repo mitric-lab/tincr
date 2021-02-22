@@ -34,6 +34,10 @@ pub struct DFTBCalculator {
     pub g0_ao: Array2<f64>,
     pub g0_lr_ao: Array2<f64>,
     pub r_lr: Option<f64>,
+    pub active_occ: Option<Vec<usize>>,
+    pub active_virt: Option<Vec<usize>>,
+    pub full_occ: Option<Vec<usize>>,
+    pub full_virt: Option<Vec<usize>>,
 }
 
 impl DFTBCalculator {
@@ -111,7 +115,50 @@ impl DFTBCalculator {
             g0_ao: g0_a0,
             g0_lr_ao: g0_lr_a0,
             r_lr: r_lr,
+            active_occ: None,
+            active_virt: None,
+            full_occ: None,
+            full_virt: None,
         }
+    }
+    pub fn set_active_orbitals(mut self,
+        f: Vec<f64>,
+        active_orbitals: Option<(usize, usize)>,
+    ) {
+        let tmp: (usize, usize) = self.active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
+        let mut nr_active_occ: usize = tmp.0;
+        let mut nr_active_virt: usize = tmp.1;
+        let f: Array1<f64> = Array::from_vec(f);
+        let occ_indices: Array1<usize> = f
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
+            .collect();
+        let virt_indices: Array1<usize> = f
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item <= 0.1 { Some(index) } else { None })
+            .collect();
+
+        if nr_active_occ >= occ_indices.len() {
+            nr_active_occ = occ_indices.len();
+        }
+        if nr_active_virt >= virt_indices.len() {
+            nr_active_virt = virt_indices.len();
+        }
+
+        let active_occ_indices: Vec<usize> = (occ_indices
+            .slice(s![(occ_indices.len() - nr_active_occ)..])
+            .to_owned())
+            .to_vec();
+        let active_virt_indices: Vec<usize> =
+            (virt_indices.slice(s![..nr_active_virt]).to_owned()).to_vec();
+
+        let full_occ_indices: Vec<usize> = occ_indices.to_vec();
+        let full_virt_indices: Vec<usize> = virt_indices.to_vec();
+
+        self.active_occ = Some(active_occ_indices);
+        self.active_virt = Some(active_virt_indices);
+        self.full_occ = Some(full_occ_indices);
+        self.full_virt = Some(full_virt_indices);
     }
 }
 
@@ -122,47 +169,47 @@ fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {
     return (confined_atom, free_atom);
 }
 
-pub fn set_active_orbitals(
-    f: Vec<f64>,
-    active_orbitals: Option<(usize, usize)>,
-) -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) {
-    let tmp: (usize, usize) = active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
-    let mut nr_active_occ: usize = tmp.0;
-    let mut nr_active_virt: usize = tmp.1;
-    let f: Array1<f64> = Array::from_vec(f);
-    let occ_indices: Array1<usize> = f
-        .indexed_iter()
-        .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
-        .collect();
-    let virt_indices: Array1<usize> = f
-        .indexed_iter()
-        .filter_map(|(index, &item)| if item <= 0.1 { Some(index) } else { None })
-        .collect();
-
-    if nr_active_occ >= occ_indices.len() {
-        nr_active_occ = occ_indices.len();
-    }
-    if nr_active_virt >= virt_indices.len() {
-        nr_active_virt = virt_indices.len();
-    }
-
-    let active_occ_indices: Vec<usize> = (occ_indices
-        .slice(s![(occ_indices.len() - nr_active_occ)..])
-        .to_owned())
-    .to_vec();
-    let active_virt_indices: Vec<usize> =
-        (virt_indices.slice(s![..nr_active_virt]).to_owned()).to_vec();
-
-    let full_occ_indices: Vec<usize> = occ_indices.to_vec();
-    let full_virt_indices: Vec<usize> = virt_indices.to_vec();
-
-    return (
-        active_occ_indices,
-        active_virt_indices,
-        full_occ_indices,
-        full_virt_indices,
-    );
-}
+// pub fn set_active_orbitals(
+//     f: Vec<f64>,
+//     active_orbitals: Option<(usize, usize)>,
+// ) -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) {
+//     let tmp: (usize, usize) = active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
+//     let mut nr_active_occ: usize = tmp.0;
+//     let mut nr_active_virt: usize = tmp.1;
+//     let f: Array1<f64> = Array::from_vec(f);
+//     let occ_indices: Array1<usize> = f
+//         .indexed_iter()
+//         .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
+//         .collect();
+//     let virt_indices: Array1<usize> = f
+//         .indexed_iter()
+//         .filter_map(|(index, &item)| if item <= 0.1 { Some(index) } else { None })
+//         .collect();
+//
+//     if nr_active_occ >= occ_indices.len() {
+//         nr_active_occ = occ_indices.len();
+//     }
+//     if nr_active_virt >= virt_indices.len() {
+//         nr_active_virt = virt_indices.len();
+//     }
+//
+//     let active_occ_indices: Vec<usize> = (occ_indices
+//         .slice(s![(occ_indices.len() - nr_active_occ)..])
+//         .to_owned())
+//     .to_vec();
+//     let active_virt_indices: Vec<usize> =
+//         (virt_indices.slice(s![..nr_active_virt]).to_owned()).to_vec();
+//
+//     let full_occ_indices: Vec<usize> = occ_indices.to_vec();
+//     let full_virt_indices: Vec<usize> = virt_indices.to_vec();
+//
+//     return (
+//         active_occ_indices,
+//         active_virt_indices,
+//         full_occ_indices,
+//         full_virt_indices,
+//     );
+// }
 
 pub fn construct_gaussian_overlap(molecule: &Molecule) -> (Array2<f64>) {
     let n_at = molecule.n_atoms;

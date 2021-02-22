@@ -30,7 +30,6 @@ where
 }
 
 pub fn get_exc_energies(
-    f_occ: &Vec<f64>,
     molecule: &Molecule,
     nstates: Option<usize>,
     s: &Array2<f64>,
@@ -39,11 +38,8 @@ pub fn get_exc_energies(
     response_method: Option<String>,
 ) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
     // set active orbitals first
-    let tmp: (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) =
-        set_active_orbitals((&f_occ).to_vec(), molecule.calculator.active_orbitals);
-    let active_occ: Vec<usize> = tmp.0;
-    let active_virt: Vec<usize> = tmp.1;
-
+    let active_occ: Vec<usize> = molecule.calculator.active_occ.unwrap();
+    let active_virt: Vec<usize> = molecule.calculator.active_virt.unwrap();
     let n_occ: usize = active_occ.len();
     let n_virt: usize = active_virt.len();
 
