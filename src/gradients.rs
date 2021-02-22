@@ -1697,7 +1697,7 @@ fn get_gradients_gs_routine() {
 
     println!("grad_e0 {}", grad_e0);
     assert!(grad_e0.abs_diff_eq(&gradE0_ref,1e-12));
-    assert!(grad_vrep.abs_diff_eq(&gradVrep_ref,1e-5));
+    assert!(grad_vrep.abs_diff_eq(&gradVrep_ref,1e-9));
 
 }
 
