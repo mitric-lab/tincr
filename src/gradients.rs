@@ -1829,7 +1829,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
     println!("grad_e0 {}", &grad_e0);
     println!("grad_e0_ref {}", &gradE0_ref);
     assert!(grad_e0.abs_diff_eq(&gradE0_ref,1e-12));
-    assert!(grad_vrep.abs_diff_eq(&gradVrep_ref,1e-5));
+    assert!(grad_vrep.abs_diff_eq(&gradVrep_ref,1e-9));
     println!("grad_exc {}", &grad_exc);
     println!("grad_exc_ref {}", &gradExc_ref);
     assert!(grad_exc.abs_diff_eq(&gradExc_ref,1e-12));
