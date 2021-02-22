@@ -121,10 +121,7 @@ impl DFTBCalculator {
             full_virt: None,
         }
     }
-    pub fn set_active_orbitals(mut self,
-        f: Vec<f64>,
-        active_orbitals: Option<(usize, usize)>,
-    ) {
+    pub fn set_active_orbitals(&mut self,f: Vec<f64>) {
         let tmp: (usize, usize) = self.active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
         let mut nr_active_occ: usize = tmp.0;
         let mut nr_active_virt: usize = tmp.1;

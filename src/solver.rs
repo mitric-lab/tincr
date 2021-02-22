@@ -1,4 +1,4 @@
-use crate::calculator::{get_gamma_gradient_matrix, lambda2_calc_oia, set_active_orbitals};
+use crate::calculator::{get_gamma_gradient_matrix, lambda2_calc_oia};
 use crate::defaults;
 use crate::gradients;
 use crate::transition_charges::trans_charges;
@@ -30,6 +30,7 @@ where
 }
 
 pub fn get_exc_energies(
+    f_occ: &Vec<f64>,
     molecule: &Molecule,
     nstates: Option<usize>,
     s: &Array2<f64>,
@@ -38,8 +39,8 @@ pub fn get_exc_energies(
     response_method: Option<String>,
 ) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
     // set active orbitals first
-    let active_occ: Vec<usize> = molecule.calculator.active_occ.unwrap();
-    let active_virt: Vec<usize> = molecule.calculator.active_virt.unwrap();
+    let active_occ: Vec<usize> = molecule.calculator.active_occ.clone().unwrap();
+    let active_virt: Vec<usize> = molecule.calculator.active_virt.clone().unwrap();
     let n_occ: usize = active_occ.len();
     let n_virt: usize = active_virt.len();
 
@@ -1358,7 +1359,7 @@ fn excited_energies_tda_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [
@@ -1487,6 +1488,8 @@ fn excited_energies_tda_routine() {
         1.0853598783803207
     ];
 
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
+
     let (omega_out, c_ij, XmY, XpY) = get_exc_energies(
         &f_occ.to_vec(),
         &mol,
@@ -1513,7 +1516,7 @@ fn excited_energies_casida_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(
+    let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
         charge,
@@ -1752,8 +1755,10 @@ fn excited_energies_casida_routine() {
     println!("valorbs {:?}", mol.calculator.valorbs);
     println!("atomic numbers {:?}", mol.atomic_numbers);
 
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
+
     let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies(&f_occ.to_vec(), &mol, None, &S, &orbe, &orbs, None);
+        get_exc_energies( &f_occ.to_vec(),&mol, None, &S, &orbe, &orbs, None);
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));
@@ -1773,7 +1778,7 @@ fn excited_energies_hermitian_davidson_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(
+    let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
         charge,
@@ -1960,6 +1965,8 @@ fn excited_energies_hermitian_davidson_routine() {
     println!("valorbs {:?}", mol.calculator.valorbs);
     println!("atomic numbers {:?}", mol.atomic_numbers);
 
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
+
     let (omega_out, c_ij, XmY, XpY) =
         get_exc_energies(&f_occ.to_vec(), &mol, Some(4), &S, &orbe, &orbs, None);
     println!("omega_out{}", &omega_out);
@@ -1981,7 +1988,7 @@ fn excited_energies_non_hermitian_davidson_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [
@@ -2160,6 +2167,8 @@ fn excited_energies_non_hermitian_davidson_routine() {
 
     println!("valorbs {:?}", mol.calculator.valorbs);
     println!("atomic numbers {:?}", mol.atomic_numbers);
+
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (omega_out, c_ij, XmY, XpY) =
         get_exc_energies(&f_occ.to_vec(), &mol, Some(4), &S, &orbe, &orbs, None);
