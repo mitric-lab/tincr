@@ -16,6 +16,7 @@ pub enum Calculator {
     DFTB(DFTBCalculator),
 }
 
+#[derive(Clone)]
 pub struct DFTBCalculator {
     pub valorbs: HashMap<u8, Vec<(i8, i8, i8)>>,
     pub hubbard_u: HashMap<u8, f64>,

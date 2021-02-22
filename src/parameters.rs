@@ -86,7 +86,7 @@ pub struct PseudoAtom {
     orbital_3d: Vec<f64>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Clone)]
 pub struct SlaterKosterTable {
     dipole: HashMap<(u8, u8, u8), Vec<f64>>,
     h: HashMap<(u8, u8, u8), Vec<f64>>,
@@ -132,7 +132,7 @@ impl SlaterKosterTable {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Clone)]
 pub struct RepulsivePotentialTable {
     /// RepulsivePotentialTable should be a struct with the following members
     ///
