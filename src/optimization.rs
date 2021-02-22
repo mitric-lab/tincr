@@ -10,6 +10,7 @@ use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
+use std::ops::Deref;
 
 // solve the following optimization problem:
 // minimize f(x)      subject to  c_i(x) > 0   for  i=1,...,m
@@ -23,34 +24,63 @@ use peroxide::prelude::*;
 // ----------
 // [1] J. Nocedal, S. Wright, 'Numerical Optimization', Springer, 2006
 
-pub fn geometry_optimization() {}
+pub fn geometry_optimization(state: Option<usize>, coord_system: Option<String>, mol:&Molecule) {
+    // defaults
+    let state: usize = state.unwrap_or(0);
+    let coord_system: String = coord_system.unwrap_or(String::from("internal"));
+    let mut molecule:Molecule = mol.clone();
+    let mut cart_coord: bool = false;
+    if coord_system == "cartesian" {
+        cart_coord = true;
+        // flatten cartesian coordinates
+        let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+        // start the geometry optimization
+        let tmp: (Array1<f64>, f64, Array1<f64>, usize) = minimize(&coords, cart_coord, state, molecule, None, None, None, None, None);
+    } else {
+        // transform to internal
 
-pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, Array1<f64>) {
+        // and start optimization
+    }
+}
+
+pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mut mol:Molecule) -> (f64, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     mol.positions = coords;
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
-        get_gradients(&orbe, &orbs, &s, mol, &None, &None, None, &None);
+        get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
     return (energy, grad_e0);
 }
 
-pub fn get_energies_and_gradient(x: &Array1<f64>, mol: &mut Molecule, ex_state:usize)->(Array1<f64>, Array1<f64>) {
+pub fn get_energies_and_gradient(
+    x: &Array1<f64>,
+    mut mol: Molecule,
+    ex_state: usize,
+) -> (Array1<f64>, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     mol.positions = coords;
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
-        get_exc_energies(&f,mol, None, &s, &orbe, &orbs, None);
-    let omega:Array1<f64> = tmp.0.clone();
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
-        get_gradients(&orbe, &orbs, &s, mol, &Some(tmp.2), &Some(tmp.3), Some(ex_state), &Some(tmp.0));
-    let grad_tot:Array1<f64> = grad_e0 + grad_vrep + grad_exc;
-    let energy_tot:Array1<f64> = omega + energy;
+        get_exc_energies(&f, &mol, None, &s, &orbe, &orbs, None);
+    let omega: Array1<f64> = tmp.0.clone();
+    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+        &orbe,
+        &orbs,
+        &s,
+        &mol,
+        &Some(tmp.2),
+        &Some(tmp.3),
+        Some(ex_state),
+        &Some(tmp.0),
+    );
+    let grad_tot: Array1<f64> = grad_e0 + grad_vrep + grad_exc;
+    let energy_tot: Array1<f64> = omega + energy;
     return (energy_tot, grad_tot);
 }
 
-pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
+pub fn objective_cart(x: &Array1<f64>, state: usize, mol:Molecule) -> (f64, Array1<f64>) {
     let mut energy: f64 = 0.0;
     let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
     if state == 0 {
@@ -58,8 +88,8 @@ pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64
         energy = en;
         gradient = grad;
     } else {
-        let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(x, mol,state-1);
-        energy = en[state-1];
+        let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(x, mol, state - 1);
+        energy = en[state - 1];
         gradient = grad;
     }
     return (energy, gradient);
@@ -81,14 +111,14 @@ pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64
 
 pub fn minimize(
     x0: &Array1<f64>,
+    cart_coord: bool,
+    state: usize,
+    mol: &mut Molecule,
     method: Option<String>,
     line_search: Option<String>,
-    cart_coord: bool,
     maxiter: Option<usize>,
     gtol: Option<f64>,
     ftol: Option<f64>,
-    state: usize,
-    mol: &mut Molecule,
 ) -> (Array1<f64>, f64, Array1<f64>, usize) {
     // minimize a scalar function ``objfunc``(x) possibly subject to constraints.
     // The minimization is converged if
@@ -144,12 +174,12 @@ pub fn minimize(
         }
         if line_search == "Armijo" {
             x_kp1 = line_search_backtracking(
-                &xk, fk, &grad_fk, &pk, None, None, None, None, cart_coord,state,mol
+                &xk, fk, &grad_fk, &pk, None, None, None, None, cart_coord, state, mol,
             );
         }
         if line_search == "Wolfe" {
             x_kp1 = line_search_wolfe(
-                &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord,state,mol
+                &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
             );
         }
         let mut f_kp1: f64 = 0.0;
@@ -235,8 +265,8 @@ pub fn line_search_backtracking(
     c: Option<f64>,
     lmax: Option<usize>,
     cart_coord: bool,
-    state:usize,
-    mol: & mut Molecule
+    state: usize,
+    mol: &mut Molecule,
 ) -> Array1<f64> {
     // set defaults
     let mut a: f64 = a0.unwrap_or(1.0);
@@ -289,8 +319,8 @@ pub fn line_search_wolfe(
     c2: Option<f64>,
     lmax: Option<usize>,
     cart_coord: bool,
-    state:usize,
-    mol:& mut Molecule,
+    state: usize,
+    mol: &mut Molecule,
 ) -> (Array1<f64>) {
     // find step size `a`` that satisfies the strong Wolfe conditions:
     //     __
@@ -313,7 +343,6 @@ pub fn line_search_wolfe(
     // Find the largest feasible step length.
     // Not for cartesian coords
     if cart_coord == false {
-
     }
     //     // call max steplen if coords are internal
     //     // function does not exist
@@ -334,10 +363,10 @@ pub fn line_search_wolfe(
     let mut x_wolfe: Array1<f64> = Array::zeros(xk.len());
 
     for i in 1..lmax {
-        let (si, dsi): (f64, f64) = s_wolfe(ai, cart_coord, xk, pk,state,mol);
+        let (si, dsi): (f64, f64) = s_wolfe(ai, cart_coord, xk, pk, state, mol);
         if (si > (s0 + c1 * ai * ds0)) || ((si >= sim1) && i > 1) {
             a_wolfe = zoom(
-                lmax, aim1, ai, sim1, si, cart_coord, &xk, &pk, s0, c1, c2, ds0,state,mol
+                lmax, aim1, ai, sim1, si, cart_coord, &xk, &pk, s0, c1, c2, ds0, state, mol,
             );
             break;
         }
@@ -347,7 +376,7 @@ pub fn line_search_wolfe(
         }
         if dsi >= 0.0 {
             a_wolfe = zoom(
-                lmax, ai, aim1, si, sim1, cart_coord, &xk, &pk, s0, c1, c2, ds0,state,mol
+                lmax, ai, aim1, si, sim1, cart_coord, &xk, &pk, s0, c1, c2, ds0, state, mol,
             );
             break;
         }
@@ -403,7 +432,7 @@ pub fn zoom(
     c1: f64,
     c2: f64,
     ds0: f64,
-    state:usize,
+    state: usize,
     mol: &mut Molecule,
 ) -> f64 {
     // find a step length a that satisfies Wolfe's conditions by bisection inside in the interval [alo,ali]
@@ -415,7 +444,7 @@ pub fn zoom(
 
     for j in 0..lmax {
         let aj: f64 = 0.5 * (ahi + alo);
-        let (sj, dsj): (f64, f64) = s_wolfe(aj, cart_coord, xk, pk,state,mol);
+        let (sj, dsj): (f64, f64) = s_wolfe(aj, cart_coord, xk, pk, state, mol);
 
         if (sj > (s0 + c1 * aj * ds0)) || sj >= slo {
             ahi = aj;
