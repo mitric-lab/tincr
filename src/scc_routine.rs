@@ -427,7 +427,7 @@ fn density_matrix_test() {
             0.4577279753425148
         ]
     ];
-    assert!(p.abs_diff_eq(&p_ref, 1e-16));
+    assert!(p.abs_diff_eq(&p_ref, 1e-15));
 }
 
 #[test]
