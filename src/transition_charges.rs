@@ -28,9 +28,6 @@ pub fn trans_charges(
 
     let s_c: Array2<f64> = s.dot(&orbs);
 
-    println!("valorbs {:?}",valorbs);
-    println!("atomic numbers {:?}",atomic_numbers);
-
     let mut mu: usize = 0;
     for (atom_a, z_a) in atomic_numbers.iter().enumerate() {
         for _ in valorbs[z_a].iter() {
