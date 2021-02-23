@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Neg;
 
+#[derive(Clone)]
 pub struct Molecule {
     pub(crate) atomic_numbers: Vec<u8>,
     pub(crate) positions: Array2<f64>,

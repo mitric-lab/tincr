@@ -38,10 +38,6 @@ where
 pub fn get_gradients(
     orbe: &Array1<f64>,
     orbs: &Array2<f64>,
-    active_occ: &Vec<usize>,
-    active_virt: &Vec<usize>,
-    full_occ: &Vec<usize>,
-    full_virt: &Vec<usize>,
     s: &Array2<f64>,
     molecule: &Molecule,
     XmY: &Option<Array3<f64>>,
@@ -50,6 +46,11 @@ pub fn get_gradients(
     omega: &Option<Array1<f64>>,
 ) -> (Array1<f64>, Array1<f64>, Array1<f64>) {
     let n_at: usize = molecule.n_atoms;
+    let active_occ: Vec<usize> = molecule.calculator.active_occ.clone().unwrap();
+    let active_virt: Vec<usize> = molecule.calculator.active_virt.clone().unwrap();
+    let full_occ: Vec<usize> = molecule.calculator.full_occ.clone().unwrap();
+    let full_virt: Vec<usize> = molecule.calculator.full_virt.clone().unwrap();
+
     let n_occ: usize = active_occ.len();
     let n_virt: usize = active_virt.len();
 
@@ -1542,7 +1543,7 @@ fn get_gradients_gs_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [
@@ -1673,20 +1674,11 @@ fn get_gradients_gs_routine() {
 ];
 
 
-    let tmp: (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) =
-        set_active_orbitals((&f_occ).to_vec(), mol.calculator.active_orbitals);
-    let active_occ: Vec<usize> = tmp.0;
-    let active_virt: Vec<usize> = tmp.1;
-    let full_occ: Vec<usize> = tmp.2;
-    let full__virt: Vec<usize> = tmp.3;
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
         &orbe,
         &orbs,
-        &active_occ,
-        &active_virt,
-        &full_occ,
-        &full__virt,
         &S,
         &mol,
         &None,
@@ -1713,7 +1705,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, Some(0.0), Some((2,2)));
+    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, Some(0.0), Some((2,2)));
 
     let  S: Array2<f64> = array![
        [ 1.0000000000000000,  0.0000000000000000,  0.0000000000000000,
@@ -1804,20 +1796,11 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
        0.8028447032941497
 ];
 
-    let tmp: (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) =
-        set_active_orbitals((&f_occ).to_vec(), mol.calculator.active_orbitals);
-    let active_occ: Vec<usize> = tmp.0;
-    let active_virt: Vec<usize> = tmp.1;
-    let full_occ: Vec<usize> = tmp.2;
-    let full__virt: Vec<usize> = tmp.3;
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
         &orbe,
         &orbs,
-        &active_occ,
-        &active_virt,
-        &full_occ,
-        &full__virt,
         &S,
         &mol,
         &Some(XmY),
@@ -1829,7 +1812,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
     println!("grad_e0 {}", &grad_e0);
     println!("grad_e0_ref {}", &gradE0_ref);
     assert!(grad_e0.abs_diff_eq(&gradE0_ref,1e-12));
-    assert!(grad_vrep.abs_diff_eq(&gradVrep_ref,1e-5));
+    assert!(grad_vrep.abs_diff_eq(&gradVrep_ref,1e-9));
     println!("grad_exc {}", &grad_exc);
     println!("grad_exc_ref {}", &gradExc_ref);
     assert!(grad_exc.abs_diff_eq(&gradExc_ref,1e-12));
@@ -1847,7 +1830,7 @@ fn get_gradients_exc_no_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, Some(0.0), None);
+    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, Some(0.0), None);
 
     let  S: Array2<f64> = array![
        [ 1.0000000000000000,  0.0000000000000000,  0.0000000000000000,
@@ -1996,22 +1979,11 @@ fn get_gradients_exc_no_lc_routine() {
        1.2756452171930386, 1.3231856682449914
 ];
 
-
-
-    let tmp: (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) =
-        set_active_orbitals((&f_occ).to_vec(), mol.calculator.active_orbitals);
-    let active_occ: Vec<usize> = tmp.0;
-    let active_virt: Vec<usize> = tmp.1;
-    let full_occ: Vec<usize> = tmp.2;
-    let full__virt: Vec<usize> = tmp.3;
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
         &orbe,
         &orbs,
-        &active_occ,
-        &active_virt,
-        &full_occ,
-        &full__virt,
         &S,
         &mol,
         &Some(XmY),
@@ -2040,7 +2012,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, Some((2,2)));
+    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, Some((2,2)));
 
     let  S: Array2<f64> = array![
        [ 1.0000000000000000,  0.0000000000000000,  0.0000000000000000,
@@ -2131,20 +2103,11 @@ fn get_gradients_exc_lc_restricted_space_routine() {
        0.6831517141209629
 ];
 
-    let tmp: (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) =
-        set_active_orbitals((&f_occ).to_vec(), mol.calculator.active_orbitals);
-    let active_occ: Vec<usize> = tmp.0;
-    let active_virt: Vec<usize> = tmp.1;
-    let full_occ: Vec<usize> = tmp.2;
-    let full__virt: Vec<usize> = tmp.3;
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
         &orbe,
         &orbs,
-        &active_occ,
-        &active_virt,
-        &full_occ,
-        &full__virt,
         &S,
         &mol,
         &Some(XmY),
@@ -2174,7 +2137,7 @@ fn get_gradients_exc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [
@@ -2408,20 +2371,11 @@ fn get_gradients_exc_routine() {
 ];
 
 
-    let tmp: (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) =
-        set_active_orbitals((&f_occ).to_vec(), mol.calculator.active_orbitals);
-    let active_occ: Vec<usize> = tmp.0;
-    let active_virt: Vec<usize> = tmp.1;
-    let full_occ: Vec<usize> = tmp.2;
-    let full__virt: Vec<usize> = tmp.3;
+    mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
         &orbe,
         &orbs,
-        &active_occ,
-        &active_virt,
-        &full_occ,
-        &full__virt,
         &S,
         &mol,
         &Some(XmY),
