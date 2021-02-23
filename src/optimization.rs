@@ -97,6 +97,7 @@ pub fn get_energies_and_gradient(
 }
 
 pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
+    println!("Test1");
     let mut energy: f64 = 0.0;
     let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
     if state == 0 {
@@ -170,6 +171,7 @@ pub fn minimize(
     let mut yk: Array1<f64> = Array::zeros(n);
 
     for k in 0..maxiter {
+        println!("iteration {}",k);
         if method == "BFGS" {
             let mut inv_hk: Array2<f64> = Array::zeros((n, n));
             if k == 0 {
@@ -188,8 +190,7 @@ pub fn minimize(
             x_kp1 = line_search_backtracking(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, cart_coord, state, mol,
             );
-        }
-        else if line_search == "Wolfe" {
+        } else if line_search == "Wolfe" {
             x_kp1 = line_search_wolfe(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
             );
@@ -211,10 +212,10 @@ pub fn minimize(
         if f_change < ftol && gnorm < gtol {
             converged = true;
         }
-        if f_change < epsilon {
-            println!("WARNING: |f(k+1) - f(k)| < epsilon  (numerical precision) !");
-            converged = true;
-        }
+        // if f_change < epsilon {
+        //     println!("WARNING: |f(k+1) - f(k)| < epsilon  (numerical precision) !");
+        //     converged = true;
+        // }
         // step vector
         sk = &x_kp1 - &xk;
         // gradient difference vector
@@ -347,7 +348,7 @@ pub fn line_search_wolfe(
     let c2: f64 = c2.unwrap_or(0.9);
     let lmax: usize = lmax.unwrap_or(100);
 
-    assert!((0.0 < c1) < (c2 < 1.0));
+    //assert!((0.0 < c1) < (c2 < 1.0));
 
     let s0: f64 = fk;
     let ds0: f64 = grad_fk.dot(pk);
