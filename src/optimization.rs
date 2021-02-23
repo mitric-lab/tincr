@@ -121,10 +121,6 @@ pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64
 //
 // }
 
-// pub fn internal2cartesian(){
-//
-// }
-
 pub fn minimize(
     x0: &Array1<f64>,
     cart_coord: bool,

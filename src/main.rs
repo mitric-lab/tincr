@@ -19,6 +19,7 @@ mod zbrent;
 mod transition_charges;
 mod solver;
 mod optimization;
+mod internal_coordinates;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
