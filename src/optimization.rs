@@ -27,7 +27,7 @@ use std::ops::Deref;
 pub fn geometry_optimization(
     state: Option<usize>,
     coord_system: Option<String>,
-    mol: &Molecule,
+    mol: &mut Molecule,
 ) -> (Array2<f64>, Array1<f64>) {
     // defaults
     let state: usize = state.unwrap_or(0);
@@ -57,10 +57,10 @@ pub fn geometry_optimization(
     return (final_cartesian, final_grad);
 }
 
-pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &Molecule) -> (f64, Array1<f64>) {
+pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
-    let mut molecule: Molecule = mol.clone();
-    molecule.positions = coords;
+    //let mut molecule: Molecule = mol.clone();
+    mol.positions = coords;
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
@@ -70,12 +70,12 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &Molecule) -> (f64, Arra
 
 pub fn get_energies_and_gradient(
     x: &Array1<f64>,
-    mol: &Molecule,
+    mol: &mut Molecule,
     ex_state: usize,
 ) -> (Array1<f64>, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
-    let mut molecule: Molecule = mol.clone();
-    molecule.positions = coords;
+    //let mut molecule: Molecule = mol.clone();
+    mol.positions = coords;
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
@@ -96,7 +96,7 @@ pub fn get_energies_and_gradient(
     return (energy_tot, grad_tot);
 }
 
-pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &Molecule) -> (f64, Array1<f64>) {
+pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
     let mut energy: f64 = 0.0;
     let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
     if state == 0 {
@@ -129,7 +129,7 @@ pub fn minimize(
     x0: &Array1<f64>,
     cart_coord: bool,
     state: usize,
-    mol: &Molecule,
+    mol: &mut Molecule,
     method: Option<String>,
     line_search: Option<String>,
     maxiter: Option<usize>,
@@ -154,7 +154,7 @@ pub fn minimize(
     let mut grad_fk: Array1<f64> = Array::zeros(n);
 
     if cart_coord {
-        let tmp: (f64, Array1<f64>) = objective_cart(&xk, state, &mol);
+        let tmp: (f64, Array1<f64>) = objective_cart(&xk, state, mol);
         fk = tmp.0;
         grad_fk = tmp.1;
     }
@@ -193,7 +193,7 @@ pub fn minimize(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, cart_coord, state, mol,
             );
         }
-        if line_search == "Wolfe" {
+        else if line_search == "Wolfe" {
             x_kp1 = line_search_wolfe(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
             );
@@ -282,7 +282,7 @@ pub fn line_search_backtracking(
     lmax: Option<usize>,
     cart_coord: bool,
     state: usize,
-    mol: &Molecule,
+    mol: &mut Molecule,
 ) -> Array1<f64> {
     // set defaults
     let mut a: f64 = a0.unwrap_or(1.0);
@@ -336,7 +336,7 @@ pub fn line_search_wolfe(
     lmax: Option<usize>,
     cart_coord: bool,
     state: usize,
-    mol: &Molecule,
+    mol: &mut Molecule,
 ) -> (Array1<f64>) {
     // find step size `a`` that satisfies the strong Wolfe conditions:
     //     __
@@ -415,7 +415,7 @@ pub fn s_wolfe(
     xk: &Array1<f64>,
     pk: &Array1<f64>,
     state: usize,
-    mol: &Molecule,
+    mol: &mut Molecule,
 ) -> (f64, f64) {
     // computes scalar function s: a -> f(xk + a*pk) and its derivative ds/da
     let mut fx: f64 = 0.0;
@@ -449,7 +449,7 @@ pub fn zoom(
     c2: f64,
     ds0: f64,
     state: usize,
-    mol: &Molecule,
+    mol: &mut Molecule,
 ) -> f64 {
     // find a step length a that satisfies Wolfe's conditions by bisection inside in the interval [alo,ali]
     let mut ahi: f64 = ahi;
