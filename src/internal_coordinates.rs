@@ -235,7 +235,7 @@ impl Angle{
         return return_value;
     }
 
-    pub fn normal_vector(coordinate_vector:&Array1<f64>){
+    pub fn normal_vector(self,coordinate_vector:&Array1<f64>){
         let a:usize = self.at_a;
         let b:usize = self.at_b;
         let c:usize = self.at_c;
