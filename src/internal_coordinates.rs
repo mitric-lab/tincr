@@ -106,9 +106,38 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
                 for c in fragment.neighbors(b){
                     if a.index() < c.index(){
                         let angl:Angle = Angle::new(a.index(),b.index(),c.index());
+                        // nnc part doesnt work
 
                         if  angl.value(&coordinate_vector).cos().abs() < linthre{
-                            internal_coords.push(angl);
+                            //internal_coords.push(angl);
+                        }
+                        // cant check for nnc
+                    }
+                }
+            }
+        }
+
+        for b in fragment.node_indices(){
+            for a in fragment.neighbors(b){
+                for c in fragment.neighbors(b){
+                    for d in fragment.neighbors(b){
+                        // nc doesnt work
+                        let it = vec![a.index(),c.index(),d.index()].into_iter().permutations(3);
+                        for index in it.into_iter(){
+                            let i = index[0];
+                            let j = index[1];
+                            let k = index[2];
+
+                            let angl1:Angle = Angle::new(b.index(),i,j);
+                            let angl2:Angle = Angle::new(i,j,k);
+                            if angl1.value(&coordinate_vector).cos().abs() > LinThre{
+                                continue
+                            }
+                            if angl2.value(&coordinate_vector).cos().abs() > LinThre{
+                                continue
+                            }
+                            // need normal_vector fn here
+
                         }
                     }
                 }
@@ -204,6 +233,22 @@ impl Angle{
             return_value = (dot/(norm_1*norm_2)).acos();
         }
         return return_value;
+    }
+
+    pub fn normal_vector(coordinate_vector:&Array1<f64>){
+        let a:usize = self.at_a;
+        let b:usize = self.at_b;
+        let c:usize = self.at_c;
+
+        // vector from first atom to central
+        let vec_1:Array1<f64> = coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        // vector from last atom to central
+        let vec_2:Array1<f64> = coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+
+        let norm_1:f64 = vec_1.norm();
+        let norm_2:f64 = vec_2.norm();
+
+        // need cross product here
     }
 }
 
