@@ -89,14 +89,15 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
         // first distance
         // then angles
         // then dihedrals
-        let mut internal_coords:Vec<_> = Vec::new();
+        let mut internal_coords:Vec<IC> = Vec::new();
 
         //distances
         for edge_index in fragment.edge_indices(){
             let (a,b) = fragment.edge_endpoints(edge_index).unwrap();
             //internal_coords.push(mol.distance_matrix[[a.index(),b.index()]]);
             let dist:Distance = Distance::new(a.index(),b.index(),&mol.distance_matrix);
-            internal_coords.push(dist);
+            let dist_ic = IC::distance(dist);
+            internal_coords.push(dist_ic);
         }
 
         //angles
@@ -108,15 +109,16 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
                         let angl:Angle = Angle::new(a.index(),b.index(),c.index());
                         // nnc part doesnt work
 
-                        if  angl.value(&coordinate_vector).cos().abs() < linthre{
-                            //internal_coords.push(angl);
+                        if angl.clone().value(&coordinate_vector).cos().abs() < linthre{
+                            let angl_ic = IC::angle(angl);
+                            internal_coords.push(angl_ic);
                         }
                         // cant check for nnc
                     }
                 }
             }
         }
-
+        //dihedrals
         for b in fragment.node_indices(){
             for a in fragment.neighbors(b){
                 for c in fragment.neighbors(b){
@@ -130,10 +132,10 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
 
                             let angl1:Angle = Angle::new(b.index(),i,j);
                             let angl2:Angle = Angle::new(i,j,k);
-                            if angl1.value(&coordinate_vector).cos().abs() > LinThre{
+                            if angl1.value(&coordinate_vector).cos().abs() > linthre{
                                 continue
                             }
-                            if angl2.value(&coordinate_vector).cos().abs() > LinThre{
+                            if angl2.value(&coordinate_vector).cos().abs() > linthre{
                                 continue
                             }
                             // need normal_vector fn here
@@ -157,6 +159,12 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
 //     }
 // }
 
+pub enum IC{
+    distance(Distance),
+    angle(Angle),
+    //dihedral()
+}
+#[derive(Clone,Copy)]
 pub struct Distance{
     at_a: usize,
     at_b: usize,
@@ -179,6 +187,7 @@ impl Distance{
     }
 }
 
+#[derive(Clone,Copy)]
 pub struct Angle{
     at_a: usize,
     at_b: usize,
@@ -235,7 +244,7 @@ impl Angle{
         return return_value;
     }
 
-    pub fn normal_vector(self,coordinate_vector:&Array1<f64>){
+    pub fn normal_vector(self,coord_vector:&Array1<f64>){
         let a:usize = self.at_a;
         let b:usize = self.at_b;
         let c:usize = self.at_c;
