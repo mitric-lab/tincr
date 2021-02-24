@@ -3,6 +3,7 @@ use crate::defaults;
 use crate::gradients;
 use crate::Molecule;
 use itertools::Itertools;
+use nalgebra::*;
 use ndarray::prelude::*;
 use ndarray::Data;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
@@ -139,6 +140,10 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
                                 continue
                             }
                             // need normal_vector fn here
+                            if (angl1.normal_vector(&coordinate_vector).dot(&angl2.normal_vector(&coordinate_vector))).abs() > linthre{
+                                // delete angle i,b,j
+                                // out of plane bijk
+                            }
 
                         }
                     }
@@ -215,13 +220,13 @@ impl Angle{
         let c:usize = self.at_c;
 
         // vector from first atom to central
-        let vec_1:Array1<f64> = coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        let vec_1:Vec<f64>= (coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned()).to_vec();
         // vector from last atom to central
-        let vec_2:Array1<f64> = coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        let vec_2:Vec<f64> = (coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned()).to_vec();
         // norm of the vectors
         let norm_1:f64 = vec_1.norm();
         let norm_2:f64 = vec_2.norm();
-        let dot:f64 = vec_1.dot(&vec_2);
+        let dot:f64 = Array::from_vec(vec_1).dot(&Array::from_vec(vec_2));
         let factor:f64 = dot/(norm_1*norm_2);
 
         let mut return_value:f64 = 0.0;
@@ -244,20 +249,24 @@ impl Angle{
         return return_value;
     }
 
-    pub fn normal_vector(self,coord_vector:&Array1<f64>){
+    pub fn normal_vector(self,coord_vector:&Array1<f64>)->(Array1<f64>){
         let a:usize = self.at_a;
         let b:usize = self.at_b;
         let c:usize = self.at_c;
 
         // vector from first atom to central
-        let vec_1:Array1<f64> = coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        let vec_1:Vec<f64>= (coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned()).to_vec();
         // vector from last atom to central
-        let vec_2:Array1<f64> = coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        let vec_2:Vec<f64> = (coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned()).to_vec();
 
         let norm_1:f64 = vec_1.norm();
         let norm_2:f64 = vec_2.norm();
 
         // need cross product here
+        let crs:Vec<f64> = vec_1.cross(&vec_2);
+        let crs_2:Array1<f64> = Array::from_vec(crs.clone())/crs.norm();
+
+        return crs_2;
     }
 }
 
