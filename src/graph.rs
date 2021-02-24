@@ -14,13 +14,13 @@ use petgraph::graph::*;
 use std::collections::HashMap;
 use petgraph::dot::Dot;
 
-pub fn build_connectivity_matrix(mol: &Molecule) -> (Array2<bool>) {
-    let mut connectivtiy_matrix: Array2<bool> = Array::default((mol.n_atoms, mol.n_atoms));
-    for i in (0..mol.n_atoms).combinations(2) {
-        let r_cov = (constants::COVALENCE_RADII[&mol.atomic_numbers[i[0]]]
-            + constants::COVALENCE_RADII[&mol.atomic_numbers[i[1]]])
+pub fn build_connectivity_matrix(n_atoms:usize,distance_matrix:&Array2<f64>,atomic_numbers:&Vec<u8>) -> (Array2<bool>) {
+    let mut connectivtiy_matrix: Array2<bool> = Array::default((n_atoms, n_atoms));
+    for i in (0..n_atoms).combinations(2) {
+        let r_cov = (constants::COVALENCE_RADII[&atomic_numbers[i[0]]]
+            + constants::COVALENCE_RADII[&atomic_numbers[i[1]]])
             / 0.52917720859;
-        if mol.distance_matrix[[i[0], i[1]]] < (1.3 * r_cov) {
+        if distance_matrix[[i[0], i[1]]] < (1.3 * r_cov) {
             connectivtiy_matrix[[i[0], i[1]]] = true;
             connectivtiy_matrix[[i[1], i[0]]] = true;
         }
@@ -28,19 +28,20 @@ pub fn build_connectivity_matrix(mol: &Molecule) -> (Array2<bool>) {
     return connectivtiy_matrix;
 }
 
-pub fn build_graph(mol: &Molecule,connectivity_matrix:&Array2<bool>)->(Graph<HashMap<u8,Array1<f64>>, f64>,Vec<NodeIndex>) {
-    let mut graph: Graph<HashMap<u8,Array1<f64>>, f64> = Graph::<HashMap<u8,Array1<f64>>, f64>::new();
+pub fn build_graph(mol: &Molecule)->(UnGraph<HashMap<u8,Array1<f64>>, f64>,Vec<NodeIndex>) {
+    let mut graph: UnGraph<HashMap<u8,Array1<f64>>, f64> = UnGraph::<HashMap<u8,Array1<f64>>, f64>::new_undirected();
     for (i,z_i) in mol.atomic_numbers.iter().enumerate(){
         let mut hash:HashMap<u8,Array1<f64>> = HashMap::new();
         hash.insert(*z_i,mol.positions.slice(s![i,..]).to_owned());
         graph.add_node(hash);
     }
     let indexes:Vec<NodeIndex> = graph.node_indices().collect::<Vec<_>>();
-    for (i,index) in connectivity_matrix.outer_iter().enumerate(){
+    for (i,index) in mol.connectivity_matrix.outer_iter().enumerate(){
         for (j,ind) in index.iter().enumerate(){
-            let j0 = j+i;
-            if connectivity_matrix[[i,j0]]{
-                graph.add_edge(indexes[i],indexes[j],mol.distance_matrix[[i,j]]);
+            if (i+j) < 3{
+                if mol.connectivity_matrix[[i,j]]{
+                    graph.add_edge(indexes[i],indexes[j],mol.distance_matrix[[i,j]]);
+                }
             }
         }
     }
@@ -62,10 +63,7 @@ fn connectivity_routine() {
     let mut mol: Molecule =
         Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
-    let connectivity_matrix: Array2<bool> = build_connectivity_matrix(&mol);
-
-    let (graph,indexes):(Graph<HashMap<u8,Array1<f64>>, f64>,Vec<NodeIndex>) = build_graph(&mol,&connectivity_matrix);
-
-    println!("connectivity_matrix {}", connectivity_matrix);
+    println!("connectivity_matrix {}", mol.connectivity_matrix);
+    let (graph,indexes):(UnGraph<HashMap<u8,Array1<f64>>, f64>,Vec<NodeIndex>) = build_graph(&mol);
     assert!(1 == 2);
 }
