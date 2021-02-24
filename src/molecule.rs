@@ -3,6 +3,12 @@ use crate::constants::ATOM_NAMES;
 use crate::defaults;
 use crate::gamma_approximation;
 use crate::parameters::*;
+use crate::graph::*;
+use petgraph::algo::*;
+use petgraph::data::*;
+use petgraph::dot::{Config, Dot};
+use petgraph::graph::*;
+use petgraph::stable_graph::*;
 use approx::AbsDiffEq;
 use itertools::Itertools;
 use ndarray::prelude::*;
@@ -11,6 +17,7 @@ use ndarray_linalg::*;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Neg;
+use crate::graph::build_connectivity_matrix;
 
 #[derive(Clone)]
 pub struct Molecule {
@@ -24,6 +31,10 @@ pub struct Molecule {
     pub distance_matrix: Array2<f64>,
     pub directions_matrix: Array3<f64>,
     pub calculator: DFTBCalculator,
+    pub connectivity_matrix:Array2<bool>,
+    pub full_graph:StableUnGraph<u8,f64>,
+    pub full_graph_indices:Vec<NodeIndex>,
+    pub sub_graphs: Vec<StableUnGraph<u8,f64>>
 }
 
 impl Molecule {
@@ -47,6 +58,18 @@ impl Molecule {
         let calculator: DFTBCalculator = DFTBCalculator::new(&atomic_numbers, &atomtypes, active_orbitals,&dist_matrix,r_lr);
         //(&atomic_numbers, &atomtypes, model);
 
+        let connectivity_matrix:Array2<bool> = build_connectivity_matrix(n_atoms,&dist_matrix,&atomic_numbers);
+
+        let (graph, graph_indexes, subgraphs): (
+            StableUnGraph<u8, f64>,
+            Vec<NodeIndex>,
+            Vec<StableUnGraph<u8, f64>>,
+        ) = build_graph(
+            &atomic_numbers,
+            &connectivity_matrix,
+            &dist_matrix,
+        );
+
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
             positions: positions,
@@ -58,6 +81,10 @@ impl Molecule {
             distance_matrix: dist_matrix,
             directions_matrix: dir_matrix,
             calculator: calculator,
+            connectivity_matrix: connectivity_matrix,
+            full_graph:graph,
+            full_graph_indices: graph_indexes,
+            sub_graphs: subgraphs,
         };
 
         return mol;
