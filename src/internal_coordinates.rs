@@ -119,7 +119,7 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
                 }
             }
         }
-        //dihedrals
+        //out of planes
         for b in fragment.node_indices(){
             for a in fragment.neighbors(b){
                 for c in fragment.neighbors(b){
@@ -142,14 +142,25 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
                             // need normal_vector fn here
                             if (angl1.normal_vector(&coordinate_vector).dot(&angl2.normal_vector(&coordinate_vector))).abs() > linthre{
                                 // delete angle i,b,j
+                                for i in (0..internal_coords.len()).rev(){
+                                    // comparison doesnt work
+                                    if internal_coords[i] == IC::angle(Angle::new(i,b.index(),j)){
+                                        internal_coords.remove(i);
+                                    }
+                                }
                                 // out of plane bijk
+                                let out_of_pl1: Out_of_plane = Out_of_plane::new(b.index(),i,j,k);
+                                let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
+                                internal_coords.push(out_of_pl_ic);
                             }
-
                         }
                     }
                 }
             }
         }
+
+        //dihedrals
+
     }
 }
 
@@ -164,12 +175,13 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
 //     }
 // }
 
+#[derive(Eq,PartialEq,Clone,Copy)]
 pub enum IC{
     distance(Distance),
     angle(Angle),
-    //dihedral()
+    out_of_plane(Out_of_plane)
 }
-#[derive(Clone,Copy)]
+#[derive(Eq,PartialEq,Clone,Copy)]
 pub struct Distance{
     at_a: usize,
     at_b: usize,
@@ -191,8 +203,33 @@ impl Distance{
         return dist;
     }
 }
+#[derive(Eq,PartialEq,Clone,Copy)]
+pub struct Out_of_plane{
+    at_a: usize,
+    at_b: usize,
+    at_c: usize,
+    at_d: usize
+}
+impl Out_of_plane{
+    pub(crate) fn new(at_a:usize,at_b:usize,at_c:usize,at_d:usize)->Out_of_plane{
+        let at_a:usize = at_a;
+        let at_b:usize = at_b;
+        let at_c:usize = at_c;
+        let at_d:usize = at_d;
 
-#[derive(Clone,Copy)]
+        let out_of_plane = Out_of_plane{
+            at_a: at_a,
+            at_b: at_b,
+            at_c: at_c,
+            at_d:at_d,
+        };
+
+        return out_of_plane;
+    }
+}
+
+
+#[derive(Eq,PartialEq,Clone,Copy)]
 pub struct Angle{
     at_a: usize,
     at_b: usize,
