@@ -36,9 +36,10 @@ pub fn run_scc(
     let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
-    let mut orbs: Array2<f64> = Array2::zeros([molecule.calculator.n_orbs, molecule.calculator.n_orbs]);
+    let mut orbs: Array2<f64> =
+        Array2::zeros([molecule.calculator.n_orbs, molecule.calculator.n_orbs]);
     let mut orbe: Array1<f64> = Array1::zeros([molecule.calculator.n_orbs]);
-    let mut f:Vec<f64> = Array1::zeros([molecule.calculator.n_orbs]).to_vec();
+    let mut f: Vec<f64> = Array1::zeros([molecule.calculator.n_orbs]).to_vec();
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
         &molecule.atomic_numbers,
         molecule.positions.view(),
@@ -68,16 +69,31 @@ pub fn run_scc(
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
     'scf_loop: for i in 0..max_iter {
-        let h1: Array2<f64> = construct_h1(&molecule, (&molecule.calculator.g0).deref().view(), dq.view());
+        let h1: Array2<f64> = construct_h1(
+            &molecule,
+            (&molecule.calculator.g0).deref().view(),
+            dq.view(),
+        );
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
-
+        if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
+            let h_x: Array2<f64> = lc_exact_exchange(
+                &s,
+                &molecule.calculator.g0_lr_ao,
+                &p0,
+                &p,
+                h.dim().0,
+            );
+            h = h + h_x;
+        }
         // H' = X^t.H.X
         let hp: Array2<f64> = x.t().dot(&h).dot(&x);
 
-        let (orbe, cp): (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
+        let tmp: (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
+        let cp: Array2<f64> = tmp.1;
+        orbe = tmp.0;
         // C = X.C'
-        orbs= x.dot(&cp);
+        orbs = x.dot(&cp);
 
         // construct density matrix
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
@@ -113,7 +129,16 @@ pub fn run_scc(
         q = new_q;
 
         // compute electronic energy
-        scf_energy = get_electronic_energy(p.view(), h0.view(), dq.view(), (&molecule.calculator.g0).deref().view());
+        scf_energy = get_electronic_energy(
+            &molecule,
+            p.view(),
+            &p0,
+            &s,
+            h0.view(),
+            dq.view(),
+            (&molecule.calculator.g0).deref().view(),
+            &molecule.calculator.g0_lr_ao,
+        );
 
         energy_old = scf_energy;
         println!(
@@ -171,10 +196,14 @@ fn get_nuclear_energy() {}
 
 /// Compute electronic energies
 fn get_electronic_energy(
+    mol: &Molecule,
     p: ArrayView2<f64>,
+    p0: &Array2<f64>,
+    s: &Array2<f64>,
     h0: ArrayView2<f64>,
     dq: ArrayView1<f64>,
     gamma: ArrayView2<f64>,
+    g0_lr_ao: &Array2<f64>,
 ) -> f64 {
     //println!("P {}", p);
     // band structure energy
@@ -183,11 +212,54 @@ fn get_electronic_energy(
     let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
     // electronic energy as sum of band structure energy and Coulomb energy
     //println!("E BS {} E COUL {} dQ {}", e_band_structure, e_coulomb, dq);
-    let e_elec: f64 = e_band_structure + e_coulomb;
+    let mut e_elec: f64 = e_band_structure + e_coulomb;
+    // add lc exchange to electronic energy
+    if mol.calculator.r_lr.is_none() || mol.calculator.r_lr.unwrap() > 0.0 {
+        let e_hf_x: f64 = lc_exchange_energy(s, g0_lr_ao, p0, &p.to_owned());
+        e_elec += e_hf_x;
+    }
     // long-range Hartree-Fock exchange
     // if ....Iteration {} =>
     //println!("               E_bs = {:.7}  E_coulomb = {:.7}", e_band_structure, e_coulomb);
     return e_elec;
+}
+
+fn lc_exact_exchange(
+    s: &Array2<f64>,
+    g0_lr_ao: &Array2<f64>,
+    p0: &Array2<f64>,
+    p: &Array2<f64>,
+    dim: usize,
+) -> (Array2<f64>) {
+    // construct part of the Hamiltonian matrix corresponding to long range
+    // Hartree-Fock exchange
+    // H^x_mn = -1/2 sum_ab (P_ab-P0_ab) (ma|bn)_lr
+    // The Coulomb potential in the electron integral is replaced by
+    // 1/r ----> erf(r/R_lr)/r
+    let mut hx: Array2<f64> = Array::zeros((dim, dim));
+    let dp: Array2<f64> = p - p0;
+
+    hx = hx + (g0_lr_ao * &s.dot(&dp)).dot(s);
+    hx = hx + g0_lr_ao * &(s.dot(&dp)).dot(s);
+    hx = hx + (s.dot(&(&dp * g0_lr_ao))).dot(s);
+    hx = hx + s.dot(&(g0_lr_ao * &dp.dot(s)));
+    hx = hx * (-0.125);
+    return hx;
+}
+
+fn lc_exchange_energy(
+    s: &Array2<f64>,
+    g0_lr_ao: &Array2<f64>,
+    p0: &Array2<f64>,
+    p: &Array2<f64>,
+) -> f64 {
+    let dp: Array2<f64> = p - p0;
+    let mut e_hf_x: f64 = 0.0;
+
+    e_hf_x += ((s.dot(&dp.dot(s))) * &dp * g0_lr_ao).sum();
+    e_hf_x += (s.dot(&dp) * dp.dot(s) * g0_lr_ao).sum();
+    e_hf_x *= (-0.125);
+    return e_hf_x;
 }
 
 /// Construct the density matrix
@@ -258,7 +330,7 @@ fn h1_construction() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
         &mol.atomic_numbers,
         mol.n_atoms,
@@ -442,7 +514,7 @@ fn reference_density_matrix() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
     let p0: Array2<f64> = density_matrix_ref(&mol);
     let p0_ref: Array2<f64> = array![
         [2., 0., 0., 0., 0., 0.],
@@ -468,7 +540,7 @@ fn self_consistent_charge_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, Some(0.0), None);
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
@@ -496,7 +568,7 @@ fn self_consistent_charge_routine_near_coin() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity,None,None);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, Some(0.0), None);
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE

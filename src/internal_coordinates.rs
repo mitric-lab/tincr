@@ -142,12 +142,12 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
                             // need normal_vector fn here
                             if (angl1.normal_vector(&coordinate_vector).dot(&angl2.normal_vector(&coordinate_vector))).abs() > linthre{
                                 // delete angle i,b,j
-                                for i in (0..internal_coords.len()).rev(){
-                                    // comparison doesnt work
-                                    if internal_coords[i] == IC::angle(Angle::new(i,b.index(),j)){
-                                        internal_coords.remove(i);
-                                    }
-                                }
+                                // for i in (0..internal_coords.len()).rev(){
+                                //     // comparison doesnt work
+                                //     if internal_coords[i] == IC::angle(Angle::new(i,b.index(),j)){
+                                //         internal_coords.remove(i);
+                                //     }
+                                // }
                                 // out of plane bijk
                                 let out_of_pl1: Out_of_plane = Out_of_plane::new(b.index(),i,j,k);
                                 let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
@@ -175,13 +175,13 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
 //     }
 // }
 
-#[derive(Eq,PartialEq,Clone,Copy)]
+//#[derive(Eq,PartialEq,Clone,Copy)]
 pub enum IC{
     distance(Distance),
     angle(Angle),
     out_of_plane(Out_of_plane)
 }
-#[derive(Eq,PartialEq,Clone,Copy)]
+#[derive(Clone,Copy)]
 pub struct Distance{
     at_a: usize,
     at_b: usize,
