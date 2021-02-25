@@ -61,6 +61,7 @@ pub fn geometry_optimization(
 pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
+    println!("coordinates into shape {}",coords);
     mol.positions = coords;
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
@@ -172,6 +173,7 @@ pub fn minimize(
     let mut iter_index: usize = 0;
     let mut sk: Array1<f64> = Array::zeros(n);
     let mut yk: Array1<f64> = Array::zeros(n);
+    let mut inv_hk: Array2<f64> =Array::eye(n);
 
     println!("Test coordinate vector x0 {}", x0);
 
@@ -182,11 +184,10 @@ pub fn minimize(
             break;
         }
         if method == "BFGS" {
-            let mut inv_hk: Array2<f64> = Array::zeros((n, n));
-            if k == 0 {
-                inv_hk = Array::eye(n);
-            } else {
+            if k >0 {
                 if yk.dot(&sk) <= 0.0 {
+                    println!("yk {}",yk);
+                    println!("sk {}",sk);
                     println!("Warning: positive definiteness of Hessian approximation lost in BFGS update, since yk.sk <= 0!")
                 }
                 inv_hk = bfgs_update(&inv_hk, &sk, &yk, k);
@@ -195,6 +196,7 @@ pub fn minimize(
         } else if method == "Steepest Descent" {
             pk = -grad_fk.clone();
         }
+        println!("pk {}",pk);
         if line_search == "Armijo" {
             println!("start line search");
             x_kp1 = line_search_backtracking(
@@ -202,7 +204,7 @@ pub fn minimize(
             );
             println!("x_kp1 {}", x_kp1);
         } else if line_search == "Wolfe" {
-            println!("Start WolfEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
+            println!("Start WolfEE");
             x_kp1 = line_search_wolfe(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
             );
@@ -215,6 +217,7 @@ pub fn minimize(
             f_kp1 = tmp.0;
             grad_f_kp1 = tmp.1;
         }
+        println!("grad {}",grad_f_kp1);
         // else {
         //     let tmp: (f64, Array1<f64>) = objective_intern(&x_kp1);
         //     f_kp1 = tmp.0;
@@ -688,7 +691,7 @@ fn try_bfgs_update() {
     let test: Array2<f64> = bfgs_update(&invHk, &sk, &yk, k);
 
     println!("result of test {}", test);
-    assert!(test.abs_diff_eq(&result, 1e-10));
+    assert!(test.abs_diff_eq(&result, 1e-14));
 }
 
 #[test]
