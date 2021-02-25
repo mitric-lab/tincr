@@ -62,15 +62,12 @@ pub fn build_graph(
     while result_indixes.len() < indexes.len() {
         let mut search_index: NodeIndex = node_index(0);
         for i in indexes.iter() {
-            println!("index {}", i.index());
             if result_indixes.binary_search(&i.index()).is_err() {
                 search_index = *i;
                 break;
             }
         }
-        println!("search index {}", search_index.index());
         let dijkstra = dijkstra(&graph, search_index, None, |_| 1);
-        println!("hash dijkstra {:?}", dijkstra);
         let mut indices_for_graph: Vec<NodeIndex> = Vec::new();
         for (i, index) in dijkstra.iter() {
             result_indixes.push(i.index());
@@ -85,7 +82,6 @@ pub fn build_graph(
         }
         subgraph_vector.push(sub_graph);
         result_indixes.sort();
-        println!("results indeces {:?}", result_indixes);
     }
 
     return (graph, indexes, subgraph_vector);

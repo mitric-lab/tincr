@@ -80,6 +80,7 @@ impl DFTBCalculator {
         for zi in atomic_numbers {
             n_orbs = n_orbs + &valorbs[zi].len();
         }
+        // TODO: Check gamma matrices switching functions if lc =0
         let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
             atomic_numbers,
             atomic_numbers.len(),
@@ -89,15 +90,22 @@ impl DFTBCalculator {
             &valorbs,
             Some(0.0),
         );
-        let (g0_lr, g0_lr_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-            atomic_numbers,
-            atomic_numbers.len(),
-            n_orbs,
-            distance_matrix.view(),
-            &hubbard_u,
-            &valorbs,
-            None,
-        );
+        let mut g0_lr:Array2<f64> = Array::zeros((g0.dim().0,g0.dim().1));
+        let mut g0_lr_a0:Array2<f64> = Array::zeros((g0_a0.dim().0,g0_a0.dim().1));
+        if r_lr.is_none() || r_lr.unwrap() > 0.0 {
+            let tmp:(Array2<f64>, Array2<f64>) = get_gamma_matrix(
+                atomic_numbers,
+                atomic_numbers.len(),
+                n_orbs,
+                distance_matrix.view(),
+                &hubbard_u,
+                &valorbs,
+                None,
+            );
+            g0_lr = tmp.0;
+            g0_lr_a0 = tmp.1;
+        }
+
         DFTBCalculator {
             valorbs: valorbs,
             hubbard_u: hubbard_u,

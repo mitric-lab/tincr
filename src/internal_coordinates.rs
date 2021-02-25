@@ -3,6 +3,7 @@ use crate::defaults;
 use crate::gradients;
 use crate::Molecule;
 use itertools::Itertools;
+use nalgebra::*;
 use ndarray::prelude::*;
 use ndarray::Data;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
@@ -89,14 +90,15 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
         // first distance
         // then angles
         // then dihedrals
-        let mut internal_coords:Vec<_> = Vec::new();
+        let mut internal_coords:Vec<IC> = Vec::new();
 
         //distances
         for edge_index in fragment.edge_indices(){
             let (a,b) = fragment.edge_endpoints(edge_index).unwrap();
             //internal_coords.push(mol.distance_matrix[[a.index(),b.index()]]);
             let dist:Distance = Distance::new(a.index(),b.index(),&mol.distance_matrix);
-            internal_coords.push(dist);
+            let dist_ic = IC::distance(dist);
+            internal_coords.push(dist_ic);
         }
 
         //angles
@@ -108,15 +110,16 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
                         let angl:Angle = Angle::new(a.index(),b.index(),c.index());
                         // nnc part doesnt work
 
-                        if  angl.value(&coordinate_vector).cos().abs() < linthre{
-                            //internal_coords.push(angl);
+                        if angl.clone().value(&coordinate_vector).cos().abs() < linthre{
+                            let angl_ic = IC::angle(angl);
+                            internal_coords.push(angl_ic);
                         }
                         // cant check for nnc
                     }
                 }
             }
         }
-
+        //out of planes
         for b in fragment.node_indices(){
             for a in fragment.neighbors(b){
                 for c in fragment.neighbors(b){
@@ -130,19 +133,34 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
 
                             let angl1:Angle = Angle::new(b.index(),i,j);
                             let angl2:Angle = Angle::new(i,j,k);
-                            if angl1.value(&coordinate_vector).cos().abs() > LinThre{
+                            if angl1.value(&coordinate_vector).cos().abs() > linthre{
                                 continue
                             }
-                            if angl2.value(&coordinate_vector).cos().abs() > LinThre{
+                            if angl2.value(&coordinate_vector).cos().abs() > linthre{
                                 continue
                             }
                             // need normal_vector fn here
-
+                            if (angl1.normal_vector(&coordinate_vector).dot(&angl2.normal_vector(&coordinate_vector))).abs() > linthre{
+                                // delete angle i,b,j
+                                // for i in (0..internal_coords.len()).rev(){
+                                //     // comparison doesnt work
+                                //     if internal_coords[i] == IC::angle(Angle::new(i,b.index(),j)){
+                                //         internal_coords.remove(i);
+                                //     }
+                                // }
+                                // out of plane bijk
+                                let out_of_pl1: Out_of_plane = Out_of_plane::new(b.index(),i,j,k);
+                                let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
+                                internal_coords.push(out_of_pl_ic);
+                            }
                         }
                     }
                 }
             }
         }
+
+        //dihedrals
+
     }
 }
 
@@ -157,6 +175,13 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
 //     }
 // }
 
+//#[derive(Eq,PartialEq,Clone,Copy)]
+pub enum IC{
+    distance(Distance),
+    angle(Angle),
+    out_of_plane(Out_of_plane)
+}
+#[derive(Clone,Copy)]
 pub struct Distance{
     at_a: usize,
     at_b: usize,
@@ -178,7 +203,33 @@ impl Distance{
         return dist;
     }
 }
+#[derive(Eq,PartialEq,Clone,Copy)]
+pub struct Out_of_plane{
+    at_a: usize,
+    at_b: usize,
+    at_c: usize,
+    at_d: usize
+}
+impl Out_of_plane{
+    pub(crate) fn new(at_a:usize,at_b:usize,at_c:usize,at_d:usize)->Out_of_plane{
+        let at_a:usize = at_a;
+        let at_b:usize = at_b;
+        let at_c:usize = at_c;
+        let at_d:usize = at_d;
 
+        let out_of_plane = Out_of_plane{
+            at_a: at_a,
+            at_b: at_b,
+            at_c: at_c,
+            at_d:at_d,
+        };
+
+        return out_of_plane;
+    }
+}
+
+
+#[derive(Eq,PartialEq,Clone,Copy)]
 pub struct Angle{
     at_a: usize,
     at_b: usize,
@@ -206,13 +257,13 @@ impl Angle{
         let c:usize = self.at_c;
 
         // vector from first atom to central
-        let vec_1:Array1<f64> = coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        let vec_1:Vec<f64>= (coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned()).to_vec();
         // vector from last atom to central
-        let vec_2:Array1<f64> = coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        let vec_2:Vec<f64> = (coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned()).to_vec();
         // norm of the vectors
         let norm_1:f64 = vec_1.norm();
         let norm_2:f64 = vec_2.norm();
-        let dot:f64 = vec_1.dot(&vec_2);
+        let dot:f64 = Array::from_vec(vec_1).dot(&Array::from_vec(vec_2));
         let factor:f64 = dot/(norm_1*norm_2);
 
         let mut return_value:f64 = 0.0;
@@ -235,20 +286,24 @@ impl Angle{
         return return_value;
     }
 
-    pub fn normal_vector(self,coordinate_vector:&Array1<f64>){
+    pub fn normal_vector(self,coord_vector:&Array1<f64>)->(Array1<f64>){
         let a:usize = self.at_a;
         let b:usize = self.at_b;
         let c:usize = self.at_c;
 
         // vector from first atom to central
-        let vec_1:Array1<f64> = coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        let vec_1:Vec<f64>= (coord_vector.slice(s![3*a..3*a+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned()).to_vec();
         // vector from last atom to central
-        let vec_2:Array1<f64> = coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned();
+        let vec_2:Vec<f64> = (coord_vector.slice(s![3*c..3*c+3]).to_owned()- coord_vector.slice(s![3*b..3*b+3]).to_owned()).to_vec();
 
         let norm_1:f64 = vec_1.norm();
         let norm_2:f64 = vec_2.norm();
 
         // need cross product here
+        let crs:Vec<f64> = vec_1.cross(&vec_2);
+        let crs_2:Array1<f64> = Array::from_vec(crs.clone())/crs.norm();
+
+        return crs_2;
     }
 }
 
