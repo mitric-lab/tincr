@@ -92,7 +92,7 @@ impl DFTBCalculator {
         );
         let mut g0_lr:Array2<f64> = Array::zeros((g0.dim().0,g0.dim().1));
         let mut g0_lr_a0:Array2<f64> = Array::zeros((g0_a0.dim().0,g0_a0.dim().1));
-        if r_lr.unwrap() > 0.0 || r_lr.is_none(){
+        if r_lr.is_none() || r_lr.unwrap() > 0.0 {
             let tmp:(Array2<f64>, Array2<f64>) = get_gamma_matrix(
                 atomic_numbers,
                 atomic_numbers.len(),
