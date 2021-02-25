@@ -145,7 +145,7 @@ pub fn minimize(
     let gtol: f64 = gtol.unwrap_or(1.0e-6);
     let ftol: f64 = ftol.unwrap_or(1.0e-8);
     let method: String = method.unwrap_or(String::from("BFGS"));
-    let line_search: String = line_search.unwrap_or(String::from("Armijo"));
+    let line_search: String = line_search.unwrap_or(String::from("largest"));
 
     let n: usize = x0.len();
     let mut xk: Array1<f64> = x0.clone();
@@ -209,6 +209,10 @@ pub fn minimize(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
             );
             println!("X_KP1 {}", &x_kp1);
+        }
+        else if line_search == "largest"{
+            let amax = 1.0;
+            x_kp1 = &xk + &(amax* &pk);
         }
         let mut f_kp1: f64 = 0.0;
         let mut grad_f_kp1: Array1<f64> = Array::zeros(n);
