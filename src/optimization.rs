@@ -182,7 +182,7 @@ pub fn minimize(
 
     for k in 0..maxiter {
         println!("iteration {}", k);
-        if k == 20 {
+        if k == 2 {
             println!("End of opt");
             break;
         }

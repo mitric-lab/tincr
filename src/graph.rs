@@ -83,7 +83,6 @@ pub fn build_graph(
         subgraph_vector.push(sub_graph);
         result_indixes.sort();
     }
-
     return (graph, indexes, subgraph_vector);
 }
 
@@ -165,6 +164,77 @@ fn connectivity_dimer_routine() {
     println!(
         "{:?}",
         Dot::with_config(&subgraphs[1], &[Config::EdgeNoLabel])
+    );
+
+    assert!(1 == 2);
+}
+
+#[test]
+fn connectivity_benzene_dimer_routine() {
+    // ethene dimer
+    let atomic_numbers: Vec<u8> = vec![1,1,6,6,1,6,6,1,6,6,1,1,1,6,1,6,1,6,6,6,1,6,1,1];
+    let mut positions: Array2<f64> = array![
+    [2.4235700000,    2.9118100000 ,   0.7233500000],
+    [-0.0586300000,    2.9447100000 ,   0.8501500000],
+    [1.8795700000,    2.0141100000  ,  1.0340500000],
+    [0.4903700000,    2.0326100000  ,  1.1049500000],
+    [3.6703700000,    0.8405100000  ,  1.3020500000],
+    [2.5772700000,    0.8550100000  ,  1.3578500000],
+    [-0.2010300000,    0.8918100000 ,   1.4996500000],
+    [-1.2942300000 ,   0.9062100000 ,   1.5553500000],
+    [1.8857700000 ,  -0.2857900000  ,  1.7525500000],
+    [0.4965700000 ,  -0.2673900000  ,  1.8234500000],
+    [2.4347700000 ,  -1.1979900000  ,  2.0073500000],
+    [-0.0477300000 ,  -1.1649900000 ,   2.1339500000],
+    [-1.9508900000 ,   0.1533600000 ,  -1.2834600000],
+    [-0.8576900000 ,   0.1389600000 ,  -1.3392600000],
+    [-0.7152900000 ,   2.1918600000 ,  -1.9887600000],
+    [-0.1662900000 ,   1.2797600000 ,  -1.7338600000],
+    [-0.7043900000 ,  -1.9178400000 ,  -0.7048600000],
+    [-0.1600900000 ,  -1.0202400000 ,  -1.0153600000],
+    [1.2229100000  ,  1.2612600000  , -1.8048600000],
+    [1.2291100000  , -1.0386400000  , -1.0862600000],
+    [1.7669100000  ,  2.1589600000  , -2.1154600000],
+    [1.9206100000  ,  0.1021600000  , -1.4809600000],
+    [1.7781100000  , -1.9508400000  , -0.8314600000],
+    [3.0137100000  ,  0.0876600000  , -1.5368600000]];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+
+    println!("connectivity_matrix {}", mol.connectivity_matrix);
+    let (graph, indexes, subgraphs): (
+        StableUnGraph<u8, f64>,
+        Vec<NodeIndex>,
+        Vec<StableUnGraph<u8, f64>>,
+    ) = build_graph(
+        &mol.atomic_numbers,
+        &mol.connectivity_matrix,
+        &mol.distance_matrix,
+    );
+    println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
+
+    println!("len subgraphs {}", subgraphs.len());
+    println!("subgraph 1");
+    println!(
+        "{:?}",
+        Dot::with_config(&subgraphs[0], &[Config::EdgeNoLabel])
+    );
+    println!("subgraph 2");
+    println!(
+        "{:?}",
+        Dot::with_config(&subgraphs[1], &[Config::EdgeNoLabel])
+    );
+
+    let tree:Graph<u8,f64> = Graph::from_elements(min_spanning_tree(&graph));
+    println!("tree");
+    println!(
+        "{:?}",
+        Dot::with_config(&tree, &[Config::EdgeNoLabel])
     );
 
     assert!(1 == 2);
