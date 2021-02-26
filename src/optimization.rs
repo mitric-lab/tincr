@@ -61,12 +61,15 @@ pub fn geometry_optimization(
 pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
-    println!("coordinates into shape {}",coords);
-    mol.positions = coords;
+    mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
+    println!("Enegies and gradient");
+    println!("Energy: {}",&energy);
+    println!("Gradient E0 {}",&grad_e0);
+    println!("Grad vrep {}", grad_vrep);
     return (energy, grad_e0 + grad_vrep);
 }
 
@@ -77,7 +80,7 @@ pub fn get_energies_and_gradient(
 ) -> (Array1<f64>, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
-    mol.positions = coords;
+    mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
@@ -179,7 +182,7 @@ pub fn minimize(
 
     for k in 0..maxiter {
         println!("iteration {}", k);
-        if k == 30 {
+        if k == 20 {
             println!("End of opt");
             break;
         }
@@ -213,6 +216,7 @@ pub fn minimize(
         else if line_search == "largest"{
             let amax = 1.0;
             x_kp1 = &xk + &(amax* &pk);
+            println!("x_kp1 {}", x_kp1);
         }
         let mut f_kp1: f64 = 0.0;
         let mut grad_f_kp1: Array1<f64> = Array::zeros(n);
