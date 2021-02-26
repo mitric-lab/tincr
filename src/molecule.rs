@@ -16,7 +16,7 @@ use ndarray::*;
 use ndarray_linalg::*;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::ops::Neg;
+use std::ops::{Neg, Deref};
 use crate::graph::build_connectivity_matrix;
 
 #[derive(Clone)]
@@ -97,6 +97,16 @@ impl Molecule {
         ndarray::iter::AxisIter<'_, f64, ndarray::Dim<[usize; 1]>>,
     > {
         self.atomic_numbers.iter().zip(self.positions.outer_iter())
+    }
+
+    pub fn update_geometry(&mut self,coordinates:Array2<f64>){
+        self.positions = coordinates;
+        let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
+            distance_matrix(self.positions.view(), None);
+
+        self.distance_matrix = dist_matrix;
+        self.directions_matrix = dir_matrix;
+        self.proximity_matrix = prox_matrix;
     }
 }
 

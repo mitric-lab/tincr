@@ -89,6 +89,7 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
         // for primitive internal coords
         // first distance
         // then angles
+        // then out of plane
         // then dihedrals
         let mut internal_coords:Vec<IC> = Vec::new();
 
@@ -96,7 +97,7 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
         for edge_index in fragment.edge_indices(){
             let (a,b) = fragment.edge_endpoints(edge_index).unwrap();
             //internal_coords.push(mol.distance_matrix[[a.index(),b.index()]]);
-            let dist:Distance = Distance::new(a.index(),b.index(),&mol.distance_matrix);
+            let dist:Distance = Distance::new(a.index(),b.index());
             let dist_ic = IC::distance(dist);
             internal_coords.push(dist_ic);
         }
@@ -142,12 +143,11 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
                             // need normal_vector fn here
                             if (angl1.normal_vector(&coordinate_vector).dot(&angl2.normal_vector(&coordinate_vector))).abs() > linthre{
                                 // delete angle i,b,j
-                                // for i in (0..internal_coords.len()).rev(){
-                                //     // comparison doesnt work
-                                //     if internal_coords[i] == IC::angle(Angle::new(i,b.index(),j)){
-                                //         internal_coords.remove(i);
-                                //     }
-                                // }
+                                for i in (0..internal_coords.len()).rev(){
+                                    if internal_coords[i] == IC::angle(Angle::new(i,b.index(),j)){
+                                        internal_coords.remove(i);
+                                    }
+                                }
                                 // out of plane bijk
                                 let out_of_pl1: Out_of_plane = Out_of_plane::new(b.index(),i,j,k);
                                 let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
@@ -175,32 +175,32 @@ pub fn build_primitive_internal_coords(mol:&Molecule){
 //     }
 // }
 
-//#[derive(Eq,PartialEq,Clone,Copy)]
+#[derive(Eq,PartialEq,Clone,Copy)]
 pub enum IC{
     distance(Distance),
     angle(Angle),
     out_of_plane(Out_of_plane)
 }
-#[derive(Clone,Copy)]
+#[derive(Clone,Copy,PartialEq,Eq)]
 pub struct Distance{
     at_a: usize,
     at_b: usize,
-    distance: f64,
 }
 impl Distance{
-    pub(crate) fn new(at_a:usize,at_b:usize,dist_matrix:&Array2<f64>) ->Distance {
+    pub(crate) fn new(at_a:usize,at_b:usize) ->Distance {
         let at_a:usize = at_a;
         let at_b:usize = at_b;
-
-        let distance:f64 = dist_matrix[[at_a,at_b]];
 
         let dist = Distance{
             at_a: at_a,
             at_b: at_b,
-            distance: distance,
         };
 
         return dist;
+    }
+    pub fn get_distance(self,dist_matrix:&Array2<f64>)->f64 {
+        let distance:f64 = dist_matrix[[self.at_a,self.at_b]];
+        return distance;
     }
 }
 #[derive(Eq,PartialEq,Clone,Copy)]

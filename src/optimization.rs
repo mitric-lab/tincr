@@ -4,6 +4,7 @@ use crate::gradients::get_gradients;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
 use crate::Molecule;
+use approx::AbsDiffEq;
 use ndarray::prelude::*;
 use ndarray::Data;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
@@ -60,20 +61,16 @@ pub fn geometry_optimization(
 pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
-    println!("Coordinates {}",coords);
-    mol.positions = coords;
+    mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
-    println!("orbe {}",orbe);
-    println!("orbs {}",orbs);
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
-
-    println!("Energy and Gradient");
-    println!("{}",energy);
-    println!("{}",grad_e0);
-    println!("{}",grad_vrep);
-    return (energy, grad_e0+grad_vrep);
+    println!("Enegies and gradient");
+    println!("Energy: {}",&energy);
+    println!("Gradient E0 {}",&grad_e0);
+    println!("Grad vrep {}", grad_vrep);
+    return (energy, grad_e0 + grad_vrep);
 }
 
 pub fn get_energies_and_gradient(
@@ -83,7 +80,7 @@ pub fn get_energies_and_gradient(
 ) -> (Array1<f64>, Array1<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
-    mol.positions = coords;
+    mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
@@ -105,7 +102,7 @@ pub fn get_energies_and_gradient(
 }
 
 pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
-    println!("Test1");
+    println!("coordinate_vector {}", x);
     let mut energy: f64 = 0.0;
     let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
     if state == 0 {
@@ -151,7 +148,7 @@ pub fn minimize(
     let gtol: f64 = gtol.unwrap_or(1.0e-6);
     let ftol: f64 = ftol.unwrap_or(1.0e-8);
     let method: String = method.unwrap_or(String::from("BFGS"));
-    let line_search: String = line_search.unwrap_or(String::from("Wolfe"));
+    let line_search: String = line_search.unwrap_or(String::from("largest"));
 
     let n: usize = x0.len();
     let mut xk: Array1<f64> = x0.clone();
@@ -163,8 +160,8 @@ pub fn minimize(
         fk = tmp.0;
         grad_fk = tmp.1;
     }
-    println!("FK {}",&fk);
-    println!("grad_fk {}",&grad_fk);
+    println!("FK {}", &fk);
+    println!("grad_fk {}", &grad_fk);
     // else {
     //     let tmp: (f64, Array1<f64>) = objective_intern(xk);
     //     fk = tmp.0;
@@ -179,39 +176,47 @@ pub fn minimize(
     let mut iter_index: usize = 0;
     let mut sk: Array1<f64> = Array::zeros(n);
     let mut yk: Array1<f64> = Array::zeros(n);
+    let mut inv_hk: Array2<f64> =Array::eye(n);
 
-    println!("Test coordinate vector x0 {}",x0);
+    println!("Test coordinate vector x0 {}", x0);
 
     for k in 0..maxiter {
-        println!("iteration {}",k);
-        if k == 0{
+        println!("iteration {}", k);
+        if k == 20 {
             println!("End of opt");
-            break
+            break;
         }
         if method == "BFGS" {
-            let mut inv_hk: Array2<f64> = Array::zeros((n, n));
-            if k == 0 {
-                inv_hk = Array::eye(n);
-            } else {
+            if k >0 {
                 if yk.dot(&sk) <= 0.0 {
+                    println!("yk {}",yk);
+                    println!("sk {}",sk);
                     println!("Warning: positive definiteness of Hessian approximation lost in BFGS update, since yk.sk <= 0!")
                 }
                 inv_hk = bfgs_update(&inv_hk, &sk, &yk, k);
             }
-            pk = inv_hk.dot(&-&grad_fk);
+            pk = inv_hk.dot(&(-&grad_fk));
         } else if method == "Steepest Descent" {
             pk = -grad_fk.clone();
         }
+        println!("pk {}",pk);
         if line_search == "Armijo" {
+            println!("start line search");
             x_kp1 = line_search_backtracking(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, cart_coord, state, mol,
             );
+            println!("x_kp1 {}", x_kp1);
         } else if line_search == "Wolfe" {
-            println!("Start WolfEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
+            println!("Start WolfEE");
             x_kp1 = line_search_wolfe(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
             );
-            println!("X_KP1 {}",&x_kp1);
+            println!("X_KP1 {}", &x_kp1);
+        }
+        else if line_search == "largest"{
+            let amax = 1.0;
+            x_kp1 = &xk + &(amax* &pk);
+            println!("x_kp1 {}", x_kp1);
         }
         let mut f_kp1: f64 = 0.0;
         let mut grad_f_kp1: Array1<f64> = Array::zeros(n);
@@ -220,6 +225,7 @@ pub fn minimize(
             f_kp1 = tmp.0;
             grad_f_kp1 = tmp.1;
         }
+        println!("grad {}",grad_f_kp1);
         // else {
         //     let tmp: (f64, Array1<f64>) = objective_intern(&x_kp1);
         //     f_kp1 = tmp.0;
@@ -371,8 +377,8 @@ pub fn line_search_wolfe(
     let s0: f64 = fk;
     let ds0: f64 = grad_fk.dot(pk);
 
-    println!("s0 {}",&s0);
-    println!("Ds0 {}",&ds0);
+    println!("s0 {}", &s0);
+    println!("Ds0 {}", &ds0);
 
     // Find the largest feasible step length.
     // Not for cartesian coords
@@ -396,24 +402,32 @@ pub fn line_search_wolfe(
     let mut a_wolfe: f64 = 0.0;
     let mut x_wolfe: Array1<f64> = Array::zeros(xk.len());
 
+    println!("ai {}", ai);
+    println!("xk {}", xk);
+    println!("pk {}", pk);
+
     for i in 1..lmax {
         let (si, dsi): (f64, f64) = s_wolfe(ai, cart_coord, xk, pk, state, mol);
         if (si > (s0 + c1 * ai * ds0)) || ((si >= sim1) && i > 1) {
+            println!("Route 1");
             a_wolfe = zoom(
                 lmax, aim1, ai, sim1, si, cart_coord, &xk, &pk, s0, c1, c2, ds0, state, mol,
             );
             break;
         }
         if dsi.abs() <= (c2 * ds0.abs()) {
+            println!("Route 2");
             a_wolfe = ai;
             break;
         }
         if dsi >= 0.0 {
+            println!("Route 3");
             a_wolfe = zoom(
                 lmax, ai, aim1, si, sim1, cart_coord, &xk, &pk, s0, c1, c2, ds0, state, mol,
             );
             break;
         }
+        println!("Route 4");
         aim1 = ai;
         sim1 = si;
 
@@ -443,6 +457,8 @@ pub fn s_wolfe(
         fx = tmp.0;
         let dfdx: Array1<f64> = tmp.1;
         dsda = dfdx.dot(pk);
+        println!("fx {}", fx);
+        println!("dsda {}", dsda);
     }
     // else {
     //     let tmp: (f64, Array1<f64>) = objective_intern(xk + &(a * pk));
@@ -500,7 +516,235 @@ pub fn zoom(
 }
 
 #[test]
-fn test_optimizatop(){
+fn test_optimization() {
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+        scc_routine::run_scc(&mol, None, None, None);
+
+    mol.calculator.set_active_orbitals(f.to_vec());
+
+    println!("Coordinates before start {}", mol.positions);
+    println!("Energy_before_start {}", energy);
+
+    let gradVrep_ref: Array1<f64> = array![
+        0.1578504879797087,
+        0.1181937590058072,
+        0.1893848779393944,
+        -0.2367773309532266,
+        0.0000000000000000,
+        0.0000000000000000,
+        0.0789268429735179,
+        -0.1181937590058072,
+        -0.1893848779393944
+    ];
+    let gradE0_ref: Array1<f64> = array![
+        -0.0955096709004203,
+        -0.0715133858595338,
+        -0.1145877241401148,
+        0.1612048707194526,
+        -0.0067164109317917,
+        -0.0107618767285816,
+        -0.0656951998190324,
+        0.0782297967913256,
+        0.1253496008686964
+    ];
+
+    let tmp = geometry_optimization(Some(0), Some(String::from("cartesian")), &mut mol);
+
+    assert!(1 == 2);
+}
+
+#[test]
+fn try_bfgs_update() {
+    let invHk: Array2<f64> = Array::eye(9);
+    let sk: Array1<f64> = array![
+        -0.0623408170771610,
+        -0.0466803731446803,
+        -0.0747971537967274,
+        0.0755724602306094,
+        0.0067164109317814,
+        0.0107618767285655,
+        -0.0132316431534486,
+        0.0399639622128989,
+        0.0640352770681618
+    ];
+
+    let yk: Array1<f64> = array![
+        -0.0552037692194794,
+        -0.0413375141506088,
+        -0.0662361544093578,
+        0.0737521696860704,
+        0.0033902060791102,
+        0.0054322137639275,
+        -0.0185484004665910,
+        0.0379473080714987,
+        0.0608039406454303
+    ];
+
+    let k: usize = 1;
+
+    let result: Array2<f64> = array![
+        [
+            1.0761385039018376,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000
+        ],
+        [
+            0.0000000000000000,
+            1.0761385039018376,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0761385039018376,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0761385039018376,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0761385039018376,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0761385039018376,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0761385039018376,
+            0.0000000000000000,
+            0.0000000000000000
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0761385039018376,
+            0.0000000000000000
+        ],
+        [
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            0.0000000000000000,
+            1.0761385039018376
+        ]
+    ];
+
+    let test: Array2<f64> = bfgs_update(&invHk, &sk, &yk, k);
+
+    println!("result of test {}", test);
+    assert!(test.abs_diff_eq(&result, 1e-14));
+}
+
+#[test]
+fn line_search_routine() {
+    let xk: Array1<f64> = array![
+        0.5842289299151177,
+        2.1752027524467605,
+        -0.0747971537967274,
+        2.5551764161444437,
+        2.2285995365232223,
+        0.0107618767285655,
+        0.0223329999516067,
+        3.1768335142143687,
+        1.5301413907873480
+    ];
+
+    let fk: f64 = -4.116437432586419;
+    let grad_fk: Array1<f64> = array![
+        0.0071370478576815,
+        0.0053428589940716,
+        0.0085609993873696,
+        -0.0018202905445391,
+        -0.0033262048526715,
+        -0.0053296629646381,
+        -0.0053167573131424,
+        -0.0020166541414000,
+        -0.0032313364227315
+    ];
+
+    let pk: Array1<f64> = array![
+        -0.0076804520038412,
+        -0.0057496562844386,
+        -0.0092128210726284,
+        0.0019588847432669,
+        0.0035794571138249,
+        0.0057354555290666,
+        0.0057215672605742,
+        0.0021701991706136,
+        0.0034773655435618
+    ];
+
+    let x_kp1:Array1<f64> = array![ 0.5765484779112765 , 2.1694530961623220, -0.0840099748693559,
+  2.5571353008877105 , 2.2321789936370471,  0.0164973322576322,
+  0.0280545672121809,  3.1790037133849824  ,1.5336187563309098];
+
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let mut positions: Array2<f64> = array![
         [0.34215, 1.17577, 0.00000],
@@ -512,26 +756,14 @@ fn test_optimizatop(){
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
-    println!("Coordinates before start {}",mol.positions);
-    println!("Energy_before_start {}",energy);
+    let test:Array1<f64> = line_search_backtracking(&xk,fk,&grad_fk,&pk,None,None,None,None,true,0,&mut mol);
 
-    let  gradVrep_ref: Array1<f64> = array![
-        0.1578504879797087,  0.1181937590058072,  0.1893848779393944,
-       -0.2367773309532266,  0.0000000000000000,  0.0000000000000000,
-        0.0789268429735179, -0.1181937590058072, -0.1893848779393944
-];
-    let  gradE0_ref: Array1<f64> = array![
-       -0.0955096709004203, -0.0715133858595338, -0.1145877241401148,
-        0.1612048707194526, -0.0067164109317917, -0.0107618767285816,
-       -0.0656951998190324,  0.0782297967913256,  0.1253496008686964
-];
+    assert!(test.abs_diff_eq(&x_kp1,1e-14));
 
-    let tmp = geometry_optimization(Some(0),Some(String::from("cartesian")),& mut mol);
-
-    assert!(1==2);
 }
