@@ -100,15 +100,15 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
             }
             let trans_x: TranslationX = TranslationX::new(
                 node_vec.clone(),
-                Array::ones(node_vec.len()) /(node_vec.len() as f64)
+                Array::ones(node_vec.len()) / (node_vec.len() as f64),
             );
             let trans_y: TranslationY = TranslationY::new(
                 node_vec.clone(),
-                Array::ones(node_vec.len()) / (node_vec.len()as f64)
+                Array::ones(node_vec.len()) / (node_vec.len() as f64),
             );
             let trans_z: TranslationZ = TranslationZ::new(
                 node_vec.clone(),
-                Array::ones(node_vec.len()) / (node_vec.len()as f64)
+                Array::ones(node_vec.len()) / (node_vec.len() as f64),
             );
             internal_coords.push(IC::translation_x(trans_x));
             internal_coords.push(IC::translation_y(trans_y));
@@ -117,7 +117,10 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
                 .clone()
                 .into_shape((mol.n_atoms, 3))
                 .unwrap()
-                .slice(s![node_vec[0].index()..node_vec.last().unwrap().index(), ..])
+                .slice(s![
+                    node_vec[0].index()..node_vec.last().unwrap().index(),
+                    ..
+                ])
                 .to_owned();
             sel = &sel - &sel.mean_axis(Axis(0)).unwrap();
             let rg: f64 = sel
@@ -128,8 +131,17 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
                 .sqrt();
 
             // rotations
-
-
+            let rot_a:RotationA = RotationA::new(node_vec.clone(),coordinate_vector.clone(),rg);
+            let rot_b:RotationB = RotationB::new(node_vec.clone(),coordinate_vector.clone(),rg);
+            let rot_c:RotationC = RotationC::new(node_vec.clone(),coordinate_vector.clone(),rg);
+            internal_coords.push(IC::rotation_a(rot_a));
+            internal_coords.push(IC::rotation_b(rot_b));
+            internal_coords.push(IC::rotation_c(rot_c));
+        }
+        else{
+            for j in fragment.node_indices(){
+                // add cartesian
+            }
         }
     }
 
@@ -338,6 +350,9 @@ pub enum IC {
     translation_x(TranslationX),
     translation_y(TranslationY),
     translation_z(TranslationZ),
+    rotation_a(RotationA),
+    rotation_b(RotationB),
+    rotation_c(RotationC)
 }
 
 #[derive(Clone, PartialEq)]
@@ -376,7 +391,7 @@ impl TranslationY {
     }
 }
 
-#[derive(Clone,PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct TranslationZ {
     nodes: Vec<NodeIndex>,
     w_vec: Array1<f64>,
@@ -548,5 +563,70 @@ impl Dihedral {
         };
 
         return dihedral;
+    }
+}
+#[derive(Clone, PartialEq)]
+pub struct RotationA {
+    nodes: Vec<NodeIndex>,
+    coords: Array1<f64>,
+    w_val: f64,
+}
+
+impl RotationA {
+    pub(crate) fn new(nodes: Vec<NodeIndex>, coords: Array1<f64>, w: f64) -> RotationA {
+        let nodes: Vec<NodeIndex> = nodes;
+        let coords: Array1<f64> = coords;
+        let w:f64 = w;
+
+        let rotation = RotationA {
+            nodes: nodes,
+            coords: coords,
+            w_val: w,
+        };
+
+        return rotation;
+    }
+}
+#[derive(Clone, PartialEq)]
+pub struct RotationB {
+    nodes: Vec<NodeIndex>,
+    coords: Array1<f64>,
+    w_val: f64,
+}
+
+impl RotationB {
+    pub(crate) fn new(nodes: Vec<NodeIndex>, coords: Array1<f64>, w: f64) -> RotationB {
+        let nodes: Vec<NodeIndex> = nodes;
+        let coords: Array1<f64> = coords;
+        let w:f64 = w;
+
+        let rotation = RotationB {
+            nodes: nodes,
+            coords: coords,
+            w_val: w,
+        };
+
+        return rotation;
+    }
+}
+#[derive(Clone, PartialEq)]
+pub struct RotationC {
+    nodes: Vec<NodeIndex>,
+    coords: Array1<f64>,
+    w_val: f64,
+}
+impl RotationC {
+    pub(crate) fn new(nodes: Vec<NodeIndex>, coords: Array1<f64>, w: f64) -> RotationC {
+        let nodes: Vec<NodeIndex> = nodes;
+        let coords: Array1<f64> = coords;
+        let w:f64 = w;
+
+        let rotation = RotationC {
+            nodes: nodes,
+            coords: coords,
+            w_val: w,
+        };
+
+        return rotation;
     }
 }
