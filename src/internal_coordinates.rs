@@ -1063,7 +1063,7 @@ impl RotationA {
         return rotation;
     }
 
-    pub fn calc_e0(self) {
+    pub fn calc_e0(self)->(Vec<f64>) {
         let n_at: usize = self.coords.len() / 3;
         let coords_self: Array2<f64> = self.coords.into_shape((n_at, 3)).unwrap();
         let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
@@ -1083,8 +1083,11 @@ impl RotationA {
         for i in e_full.iter() {
             dots.push((Array::from(i.clone()).dot(&ev)).powi(2));
         }
-        // get minimum index of dots
-        //let e0 =
+        let sorted_arr:Vec<usize> = argsort(Array::from(dots).view());
+        let min_index:usize = sorted_arr[0];
+        let mut e0:Vec<f64> = vy.to_vec().cross(&e_full[min_index]);
+        e0 = &e0/e0.norm();
+        return e0;
     }
 
     pub fn derivatives(self, coords: Array1<f64>) -> Array3<f64> {
@@ -1111,15 +1114,24 @@ impl RotationA {
         if check_linearity(&x_sel, &y_sel) {
             bool_linear = true;
         }
+        let mut deriv_raw: Array3<f64> = get_exmap_deriv_rot(&x_sel, &y_sel);
+
         if bool_linear {
             let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
             let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
-            // calc e0
+            let e0:Vec<f64> = self.calc_e0();
+            let xdum:Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum:Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum:Vec<f64> = &xdum / xdum.norm();
+            let eydum:Vec<f64> = &ydum / ydum.norm();
+            // vstacks
+
+            deriv_raw = get_exmap_deriv_rot(&x_sel, &y_sel);
+
+            let nxdum:f64 = xdum.norm();
+            // dcross
         }
-        let deriv_raw: Array3<f64> = get_exmap_deriv_rot(&x_sel, &y_sel);
-        if bool_linear {
-            //
-        }
+
         for (i, a) in self.nodes.iter().enumerate() {
             derivatives
                 .slice_mut(s![a.index(), .., ..])
