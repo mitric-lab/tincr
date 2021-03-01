@@ -17,6 +17,14 @@ use petgraph::dot::{Config, Dot};
 use petgraph::graph::*;
 use petgraph::stable_graph::*;
 use std::f64::consts::PI;
+use std::cmp::Ordering;
+use std::ops::AddAssign;
+
+pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
+    let mut idx = (0..v.len()).collect::<Vec<_>>();
+    idx.sort_unstable_by(|&i, &j| v[i].partial_cmp(&v[j]).unwrap_or(Ordering::Equal));
+    idx
+}
 
 pub fn cartesian_to_internal(coord_vector: &Array1<f64>, mol: &Molecule) {
     let masses: Array1<f64> = build_masses(mol);
@@ -430,16 +438,94 @@ pub fn build_primitives(mol: &Molecule)->Vec<IC> {
     return internal_coords;
 }
 
-// pub fn build_internal_coords(mol:&Molecule){
-//     internal_coords:Vec<f64> = Vec::new()
-//     for index_vec in mol.n_atoms.combinations(2){
-//         let i:usize = index_vec.0;
-//         let j:usize = index_vec.1;
-//         if mol.connectivity_matrix[[i,j]]{
-//
-//         }
-//     }
-// }
+pub fn build_delocalized_internal_coordinates(coords:Array1<f64>,primitives:Vec<IC>){
+    let nprims:usize = primitives.len();
+    // build g_matrix
+}
+
+pub fn build_g_matrix(coords:Array1<f64>){
+
+}
+
+pub fn check_linearity(x:Array2<f64>,y:Array2<f64>)->bool{
+    let x_inp:Array2<f64> = x;
+    let y_inp:Array2<f64> = y;
+    let x:Array2<f64> = x_inp.clone() - x_inp.mean_axis(Axis(0)).unwrap();
+    let y:Array2<f64> = y_inp.clone() - y_inp.mean_axis(Axis(0)).unwrap();
+
+    let f_mat:Array2<f64> = build_f_matrix(&x,&y);
+
+    let n:usize = x_inp.dim().0;
+    let tmp:(Array1<f64>,Array2<f64>) = sorted_eigh_linearity(f_mat);
+    let l_arr:Array1<f64> = tmp.0;
+    let mut bool_return:bool = false;
+
+    if ((l_arr[0]/l_arr[1]) < 1.01) && ((l_arr[0]/l_arr[1]) > 0.0){
+        bool_return = true;
+    }
+    return bool_return;
+}
+
+pub fn build_f_matrix(x:&Array2<f64>,y:&Array2<f64>)->Array2<f64>{
+    let r_mat:Array2<f64> = build_correlation_for_f_mat(x,y);
+    let mut f:Array2<f64> = Array::zeros((4,4));
+    let r_11:f64 = r_mat[[0,0]];
+    let r_12:f64 = r_mat[[0,1]];
+    let r_13:f64 = r_mat[[0,2]];
+    let r_21:f64 = r_mat[[1,0]];
+    let r_22:f64 = r_mat[[1,1]];
+    let r_23:f64 = r_mat[[1,2]];
+    let r_31:f64 = r_mat[[2,0]];
+    let r_32:f64 = r_mat[[2,1]];
+    let r_33:f64 = r_mat[[2,2]];
+    f[[0,0]] = r_11 + r_22 + r_33;
+    f[[0,1]] = r_23 - r_32;
+    f[[0,2]] = r_31 - r_13;
+    f[[0,3]] = r_12 - r_21;
+    f[[1,0]] = r_23 - r_32;
+    f[[1,1]] = r_11 - r_22 - r_33;
+    f[[1,2]] = r_12 + r_21;
+    f[[1,3]] = r_13 + r_31;
+    f[[2,0]] = r_31 - r_13;
+    f[[2,1]] = r_12 + r_21;
+    f[[2,2]] = r_22 - r_33 - r_11;
+    f[[2,3]] = r_23 + r_32;
+    f[[3,0]] = r_12 - r_21;
+    f[[3,1]] = r_13 + r_31;
+    f[[3,2]] = r_23 + r_32;
+    f[[3,3]] = r_33 - r_22 - r_11;
+
+    return f;
+}
+
+pub fn build_correlation_for_f_mat(x:&Array2<f64>,y:&Array2<f64>)->Array2<f64>{
+    let xmat:Array2<f64> = x.clone().reversed_axes();
+    let ymat:Array2<f64> = y.clone().reversed_axes();
+
+    let dot:Array2<f64> = xmat.dot(&ymat.t());
+    return dot;
+}
+
+pub fn sorted_eigh_linearity(f_mat:Array2<f64>)->(Array1<f64>,Array2<f64>){
+    // Return eigenvalues and eigenvectors of a symmetric matrix
+    // in descending order and associated eigenvectors.
+    // This is just a convenience function to get eigenvectors
+    // in descending or ascending order as desired.
+    let tmp:(Array1<f64>,Array2<f64>) = f_mat.eigh(UPLO::Upper).unwrap();
+    let l_vec: Array1<f64> = tmp.0;
+    let q_mat: Array2<f64> = tmp.1;
+
+    let idx:Vec<usize> = argsort(l_vec.view());
+    let mut l_new:Vec<f64> = Vec::new();
+    let mut q_mat_new:Array2<f64> = Array::zeros((q_mat.dim().0,q_mat.dim().1));
+    for (i,j) in idx.iter().rev().enumerate(){
+        l_new.push(l_vec[*j]);
+        q_mat_new.slice_mut(s![..,i]).assign(&q_mat.slice(s![..,*j]));
+    }
+    let l_arr:Array1<f64> = Array::from(l_new);
+
+    return (l_arr, q_mat_new);
+}
 
 #[derive(PartialEq, Clone)]
 pub enum IC {
@@ -473,6 +559,14 @@ impl CartesianX {
         };
         return cart;
     }
+    pub fn derivatives(self,coords:Array1<f64>)-> Array2<f64>{
+        let n_at:usize = coords.len()/3;
+        let coords_new:Array2<f64> = coords.into_shape((n_at,3)).unwrap();
+        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
+        derivatives[[self.at_a,0]] = self.w_val;
+
+        return derivatives;
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -490,6 +584,15 @@ impl CartesianY {
             w_val: w_val,
         };
         return cart;
+    }
+
+    pub fn derivatives(self,coords:Array1<f64>)-> Array2<f64>{
+        let n_at:usize = coords.len()/3;
+        let coords_new:Array2<f64> = coords.into_shape((n_at,3)).unwrap();
+        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
+        derivatives[[self.at_a,1]] = self.w_val;
+
+        return derivatives;
     }
 }
 
@@ -509,6 +612,14 @@ impl CartesianZ {
         };
         return cart;
     }
+    pub fn derivatives(self,coords:Array1<f64>)-> Array2<f64>{
+        let n_at:usize = coords.len()/3;
+        let coords_new:Array2<f64> = coords.into_shape((n_at,3)).unwrap();
+        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
+        derivatives[[self.at_a,2]] = self.w_val;
+
+        return derivatives;
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -526,6 +637,17 @@ impl TranslationX {
             w_vec: w_vec,
         };
         return trans;
+    }
+    pub fn derivatives(self,coords:Array1<f64>)-> Array2<f64>{
+        let n_at:usize = coords.len()/3;
+        let coords_new:Array2<f64> = coords.into_shape((n_at,3)).unwrap();
+        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
+
+        for (i,a) in self.nodes.iter().enumerate(){
+            derivatives[[a.index(),0]] = self.w_vec[i];
+        }
+
+        return derivatives;
     }
 }
 
@@ -545,6 +667,18 @@ impl TranslationY {
         };
         return trans;
     }
+
+    pub fn derivatives(self,coords:Array1<f64>)-> Array2<f64>{
+        let n_at:usize = coords.len()/3;
+        let coords_new:Array2<f64> = coords.into_shape((n_at,3)).unwrap();
+        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
+
+        for (i,a) in self.nodes.iter().enumerate(){
+            derivatives[[a.index(),1]] = self.w_vec[i];
+        }
+
+        return derivatives;
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -562,6 +696,17 @@ impl TranslationZ {
             w_vec: w_vec,
         };
         return trans;
+    }
+    pub fn derivatives(self,coords:Array1<f64>)-> Array2<f64>{
+        let n_at:usize = coords.len()/3;
+        let coords_new:Array2<f64> = coords.into_shape((n_at,3)).unwrap();
+        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
+
+        for (i,a) in self.nodes.iter().enumerate(){
+            derivatives[[a.index(),2]] = self.w_vec[i];
+        }
+
+        return derivatives;
     }
 }
 
@@ -741,6 +886,32 @@ impl RotationA {
         };
 
         return rotation;
+    }
+    pub fn derivatives(self,coords:Array1<f64>)-> Array2<f64>{
+        let n_at:usize = coords.len()/3;
+        let coords_new:Array2<f64> = coords.into_shape((n_at,3)).unwrap();
+        let coords_self:Array2<f64> = self.coords.into_shape((n_at,3)).unwrap();
+        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
+
+        let mut x_sel:Array2<f64> = Array::zeros((self.nodes.len(),3));
+        let mut y_sel:Array2<f64> = Array::zeros((self.nodes.len(),3));
+        for (i,j) in self.nodes.iter().enumerate(){
+            x_sel.slice_mut(s![i,..]).assign(&coords_new.slice(s![j.index(),..]));
+            y_sel.slice_mut(s![i,..]).assign(&coords_self.slice(s![j.index(),..]));
+        }
+        let x_mean:Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean:Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear:bool = false;
+
+        if check_linearity(x_sel,y_sel){
+            bool_linear = true;
+        }
+        if bool_linear{
+            //
+        }
+
+        return derivatives;
     }
 }
 #[derive(Clone, PartialEq)]
