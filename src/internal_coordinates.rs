@@ -1093,7 +1093,9 @@ impl RotationA {
         if bool_linear{
             //
         }
-
+        for (i,a) in self.nodes.iter().enumerate(){
+            derivatives.slice_mut(s![a.index(),..,..]).assign(&deriv_raw.slice(s![i,..,..]));
+        }
         return derivatives;
     }
 }
