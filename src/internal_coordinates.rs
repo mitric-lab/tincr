@@ -79,7 +79,11 @@ pub fn wrap_angles() {
     // angle inside the range.
 }
 
-pub fn build_primitive_internal_coords(mol: &Molecule) {
+pub fn reorder_primitives(){
+
+}
+
+pub fn build_primitives(mol: &Molecule)->Vec<IC> {
     let coordinate_vector: Array1<f64> = mol
         .positions
         .clone()
@@ -91,6 +95,19 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
     // then out of plane
     // then dihedrals
     let mut internal_coords: Vec<IC> = Vec::new();
+    let mut distances_vec:Vec<Distance> = Vec::new();
+    let mut angles_vec:Vec<Angle> = Vec::new();
+    let mut outofplane_vec:Vec<Out_of_plane> = Vec::new();
+    let mut dihedral_vec:Vec<Dihedral> = Vec::new();
+    let mut cartesian_x_vec:Vec<CartesianX> = Vec::new();
+    let mut cartesian_y_vec:Vec<CartesianY> = Vec::new();
+    let mut cartesian_z_vec:Vec<CartesianZ> = Vec::new();
+    let mut translation_x_vec:Vec<TranslationX> = Vec::new();
+    let mut translation_y_vec:Vec<TranslationY> = Vec::new();
+    let mut translation_z_vec:Vec<TranslationZ> = Vec::new();
+    let mut rotation_a_Vec: Vec<RotationA> = Vec::new();
+    let mut rotation_b_Vec: Vec<RotationB> = Vec::new();
+    let mut rotation_c_Vec: Vec<RotationC> = Vec::new();
 
     for fragment in mol.sub_graphs.clone() {
         if fragment.node_count() >= 2 {
@@ -110,9 +127,13 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
                 node_vec.clone(),
                 Array::ones(node_vec.len()) / (node_vec.len() as f64),
             );
-            internal_coords.push(IC::translation_x(trans_x));
-            internal_coords.push(IC::translation_y(trans_y));
-            internal_coords.push(IC::translation_z(trans_z));
+            // internal_coords.push(IC::translation_x(trans_x));
+            // internal_coords.push(IC::translation_y(trans_y));
+            // internal_coords.push(IC::translation_z(trans_z));
+            translation_x_vec.push(trans_x);
+            translation_y_vec.push(trans_y);
+            translation_z_vec.push(trans_z);
+
             let mut sel: Array2<f64> = coordinate_vector
                 .clone()
                 .into_shape((mol.n_atoms, 3))
@@ -134,13 +155,25 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
             let rot_a:RotationA = RotationA::new(node_vec.clone(),coordinate_vector.clone(),rg);
             let rot_b:RotationB = RotationB::new(node_vec.clone(),coordinate_vector.clone(),rg);
             let rot_c:RotationC = RotationC::new(node_vec.clone(),coordinate_vector.clone(),rg);
-            internal_coords.push(IC::rotation_a(rot_a));
-            internal_coords.push(IC::rotation_b(rot_b));
-            internal_coords.push(IC::rotation_c(rot_c));
+            // internal_coords.push(IC::rotation_a(rot_a));
+            // internal_coords.push(IC::rotation_b(rot_b));
+            // internal_coords.push(IC::rotation_c(rot_c));
+            rotation_a_Vec.push(rot_a);
+            rotation_b_Vec.push(rot_b);
+            rotation_c_Vec.push(rot_c);
         }
         else{
             for j in fragment.node_indices(){
                 // add cartesian
+                let cart_x:CartesianX = CartesianX::new(j.index(),1.0);
+                let cart_y:CartesianY = CartesianY::new(j.index(),1.0);
+                let cart_z:CartesianZ = CartesianZ::new(j.index(),1.0);
+                // internal_coords.push(IC::cartesian_x(cart_x));
+                // internal_coords.push(IC::cartesian_y(cart_y));
+                // internal_coords.push(IC::cartesian_z(cart_z));
+                cartesian_x_vec.push(cart_x);
+                cartesian_y_vec.push(cart_y);
+                cartesian_z_vec.push(cart_z);
             }
         }
     }
@@ -150,8 +183,9 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
         let (a, b) = mol.full_graph.edge_endpoints(edge_index).unwrap();
         //internal_coords.push(mol.distance_matrix[[a.index(),b.index()]]);
         let dist: Distance = Distance::new(a.index(), b.index());
-        let dist_ic = IC::distance(dist);
-        internal_coords.push(dist_ic);
+        //let dist_ic = IC::distance(dist);
+        //internal_coords.push(dist_ic);
+        distances_vec.push(dist);
     }
 
     //angles
@@ -164,8 +198,9 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
                     // nnc part doesnt work
 
                     if angl.clone().value(&coordinate_vector).cos().abs() < linthre {
-                        let angl_ic = IC::angle(angl);
-                        internal_coords.push(angl_ic);
+                        //let angl_ic = IC::angle(angl);
+                        //internal_coords.push(angl_ic);
+                        angles_vec.push(angl);
                     }
                     // cant check for nnc
                 }
@@ -202,15 +237,21 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
                             > linthre
                         {
                             // delete angle i,b,j
-                            for i in (0..internal_coords.len()).rev() {
-                                if internal_coords[i] == IC::angle(Angle::new(i, b.index(), j)) {
-                                    internal_coords.remove(i);
+                            // for i in (0..internal_coords.len()).rev() {
+                            //     if internal_coords[i] == IC::angle(Angle::new(i, b.index(), j)) {
+                            //         internal_coords.remove(i);
+                            //     }
+                            // }
+                            for i in (0..angles_vec.len()).rev() {
+                                if angles_vec[i] == Angle::new(i, b.index(), j){
+                                    angles_vec.remove(i);
                                 }
                             }
                             // out of plane bijk
                             let out_of_pl1: Out_of_plane = Out_of_plane::new(b.index(), i, j, k);
-                            let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
-                            internal_coords.push(out_of_pl_ic);
+                            // let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
+                            // internal_coords.push(out_of_pl_ic);
+                            outofplane_vec.push(out_of_pl1);
                         }
                     }
                 }
@@ -249,7 +290,7 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
                         if *ac != ab {
                             let angl = Angle::new(aa.index(), ab.index(), ac.index());
                             let val: f64 = angl.value(&coordinate_vector).cos().abs();
-                            val_vector.push(val);
+                            val_vector.insert(0,val);
                         }
                     }
                     let indices_values: Array1<usize> = Array::from_vec(val_vector.clone())
@@ -322,12 +363,71 @@ pub fn build_primitive_internal_coords(mol: &Molecule) {
                         }
                         let dihedral: Dihedral =
                             Dihedral::new(a.index(), b.index(), c.index(), d.index());
-                        internal_coords.push(IC::dihedral(dihedral));
+                        //internal_coords.push(IC::dihedral(dihedral));
+                        dihedral_vec.push(dihedral);
                     }
                 }
             }
         }
     }
+    // reorder internal coordinates
+    // One is unable to iterate over enum
+    // thus, separate vectors are needed for
+    // each operation
+    for i in distances_vec{
+        let dist = IC::distance(i);
+        internal_coords.push(dist);
+    }
+    for i in angles_vec{
+        let angl = IC::angle(i);
+        internal_coords.push(angl);
+    }
+    for i in outofplane_vec{
+        let out_of_pl = IC::out_of_plane(i);
+        internal_coords.push(out_of_pl);
+    }
+    for i in dihedral_vec{
+        let dihedral = IC::dihedral(i);
+        internal_coords.push(dihedral);
+    }
+    for i in cartesian_x_vec{
+        let cart = IC::cartesian_x(i);
+        internal_coords.push(cart);
+    }
+    for i in cartesian_y_vec{
+        let cart = IC::cartesian_y(i);
+        internal_coords.push(cart);
+    }
+    for i in cartesian_z_vec{
+        let cart = IC::cartesian_z(i);
+        internal_coords.push(cart);
+    }
+    for i in translation_x_vec{
+        let trans = IC::translation_x(i);
+        internal_coords.push(trans);
+    }
+    for i in translation_y_vec{
+        let trans = IC::translation_y(i);
+        internal_coords.push(trans);
+    }
+    for i in translation_z_vec{
+        let trans = IC::translation_z(i);
+        internal_coords.push(trans);
+    }
+    for i in rotation_a_Vec{
+        let rot = IC::rotation_a(i);
+        internal_coords.push(rot);
+    }
+    for i in rotation_b_Vec{
+        let rot = IC::rotation_b(i);
+        internal_coords.push(rot);
+    }
+    for i in rotation_c_Vec{
+        let rot = IC::rotation_c(i);
+        internal_coords.push(rot);
+    }
+
+    return internal_coords;
 }
 
 // pub fn build_internal_coords(mol:&Molecule){
@@ -347,12 +447,68 @@ pub enum IC {
     angle(Angle),
     out_of_plane(Out_of_plane),
     dihedral(Dihedral),
+    cartesian_x(CartesianX),
+    cartesian_y(CartesianY),
+    cartesian_z(CartesianZ),
     translation_x(TranslationX),
     translation_y(TranslationY),
     translation_z(TranslationZ),
     rotation_a(RotationA),
     rotation_b(RotationB),
     rotation_c(RotationC)
+}
+#[derive(Clone, PartialEq)]
+pub struct CartesianX {
+    at_a: usize,
+    w_val: f64,
+}
+impl CartesianX {
+    pub(crate) fn new(at_a: usize, w_val:f64) -> CartesianX {
+        let at_a:usize =  at_a;
+        let w_val:f64 = w_val;
+
+        let cart = CartesianX {
+            at_a: at_a,
+            w_val: w_val,
+        };
+        return cart;
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct CartesianY {
+    at_a: usize,
+    w_val: f64,
+}
+impl CartesianY {
+    pub(crate) fn new(at_a: usize, w_val:f64) -> CartesianY {
+        let at_a:usize =  at_a;
+        let w_val:f64 = w_val;
+
+        let cart = CartesianY {
+            at_a: at_a,
+            w_val: w_val,
+        };
+        return cart;
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct CartesianZ {
+    at_a: usize,
+    w_val: f64,
+}
+impl CartesianZ {
+    pub(crate) fn new(at_a: usize, w_val:f64) -> CartesianZ {
+        let at_a:usize =  at_a;
+        let w_val:f64 = w_val;
+
+        let cart = CartesianZ {
+            at_a: at_a,
+            w_val: w_val,
+        };
+        return cart;
+    }
 }
 
 #[derive(Clone, PartialEq)]
