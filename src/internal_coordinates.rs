@@ -10,6 +10,7 @@ use ndarray::Data;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
+use ndarray_linalg::SVD;
 use peroxide::prelude::*;
 use petgraph::algo::*;
 use petgraph::data::*;
@@ -18,7 +19,7 @@ use petgraph::graph::*;
 use petgraph::stable_graph::*;
 use std::f64::consts::PI;
 use std::cmp::Ordering;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Deref};
 
 pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
@@ -525,7 +526,7 @@ pub fn sorted_eigh_linearity(f_mat:Array2<f64>)->(Array1<f64>,Array2<f64>){
     return (l_arr, q_mat_new);
 }
 
-pub fn get_quat_rot(x:&Array2<f64>,y:&Array2<f64>)->(Array1<f64>,Array1<f64>){
+pub fn get_quat_rot(x:&Array2<f64>,y:&Array2<f64>)->(Array1<f64>,f64){
     let x:Array2<f64> = x.clone() - x.mean_axis(Axis(0)).unwrap();
     let y:Array2<f64> = y.clone() - y.mean_axis(Axis(0)).unwrap();
 
@@ -540,11 +541,11 @@ pub fn get_quat_rot(x:&Array2<f64>,y:&Array2<f64>)->(Array1<f64>,Array1<f64>){
     if q_vec[0] < 0.0{
         q_vec = q_vec * (-1.0);
     }
-    return (q_vec,l_vec);
+    return (q_vec,l_vec[0]);
 }
 
 pub fn get_exmap_rot(x:&Array2<f64>,y:&Array2<f64>)->Array1<f64>{
-    let (q_vec,l_vec):(Array1<f64>,Array1<f64>) = get_quat_rot(x,y);
+    let (q_vec,l_vec):(Array1<f64>,f64) = get_quat_rot(x,y);
     let (fac,dfac):(f64,f64) = calc_fac_dfac_rot(q_vec[0]);
     let v:Array1<f64> = fac * q_vec.slice(s![1..]).to_owned();
 
@@ -632,23 +633,57 @@ pub fn build_f_matrix_deriv(x:&Array2<f64>,y:&Array2<f64>)->Array4<f64>{
 
 }
 
-pub fn get_q_der_rot(x:&Array2<f64>,y:&Array2<f64>){
+pub fn invert_svd(x_mat:&Array2<f64>,thresh:Option<f64>)->Array2<f64>{
+    // Invert a matrix using singular value decomposition.
+    // @param[in] X The 2-D NumPy array containing the matrix to be inverted
+    // @param[in] thresh The SVD threshold; eigenvalues below this are not inverted but set to zero
+    // @return Xt The 2-D NumPy array containing the inverted matrix
+    let thresh:f64 = thresh.unwrap_or(1e-12);
+    let (u,s,vh) = x_mat.clone().svd(true,true).unwrap();
+    let uh:Array2<f64> = u.unwrap().reversed_axes();
+    let mut s:Array1<f64> = s;
+    let v:Array2<f64> = vh.unwrap().reversed_axes();
+    for i in 0..s.len(){
+        if s[i].abs() > thresh{
+            s[i] = 1.0/s[i];
+        }
+        else{
+            s[i] = 0.0;
+        }
+    }
+    let si:Array2<f64> = Array::from_diag(&s);
+    let x_t:Array2<f64> = v.dot(&si.dot(&uh));
+    return x_t;
+}
+
+pub fn get_q_der_rot(x:&Array2<f64>,y:&Array2<f64>)->Array3<f64>{
     let x:Array2<f64> = x.clone() - x.mean_axis(Axis(0)).unwrap();
     let y:Array2<f64> = y.clone() - y.mean_axis(Axis(0)).unwrap();
 
-    let (q_vec,l_vec):(Array1<f64>,Array1<f64>) = get_quat_rot(&x,&y);
+    let (q_vec,l_val):(Array1<f64>,f64) = get_quat_rot(&x,&y);
     let f_mat:Array2<f64> = build_f_matrix(&x,&y);
     let f_mat_deriv:Array4<f64> = build_f_matrix_deriv(&x,&y);
+    let mat:Array2<f64> = &Array::eye(4)*l_val - &f_mat;
 
-
+    let tmp:Array2<f64> = mat.clone();
+    let m_inv:Array2<f64> = invert_svd(&tmp,Some(1e-6));
+    let mut dq:Array3<f64> = Array::zeros((x.dim().0,3,4));
+    for u in 0..x.dim().0{
+        for w in 0..3{
+            let f_temp:Array2<f64> = f_mat_deriv.slice(s![u,w,..,..]).to_owned();
+            let dquw:Array1<f64> = m_inv.dot(&(f_temp.dot(&q_vec.clone().reversed_axes())));
+            dq.slice_mut(s![u,w,..]).assign(&dquw);
+        }
+    }
+    return dq;
 }
 
-pub fn get_exmap_deriv_rot(x:&Array2<f64>,y:&Array2<f64>){
+pub fn get_exmap_deriv_rot(x:&Array2<f64>,y:&Array2<f64>)->Array3<f64>{
     // Given trial coordinates x and target coordinates y,
     // return the derivatives of the exponential map that brings
     // x into maximal coincidence (minimum RMSD) with y, with
     // respect to the coordinates of x.
-    let (q_vec,l_vec):(Array1<f64>,Array1<f64>) = get_quat_rot(x,y);
+    let (q_vec,l_vec):(Array1<f64>,f64) = get_quat_rot(x,y);
     let v:Array1<f64> = get_exmap_rot(x,y);
     let (fac,dfac):(f64,f64) = calc_fac_dfac_rot(q_vec[0]);
 
@@ -657,9 +692,18 @@ pub fn get_exmap_deriv_rot(x:&Array2<f64>,y:&Array2<f64>){
     for i in (0..3){
         dvdq[[i+1,i]] = fac;
     }
+    let dqdx = get_q_der_rot(&x,&y);
+    let mut dvdx:Array3<f64> = Array::zeros((x.dim().0,3,3));
+    for u in 0..x.dim().0{
+        for w in 0..3{
+            let dqdx_uw:Array1<f64> = dqdx.slice(s![u,w,..]).to_owned();
+            for p in 0..4{
+                dvdx.slice_mut(s![u,w,..]).add_assign(&(dvdq.slice(s![p,..]).to_owned()* dqdx[[u,w,p]]));
+            }
+        }
+    }
 
-    //let dqdx =
-
+    return dvdx;
 }
 
 #[derive(PartialEq, Clone)]
@@ -1045,7 +1089,7 @@ impl RotationA {
         if bool_linear{
             //
         }
-        //let deriv_raw =
+        let deriv_raw:Array3<f64> = get_exmap_deriv_rot(&x_sel,&y_sel);
         if bool_linear{
             //
         }
