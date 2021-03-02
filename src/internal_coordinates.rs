@@ -441,7 +441,77 @@ pub fn build_delocalized_internal_coordinates(coords: Array1<f64>, primitives: V
     // build g_matrix
 }
 
-pub fn build_g_matrix(coords: Array1<f64>) {}
+pub fn build_g_matrix(coords: Array1<f64>,internal_coords: &InternalCoordinates) {
+    let b_mat:Array1<Array1<f64>> = wilsonB(&coords, internal_coords);
+
+}
+
+pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates) ->Array1<Array1<f64>>{
+    let derivatives:Vec<Array2<f64>> = get_derivatives(coords,internal_coords);
+    let mut wilson_b:Vec<Array1<f64>> = Vec::new();
+    for i in 0..derivatives.len(){
+        let deriv_1d:Array1<f64> = derivatives[i].clone().into_shape((derivatives[i].dim().0+derivatives[i].dim().1)).unwrap();
+        wilson_b.push(deriv_1d);
+    }
+    return Array::from(wilson_b);
+}
+
+pub fn get_derivatives(coords: &Array1<f64>, internal_coords: &InternalCoordinates)->Vec<Array2<f64>>{
+    let mut derivatives: Vec<Array2<f64>> = Vec::new();
+    for i in &internal_coords.distance{
+        let deriv:Array2<f64> = i.derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.angle{
+        let deriv:Array2<f64> = i.derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.out_of_plane{
+        let deriv:Array2<f64> = i.derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.dihedral{
+        let deriv:Array2<f64> = i.derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.cartesian_x{
+        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.cartesian_y{
+        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.cartesian_z{
+        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.translation_x{
+        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.translation_y{
+        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.translation_z{
+        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.rotation_a{
+        let deriv:Array2<f64> = i.derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.rotation_b{
+        let deriv:Array2<f64> = i.derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    for i in &internal_coords.rotation_c{
+        let deriv:Array2<f64> = i.derivatives(coords.clone());
+        derivatives.push(deriv);
+    }
+    return derivatives;
+}
 
 pub fn check_linearity(x: &Array2<f64>, y: &Array2<f64>) -> bool {
     let x: Array2<f64> = x.clone() - x.mean_axis(Axis(0)).unwrap();
@@ -745,6 +815,58 @@ pub enum IC {
     rotation_b(RotationB),
     rotation_c(RotationC),
 }
+
+#[derive(Clone, PartialEq)]
+pub struct InternalCoordinates {
+    distance: Vec<Distance>,
+    angle: Vec<Angle>,
+    out_of_plane: Vec<Out_of_plane>,
+    dihedral: Vec<Dihedral>,
+    cartesian_x: Vec<CartesianX>,
+    cartesian_y: Vec<CartesianY>,
+    cartesian_z: Vec<CartesianZ>,
+    translation_x: Vec<TranslationX>,
+    translation_y: Vec<TranslationY>,
+    translation_z: Vec<TranslationZ>,
+    rotation_a: Vec<RotationA>,
+    rotation_b: Vec<RotationB>,
+    rotation_c: Vec<RotationC>,
+}
+impl InternalCoordinates {
+    pub(crate) fn new(
+        distance: Vec<Distance>,
+        angle: Vec<Angle>,
+        out_of_plane: Vec<Out_of_plane>,
+        dihedral: Vec<Dihedral>,
+        cartesian_x: Vec<CartesianX>,
+        cartesian_y: Vec<CartesianY>,
+        cartesian_z: Vec<CartesianZ>,
+        translation_x: Vec<TranslationX>,
+        translation_y: Vec<TranslationY>,
+        translation_z: Vec<TranslationZ>,
+        rotation_a: Vec<RotationA>,
+        rotation_b: Vec<RotationB>,
+        rotation_c: Vec<RotationC>,
+    ) ->InternalCoordinates{
+        let internal_coords = InternalCoordinates{
+            distance:distance,
+            angle: angle,
+            out_of_plane:out_of_plane,
+            dihedral: dihedral,
+            cartesian_x: cartesian_x,
+            cartesian_y: cartesian_y,
+            cartesian_z: cartesian_z,
+            translation_x: translation_x,
+            translation_y: translation_y,
+            translation_z: translation_z,
+            rotation_a: rotation_a,
+            rotation_b: rotation_b,
+            rotation_c: rotation_c,
+        };
+        return internal_coords;
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub struct CartesianX {
     at_a: usize,
