@@ -90,7 +90,7 @@ pub fn wrap_angles() {
 
 pub fn reorder_primitives() {}
 
-pub fn build_primitives(mol: &Molecule) -> Vec<IC> {
+pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
     let coordinate_vector: Array1<f64> = mol
         .positions
         .clone()
@@ -380,65 +380,108 @@ pub fn build_primitives(mol: &Molecule) -> Vec<IC> {
     // One is unable to iterate over enum
     // thus, separate vectors are needed for
     // each operation
-    for i in distances_vec {
-        let dist = IC::distance(i);
-        internal_coords.push(dist);
-    }
-    for i in angles_vec {
-        let angl = IC::angle(i);
-        internal_coords.push(angl);
-    }
-    for i in outofplane_vec {
-        let out_of_pl = IC::out_of_plane(i);
-        internal_coords.push(out_of_pl);
-    }
-    for i in dihedral_vec {
-        let dihedral = IC::dihedral(i);
-        internal_coords.push(dihedral);
-    }
-    for i in cartesian_x_vec {
-        let cart = IC::cartesian_x(i);
-        internal_coords.push(cart);
-    }
-    for i in cartesian_y_vec {
-        let cart = IC::cartesian_y(i);
-        internal_coords.push(cart);
-    }
-    for i in cartesian_z_vec {
-        let cart = IC::cartesian_z(i);
-        internal_coords.push(cart);
-    }
-    for i in translation_x_vec {
-        let trans = IC::translation_x(i);
-        internal_coords.push(trans);
-    }
-    for i in translation_y_vec {
-        let trans = IC::translation_y(i);
-        internal_coords.push(trans);
-    }
-    for i in translation_z_vec {
-        let trans = IC::translation_z(i);
-        internal_coords.push(trans);
-    }
-    for i in rotation_a_Vec {
-        let rot = IC::rotation_a(i);
-        internal_coords.push(rot);
-    }
-    for i in rotation_b_Vec {
-        let rot = IC::rotation_b(i);
-        internal_coords.push(rot);
-    }
-    for i in rotation_c_Vec {
-        let rot = IC::rotation_c(i);
-        internal_coords.push(rot);
-    }
+    // for i in distances_vec {
+    //     let dist = IC::distance(i);
+    //     internal_coords.push(dist);
+    // }
+    // for i in angles_vec {
+    //     let angl = IC::angle(i);
+    //     internal_coords.push(angl);
+    // }
+    // for i in outofplane_vec {
+    //     let out_of_pl = IC::out_of_plane(i);
+    //     internal_coords.push(out_of_pl);
+    // }
+    // for i in dihedral_vec {
+    //     let dihedral = IC::dihedral(i);
+    //     internal_coords.push(dihedral);
+    // }
+    // for i in cartesian_x_vec {
+    //     let cart = IC::cartesian_x(i);
+    //     internal_coords.push(cart);
+    // }
+    // for i in cartesian_y_vec {
+    //     let cart = IC::cartesian_y(i);
+    //     internal_coords.push(cart);
+    // }
+    // for i in cartesian_z_vec {
+    //     let cart = IC::cartesian_z(i);
+    //     internal_coords.push(cart);
+    // }
+    // for i in translation_x_vec {
+    //     let trans = IC::translation_x(i);
+    //     internal_coords.push(trans);
+    // }
+    // for i in translation_y_vec {
+    //     let trans = IC::translation_y(i);
+    //     internal_coords.push(trans);
+    // }
+    // for i in translation_z_vec {
+    //     let trans = IC::translation_z(i);
+    //     internal_coords.push(trans);
+    // }
+    // for i in rotation_a_Vec {
+    //     let rot = IC::rotation_a(i);
+    //     internal_coords.push(rot);
+    // }
+    // for i in rotation_b_Vec {
+    //     let rot = IC::rotation_b(i);
+    //     internal_coords.push(rot);
+    // }
+    // for i in rotation_c_Vec {
+    //     let rot = IC::rotation_c(i);
+    //     internal_coords.push(rot);
+    // }
 
-    return internal_coords;
+    let internal_coordinates: InternalCoordinates = InternalCoordinates::new(
+        distances_vec,
+        angles_vec,
+        outofplane_vec,
+        dihedral_vec,
+        cartesian_x_vec,
+        cartesian_y_vec,
+        cartesian_z_vec,
+        translation_x_vec,
+        translation_y_vec,
+        translation_z_vec,
+        rotation_a_Vec,
+        rotation_b_Vec,
+        rotation_c_Vec,
+    );
+
+    return internal_coordinates;
 }
 
-pub fn build_delocalized_internal_coordinates(coords: Array1<f64>, primitives: Vec<IC>) {
-    let nprims: usize = primitives.len();
-    // build g_matrix
+pub fn build_delocalized_internal_coordinates(
+    coords: Array1<f64>,
+    primitives: &InternalCoordinates,
+) {
+    // Build the delocalized internal coordinates (DLCs) which are linear
+    // combinations of the primitive internal coordinates
+
+    // Constrained primitive ICs (PICs) are
+    // first set aside from the rest of the PICs. Next, a G-matrix is constructed
+    // from the rest of the PICs and diagonalized to form DLCs, called "residual" DLCs.
+    // The union of the cPICs and rDLCs forms a generalized set of DLCs, but the
+    // cPICs are not orthogonal to each other or to the rDLCs.
+    //let nprims: usize = primitives.len();
+    let g_matrix: Array2<f64> = build_g_matrix(coords, primitives);
+
+    //  Form a sub-G-matrix that doesn't include the constrained primitives and diagonalize it to form DLCs.
+    // g matrix does not contain constraints
+
+    let (l_vec,q_mat):(Array1<f64>,Array2<f64>) = g_matrix.eigh(UPLO::Upper).unwrap();
+    // Sort eigenvalues and eigenvectors in descending order (for cleanliness)
+    let dim_0: usize = q_mat.dim().0;
+    let dim_1: usize = q_mat.dim().1;
+    let mut l_vec_ordered:Array1<f64> = Array::zeros(dim_0);
+    let mut q_mat_ordered:Array2<f64> = Array::zeros((dim_0,dim_1));
+
+    for i in 0..dim_0{
+        l_vec_ordered[i] = l_vec[dim_0-1-i];
+        q_mat_ordered.slice_mut(s![..,i]).assign(&q_mat.slice(s![..,dim_1-1-i]));
+    }
+
 }
 
 pub fn build_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
