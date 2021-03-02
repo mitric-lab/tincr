@@ -17,7 +17,7 @@ use petgraph::data::*;
 use petgraph::dot::{Config, Dot};
 use petgraph::graph::*;
 use petgraph::stable_graph::*;
-use std::cmp::{Ordering};
+use std::cmp::Ordering;
 use std::f64::consts::PI;
 use std::ops::{AddAssign, Deref};
 
@@ -702,6 +702,33 @@ pub fn get_exmap_deriv_rot(x: &Array2<f64>, y: &Array2<f64>) -> Array3<f64> {
     return dvdx;
 }
 
+pub fn d_cross(vec_1: &Vec<f64>, vec_2: &Vec<f64>) -> Array2<f64> {
+    // Given two vectors a and b, return the gradient of the cross product axb w/r.t. a.
+    // (Note that the answer is independent of a.)
+    // Derivative is on the first axis.
+    let mut dcross: Array2<f64> = Array::zeros((3, 3));
+    for i in 0..3 {
+        let mut ei: Vec<f64> = Array::zeros(3).to_vec();
+        ei[i] = 1.0;
+        dcross
+            .slice_mut(s![i, ..])
+            .assign(&Array::from(ei.cross(vec_2)));
+    }
+    return dcross;
+}
+
+pub fn dn_cross(vec_1: &Vec<f64>, vec_2: &Vec<f64>) -> Array1<f64> {
+    // Return the gradient of the norm of the cross product w/r.t. a
+    let ncross: f64 = (vec_1.cross(vec_2)).norm();
+    let term_1: Array1<f64> =
+        Array::from(vec_1.clone()) * Array::from(vec_2.clone()).dot(&Array::from(vec_2.clone()));
+    let term_2: Array1<f64> = -1.0
+        * Array::from(vec_2.clone())
+        * Array::from(vec_1.clone()).dot(&Array::from(vec_2.clone()));
+    let result: Array1<f64> = (&term_1 + &term_2) / ncross;
+    return result;
+}
+
 #[derive(PartialEq, Clone)]
 pub enum IC {
     distance(Distance),
@@ -1063,9 +1090,9 @@ impl RotationA {
         return rotation;
     }
 
-    pub fn calc_e0(self)->(Vec<f64>) {
-        let n_at: usize = self.coords.len() / 3;
-        let coords_self: Array2<f64> = self.coords.into_shape((n_at, 3)).unwrap();
+    pub fn calc_e0(&self) -> (Vec<f64>) {
+        let n_at: usize = self.coords.clone().len() / 3;
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
         let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
         for (i, j) in self.nodes.iter().enumerate() {
             y_sel
@@ -1083,17 +1110,17 @@ impl RotationA {
         for i in e_full.iter() {
             dots.push((Array::from(i.clone()).dot(&ev)).powi(2));
         }
-        let sorted_arr:Vec<usize> = argsort(Array::from(dots).view());
-        let min_index:usize = sorted_arr[0];
-        let mut e0:Vec<f64> = vy.to_vec().cross(&e_full[min_index]);
-        e0 = &e0/e0.norm();
+        let sorted_arr: Vec<usize> = argsort(Array::from(dots).view());
+        let min_index: usize = sorted_arr[0];
+        let mut e0: Vec<f64> = vy.to_vec().cross(&e_full[min_index]);
+        e0 = (Array::from(e0.clone()) / e0.norm()).to_vec();
         return e0;
     }
 
-    pub fn derivatives(self, coords: Array1<f64>) -> Array3<f64> {
+    pub fn derivatives(&self, coords: Array1<f64>) -> Array3<f64> {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
-        let coords_self: Array2<f64> = self.coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
         let mut derivatives: Array3<f64> = Array::zeros((n_at, 3, 3));
 
         let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
@@ -1119,17 +1146,43 @@ impl RotationA {
         if bool_linear {
             let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
             let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
-            let e0:Vec<f64> = self.calc_e0();
-            let xdum:Vec<f64> = vx.to_vec().cross(&e0);
-            let ydum:Vec<f64> = vy.to_vec().cross(&e0);
-            let exdum:Vec<f64> = &xdum / xdum.norm();
-            let eydum:Vec<f64> = &ydum / ydum.norm();
-            // vstacks
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+            // vstacks left
 
             deriv_raw = get_exmap_deriv_rot(&x_sel, &y_sel);
 
-            let nxdum:f64 = xdum.norm();
-            // dcross
+            let draw_dim: usize = deriv_raw.clone().dim().0;
+
+            let nxdum: f64 = xdum.norm();
+            let dxdum: Array2<f64> = d_cross(&vx.to_vec(), &e0);
+            let dnxdum: Array1<f64> = dn_cross(&vx.to_vec(), &e0);
+            let dexdum: Array2<f64> = (dxdum * nxdum
+                - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
+                    .unwrap()
+                    .into_dimensionality::<Ix2>()
+                    .unwrap());
+            let tmp_slice: Array2<f64> = deriv_raw.clone().slice(s![draw_dim-1, .., ..]).to_owned();
+            deriv_raw
+                .slice_mut(s![0, .., ..])
+                .add_assign(&(-1.0 * dexdum.dot(&tmp_slice.clone())));
+
+            for i in 0..self.nodes.len() {
+                deriv_raw
+                    .slice_mut(s![i, .., ..])
+                    .add_assign(&(Array::eye(3).dot(&tmp_slice.clone()) / (self.nodes.len() as f64)));
+            }
+            deriv_raw.slice_mut(s![draw_dim-2,..,..]).add_assign(&dexdum.dot(&tmp_slice.clone()));
+            let mut deriv_raw_new:Array3<f64> = Array::zeros(deriv_raw.shape()).into_dimensionality::<Ix3>().unwrap();
+
+            // change order of first dim of deriv_raw
+            for i in 0..draw_dim{
+                deriv_raw_new.slice_mut(s![i,..,..]).assign(&deriv_raw.slice(s![draw_dim-1-i,..,..]));
+            }
+            deriv_raw = deriv_raw_new;
         }
 
         for (i, a) in self.nodes.iter().enumerate() {
