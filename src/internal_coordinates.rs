@@ -441,73 +441,88 @@ pub fn build_delocalized_internal_coordinates(coords: Array1<f64>, primitives: V
     // build g_matrix
 }
 
-pub fn build_g_matrix(coords: Array1<f64>,internal_coords: &InternalCoordinates) {
-    let b_mat:Array1<Array1<f64>> = wilsonB(&coords, internal_coords);
+pub fn build_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
+    // Given Cartesian coordinates xyz, return the G-matrix
+    // given by G = BuBt where u is an arbitrary matrix (default to identity)
+    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords);
+    let b_ubt: Array2<f64> = b_mat.dot(&b_mat.clone().t());
 
+    return b_ubt;
 }
 
-pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates) ->Array1<Array1<f64>>{
-    let derivatives:Vec<Array2<f64>> = get_derivatives(coords,internal_coords);
-    let mut wilson_b:Vec<Array1<f64>> = Vec::new();
-    for i in 0..derivatives.len(){
-        let deriv_1d:Array1<f64> = derivatives[i].clone().into_shape((derivatives[i].dim().0+derivatives[i].dim().1)).unwrap();
-        wilson_b.push(deriv_1d);
+pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
+    // Given Cartesian coordinates xyz, return the Wilson B-matrix
+    // given by dq_i/dx_j where x is flattened (i.e. x1, y1, z1, x2, y2, z2)
+    let derivatives: Vec<Array2<f64>> = get_derivatives(coords, internal_coords);
+    let mut wilson_b: Array2<f64> = Array::zeros((
+        derivatives.len(),
+        derivatives[0].dim().0 + derivatives[0].dim().1,
+    ));
+    for i in 0..derivatives.len() {
+        let deriv_1d: Array1<f64> = derivatives[i]
+            .clone()
+            .into_shape((derivatives[i].dim().0 + derivatives[i].dim().1))
+            .unwrap();
+        wilson_b.slice_mut(s![i, ..]).assign(&deriv_1d);
     }
-    return Array::from(wilson_b);
+    return wilson_b;
 }
 
-pub fn get_derivatives(coords: &Array1<f64>, internal_coords: &InternalCoordinates)->Vec<Array2<f64>>{
+pub fn get_derivatives(
+    coords: &Array1<f64>,
+    internal_coords: &InternalCoordinates,
+) -> Vec<Array2<f64>> {
     let mut derivatives: Vec<Array2<f64>> = Vec::new();
-    for i in &internal_coords.distance{
-        let deriv:Array2<f64> = i.derivatives(coords.clone());
+    for i in &internal_coords.distance {
+        let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.angle{
-        let deriv:Array2<f64> = i.derivatives(coords.clone());
+    for i in &internal_coords.angle {
+        let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.out_of_plane{
-        let deriv:Array2<f64> = i.derivatives(coords.clone());
+    for i in &internal_coords.out_of_plane {
+        let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.dihedral{
-        let deriv:Array2<f64> = i.derivatives(coords.clone());
+    for i in &internal_coords.dihedral {
+        let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.cartesian_x{
-        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+    for i in &internal_coords.cartesian_x {
+        let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.cartesian_y{
-        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+    for i in &internal_coords.cartesian_y {
+        let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.cartesian_z{
-        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+    for i in &internal_coords.cartesian_z {
+        let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.translation_x{
-        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+    for i in &internal_coords.translation_x {
+        let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.translation_y{
-        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+    for i in &internal_coords.translation_y {
+        let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.translation_z{
-        let deriv:Array2<f64> = i.clone().derivatives(coords.clone());
+    for i in &internal_coords.translation_z {
+        let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.rotation_a{
-        let deriv:Array2<f64> = i.derivatives(coords.clone());
+    for i in &internal_coords.rotation_a {
+        let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.rotation_b{
-        let deriv:Array2<f64> = i.derivatives(coords.clone());
+    for i in &internal_coords.rotation_b {
+        let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
-    for i in &internal_coords.rotation_c{
-        let deriv:Array2<f64> = i.derivatives(coords.clone());
+    for i in &internal_coords.rotation_c {
+        let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
     return derivatives;
@@ -847,11 +862,11 @@ impl InternalCoordinates {
         rotation_a: Vec<RotationA>,
         rotation_b: Vec<RotationB>,
         rotation_c: Vec<RotationC>,
-    ) ->InternalCoordinates{
-        let internal_coords = InternalCoordinates{
-            distance:distance,
+    ) -> InternalCoordinates {
+        let internal_coords = InternalCoordinates {
+            distance: distance,
             angle: angle,
-            out_of_plane:out_of_plane,
+            out_of_plane: out_of_plane,
             dihedral: dihedral,
             cartesian_x: cartesian_x,
             cartesian_y: cartesian_y,
