@@ -933,6 +933,24 @@ impl Distance {
         let distance: f64 = dist_matrix[[self.at_a, self.at_b]];
         return distance;
     }
+
+    pub fn derivatives(&self, coords: Array1<f64>)->Array2<f64> {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let mut derivatives: Array2<f64> = Array::zeros((n_at, 3));
+
+        let m: usize = self.at_a;
+        let n: usize = self.at_b;
+        let u: Array1<f64> = (coords_new.slice(s![m, ..]).to_owned()
+            - coords_new.slice(s![n, ..]).to_owned())
+            / (coords_new.slice(s![m, ..]).to_owned() - coords_new.slice(s![n, ..]).to_owned())
+                .to_vec()
+                .norm();
+        derivatives.slice_mut(s![m, ..]).assign(&u);
+        derivatives.slice_mut(s![n, ..]).assign(&-&u);
+
+        return derivatives;
+    }
 }
 #[derive(Eq, PartialEq, Clone, Copy)]
 pub struct Out_of_plane {
@@ -1152,13 +1170,21 @@ impl RotationA {
             let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
             let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
 
-            let mut x_sel_new:Array2<f64> = Array::zeros((self.nodes.len()+1, 3));
-            let mut y_sel_new:Array2<f64> = Array::zeros((self.nodes.len()+1, 3));
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
             // vstacks
-            x_sel_new.slice_mut(s![0..self.nodes.len()-1,..]).assign(&x_sel);
-            y_sel_new.slice_mut(s![0..self.nodes.len()-1,..]).assign(&y_sel);
-            x_sel_new.slice_mut(s![self.nodes.len(),..]).assign(&(exdum+x_mean));
-            y_sel_new.slice_mut(s![self.nodes.len(),..]).assign(&(eydum+y_mean));
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
 
             deriv_raw = get_exmap_deriv_rot(&x_sel_new, &y_sel_new);
 
@@ -1172,22 +1198,29 @@ impl RotationA {
                     .unwrap()
                     .into_dimensionality::<Ix2>()
                     .unwrap());
-            let tmp_slice: Array2<f64> = deriv_raw.clone().slice(s![draw_dim-1, .., ..]).to_owned();
+            let tmp_slice: Array2<f64> =
+                deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw
                 .slice_mut(s![0, .., ..])
                 .add_assign(&(-1.0 * dexdum.dot(&tmp_slice.clone())));
 
             for i in 0..self.nodes.len() {
-                deriv_raw
-                    .slice_mut(s![i, .., ..])
-                    .add_assign(&(Array::eye(3).dot(&tmp_slice.clone()) / (self.nodes.len() as f64)));
+                deriv_raw.slice_mut(s![i, .., ..]).add_assign(
+                    &(Array::eye(3).dot(&tmp_slice.clone()) / (self.nodes.len() as f64)),
+                );
             }
-            deriv_raw.slice_mut(s![draw_dim-2,..,..]).add_assign(&dexdum.dot(&tmp_slice.clone()));
-            let mut deriv_raw_new:Array3<f64> = Array::zeros(deriv_raw.shape()).into_dimensionality::<Ix3>().unwrap();
+            deriv_raw
+                .slice_mut(s![draw_dim - 2, .., ..])
+                .add_assign(&dexdum.dot(&tmp_slice.clone()));
+            let mut deriv_raw_new: Array3<f64> = Array::zeros(deriv_raw.shape())
+                .into_dimensionality::<Ix3>()
+                .unwrap();
 
             // change order of first dim of deriv_raw
-            for i in 0..draw_dim{
-                deriv_raw_new.slice_mut(s![i,..,..]).assign(&deriv_raw.slice(s![draw_dim-1-i,..,..]));
+            for i in 0..draw_dim {
+                deriv_raw_new
+                    .slice_mut(s![i, .., ..])
+                    .assign(&deriv_raw.slice(s![draw_dim - 1 - i, .., ..]));
             }
             deriv_raw = deriv_raw_new;
         }
@@ -1197,7 +1230,7 @@ impl RotationA {
                 .slice_mut(s![a.index(), .., ..])
                 .assign(&deriv_raw.slice(s![i, .., ..]));
         }
-        let derivatives_new:Array2<f64> = derivatives.slice(s![..,..,0]).to_owned()* self.w_val;
+        let derivatives_new: Array2<f64> = derivatives.slice(s![.., .., 0]).to_owned() * self.w_val;
 
         return derivatives_new;
     }
@@ -1286,13 +1319,21 @@ impl RotationB {
             let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
             let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
 
-            let mut x_sel_new:Array2<f64> = Array::zeros((self.nodes.len()+1, 3));
-            let mut y_sel_new:Array2<f64> = Array::zeros((self.nodes.len()+1, 3));
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
             // vstacks
-            x_sel_new.slice_mut(s![0..self.nodes.len()-1,..]).assign(&x_sel);
-            y_sel_new.slice_mut(s![0..self.nodes.len()-1,..]).assign(&y_sel);
-            x_sel_new.slice_mut(s![self.nodes.len(),..]).assign(&(exdum+x_mean));
-            y_sel_new.slice_mut(s![self.nodes.len(),..]).assign(&(eydum+y_mean));
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
 
             deriv_raw = get_exmap_deriv_rot(&x_sel_new, &y_sel_new);
 
@@ -1303,25 +1344,32 @@ impl RotationB {
             let dnxdum: Array1<f64> = dn_cross(&vx.to_vec(), &e0);
             let dexdum: Array2<f64> = (dxdum * nxdum
                 - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
-                .unwrap()
-                .into_dimensionality::<Ix2>()
-                .unwrap());
-            let tmp_slice: Array2<f64> = deriv_raw.clone().slice(s![draw_dim-1, .., ..]).to_owned();
+                    .unwrap()
+                    .into_dimensionality::<Ix2>()
+                    .unwrap());
+            let tmp_slice: Array2<f64> =
+                deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw
                 .slice_mut(s![0, .., ..])
                 .add_assign(&(-1.0 * dexdum.dot(&tmp_slice.clone())));
 
             for i in 0..self.nodes.len() {
-                deriv_raw
-                    .slice_mut(s![i, .., ..])
-                    .add_assign(&(Array::eye(3).dot(&tmp_slice.clone()) / (self.nodes.len() as f64)));
+                deriv_raw.slice_mut(s![i, .., ..]).add_assign(
+                    &(Array::eye(3).dot(&tmp_slice.clone()) / (self.nodes.len() as f64)),
+                );
             }
-            deriv_raw.slice_mut(s![draw_dim-2,..,..]).add_assign(&dexdum.dot(&tmp_slice.clone()));
-            let mut deriv_raw_new:Array3<f64> = Array::zeros(deriv_raw.shape()).into_dimensionality::<Ix3>().unwrap();
+            deriv_raw
+                .slice_mut(s![draw_dim - 2, .., ..])
+                .add_assign(&dexdum.dot(&tmp_slice.clone()));
+            let mut deriv_raw_new: Array3<f64> = Array::zeros(deriv_raw.shape())
+                .into_dimensionality::<Ix3>()
+                .unwrap();
 
             // change order of first dim of deriv_raw
-            for i in 0..draw_dim{
-                deriv_raw_new.slice_mut(s![i,..,..]).assign(&deriv_raw.slice(s![draw_dim-1-i,..,..]));
+            for i in 0..draw_dim {
+                deriv_raw_new
+                    .slice_mut(s![i, .., ..])
+                    .assign(&deriv_raw.slice(s![draw_dim - 1 - i, .., ..]));
             }
             deriv_raw = deriv_raw_new;
         }
@@ -1331,7 +1379,7 @@ impl RotationB {
                 .slice_mut(s![a.index(), .., ..])
                 .assign(&deriv_raw.slice(s![i, .., ..]));
         }
-        let derivatives_new:Array2<f64> = derivatives.slice(s![..,..,1]).to_owned()* self.w_val;
+        let derivatives_new: Array2<f64> = derivatives.slice(s![.., .., 1]).to_owned() * self.w_val;
 
         return derivatives_new;
     }
@@ -1419,13 +1467,21 @@ impl RotationC {
             let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
             let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
 
-            let mut x_sel_new:Array2<f64> = Array::zeros((self.nodes.len()+1, 3));
-            let mut y_sel_new:Array2<f64> = Array::zeros((self.nodes.len()+1, 3));
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
             // vstacks
-            x_sel_new.slice_mut(s![0..self.nodes.len()-1,..]).assign(&x_sel);
-            y_sel_new.slice_mut(s![0..self.nodes.len()-1,..]).assign(&y_sel);
-            x_sel_new.slice_mut(s![self.nodes.len(),..]).assign(&(exdum+x_mean));
-            y_sel_new.slice_mut(s![self.nodes.len(),..]).assign(&(eydum+y_mean));
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
 
             deriv_raw = get_exmap_deriv_rot(&x_sel_new, &y_sel_new);
 
@@ -1436,25 +1492,32 @@ impl RotationC {
             let dnxdum: Array1<f64> = dn_cross(&vx.to_vec(), &e0);
             let dexdum: Array2<f64> = (dxdum * nxdum
                 - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
-                .unwrap()
-                .into_dimensionality::<Ix2>()
-                .unwrap());
-            let tmp_slice: Array2<f64> = deriv_raw.clone().slice(s![draw_dim-1, .., ..]).to_owned();
+                    .unwrap()
+                    .into_dimensionality::<Ix2>()
+                    .unwrap());
+            let tmp_slice: Array2<f64> =
+                deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw
                 .slice_mut(s![0, .., ..])
                 .add_assign(&(-1.0 * dexdum.dot(&tmp_slice.clone())));
 
             for i in 0..self.nodes.len() {
-                deriv_raw
-                    .slice_mut(s![i, .., ..])
-                    .add_assign(&(Array::eye(3).dot(&tmp_slice.clone()) / (self.nodes.len() as f64)));
+                deriv_raw.slice_mut(s![i, .., ..]).add_assign(
+                    &(Array::eye(3).dot(&tmp_slice.clone()) / (self.nodes.len() as f64)),
+                );
             }
-            deriv_raw.slice_mut(s![draw_dim-2,..,..]).add_assign(&dexdum.dot(&tmp_slice.clone()));
-            let mut deriv_raw_new:Array3<f64> = Array::zeros(deriv_raw.shape()).into_dimensionality::<Ix3>().unwrap();
+            deriv_raw
+                .slice_mut(s![draw_dim - 2, .., ..])
+                .add_assign(&dexdum.dot(&tmp_slice.clone()));
+            let mut deriv_raw_new: Array3<f64> = Array::zeros(deriv_raw.shape())
+                .into_dimensionality::<Ix3>()
+                .unwrap();
 
             // change order of first dim of deriv_raw
-            for i in 0..draw_dim{
-                deriv_raw_new.slice_mut(s![i,..,..]).assign(&deriv_raw.slice(s![draw_dim-1-i,..,..]));
+            for i in 0..draw_dim {
+                deriv_raw_new
+                    .slice_mut(s![i, .., ..])
+                    .assign(&deriv_raw.slice(s![draw_dim - 1 - i, .., ..]));
             }
             deriv_raw = deriv_raw_new;
         }
@@ -1464,7 +1527,7 @@ impl RotationC {
                 .slice_mut(s![a.index(), .., ..])
                 .assign(&deriv_raw.slice(s![i, .., ..]));
         }
-        let derivatives_new:Array2<f64> = derivatives.slice(s![..,..,2]).to_owned()* self.w_val;
+        let derivatives_new: Array2<f64> = derivatives.slice(s![.., .., 2]).to_owned() * self.w_val;
 
         return derivatives_new;
     }
