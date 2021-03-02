@@ -1059,6 +1059,48 @@ impl Angle {
 
         return crs_2;
     }
+
+    pub fn derivatives(&self,coords:Array1<f64>)->Array2<f64>{
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
+        let m:usize = self.at_a;
+        let o:usize = self.at_b;
+        let n:usize = self.at_c;
+
+        // unit displacement vectors
+        let u_prime:Array1<f64> = coords_new.slice(s![m,..]).to_owned() - coords_new.slice(s![o,..]).to_owned();
+        let u_norm:f64 = u_prime.clone().to_vec().norm();
+        let v_prime:Array1<f64> = coords_new.slice(s![n,..]).to_owned() - coords_new.slice(s![o,..]).to_owned();
+        let v_norm:f64 = v_prime.clone().to_vec().norm();
+        let u:Array1<f64> = u_prime / u_norm;
+        let v:Array1<f64> = v_prime / v_norm;
+
+        let vector_1:Array1<f64> = (array![1.0,-1.0,1.0] / 3.0.sqrt());
+        let vector_2:Array1<f64> = (array![-1.0,1.0,1.0] / 3.0.sqrt());
+
+        let mut w_prime:Vec<f64> = Vec::new();
+        if (&u+&v).to_vec().norm() < 1e-10 || (&u-&v).to_vec().norm() < 1e-10{
+            if (&u+&vector_1).to_vec().norm() < 1e-10 || (&u-&vector_2).to_vec().norm() < 1e-10{
+                w_prime = u.to_vec().cross(&vector_2.to_vec());
+            }
+            else{
+                w_prime = u.to_vec().cross(&vector_1.to_vec());
+            }
+        }
+        else{
+            w_prime = u.to_vec().cross(&v.to_vec());
+        }
+        let w:Array1<f64> = Array::from(w_prime.clone()) / w_prime.norm();
+        let term_1:Array1<f64> = Array::from(u.to_vec().cross(&w.to_vec())) / u_norm;
+        let term_2:Array1<f64> = Array::from(w.to_vec().cross(&v.to_vec())) / v_norm;
+
+        derivatives.slice_mut(s![m,..]).assign(&term_1);
+        derivatives.slice_mut(s![n,..]).assign(&term_2);
+        derivatives.slice_mut(s![o,..]).assign(&(-(&term_1+&term_2)));
+
+        return derivatives;
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
