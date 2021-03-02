@@ -934,7 +934,7 @@ impl Distance {
         return distance;
     }
 
-    pub fn derivatives(&self, coords: Array1<f64>)->Array2<f64> {
+    pub fn derivatives(&self, coords: Array1<f64>) -> Array2<f64> {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
         let mut derivatives: Array2<f64> = Array::zeros((n_at, 3));
@@ -1060,44 +1060,47 @@ impl Angle {
         return crs_2;
     }
 
-    pub fn derivatives(&self,coords:Array1<f64>)->Array2<f64>{
+    pub fn derivatives(&self, coords: Array1<f64>) -> Array2<f64> {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
-        let mut derivatives:Array2<f64> = Array::zeros((n_at,3));
-        let m:usize = self.at_a;
-        let o:usize = self.at_b;
-        let n:usize = self.at_c;
+        let mut derivatives: Array2<f64> = Array::zeros((n_at, 3));
+        let m: usize = self.at_a;
+        let o: usize = self.at_b;
+        let n: usize = self.at_c;
 
         // unit displacement vectors
-        let u_prime:Array1<f64> = coords_new.slice(s![m,..]).to_owned() - coords_new.slice(s![o,..]).to_owned();
-        let u_norm:f64 = u_prime.clone().to_vec().norm();
-        let v_prime:Array1<f64> = coords_new.slice(s![n,..]).to_owned() - coords_new.slice(s![o,..]).to_owned();
-        let v_norm:f64 = v_prime.clone().to_vec().norm();
-        let u:Array1<f64> = u_prime / u_norm;
-        let v:Array1<f64> = v_prime / v_norm;
+        let u_prime: Array1<f64> =
+            coords_new.slice(s![m, ..]).to_owned() - coords_new.slice(s![o, ..]).to_owned();
+        let u_norm: f64 = u_prime.clone().to_vec().norm();
+        let v_prime: Array1<f64> =
+            coords_new.slice(s![n, ..]).to_owned() - coords_new.slice(s![o, ..]).to_owned();
+        let v_norm: f64 = v_prime.clone().to_vec().norm();
+        let u: Array1<f64> = u_prime / u_norm;
+        let v: Array1<f64> = v_prime / v_norm;
 
-        let vector_1:Array1<f64> = (array![1.0,-1.0,1.0] / 3.0.sqrt());
-        let vector_2:Array1<f64> = (array![-1.0,1.0,1.0] / 3.0.sqrt());
+        let vector_1: Array1<f64> = (array![1.0, -1.0, 1.0] / 3.0.sqrt());
+        let vector_2: Array1<f64> = (array![-1.0, 1.0, 1.0] / 3.0.sqrt());
 
-        let mut w_prime:Vec<f64> = Vec::new();
-        if (&u+&v).to_vec().norm() < 1e-10 || (&u-&v).to_vec().norm() < 1e-10{
-            if (&u+&vector_1).to_vec().norm() < 1e-10 || (&u-&vector_2).to_vec().norm() < 1e-10{
+        let mut w_prime: Vec<f64> = Vec::new();
+        if (&u + &v).to_vec().norm() < 1e-10 || (&u - &v).to_vec().norm() < 1e-10 {
+            if (&u + &vector_1).to_vec().norm() < 1e-10 || (&u - &vector_2).to_vec().norm() < 1e-10
+            {
                 w_prime = u.to_vec().cross(&vector_2.to_vec());
-            }
-            else{
+            } else {
                 w_prime = u.to_vec().cross(&vector_1.to_vec());
             }
-        }
-        else{
+        } else {
             w_prime = u.to_vec().cross(&v.to_vec());
         }
-        let w:Array1<f64> = Array::from(w_prime.clone()) / w_prime.norm();
-        let term_1:Array1<f64> = Array::from(u.to_vec().cross(&w.to_vec())) / u_norm;
-        let term_2:Array1<f64> = Array::from(w.to_vec().cross(&v.to_vec())) / v_norm;
+        let w: Array1<f64> = Array::from(w_prime.clone()) / w_prime.norm();
+        let term_1: Array1<f64> = Array::from(u.to_vec().cross(&w.to_vec())) / u_norm;
+        let term_2: Array1<f64> = Array::from(w.to_vec().cross(&v.to_vec())) / v_norm;
 
-        derivatives.slice_mut(s![m,..]).assign(&term_1);
-        derivatives.slice_mut(s![n,..]).assign(&term_2);
-        derivatives.slice_mut(s![o,..]).assign(&(-(&term_1+&term_2)));
+        derivatives.slice_mut(s![m, ..]).assign(&term_1);
+        derivatives.slice_mut(s![n, ..]).assign(&term_2);
+        derivatives
+            .slice_mut(s![o, ..])
+            .assign(&(-(&term_1 + &term_2)));
 
         return derivatives;
     }
@@ -1126,6 +1129,65 @@ impl Dihedral {
         };
 
         return dihedral;
+    }
+
+    pub fn derivatives(&self, coords: Array1<f64>) -> Array2<f64> {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let mut derivatives: Array2<f64> = Array::zeros((n_at, 3));
+        let m: usize = self.at_a;
+        let o: usize = self.at_b;
+        let p: usize = self.at_c;
+        let n: usize = self.at_d;
+
+        // unit displacement vectors
+        let u_prime: Array1<f64> =
+            coords_new.slice(s![m, ..]).to_owned() - coords_new.slice(s![o, ..]).to_owned();
+        let u_norm: f64 = u_prime.clone().to_vec().norm();
+        let v_prime: Array1<f64> =
+            coords_new.slice(s![n, ..]).to_owned() - coords_new.slice(s![p, ..]).to_owned();
+        let v_norm: f64 = v_prime.clone().to_vec().norm();
+        let w_prime: Array1<f64> =
+            coords_new.slice(s![p, ..]).to_owned() - coords_new.slice(s![o, ..]).to_owned();
+        let w_norm: f64 = w_prime.to_vec().norm();
+        let u: Array1<f64> = u_prime / u_norm;
+        let w: Array1<f64> = w_prime / w_norm;
+        let v: Array1<f64> = v_prime / v_norm;
+
+        let mut term_1: Array1<f64> = Array::zeros(3);
+        let mut term_2: Array1<f64> = Array::zeros(3);
+        let mut term_3: Array1<f64> = Array::zeros(3);
+        let mut term_4: Array1<f64> = Array::zeros(3);
+
+        if (1.0 - u.dot(&w).powi(2)) < 1e-6 {
+            term_1 = Array::from(u.to_vec().cross(&w.to_vec())) * 0.0;
+            term_3 = Array::from(u.to_vec().cross(&w.to_vec())) * 0.0;
+        } else {
+            term_1 =
+                Array::from(u.to_vec().cross(&w.to_vec())) / (u_norm * (1.0 - u.dot(&w).powi(2)));
+            term_3 = Array::from(u.to_vec().cross(&w.to_vec())) * u.dot(&w)
+                / (w_norm * (1.0 - u.dot(&w).powi(2)));
+        }
+        if (1.0 - v.dot(&w).powi(2)) < 1e-6 {
+            term_2 = Array::from(v.to_vec().cross(&w.to_vec())) * 0.0;
+            term_4 = Array::from(v.to_vec().cross(&w.to_vec())) * 0.0;
+        } else {
+            term_2 =
+                Array::from(v.to_vec().cross(&w.to_vec())) / (v_norm * (1.0 - v.dot(&w).powi(2)));
+            term_4 = Array::from(v.to_vec().cross(&w.to_vec())) * v.dot(&w)
+                / (w_norm * (1.0 - v.dot(&w).powi(2)));
+        }
+
+        derivatives.slice_mut(s![m, ..]).assign(&term_1);
+        derivatives.slice_mut(s![n, ..]).assign(&(-&term_2));
+        derivatives
+            .slice_mut(s![o, ..])
+            .assign(&(-&term_1 + &term_2 - &term_4));
+        derivatives
+            .slice_mut(s![p, ..])
+            .assign(&(&term_2 - &term_3 + &term_4));
+
+        return derivatives;
     }
 }
 #[derive(Clone, PartialEq)]
