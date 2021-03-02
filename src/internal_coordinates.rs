@@ -1151,9 +1151,16 @@ impl RotationA {
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
             let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
             let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
-            // vstacks left
 
-            deriv_raw = get_exmap_deriv_rot(&x_sel, &y_sel);
+            let mut x_sel_new:Array2<f64> = Array::zeros((self.nodes.len()+1, 3));
+            let mut y_sel_new:Array2<f64> = Array::zeros((self.nodes.len()+1, 3));
+            // vstacks
+            x_sel_new.slice_mut(s![0..self.nodes.len()-1,..]).assign(&x_sel);
+            y_sel_new.slice_mut(s![0..self.nodes.len()-1,..]).assign(&y_sel);
+            x_sel_new.slice_mut(s![self.nodes.len(),..]).assign(&(exdum+x_mean));
+            y_sel_new.slice_mut(s![self.nodes.len(),..]).assign(&(eydum+y_mean));
+
+            deriv_raw = get_exmap_deriv_rot(&x_sel_new, &y_sel_new);
 
             let draw_dim: usize = deriv_raw.clone().dim().0;
 
