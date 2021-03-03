@@ -452,14 +452,18 @@ pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates) -> A
     // Given Cartesian coordinates xyz, return the Wilson B-matrix
     // given by dq_i/dx_j where x is flattened (i.e. x1, y1, z1, x2, y2, z2)
     let derivatives: Vec<Array2<f64>> = get_derivatives(coords, internal_coords);
+    println!("derivatives");
+    for i in 0..derivatives.len(){
+        println!("{:?}",derivatives[i]);
+    }
     let mut wilson_b: Array2<f64> = Array::zeros((
         derivatives.len(),
-        derivatives[0].dim().0 + derivatives[0].dim().1,
+        derivatives[0].dim().0 * derivatives[0].dim().1,
     ));
     for i in 0..derivatives.len() {
         let deriv_1d: Array1<f64> = derivatives[i]
             .clone()
-            .into_shape((derivatives[i].dim().0 + derivatives[i].dim().1))
+            .into_shape((derivatives[i].dim().0 * derivatives[i].dim().1))
             .unwrap();
         wilson_b.slice_mut(s![i, ..]).assign(&deriv_1d);
     }
@@ -1855,6 +1859,38 @@ pub fn test_make_primitives(){
         Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
+
+    assert!(1==2);
+}
+
+#[test]
+pub fn test_build_gmatrix(){
+    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions.clone(), charge, multiplicity, None, None);
+
+    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
+
+    let coordinates_1d:Array1<f64> = positions.clone().into_shape(mol.n_atoms*3).unwrap();
+
+    let g_matrix:Array2<f64> = build_g_matrix(coordinates_1d,&internal_coordinates);
+
+    println!("Gmatrix");
+    for i in 0..g_matrix.dim().0{
+        println!("{:?}",g_matrix.slice(s![i,..]));
+    }
 
     assert!(1==2);
 }
