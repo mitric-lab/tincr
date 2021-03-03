@@ -177,6 +177,16 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                             let j = index[1];
                             let k = index[2];
 
+                            println!("Indices Angle 1:");
+                            print!("{:?}",b.index());
+                            print!("{:?}",i);
+                            println!("{:?}",j);
+
+                            println!("Indices Angle 2:");
+                            print!("{:?}",i);
+                            print!("{:?}",j);
+                            println!("{:?}",k);
+
                             let angl1: Angle = Angle::new(b.index(), i, j);
                             let angl2: Angle = Angle::new(i, j, k);
                             if angl1.value(&coordinate_vector).cos().abs() > linthre {
@@ -192,14 +202,10 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                                 .abs()
                                 > linthre
                             {
+                                let removed_angle:Angle = Angle::new(i, b.index(), j);
                                 // delete angle i,b,j
-                                // for i in (0..internal_coords.len()).rev() {
-                                //     if internal_coords[i] == IC::angle(Angle::new(i, b.index(), j)) {
-                                //         internal_coords.remove(i);
-                                //     }
-                                // }
                                 for i in (0..angles_vec.len()).rev() {
-                                    if angles_vec[i] == Angle::new(i, b.index(), j) {
+                                    if (angles_vec[i].at_a == removed_angle.at_a) && (angles_vec[i].at_b == removed_angle.at_b) && (angles_vec[i].at_c == removed_angle.at_c) {
                                         angles_vec.remove(i);
                                     }
                                 }
@@ -317,9 +323,18 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 b = c_new;
                 c = b_new;
             }
+            println!("Combinations");
+            print!("{}",b.index());
+            println!("{}",c.index());
             for a in mol.full_graph.neighbors(b) {
                 for d in mol.full_graph.neighbors(c) {
                     if aline.contains(&a) == false && aline.contains(&d) == false && a != d {
+
+                        println!("Indices Dihedral");
+                        print!("{}",a.index());
+                        print!("{}",b.index());
+                        print!("{}",c.index());
+                        println!("{}",d.index());
 
                         let angl1: Angle = Angle::new(a.index(), b.index(), c.index());
                         let angl2: Angle = Angle::new(b.index(), c.index(), d.index());
@@ -333,7 +348,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                         let dihedral: Dihedral =
                             Dihedral::new(a.index(), b.index(), c.index(), d.index());
                         //internal_coords.push(IC::dihedral(dihedral));
-                        dihedral_vec.push(dihedral);
+                        dihedral_vec.insert(0,dihedral);
                     }
                 }
             }
