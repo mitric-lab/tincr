@@ -139,7 +139,11 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 if a.index() < c.index() {
                     let angl: Angle = Angle::new(a.index(), b.index(), c.index());
                     // nnc part doesnt work
-
+                    println!("Angle for indices");
+                    print!("Index 1: {:?}",a);
+                    print!("  Index 2: {:?}",b);
+                    println!("  Index 3: {:?}",c);
+                    println!("value of angle: {:?}",angl.clone().value(&coordinate_vector));
                     if angl.clone().value(&coordinate_vector).cos().abs() < linthre {
                         //let angl_ic = IC::angle(angl);
                         //internal_coords.push(angl_ic);
@@ -155,46 +159,49 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
         for a in mol.full_graph.neighbors(b) {
             for c in mol.full_graph.neighbors(b) {
                 for d in mol.full_graph.neighbors(b) {
-                    // nc doesnt work
-                    let it = vec![a.index(), c.index(), d.index()]
-                        .into_iter()
-                        .permutations(3);
-                    for index in it.into_iter() {
-                        let i = index[0];
-                        let j = index[1];
-                        let k = index[2];
+                    if a.index() < c.index() && c.index() < d.index(){
+                        // nc doesnt work
+                        let it = vec![a.index(), c.index(), d.index()]
+                            .into_iter()
+                            .permutations(3);
+                        for index in it.into_iter() {
+                            let i = index[0];
+                            let j = index[1];
+                            let k = index[2];
 
-                        let angl1: Angle = Angle::new(b.index(), i, j);
-                        let angl2: Angle = Angle::new(i, j, k);
-                        if angl1.value(&coordinate_vector).cos().abs() > linthre {
-                            continue;
-                        }
-                        if angl2.value(&coordinate_vector).cos().abs() > linthre {
-                            continue;
-                        }
-                        // need normal_vector fn here
-                        if (angl1
-                            .normal_vector(&coordinate_vector)
-                            .dot(&angl2.normal_vector(&coordinate_vector)))
-                        .abs()
-                            > linthre
-                        {
-                            // delete angle i,b,j
-                            // for i in (0..internal_coords.len()).rev() {
-                            //     if internal_coords[i] == IC::angle(Angle::new(i, b.index(), j)) {
-                            //         internal_coords.remove(i);
-                            //     }
-                            // }
-                            for i in (0..angles_vec.len()).rev() {
-                                if angles_vec[i] == Angle::new(i, b.index(), j) {
-                                    angles_vec.remove(i);
-                                }
+                            let angl1: Angle = Angle::new(b.index(), i, j);
+                            let angl2: Angle = Angle::new(i, j, k);
+                            if angl1.value(&coordinate_vector).cos().abs() > linthre {
+                                continue;
                             }
-                            // out of plane bijk
-                            let out_of_pl1: Out_of_plane = Out_of_plane::new(b.index(), i, j, k);
-                            // let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
-                            // internal_coords.push(out_of_pl_ic);
-                            outofplane_vec.push(out_of_pl1);
+                            if angl2.value(&coordinate_vector).cos().abs() > linthre {
+                                continue;
+                            }
+                            // need normal_vector fn here
+                            if (angl1
+                                .normal_vector(&coordinate_vector)
+                                .dot(&angl2.normal_vector(&coordinate_vector)))
+                                .abs()
+                                > linthre
+                            {
+                                // delete angle i,b,j
+                                // for i in (0..internal_coords.len()).rev() {
+                                //     if internal_coords[i] == IC::angle(Angle::new(i, b.index(), j)) {
+                                //         internal_coords.remove(i);
+                                //     }
+                                // }
+                                for i in (0..angles_vec.len()).rev() {
+                                    if angles_vec[i] == Angle::new(i, b.index(), j) {
+                                        angles_vec.remove(i);
+                                    }
+                                }
+                                // out of plane bijk
+                                let out_of_pl1: Out_of_plane = Out_of_plane::new(b.index(), i, j, k);
+                                // let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
+                                // internal_coords.push(out_of_pl_ic);
+                                outofplane_vec.push(out_of_pl1);
+                                break;
+                            }
                         }
                     }
                 }
@@ -210,14 +217,15 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
         aline.push(ay);
         atom_lines.push(aline);
     }
+
     let mut aline_new: Vec<NodeIndex> = Vec::new();
-    let mut atom_lines_new: Vec<Vec<NodeIndex>> = Vec::new();
+    let mut atom_lines_new: Vec<Vec<NodeIndex>> = atom_lines;
+    let mut convergence_1: bool = false;
+    let mut convergence_2: bool = false;
 
     while true {
         atom_lines = atom_lines_new.clone();
         atom_lines_new = Vec::new();
-        let mut convergence_1: bool = false;
-        let mut convergence_2: bool = false;
 
         for aline in atom_lines {
             aline_new = aline.clone();
@@ -225,7 +233,8 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
             let ay: NodeIndex = *aline.last().unwrap();
 
             for aa in mol.full_graph.neighbors(ab) {
-                if aa != ab && aa != ay {
+                if aline_new.contains(&aa) == false {
+                //if aa != ab && aa != ay {
                     // If the angle that AA makes with AB and ALL other atoms AC in the line are linear:
                     // Add AA to the front of the list
                     let mut val_vector: Vec<f64> = Vec::new();
@@ -233,24 +242,29 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                         if *ac != ab {
                             let angl = Angle::new(aa.index(), ab.index(), ac.index());
                             let val: f64 = angl.value(&coordinate_vector).cos().abs();
-                            val_vector.insert(0, val);
+                            val_vector.push(val);
                         }
                     }
+
                     let indices_values: Array1<usize> = Array::from_vec(val_vector.clone())
                         .indexed_iter()
                         .filter_map(
                             |(index, &item)| if item > linthre { Some(index) } else { None },
                         )
                         .collect();
-                    if indices_values.len() == val_vector.len() {
-                        aline_new.push(aa);
+                    if indices_values.len() == val_vector.len() && val_vector.len() !=0 {
+                        aline_new.insert(0,aa);
                     } else {
                         convergence_1 = true;
                     }
                 }
+                else{
+                    convergence_1 = true;
+                }
             }
             for az in mol.full_graph.neighbors(ay) {
-                if az != ab && az != ay {
+                if aline_new.contains(&az) == false {
+                //if az != ab && az != ay {
                     let mut val_vector: Vec<f64> = Vec::new();
                     for ax in aline[1..].iter() {
                         if *ax != ay {
@@ -265,11 +279,14 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                             |(index, &item)| if item > linthre { Some(index) } else { None },
                         )
                         .collect();
-                    if indices_values.len() == val_vector.len() {
+                    if indices_values.len() == val_vector.len() && val_vector.len() !=0 {
                         aline_new.push(az);
                     } else {
                         convergence_2 = true;
                     }
+                }
+                else{
+                    convergence_2 = true;
                 }
             }
             atom_lines_new.push(aline_new.clone());
@@ -283,18 +300,19 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
     for aline in atom_lines_new {
         //Go over ALL pairs of atoms in a line
         for vec in aline.clone().into_iter().combinations(2) {
-            let b: NodeIndex = vec[0];
-            let c: NodeIndex = vec[1];
-            let mut b_new: NodeIndex = b;
-            let mut c_new: NodeIndex = c;
+            let b_new: NodeIndex = vec[0];
+            let c_new: NodeIndex = vec[1];
+            let mut b: NodeIndex = b_new;
+            let mut c: NodeIndex = c_new;
 
             if b.index() > c.index() {
-                b_new = c;
-                c_new = b;
+                b = c_new;
+                c = b_new;
             }
-            for a in mol.full_graph.neighbors(b_new) {
-                for d in mol.full_graph.neighbors(c_new) {
+            for a in mol.full_graph.neighbors(b) {
+                for d in mol.full_graph.neighbors(c) {
                     if aline.contains(&a) == false && aline.contains(&d) == false && a != d {
+
                         let angl1: Angle = Angle::new(a.index(), b.index(), c.index());
                         let angl2: Angle = Angle::new(b.index(), c.index(), d.index());
 
@@ -1188,9 +1206,14 @@ impl Angle {
         let vec_2: Vec<f64> = (coord_vector.slice(s![3 * c..3 * c + 3]).to_owned()
             - coord_vector.slice(s![3 * b..3 * b + 3]).to_owned())
         .to_vec();
+
         // norm of the vectors
-        let norm_1: f64 = vec_1.norm();
-        let norm_2: f64 = vec_2.norm();
+        // let norm_1: f64 = vec_1.norm();
+        // let norm_2: f64 = vec_2.norm();
+        let vec_1_new:Array1<f64> = Array::from(vec_1.clone());
+        let vec_2_new:Array1<f64> = Array::from(vec_2.clone());
+        let norm_1:f64 = (vec_1_new.mapv(|vec_1_new|vec_1_new.powi(2))).sum().sqrt();
+        let norm_2:f64 = (vec_2_new.mapv(|vec_2_new|vec_2_new.powi(2))).sum().sqrt();
         let dot: f64 = Array::from_vec(vec_1).dot(&Array::from_vec(vec_2));
         let factor: f64 = dot / (norm_1 * norm_2);
 
@@ -1811,4 +1834,27 @@ impl RotationC {
 
         return derivatives_new;
     }
+}
+
+#[test]
+pub fn test_make_primitives(){
+    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+
+    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
+
+    assert!(1==2);
 }
