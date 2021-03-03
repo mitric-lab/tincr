@@ -133,8 +133,11 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
 
     //angles
     let linthre: f64 = 0.95;
+    let mut index:usize = 0;
+    let mut index_inner:usize = 0;
+    let mut index_vec:Vec<Vec<NodeIndex>> = Vec::new();
     for b in mol.full_graph.node_indices() {
-        for a in mol.full_graph.neighbors(b) {
+        for a in mol.full_graph.neighbors(b){
             for c in mol.full_graph.neighbors(b) {
                 if a.index() < c.index() {
                     let angl: Angle = Angle::new(a.index(), b.index(), c.index());
@@ -147,13 +150,18 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                     if angl.clone().value(&coordinate_vector).cos().abs() < linthre {
                         //let angl_ic = IC::angle(angl);
                         //internal_coords.push(angl_ic);
-                        angles_vec.push(angl);
+                        angles_vec.insert(index,angl);
+                        index_inner +=1;
+                        index_vec.insert(index,vec![a,b,c]);
                     }
                     // cant check for nnc
                 }
             }
         }
+        index +=index_inner;
+        index_inner = 0;
     }
+    println!("Index vec {:?}",index_vec);
     //out of planes
     for b in mol.full_graph.node_indices() {
         for a in mol.full_graph.neighbors(b) {
