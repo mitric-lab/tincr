@@ -457,16 +457,37 @@ pub fn build_delocalized_internal_coordinates(
     // g matrix does not contain constraints
 
     let (l_vec,q_mat):(Array1<f64>,Array2<f64>) = g_matrix.eigh(UPLO::Upper).unwrap();
-    // Sort eigenvalues and eigenvectors in descending order (for cleanliness)
-    let dim_0: usize = q_mat.dim().0;
-    let dim_1: usize = q_mat.dim().1;
-    let mut l_vec_ordered:Array1<f64> = Array::zeros(dim_0);
-    let mut q_mat_ordered:Array2<f64> = Array::zeros((dim_0,dim_1));
 
-    for i in 0..dim_0{
-        l_vec_ordered[i] = l_vec[dim_0-1-i];
-        q_mat_ordered.slice_mut(s![..,i]).assign(&q_mat.slice(s![..,dim_1-1-i]));
+    let mut large_val:usize = 0;
+    let mut large_index_vec:Vec<usize> = Vec::new();
+    for (ival, value) in l_vec.iter().enumerate(){
+        if value.abs() > 1e-6{
+            large_val += 1;
+            large_index_vec.push(ival);
+        }
     }
+    println!("shape gmatrix {:?}",g_matrix.shape());
+    println!("shape qmat {:?}",q_mat.shape());
+
+    println!("vec indices over thresh {:?}",large_index_vec);
+
+    let mut qmat_final:Array2<f64> = Array::zeros((q_mat.dim().0,large_index_vec.len()));
+    for (index, val) in large_index_vec.iter().enumerate(){
+        qmat_final.slice_mut(s![..,index]).assign(&q_mat.slice(s![..,*val]));
+    }
+    println!("shape qmat_final: {:?}",qmat_final.shape());
+
+    // // Sort eigenvalues and eigenvectors in descending order (for cleanliness)
+    // let dim_0: usize = q_mat.dim().0;
+    // let dim_1: usize = q_mat.dim().1;
+    //
+    // let mut l_vec_ordered:Array1<f64> = Array::zeros(dim_0);
+    // let mut q_mat_ordered:Array2<f64> = Array::zeros((dim_0,dim_1));
+    //
+    // // for i in 0..dim_0{
+    //     l_vec_ordered[i] = l_vec[dim_0-1-i];
+    //     q_mat_ordered.slice_mut(s![..,i]).assign(&q_mat.slice(s![..,dim_1-1-i]));
+    // }
 
 }
 
@@ -1922,12 +1943,14 @@ pub fn test_build_gmatrix(){
 
     let coordinates_1d:Array1<f64> = positions.clone().into_shape(mol.n_atoms*3).unwrap();
 
-    let g_matrix:Array2<f64> = build_g_matrix(coordinates_1d,&internal_coordinates);
+    // let g_matrix:Array2<f64> = build_g_matrix(coordinates_1d.clone(),&internal_coordinates);
+    //
+    // println!("Gmatrix");
+    // for i in 0..g_matrix.dim().0{
+    //     println!("{:?}",g_matrix.slice(s![i,..]));
+    // }
 
-    println!("Gmatrix");
-    for i in 0..g_matrix.dim().0{
-        println!("{:?}",g_matrix.slice(s![i,..]));
-    }
+    build_delocalized_internal_coordinates(coordinates_1d,&internal_coordinates);
 
     assert!(1==2);
 }
