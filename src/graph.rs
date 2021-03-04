@@ -51,8 +51,11 @@ pub fn build_graph(
     let indexes: Vec<NodeIndex> = graph.node_indices().collect::<Vec<_>>();
     for (i, index) in connectivity_matrix.outer_iter().enumerate() {
         for (j, ind) in index.iter().enumerate() {
-            if connectivity_matrix[[i, j]] {
-                graph.add_edge(indexes[i], indexes[j], distance_matrix[[i, j]]);
+            if j < index.len()-i{
+                let j0:usize = j+i;
+                if connectivity_matrix[[i, j0]] {
+                    graph.add_edge(indexes[i], indexes[j0], distance_matrix[[i, j0]]);
+                }
             }
         }
     }
