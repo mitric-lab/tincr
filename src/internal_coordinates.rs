@@ -20,6 +20,7 @@ use petgraph::stable_graph::*;
 use std::cmp::Ordering;
 use std::f64::consts::PI;
 use std::ops::{AddAssign, Deref};
+use approx::AbsDiffEq;
 
 pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
@@ -83,7 +84,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 .into_shape((mol.n_atoms, 3))
                 .unwrap()
                 .slice(s![
-                    node_vec[0].index()..node_vec.last().unwrap().index(),
+                    node_vec[0].index()..node_vec.last().unwrap().index()+1,
                     ..
                 ])
                 .to_owned();
@@ -136,6 +137,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
     let mut index:usize = 0;
     let mut index_inner:usize = 0;
     let mut index_vec:Vec<Vec<NodeIndex>> = Vec::new();
+
     for b in mol.full_graph.node_indices() {
         for a in mol.full_graph.neighbors(b){
             for c in mol.full_graph.neighbors(b) {
@@ -204,9 +206,9 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                             {
                                 let removed_angle:Angle = Angle::new(i, b.index(), j);
                                 // delete angle i,b,j
-                                for i in (0..angles_vec.len()).rev() {
-                                    if (angles_vec[i].at_a == removed_angle.at_a) && (angles_vec[i].at_b == removed_angle.at_b) && (angles_vec[i].at_c == removed_angle.at_c) {
-                                        angles_vec.remove(i);
+                                for m in (0..angles_vec.len()).rev() {
+                                    if (angles_vec[m].at_a == removed_angle.at_a) && (angles_vec[m].at_b == removed_angle.at_b) && (angles_vec[m].at_c == removed_angle.at_c) {
+                                        angles_vec.remove(m);
                                     }
                                 }
                                 // out of plane bijk
@@ -310,6 +312,8 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
         }
     }
 
+    let mut index_vec:Vec<Vec<NodeIndex>> = Vec::new();
+
     // dihedrals
     for aline in atom_lines_new {
         //Go over ALL pairs of atoms in a line
@@ -349,11 +353,15 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                             Dihedral::new(a.index(), b.index(), c.index(), d.index());
                         //internal_coords.push(IC::dihedral(dihedral));
                         dihedral_vec.insert(0,dihedral);
+                        index_vec.insert(0,vec![a,b,c,d]);
                     }
                 }
             }
         }
     }
+
+    println!("Indices Dihedrals");
+    println!("{:?}",index_vec);
     // reorder internal coordinates
     // One is unable to iterate over enum
     // thus, separate vectors are needed for
@@ -527,26 +535,32 @@ pub fn get_derivatives(
         derivatives.push(deriv);
     }
     for i in &internal_coords.translation_x {
+        println!("Test TransX");
         let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
     for i in &internal_coords.translation_y {
+        println!("Test TransY");
         let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
     for i in &internal_coords.translation_z {
+        println!("Test TransZ");
         let deriv: Array2<f64> = i.clone().derivatives(coords.clone());
         derivatives.push(deriv);
     }
     for i in &internal_coords.rotation_a {
+        println!("Test RotA");
         let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
     for i in &internal_coords.rotation_b {
+        println!("Test RotA");
         let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
     for i in &internal_coords.rotation_c {
+        println!("Test RotA");
         let deriv: Array2<f64> = i.derivatives(coords.clone());
         derivatives.push(deriv);
     }
@@ -1189,7 +1203,7 @@ impl Out_of_plane {
         derivatives.slice_mut(s![n, ..]).assign(&(-&term_2));
         derivatives
             .slice_mut(s![o, ..])
-            .assign(&(-&term_1 + &term_2 - &term_4));
+            .assign(&(-&term_1 + &term_3 - &term_4));
         derivatives
             .slice_mut(s![p, ..])
             .assign(&(&term_2 - &term_3 + &term_4));
@@ -1408,7 +1422,7 @@ impl Dihedral {
         derivatives.slice_mut(s![n, ..]).assign(&(-&term_2));
         derivatives
             .slice_mut(s![o, ..])
-            .assign(&(-&term_1 + &term_2 - &term_4));
+            .assign(&(-&term_1 + &term_3 - &term_4));
         derivatives
             .slice_mut(s![p, ..])
             .assign(&(&term_2 - &term_3 + &term_4));
@@ -1898,7 +1912,7 @@ pub fn test_build_gmatrix(){
         [1.2809200000, 0.9785000000, 0.0000000000]
     ];
     // transform coordinates in au
-    positions = positions / 0.529177249;
+    positions = positions * 1.8897261278504418;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let mut mol: Molecule =
