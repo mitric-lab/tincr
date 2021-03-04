@@ -509,15 +509,15 @@ pub fn calculate_internal_coordinate_gradient(
     gradient: Array1<f64>,
     internal_coord_vector: Array1<f64>,
     internal_coords: &InternalCoordinates,
-) ->Array1<f64>{
-    let g_inv:Array2<f64> = inverse_g_matrix(coords.clone(),internal_coords);
-    let b_mat:Array2<f64> = wilsonB(&coords,internal_coords);
-    let gq:Array1<f64> = g_inv.dot(&b_mat.dot(&gradient.t()));
+) -> Array1<f64> {
+    let g_inv: Array2<f64> = inverse_g_matrix(coords.clone(), internal_coords);
+    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords);
+    let gq: Array1<f64> = g_inv.dot(&b_mat.dot(&gradient.t()));
 
     return gq;
 }
 
-pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates)->Array2<f64> {
+pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
     let n_at: usize = coords.len() / 3;
     let coords_2d: Array2<f64> = coords.clone().into_shape((n_at, 3)).unwrap();
 
@@ -528,17 +528,17 @@ pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinat
     let s: Array1<f64> = s;
     let v: Array2<f64> = vh.unwrap().reversed_axes();
 
-    let mut large_vals:usize = 0;
-    let mut s_inv:Array1<f64> = Array::zeros((s.dim()));
+    let mut large_vals: usize = 0;
+    let mut s_inv: Array1<f64> = Array::zeros((s.dim()));
 
-    for (ival, value) in s.iter().enumerate(){
-        if value.abs() > 1.0e-6{
+    for (ival, value) in s.iter().enumerate() {
+        if value.abs() > 1.0e-6 {
             large_vals += 1;
-            s_inv[ival] = 1.0/value;
+            s_inv[ival] = 1.0 / value;
         }
     }
-    let s_inv_2d:Array2<f64> = Array::from_diag(&s_inv);
-    let inv:Array2<f64> = v.dot(&s_inv_2d.dot(&ut));
+    let s_inv_2d: Array2<f64> = Array::from_diag(&s_inv);
+    let inv: Array2<f64> = v.dot(&s_inv_2d.dot(&ut));
 
     return inv;
 }
@@ -2298,8 +2298,6 @@ pub fn test_make_primitives() {
         Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
-
-    assert!(1 == 2);
 }
 
 #[test]
@@ -2341,9 +2339,97 @@ pub fn test_build_gmatrix() {
         build_delocalized_internal_coordinates(coordinates_1d.clone(), &internal_coordinates);
 
     let q_internal: Array1<f64> =
-        calculate_internal_coordinates(coordinates_1d, &internal_coordinates, &q_mat);
+        calculate_internal_coordinate_vector(coordinates_1d, &internal_coordinates, &q_mat);
 
     println!("q_internal: {:?}", q_internal);
 
+    assert!(1 == 2);
+}
+
+#[test]
+pub fn test_internal_coordinate_gradient() {
+    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
+    // transform coordinates in au
+    positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let input_gradient: Array1<f64> = array![
+        -0.2053378, 0., -0., 0.2053378, -0., 0., -0.0037439, 0.025855, -0., -0.0037439, -0.025855,
+        0., 0.0037439, -0.025855, -0., 0.0037439, 0.025855, -0.
+    ];
+
+    let gradient_ref: Array1<f64> = array![
+        -3.30076111e-17,
+        -2.54335801e-16,
+        -7.42617391e-17,
+        1.97525723e-16,
+        -1.74612938e-16,
+        5.72171395e-02,
+        3.22493572e-16,
+        -1.27575900e-01,
+        5.11402705e-17,
+        -5.32899069e-17,
+        9.69124822e-02,
+        -4.12639859e-19,
+        -6.56895453e-17,
+        1.15575994e-17,
+        2.50169279e-17,
+        7.29185310e-02,
+        -1.18933990e-01,
+        -1.17062344e-17
+    ];
+
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
+
+    let q_internal_ref: Array1<f64> = array![
+        8.88178420e-16,
+        4.09397937e-16,
+        5.29106653e-16,
+        -8.79253055e-16,
+        -1.26513229e-15,
+        -2.55154855e+00,
+        -8.99118363e-18,
+        -3.58738579e+00,
+        1.32047184e-16,
+        3.10862447e-15,
+        4.67979294e+00,
+        3.14159265e+00,
+        -1.77635684e-15,
+        2.26651913e-16,
+        4.44089210e-16,
+        1.51891374e+00,
+        -1.68037480e-01,
+        -3.32286896e-16
+    ];
+
+    //let q_internal: Array1<f64> =
+    //    calculate_internal_coordinates(coordinates_1d.clone(), &internal_coordinates, &q_mat);
+
+    let inter_coord_gradient: Array1<f64> = calculate_internal_coordinate_gradient(
+        coordinates_1d,
+        input_gradient,
+        q_internal_ref,
+        &internal_coordinates,
+    );
+
+    println!("gradient {:?}",inter_coord_gradient);
     assert!(1 == 2);
 }
