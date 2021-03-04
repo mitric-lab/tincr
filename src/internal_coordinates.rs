@@ -504,13 +504,52 @@ pub fn calculate_primitive_values(
     return return_val;
 }
 
-pub fn calculate_internal_coordinates(
+pub fn calculate_internal_coordinate_gradient(
+    coords: Array1<f64>,
+    gradient: Array1<f64>,
+    internal_coord_vector: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+) ->Array1<f64>{
+    let g_inv:Array2<f64> = inverse_g_matrix(coords.clone(),internal_coords);
+    let b_mat:Array2<f64> = wilsonB(&coords,internal_coords);
+    let gq:Array1<f64> = g_inv.dot(&b_mat.dot(&gradient.t()));
+
+    return gq;
+}
+
+pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates)->Array2<f64> {
+    let n_at: usize = coords.len() / 3;
+    let coords_2d: Array2<f64> = coords.clone().into_shape((n_at, 3)).unwrap();
+
+    let g_matrix: Array2<f64> = build_g_matrix(coords, internal_coords);
+
+    let (u, s, vh) = g_matrix.svd(true, true).unwrap();
+    let ut: Array2<f64> = u.unwrap().reversed_axes();
+    let s: Array1<f64> = s;
+    let v: Array2<f64> = vh.unwrap().reversed_axes();
+
+    let mut large_vals:usize = 0;
+    let mut s_inv:Array1<f64> = Array::zeros((s.dim()));
+
+    for (ival, value) in s.iter().enumerate(){
+        if value.abs() > 1.0e-6{
+            large_vals += 1;
+            s_inv[ival] = 1.0/value;
+        }
+    }
+    let s_inv_2d:Array2<f64> = Array::from_diag(&s_inv);
+    let inv:Array2<f64> = v.dot(&s_inv_2d.dot(&ut));
+
+    return inv;
+}
+
+pub fn calculate_internal_coordinate_vector(
     coords: Array1<f64>,
     internal_coords: &InternalCoordinates,
     dlc_mat: &Array2<f64>,
 ) -> Array1<f64> {
     let prim_values: Array1<f64> = calculate_primitive_values(coords, internal_coords);
-    println!("primitive values {:?}",prim_values);
+    println!("primitive values {:?}", prim_values);
     let dlc: Array1<f64> = dlc_mat.t().dot(&prim_values);
 
     return dlc;
@@ -523,16 +562,7 @@ pub fn build_delocalized_internal_coordinates(
     // Build the delocalized internal coordinates (DLCs) which are linear
     // combinations of the primitive internal coordinates
 
-    // Constrained primitive ICs (PICs) are
-    // first set aside from the rest of the PICs. Next, a G-matrix is constructed
-    // from the rest of the PICs and diagonalized to form DLCs, called "residual" DLCs.
-    // The union of the cPICs and rDLCs forms a generalized set of DLCs, but the
-    // cPICs are not orthogonal to each other or to the rDLCs.
-    //let nprims: usize = primitives.len();
     let g_matrix: Array2<f64> = build_g_matrix(coords, primitives);
-
-    //  Form a sub-G-matrix that doesn't include the constrained primitives and diagonalize it to form DLCs.
-    // g matrix does not contain constraints
 
     let (l_vec, q_mat): (Array1<f64>, Array2<f64>) = g_matrix.eigh(UPLO::Upper).unwrap();
 
@@ -551,18 +581,6 @@ pub fn build_delocalized_internal_coordinates(
             .assign(&q_mat.slice(s![.., *val]));
     }
     println!("shape qmat_final: {:?}", qmat_final.shape());
-
-    // // Sort eigenvalues and eigenvectors in descending order (for cleanliness)
-    // let dim_0: usize = q_mat.dim().0;
-    // let dim_1: usize = q_mat.dim().1;
-    //
-    // let mut l_vec_ordered:Array1<f64> = Array::zeros(dim_0);
-    // let mut q_mat_ordered:Array2<f64> = Array::zeros((dim_0,dim_1));
-    //
-    // // for i in 0..dim_0{
-    //     l_vec_ordered[i] = l_vec[dim_0-1-i];
-    //     q_mat_ordered.slice_mut(s![..,i]).assign(&q_mat.slice(s![..,dim_1-1-i]));
-    // }
 
     return qmat_final;
 }
@@ -2322,9 +2340,10 @@ pub fn test_build_gmatrix() {
     let q_mat: Array2<f64> =
         build_delocalized_internal_coordinates(coordinates_1d.clone(), &internal_coordinates);
 
-    let q_internal:Array1<f64> =calculate_internal_coordinates(coordinates_1d, &internal_coordinates, &q_mat);
+    let q_internal: Array1<f64> =
+        calculate_internal_coordinates(coordinates_1d, &internal_coordinates, &q_mat);
 
-    println!("q_internal: {:?}",q_internal);
+    println!("q_internal: {:?}", q_internal);
 
     assert!(1 == 2);
 }
