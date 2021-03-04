@@ -511,6 +511,7 @@ pub fn calculate_internal_coordinate_gradient(
     internal_coords: &InternalCoordinates,
 ) -> Array1<f64> {
     let g_inv: Array2<f64> = inverse_g_matrix(coords.clone(), internal_coords);
+    //println!("Ginv {}",g_inv);
     let b_mat: Array2<f64> = wilsonB(&coords, internal_coords);
     let gq: Array1<f64> = g_inv.dot(&b_mat.dot(&gradient.t()));
 
@@ -526,6 +527,8 @@ pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinat
     let (u, s, vh) = g_matrix.svd(true, true).unwrap();
     let ut: Array2<f64> = u.unwrap().reversed_axes();
     let s: Array1<f64> = s;
+    // s is okay
+    println!("Smatrix from svd {}",s);
     let v: Array2<f64> = vh.unwrap().reversed_axes();
 
     let mut large_vals: usize = 0;
@@ -537,6 +540,9 @@ pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinat
             s_inv[ival] = 1.0 / value;
         }
     }
+    println!("Inverse s matrix from svd {}",s_inv);
+    println!("V matrix from svd {}",v.t());
+    println!("ut matrix from svd {}",ut.t());
     let s_inv_2d: Array2<f64> = Array::from_diag(&s_inv);
     let inv: Array2<f64> = v.dot(&s_inv_2d.dot(&ut));
 
@@ -549,7 +555,6 @@ pub fn calculate_internal_coordinate_vector(
     dlc_mat: &Array2<f64>,
 ) -> Array1<f64> {
     let prim_values: Array1<f64> = calculate_primitive_values(coords, internal_coords);
-    println!("primitive values {:?}", prim_values);
     let dlc: Array1<f64> = dlc_mat.t().dot(&prim_values);
 
     return dlc;
@@ -598,10 +603,10 @@ pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates) -> A
     // Given Cartesian coordinates xyz, return the Wilson B-matrix
     // given by dq_i/dx_j where x is flattened (i.e. x1, y1, z1, x2, y2, z2)
     let derivatives: Vec<Array2<f64>> = get_derivatives(coords, internal_coords);
-    println!("derivatives");
-    for i in 0..derivatives.len() {
-        println!("{:?}", derivatives[i]);
-    }
+    // println!("derivatives");
+    // for i in 0..derivatives.len() {
+    //     println!("{:?}", derivatives[i]);
+    // }
     let mut wilson_b: Array2<f64> = Array::zeros((
         derivatives.len(),
         derivatives[0].dim().0 * derivatives[0].dim().1,
@@ -2430,6 +2435,6 @@ pub fn test_internal_coordinate_gradient() {
         &internal_coordinates,
     );
 
-    println!("gradient {:?}",inter_coord_gradient);
+    //println!("gradient {:?}",inter_coord_gradient);
     assert!(1 == 2);
 }
