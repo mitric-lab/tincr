@@ -957,15 +957,19 @@ pub fn cartesian_from_step(
     dy: Array1<f64>,
     internal_coords: &InternalCoordinates,
     dlc_mat: Array2<f64>,
-) {
+) -> Array1<f64> {
     let mut microiter: usize = 0;
-    let ndqs: Vec<f64> = Vec::new();
-    let rmsds: Vec<f64> = Vec::new();
-    let damp: f64 = 1.0;
+    let mut ndqs: Vec<f64> = Vec::new();
+    let mut rmsds: Vec<f64> = Vec::new();
+    let mut damp: f64 = 1.0;
     let mut fail_counter: usize = 0;
 
     let mut dq: Array1<f64> = dy;
     let mut xyz: Array1<f64> = cart_coords.clone();
+    let mut ndqt: f64 = 0.0;
+    let mut rmsdt: f64 = 0.0;
+    let mut xyz_iter1: Array1<f64> = Array::zeros((cart_coords.clone().len()));
+    let mut xyz_save: Array1<f64> = Array::zeros((cart_coords.clone().len()));
 
     while true {
         microiter += 1;
@@ -976,72 +980,128 @@ pub fn cartesian_from_step(
         let dxyz: Array1<f64> = damp * b_mat.t().dot(&g_inv.dot(&dq.t()));
         let xyz_2: Array1<f64> = xyz.clone() + dxyz;
 
-        let dq_actual:Array1<f64> = get_calc_diff(xyz_2.clone(),xyz.clone(),internal_coords,dlc_mat.clone());
-        let rmsd:f64 = (xyz_2 - xyz).mapv(|val|val.powi(2)).mean().unwrap().sqrt();
-        let ndq:f64 = (&dq - &dq_actual).to_vec().norm();
-    }
-}
+        if microiter == 1 {
+            xyz_iter1 = xyz_2.clone();
+        }
 
-pub fn get_calc_diff(coord_1:Array1<f64>,coord_2:Array1<f64>,internal_coords: &InternalCoordinates,dlc_mat:Array2<f64>)->Array1<f64>{
-    let mut calc_diffs: Vec<f64> = Vec::new();
-    for i in &internal_coords.distance {
-        let p_val: f64 = i.calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
+        // Calculate the actual change in internal coordinates
+        let dq_actual: Array1<f64> =
+            get_calc_diff(xyz_2.clone(), xyz.clone(), internal_coords, dlc_mat.clone());
+        let rmsd: f64 = (&xyz_2 - &xyz)
+            .mapv(|val| val.powi(2))
+            .mean()
+            .unwrap()
+            .sqrt();
+        let ndq: f64 = (&dq - &dq_actual).to_vec().norm();
+
+        if ndqs.len() > 0 {
+            if ndq > ndqt {
+                damp = damp / 2.0;
+                fail_counter += 1;
+            } else {
+                fail_counter = 0;
+                damp = 1.0_f64.min(damp * 1.2);
+                rmsdt = rmsd;
+                ndqt = ndq;
+                xyz_save = xyz_2.clone();
+            }
+        } else {
+            rmsdt = rmsd;
+            ndqt = ndq;
+        }
+        ndqs.push(ndq);
+        rmsds.push(rmsd);
+
+        // Check convergence / fail criteria
+        if rmsd < 1.0e-6 || ndq < 1.0e-6 {
+            break;
+        }
+        if fail_counter >= 5 {
+            break;
+        }
+        if microiter == 50 {
+            break;
+        }
+        dq = dq - dq_actual;
+        xyz = xyz_2;
     }
-    for i in &internal_coords.angle {
-        let p_val: f64 = i.calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
+    let mut return_val: Array1<f64> = Array::zeros((cart_coords.clone().len()));
+    if ndqt > 1e-1 {
+        // bork = true
+        return_val = xyz_iter1;
+        println!("Failed to obtain cartesians");
+    } else if ndqt > 1e-3 {
+        println!("Obtained approximate Cartesians");
     }
-    for i in &internal_coords.out_of_plane {
-        let p_val: f64 = i.calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.dihedral {
-        let p_val: f64 = i.calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.cartesian_x {
-        let p_val: f64 = i.clone().calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.cartesian_y {
-        let p_val: f64 = i.clone().calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.cartesian_z {
-        let p_val: f64 = i.clone().calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.translation_x {
-        let p_val: f64 = i.clone().calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.translation_y {
-        let p_val: f64 = i.clone().calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.translation_z {
-        let p_val: f64 = i.clone().calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.rotation_a {
-        let p_val: f64 = i.calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.rotation_b {
-        let p_val: f64 = i.calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    for i in &internal_coords.rotation_c {
-        let p_val: f64 = i.calc_diff(coord_1.clone(),coord_2.clone());
-        calc_diffs.push(p_val);
-    }
-    let pm_diff: Array1<f64> = Array::from(calc_diffs);
-    let return_val:Array1<f64> = dlc_mat.dot(&pm_diff);
+    return_val = xyz_save;
 
     return return_val;
 }
 
+pub fn get_calc_diff(
+    coord_1: Array1<f64>,
+    coord_2: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) -> Array1<f64> {
+    let mut calc_diffs: Vec<f64> = Vec::new();
+    for i in &internal_coords.distance {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.angle {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.out_of_plane {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.dihedral {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.cartesian_x {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.cartesian_y {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.cartesian_z {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.translation_x {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.translation_y {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.translation_z {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.rotation_a {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.rotation_b {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.rotation_c {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    let pm_diff: Array1<f64> = Array::from(calc_diffs);
+    let return_val: Array1<f64> = dlc_mat.dot(&pm_diff);
+
+    return return_val;
+}
 
 #[derive(Clone, PartialEq)]
 pub struct InternalCoordinates {
@@ -1818,7 +1878,7 @@ impl RotationA {
         return rotation;
     }
 
-    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>)->f64 {
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
         let vec_1: Array1<f64> = self.value_vec(coords_1);
         let vec_2: Array1<f64> = self.value_vec(coords_2);
         let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
@@ -2090,7 +2150,7 @@ impl RotationB {
         return rotation;
     }
 
-    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>)->f64 {
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
         let vec_1: Array1<f64> = self.value_vec(coords_1);
         let vec_2: Array1<f64> = self.value_vec(coords_2);
         let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
@@ -2361,7 +2421,7 @@ impl RotationC {
         return rotation;
     }
 
-    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>)->f64 {
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
         let vec_1: Array1<f64> = self.value_vec(coords_1);
         let vec_2: Array1<f64> = self.value_vec(coords_2);
         let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
