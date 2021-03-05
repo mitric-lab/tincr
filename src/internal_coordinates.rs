@@ -952,22 +952,29 @@ pub fn dn_cross(vec_1: &Vec<f64>, vec_2: &Vec<f64>) -> Array1<f64> {
     return result;
 }
 
-pub fn cartesian_from_step(cart_coords:Array1<f64>,dy:Array1<f64>,internal_coords:&InternalCoordinates,dlc_mat:Array2<f64>){
-    let mut microiter:usize = 0;
-    let ndqs:Vec<f64> = Vec::new();
-    let rmsds:Vec<f64> = Vec::new();
-    let damp:f64 = 1.0;
-    let mut fail_counter:usize = 0;
+pub fn cartesian_from_step(
+    cart_coords: Array1<f64>,
+    dy: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) {
+    let mut microiter: usize = 0;
+    let ndqs: Vec<f64> = Vec::new();
+    let rmsds: Vec<f64> = Vec::new();
+    let damp: f64 = 1.0;
+    let mut fail_counter: usize = 0;
 
-    let mut dq:Array1<f64> = dy;
-    let mut xyz:Array1<f64> = cart_coords.clone();
+    let mut dq: Array1<f64> = dy;
+    let mut xyz: Array1<f64> = cart_coords.clone();
 
-    while true{
+    while true {
         microiter += 1;
-        let b_mat:Array2<f64> = wilsonB(&cart_coords,internal_coords,true,Some(dlc_mat.clone()));
-        let g_inv:Array2<f64> = inverse_g_matrix(cart_coords.clone(),internal_coords,dlc_mat.clone());
-        let dxyz:Array1<f64> = damp * b_mat.t().dot(&g_inv.dot(&dq.t()));
-        let xyz_2:Array1<f64> = xyz.clone() + dxyz;
+        let b_mat: Array2<f64> =
+            wilsonB(&cart_coords, internal_coords, true, Some(dlc_mat.clone()));
+        let g_inv: Array2<f64> =
+            inverse_g_matrix(cart_coords.clone(), internal_coords, dlc_mat.clone());
+        let dxyz: Array1<f64> = damp * b_mat.t().dot(&g_inv.dot(&dq.t()));
+        let xyz_2: Array1<f64> = xyz.clone() + dxyz;
 
         // let dq_actual:Array1<f64> = calc diff between xyz_2 and xyz
         // calcDiff is needed for every internal coordinate
@@ -1044,8 +1051,8 @@ impl CartesianX {
         return cart;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
         return diff;
     }
 
@@ -1082,8 +1089,8 @@ impl CartesianY {
         return cart;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
         return diff;
     }
 
@@ -1121,8 +1128,8 @@ impl CartesianZ {
         return cart;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
         return diff;
     }
 
@@ -1160,8 +1167,8 @@ impl TranslationX {
         return trans;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
         return diff;
     }
 
@@ -1205,8 +1212,8 @@ impl TranslationY {
         return trans;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
         return diff;
     }
 
@@ -1251,8 +1258,8 @@ impl TranslationZ {
         return trans;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
         return diff;
     }
 
@@ -1298,8 +1305,8 @@ impl Distance {
         return dist;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
         return diff;
     }
 
@@ -1356,16 +1363,16 @@ impl Out_of_plane {
         return out_of_plane;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let mut diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let mut diff: f64 = self.value(coords_1) - self.value(coords_2);
 
-        let plus_2_pi:f64 = diff + 2.0_f64 * PI;
-        let minus_2_pi:f64 = diff - 2.0_f64 * PI;
+        let plus_2_pi: f64 = diff + 2.0_f64 * PI;
+        let minus_2_pi: f64 = diff - 2.0_f64 * PI;
 
-        if diff.abs() > plus_2_pi.abs(){
+        if diff.abs() > plus_2_pi.abs() {
             diff = plus_2_pi;
         }
-        if diff.abs() > minus_2_pi.abs(){
+        if diff.abs() > minus_2_pi.abs() {
             diff = minus_2_pi;
         }
         return diff;
@@ -1483,8 +1490,8 @@ impl Angle {
         return angle;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let diff:f64 = self.value(&coords_1) - self.value(&coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(&coords_1) - self.value(&coords_2);
         return diff;
     }
 
@@ -1625,16 +1632,16 @@ impl Dihedral {
         return dihedral;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
-        let mut diff:f64 = self.value(coords_1) - self.value(coords_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let mut diff: f64 = self.value(coords_1) - self.value(coords_2);
 
-        let plus_2_pi:f64 = diff + 2.0_f64 * PI;
-        let minus_2_pi:f64 = diff - 2.0_f64 * PI;
+        let plus_2_pi: f64 = diff + 2.0_f64 * PI;
+        let minus_2_pi: f64 = diff - 2.0_f64 * PI;
 
-        if diff.abs() > plus_2_pi.abs(){
+        if diff.abs() > plus_2_pi.abs() {
             diff = plus_2_pi;
         }
-        if diff.abs() > minus_2_pi.abs(){
+        if diff.abs() > minus_2_pi.abs() {
             diff = minus_2_pi;
         }
         return diff;
@@ -1751,12 +1758,12 @@ impl RotationA {
         return rotation;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>){
-        let vec_1:Array1<f64> = self.value_vec(coords_1);
-        let vec_2:Array1<f64> = self.value_vec(coords_2);
-        let vec_diff:Array1<f64> = calc_rot_vec_diff(vec_1,vec_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) {
+        let vec_1: Array1<f64> = self.value_vec(coords_1);
+        let vec_2: Array1<f64> = self.value_vec(coords_2);
+        let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
 
-        let return_val:f64 = vec_diff[0] * self.w_val;
+        let return_val: f64 = vec_diff[0] * self.w_val;
     }
 
     pub fn value(&self, coords: Array1<f64>) -> f64 {
@@ -2022,12 +2029,12 @@ impl RotationB {
         return rotation;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>){
-        let vec_1:Array1<f64> = self.value_vec(coords_1);
-        let vec_2:Array1<f64> = self.value_vec(coords_2);
-        let vec_diff:Array1<f64> = calc_rot_vec_diff(vec_1,vec_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) {
+        let vec_1: Array1<f64> = self.value_vec(coords_1);
+        let vec_2: Array1<f64> = self.value_vec(coords_2);
+        let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
 
-        let return_val:f64 = vec_diff[1] * self.w_val;
+        let return_val: f64 = vec_diff[1] * self.w_val;
     }
 
     pub fn value(&self, coords: Array1<f64>) -> f64 {
@@ -2292,12 +2299,12 @@ impl RotationC {
         return rotation;
     }
 
-    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>){
-        let vec_1:Array1<f64> = self.value_vec(coords_1);
-        let vec_2:Array1<f64> = self.value_vec(coords_2);
-        let vec_diff:Array1<f64> = calc_rot_vec_diff(vec_1,vec_2);
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) {
+        let vec_1: Array1<f64> = self.value_vec(coords_1);
+        let vec_2: Array1<f64> = self.value_vec(coords_2);
+        let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
 
-        let return_val:f64 = vec_diff[2] * self.w_val;
+        let return_val: f64 = vec_diff[2] * self.w_val;
     }
 
     pub fn value(&self, coords: Array1<f64>) -> f64 {
@@ -2542,58 +2549,56 @@ impl RotationC {
     }
 }
 
-pub fn calc_rot_vec_diff(vec_1:Array1<f64>,vec_2:Array1<f64>)->Array1<f64>{
+pub fn calc_rot_vec_diff(vec_1: Array1<f64>, vec_2: Array1<f64>) -> Array1<f64> {
     // Calculate the difference in two provided rotation vectors v1_in - v2_in
-    let v1:Vec<f64> = vec_1.to_vec();
-    let v2:Vec<f64> = vec_2.to_vec();
-    let length:usize = vec_1.len();
+    let v1: Vec<f64> = vec_1.to_vec();
+    let v2: Vec<f64> = vec_2.to_vec();
+    let length: usize = vec_1.len();
 
-    let mut return_val:Array1<f64> = Array::zeros(length);
+    let mut return_val: Array1<f64> = Array::zeros(length);
 
-    if v1.norm() < 1e-6 && v2.norm() < 1e-6{
+    if v1.norm() < 1e-6 && v2.norm() < 1e-6 {
         return_val = &vec_1 - &vec_2;
     }
-    let mut va:Array1<f64> = Array::zeros(length);
-    let mut vb:Array1<f64> = Array::zeros(length);
-    let mut va_is_v1:bool = false;
+    let mut va: Array1<f64> = Array::zeros(length);
+    let mut vb: Array1<f64> = Array::zeros(length);
+    let mut va_is_v1: bool = false;
 
-    if vec_1.dot(&vec_1) > vec_2.dot(&vec_2){
+    if vec_1.dot(&vec_1) > vec_2.dot(&vec_2) {
         va = vec_1;
         vb = vec_2;
         va_is_v1 = true;
-    }
-    else{
+    } else {
         va = vec_2;
         vb = vec_1;
     }
-    let vh:Array1<f64> = va.clone() / va.clone().to_vec().norm();
-    let mut revcount:usize = 0;
+    let vh: Array1<f64> = va.clone() / va.clone().to_vec().norm();
+    let mut revcount: usize = 0;
 
-    while true{
-        let vd:f64 = (&va-&vb).dot(&(&va-&vb));
+    while true {
+        let vd: f64 = (&va - &vb).dot(&(&va - &vb));
         va = va + 2.0_f64 * PI * vh.clone();
         revcount += 1;
-        if (&va-&vb).dot(&(&va-&vb)) > vd{
+        if (&va - &vb).dot(&(&va - &vb)) > vd {
             va = va - 2.0_f64 * PI * vh.clone();
             revcount -= 1;
             break;
         }
     }
-    while true{
-        let vd:f64 = (&va-&vb).dot(&(&va-&vb));
+    while true {
+        let vd: f64 = (&va - &vb).dot(&(&va - &vb));
         va = va - 2.0_f64 * PI * vh.clone();
         revcount -= 1;
-        if (&va-&vb).dot(&(&va-&vb)) > vd{
+        if (&va - &vb).dot(&(&va - &vb)) > vd {
             va = va + 2.0_f64 * PI * vh.clone();
             revcount += 1;
             break;
         }
     }
-    let mut return_val:Array1<f64> = Array::zeros(length);
-    if va_is_v1{
+    let mut return_val: Array1<f64> = Array::zeros(length);
+    if va_is_v1 {
         return_val = &va - &vb;
-    }
-    else{
+    } else {
         return_val = &vb - &va;
     }
     return return_val;
