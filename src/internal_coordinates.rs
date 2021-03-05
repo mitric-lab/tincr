@@ -39,7 +39,6 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
     // then angles
     // then out of plane
     // then dihedrals
-    let mut internal_coords: Vec<IC> = Vec::new();
     let mut distances_vec: Vec<Distance> = Vec::new();
     let mut angles_vec: Vec<Angle> = Vec::new();
     let mut outofplane_vec: Vec<Out_of_plane> = Vec::new();
@@ -72,9 +71,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 node_vec.clone(),
                 Array::ones(node_vec.len()) / (node_vec.len() as f64),
             );
-            // internal_coords.push(IC::translation_x(trans_x));
-            // internal_coords.push(IC::translation_y(trans_y));
-            // internal_coords.push(IC::translation_z(trans_z));
+
             translation_x_vec.push(trans_x);
             translation_y_vec.push(trans_y);
             translation_z_vec.push(trans_z);
@@ -100,9 +97,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
             let rot_a: RotationA = RotationA::new(node_vec.clone(), coordinate_vector.clone(), rg);
             let rot_b: RotationB = RotationB::new(node_vec.clone(), coordinate_vector.clone(), rg);
             let rot_c: RotationC = RotationC::new(node_vec.clone(), coordinate_vector.clone(), rg);
-            // internal_coords.push(IC::rotation_a(rot_a));
-            // internal_coords.push(IC::rotation_b(rot_b));
-            // internal_coords.push(IC::rotation_c(rot_c));
+
             rotation_a_Vec.push(rot_a);
             rotation_b_Vec.push(rot_b);
             rotation_c_Vec.push(rot_c);
@@ -112,9 +107,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 let cart_x: CartesianX = CartesianX::new(j.index(), 1.0);
                 let cart_y: CartesianY = CartesianY::new(j.index(), 1.0);
                 let cart_z: CartesianZ = CartesianZ::new(j.index(), 1.0);
-                // internal_coords.push(IC::cartesian_x(cart_x));
-                // internal_coords.push(IC::cartesian_y(cart_y));
-                // internal_coords.push(IC::cartesian_z(cart_z));
+
                 cartesian_x_vec.push(cart_x);
                 cartesian_y_vec.push(cart_y);
                 cartesian_z_vec.push(cart_z);
@@ -366,62 +359,6 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
 
     println!("Indices Dihedrals");
     println!("{:?}", index_vec);
-    // reorder internal coordinates
-    // One is unable to iterate over enum
-    // thus, separate vectors are needed for
-    // each operation
-    // for i in distances_vec {
-    //     let dist = IC::distance(i);
-    //     internal_coords.push(dist);
-    // }
-    // for i in angles_vec {
-    //     let angl = IC::angle(i);
-    //     internal_coords.push(angl);
-    // }
-    // for i in outofplane_vec {
-    //     let out_of_pl = IC::out_of_plane(i);
-    //     internal_coords.push(out_of_pl);
-    // }
-    // for i in dihedral_vec {
-    //     let dihedral = IC::dihedral(i);
-    //     internal_coords.push(dihedral);
-    // }
-    // for i in cartesian_x_vec {
-    //     let cart = IC::cartesian_x(i);
-    //     internal_coords.push(cart);
-    // }
-    // for i in cartesian_y_vec {
-    //     let cart = IC::cartesian_y(i);
-    //     internal_coords.push(cart);
-    // }
-    // for i in cartesian_z_vec {
-    //     let cart = IC::cartesian_z(i);
-    //     internal_coords.push(cart);
-    // }
-    // for i in translation_x_vec {
-    //     let trans = IC::translation_x(i);
-    //     internal_coords.push(trans);
-    // }
-    // for i in translation_y_vec {
-    //     let trans = IC::translation_y(i);
-    //     internal_coords.push(trans);
-    // }
-    // for i in translation_z_vec {
-    //     let trans = IC::translation_z(i);
-    //     internal_coords.push(trans);
-    // }
-    // for i in rotation_a_Vec {
-    //     let rot = IC::rotation_a(i);
-    //     internal_coords.push(rot);
-    // }
-    // for i in rotation_b_Vec {
-    //     let rot = IC::rotation_b(i);
-    //     internal_coords.push(rot);
-    // }
-    // for i in rotation_c_Vec {
-    //     let rot = IC::rotation_c(i);
-    //     internal_coords.push(rot);
-    // }
 
     let internal_coordinates: InternalCoordinates = InternalCoordinates::new(
         distances_vec,
@@ -509,26 +446,25 @@ pub fn calculate_internal_coordinate_gradient(
     gradient: Array1<f64>,
     internal_coord_vector: Array1<f64>,
     internal_coords: &InternalCoordinates,
+    dlc_mat:Array2<f64>
 ) -> Array1<f64> {
-    let g_inv: Array2<f64> = inverse_g_matrix(coords.clone(), internal_coords);
-    //println!("Ginv {}",g_inv);
-    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords);
+    let g_inv: Array2<f64> = inverse_g_matrix(coords.clone(), internal_coords,dlc_mat.clone());
+    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords,true,Some(dlc_mat));
     let gq: Array1<f64> = g_inv.dot(&b_mat.dot(&gradient.t()));
 
     return gq;
 }
 
-pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
+pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates,dlc_mat:Array2<f64>) -> Array2<f64> {
     let n_at: usize = coords.len() / 3;
     let coords_2d: Array2<f64> = coords.clone().into_shape((n_at, 3)).unwrap();
 
-    let g_matrix: Array2<f64> = build_g_matrix(coords, internal_coords);
+    let g_matrix: Array2<f64> = build_g_matrix(coords, internal_coords,true,Some(dlc_mat));
 
     let (u, s, vh) = g_matrix.svd(true, true).unwrap();
     let ut: Array2<f64> = u.unwrap().reversed_axes();
     let s: Array1<f64> = s;
     // s is okay
-    println!("Smatrix from svd {}",s);
     let v: Array2<f64> = vh.unwrap().reversed_axes();
 
     let mut large_vals: usize = 0;
@@ -540,9 +476,8 @@ pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinat
             s_inv[ival] = 1.0 / value;
         }
     }
-    println!("Inverse s matrix from svd {}",s_inv);
-    println!("V matrix from svd {}",v.t());
-    println!("ut matrix from svd {}",ut.t());
+    //println!("V matrix from svd {}",v.t());
+    //println!("ut matrix from svd {}",ut.t());
     let s_inv_2d: Array2<f64> = Array::from_diag(&s_inv);
     let inv: Array2<f64> = v.dot(&s_inv_2d.dot(&ut));
 
@@ -567,7 +502,7 @@ pub fn build_delocalized_internal_coordinates(
     // Build the delocalized internal coordinates (DLCs) which are linear
     // combinations of the primitive internal coordinates
 
-    let g_matrix: Array2<f64> = build_g_matrix(coords, primitives);
+    let g_matrix: Array2<f64> = build_g_matrix(coords, primitives,false,None);
 
     let (l_vec, q_mat): (Array1<f64>, Array2<f64>) = g_matrix.eigh(UPLO::Upper).unwrap();
 
@@ -585,36 +520,43 @@ pub fn build_delocalized_internal_coordinates(
             .slice_mut(s![.., index])
             .assign(&q_mat.slice(s![.., *val]));
     }
-    println!("shape qmat_final: {:?}", qmat_final.shape());
 
     return qmat_final;
 }
 
-pub fn build_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
+pub fn build_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates, calculated_dlcs:bool,dlc_mat:Option<Array2<f64>>) -> Array2<f64> {
     // Given Cartesian coordinates xyz, return the G-matrix
     // given by G = BuBt where u is an arbitrary matrix (default to identity)
-    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords);
+    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords,calculated_dlcs,dlc_mat);
     let b_ubt: Array2<f64> = b_mat.dot(&b_mat.clone().t());
 
     return b_ubt;
 }
 
-pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
+pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates, calculated_dlcs:bool,dlc_mat:Option<Array2<f64>>) -> Array2<f64> {
     // Given Cartesian coordinates xyz, return the Wilson B-matrix
     // given by dq_i/dx_j where x is flattened (i.e. x1, y1, z1, x2, y2, z2)
     let derivatives: Vec<Array2<f64>> = get_derivatives(coords, internal_coords);
+    let mut deriv_matrix:Array3<f64> = Array::zeros((derivatives.len(),derivatives[0].dim().0,derivatives[0].dim().1));
+
+    for (index,val) in derivatives.iter().enumerate(){
+        deriv_matrix.slice_mut(s![index,..,..]).assign(val);
+    }
+    if calculated_dlcs{
+        deriv_matrix = tensordot(&dlc_mat.unwrap(),&deriv_matrix,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    }
     // println!("derivatives");
     // for i in 0..derivatives.len() {
     //     println!("{:?}", derivatives[i]);
     // }
     let mut wilson_b: Array2<f64> = Array::zeros((
-        derivatives.len(),
-        derivatives[0].dim().0 * derivatives[0].dim().1,
+        deriv_matrix.dim().0,
+        deriv_matrix.dim().1 * deriv_matrix.dim().2,
     ));
-    for i in 0..derivatives.len() {
-        let deriv_1d: Array1<f64> = derivatives[i]
+    for i in 0..deriv_matrix.dim().0 {
+        let deriv_1d: Array1<f64> = deriv_matrix.slice(s![i,..,..]).to_owned()
             .clone()
-            .into_shape((derivatives[i].dim().0 * derivatives[i].dim().1))
+            .into_shape((deriv_matrix.dim().1 * deriv_matrix.dim().2))
             .unwrap();
         wilson_b.slice_mut(s![i, ..]).assign(&deriv_1d);
     }
@@ -965,23 +907,6 @@ pub fn dn_cross(vec_1: &Vec<f64>, vec_2: &Vec<f64>) -> Array1<f64> {
         * Array::from(vec_1.clone()).dot(&Array::from(vec_2.clone()));
     let result: Array1<f64> = (&term_1 + &term_2) / ncross;
     return result;
-}
-
-#[derive(PartialEq, Clone)]
-pub enum IC {
-    distance(Distance),
-    angle(Angle),
-    out_of_plane(Out_of_plane),
-    dihedral(Dihedral),
-    cartesian_x(CartesianX),
-    cartesian_y(CartesianY),
-    cartesian_z(CartesianZ),
-    translation_x(TranslationX),
-    translation_y(TranslationY),
-    translation_z(TranslationZ),
-    rotation_a(RotationA),
-    rotation_b(RotationB),
-    rotation_c(RotationC),
 }
 
 #[derive(Clone, PartialEq)]
@@ -2404,6 +2329,9 @@ pub fn test_internal_coordinate_gradient() {
     let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
 
+    let q_mat: Array2<f64> =
+        build_delocalized_internal_coordinates(coordinates_1d.clone(), &internal_coordinates);
+
     let q_internal_ref: Array1<f64> = array![
         8.88178420e-16,
         4.09397937e-16,
@@ -2432,9 +2360,41 @@ pub fn test_internal_coordinate_gradient() {
         coordinates_1d,
         input_gradient,
         q_internal_ref,
-        &internal_coordinates,
+        &internal_coordinates,q_mat
     );
 
-    //println!("gradient {:?}",inter_coord_gradient);
+    println!("gradient {:?}",inter_coord_gradient);
+    assert!(inter_coord_gradient.mapv(|val|val.abs()).abs_diff_eq(&gradient_ref.mapv(|val|val.abs()),1e-7));
+
     assert!(1 == 2);
+}
+
+#[test]
+pub fn test_svd(){
+
+    let test_matrix:Array2<f64> = array![[1.0, 2.0, 2.0],
+    [2.0, 1.0, 2.0],
+    [2.0, 2.0, 1.0],
+    ];
+    println!("test_matirx {}",test_matrix);
+
+    let (u, s, vh) = test_matrix.svd(true, true).unwrap();
+    let u: Array2<f64> = u.unwrap();
+    let s: Array1<f64> = s;
+    // s is okay
+    println!("U matrix from svd {}",u);
+    println!("S matrix from svd {}",s);
+    let vh: Array2<f64> = vh.unwrap();
+    println!("Vh matrix from svd {}",vh);
+
+    println!("eigenvectors of AA.T {}",(&test_matrix*&test_matrix.t()).eigh(UPLO::Upper).unwrap().1);
+
+    let v:Array2<f64> = vh.reversed_axes();
+    let ut:Array2<f64> = u.reversed_axes();
+    let s_diag:Array2<f64> = Array::from_diag(&(1.0/s));
+
+    let inv:Array2<f64> = v.dot(&s_diag.dot(&ut));
+
+    println!("inv matrix {}",inv);
+    assert!(1==2);
 }
