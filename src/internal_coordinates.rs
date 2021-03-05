@@ -952,6 +952,30 @@ pub fn dn_cross(vec_1: &Vec<f64>, vec_2: &Vec<f64>) -> Array1<f64> {
     return result;
 }
 
+pub fn cartesian_from_step(cart_coords:Array1<f64>,dy:Array1<f64>,internal_coords:&InternalCoordinates,dlc_mat:Array2<f64>){
+    let mut microiter:usize = 0;
+    let ndqs:Vec<f64> = Vec::new();
+    let rmsds:Vec<f64> = Vec::new();
+    let damp:f64 = 1.0;
+    let mut fail_counter:usize = 0;
+
+    let mut dq:Array1<f64> = dy;
+    let mut xyz:Array1<f64> = cart_coords.clone();
+
+    while true{
+        microiter += 1;
+        let b_mat:Array2<f64> = wilsonB(&cart_coords,internal_coords,true,Some(dlc_mat.clone()));
+        let g_inv:Array2<f64> = inverse_g_matrix(cart_coords.clone(),internal_coords,dlc_mat.clone());
+        let dxyz:Array1<f64> = damp * b_mat.t().dot(&g_inv.dot(&dq.t()));
+        let xyz_2:Array1<f64> = xyz.clone() + dxyz;
+
+        // let dq_actual:Array1<f64> = calc diff between xyz_2 and xyz
+        // calcDiff is needed for every internal coordinate
+        // let rmsd:f64 = (xyz_2 - xyz).mapv(|val|val.powi(2)).mean().unwrap().sqrt();
+        // let ndq:f64 = (dq . dq_actual).to_vec().norm();
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub struct InternalCoordinates {
     distance: Vec<Distance>,
@@ -1020,6 +1044,11 @@ impl CartesianX {
         return cart;
     }
 
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1051,6 +1080,11 @@ impl CartesianY {
             w_val: w_val,
         };
         return cart;
+    }
+
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
     }
 
     pub fn value(&self, coords: Array1<f64>) -> f64 {
@@ -1086,6 +1120,12 @@ impl CartesianZ {
         };
         return cart;
     }
+
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1119,6 +1159,12 @@ impl TranslationX {
         };
         return trans;
     }
+
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1157,6 +1203,11 @@ impl TranslationY {
             w_vec: w_vec,
         };
         return trans;
+    }
+
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
     }
 
     pub fn value(&self, coords: Array1<f64>) -> f64 {
@@ -1199,6 +1250,12 @@ impl TranslationZ {
         };
         return trans;
     }
+
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1240,6 +1297,12 @@ impl Distance {
 
         return dist;
     }
+
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let diff:f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
