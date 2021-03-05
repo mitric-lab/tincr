@@ -1356,6 +1356,21 @@ impl Out_of_plane {
         return out_of_plane;
     }
 
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let mut diff:f64 = self.value(coords_1) - self.value(coords_2);
+
+        let plus_2_pi:f64 = diff + 2.0_f64 * PI;
+        let minus_2_pi:f64 = diff - 2.0_f64 * PI;
+
+        if diff.abs() > plus_2_pi.abs(){
+            diff = plus_2_pi;
+        }
+        if diff.abs() > minus_2_pi.abs(){
+            diff = minus_2_pi;
+        }
+        return diff;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1466,6 +1481,11 @@ impl Angle {
         };
 
         return angle;
+    }
+
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let diff:f64 = self.value(&coords_1) - self.value(&coords_2);
+        return diff;
     }
 
     pub fn value(self, coord_vector: &Array1<f64>) -> f64 {
@@ -1605,6 +1625,21 @@ impl Dihedral {
         return dihedral;
     }
 
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>)->f64{
+        let mut diff:f64 = self.value(coords_1) - self.value(coords_2);
+
+        let plus_2_pi:f64 = diff + 2.0_f64 * PI;
+        let minus_2_pi:f64 = diff - 2.0_f64 * PI;
+
+        if diff.abs() > plus_2_pi.abs(){
+            diff = plus_2_pi;
+        }
+        if diff.abs() > minus_2_pi.abs(){
+            diff = minus_2_pi;
+        }
+        return diff;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1716,6 +1751,14 @@ impl RotationA {
         return rotation;
     }
 
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>){
+        let vec_1:Array1<f64> = self.value_vec(coords_1);
+        let vec_2:Array1<f64> = self.value_vec(coords_2);
+        let vec_diff:Array1<f64> = calc_rot_vec_diff(vec_1,vec_2);
+
+        let return_val:f64 = vec_diff[0] * self.w_val;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1772,6 +1815,62 @@ impl RotationA {
         let return_val: f64 = answer[0] * self.w_val;
 
         return return_val;
+    }
+
+    pub fn value_vec(&self, coords: Array1<f64>) -> Array1<f64> {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        return answer;
     }
 
     pub fn calc_e0(&self) -> (Vec<f64>) {
@@ -1923,6 +2022,14 @@ impl RotationB {
         return rotation;
     }
 
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>){
+        let vec_1:Array1<f64> = self.value_vec(coords_1);
+        let vec_2:Array1<f64> = self.value_vec(coords_2);
+        let vec_diff:Array1<f64> = calc_rot_vec_diff(vec_1,vec_2);
+
+        let return_val:f64 = vec_diff[1] * self.w_val;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1979,6 +2086,62 @@ impl RotationB {
         let return_val: f64 = answer[1] * self.w_val;
 
         return return_val;
+    }
+
+    pub fn value_vec(&self, coords: Array1<f64>) -> Array1<f64> {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        return answer;
     }
 
     pub fn calc_e0(&self) -> (Vec<f64>) {
@@ -2129,6 +2292,14 @@ impl RotationC {
         return rotation;
     }
 
+    pub fn calc_diff(&self,coords_1:Array1<f64>,coords_2:Array1<f64>){
+        let vec_1:Array1<f64> = self.value_vec(coords_1);
+        let vec_2:Array1<f64> = self.value_vec(coords_2);
+        let vec_diff:Array1<f64> = calc_rot_vec_diff(vec_1,vec_2);
+
+        let return_val:f64 = vec_diff[2] * self.w_val;
+    }
+
     pub fn value(&self, coords: Array1<f64>) -> f64 {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -2185,6 +2356,62 @@ impl RotationC {
         let return_val: f64 = answer[2] * self.w_val;
 
         return return_val;
+    }
+
+    pub fn value_vec(&self, coords: Array1<f64>) -> Array1<f64> {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        return answer;
     }
 
     pub fn calc_e0(&self) -> (Vec<f64>) {
@@ -2313,6 +2540,63 @@ impl RotationC {
 
         return derivatives_new;
     }
+}
+
+pub fn calc_rot_vec_diff(vec_1:Array1<f64>,vec_2:Array1<f64>)->Array1<f64>{
+    // Calculate the difference in two provided rotation vectors v1_in - v2_in
+    let v1:Vec<f64> = vec_1.to_vec();
+    let v2:Vec<f64> = vec_2.to_vec();
+    let length:usize = vec_1.len();
+
+    let mut return_val:Array1<f64> = Array::zeros(length);
+
+    if v1.norm() < 1e-6 && v2.norm() < 1e-6{
+        return_val = &vec_1 - &vec_2;
+    }
+    let mut va:Array1<f64> = Array::zeros(length);
+    let mut vb:Array1<f64> = Array::zeros(length);
+    let mut va_is_v1:bool = false;
+
+    if vec_1.dot(&vec_1) > vec_2.dot(&vec_2){
+        va = vec_1;
+        vb = vec_2;
+        va_is_v1 = true;
+    }
+    else{
+        va = vec_2;
+        vb = vec_1;
+    }
+    let vh:Array1<f64> = va.clone() / va.clone().to_vec().norm();
+    let mut revcount:usize = 0;
+
+    while true{
+        let vd:f64 = (&va-&vb).dot(&(&va-&vb));
+        va = va + 2.0_f64 * PI * vh.clone();
+        revcount += 1;
+        if (&va-&vb).dot(&(&va-&vb)) > vd{
+            va = va - 2.0_f64 * PI * vh.clone();
+            revcount -= 1;
+            break;
+        }
+    }
+    while true{
+        let vd:f64 = (&va-&vb).dot(&(&va-&vb));
+        va = va - 2.0_f64 * PI * vh.clone();
+        revcount -= 1;
+        if (&va-&vb).dot(&(&va-&vb)) > vd{
+            va = va + 2.0_f64 * PI * vh.clone();
+            revcount += 1;
+            break;
+        }
+    }
+    let mut return_val:Array1<f64> = Array::zeros(length);
+    if va_is_v1{
+        return_val = &va - &vb;
+    }
+    else{
+        return_val = &vb - &va;
+    }
+    return return_val;
 }
 
 #[test]
