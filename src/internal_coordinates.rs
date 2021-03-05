@@ -446,20 +446,45 @@ pub fn calculate_internal_coordinate_gradient(
     gradient: Array1<f64>,
     internal_coord_vector: Array1<f64>,
     internal_coords: &InternalCoordinates,
-    dlc_mat:Array2<f64>
+    dlc_mat: Array2<f64>,
 ) -> Array1<f64> {
-    let g_inv: Array2<f64> = inverse_g_matrix(coords.clone(), internal_coords,dlc_mat.clone());
-    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords,true,Some(dlc_mat));
+    let g_inv: Array2<f64> = inverse_g_matrix(coords.clone(), internal_coords, dlc_mat.clone());
+    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords, true, Some(dlc_mat));
     let gq: Array1<f64> = g_inv.dot(&b_mat.dot(&gradient.t()));
 
     return gq;
 }
 
-pub fn inverse_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates,dlc_mat:Array2<f64>) -> Array2<f64> {
+pub fn calculate_internal_gradient_norm(grad: Array1<f64>) -> (f64, f64) {
+    let grad_2d: Array2<f64> = grad.clone().into_shape((grad.len() / 3, 3)).unwrap();
+    let atom_grad: Array1<f64> = grad_2d
+        .mapv(|val| val.powi(2))
+        .sum_axis(Axis(1))
+        .mapv(|val| val.sqrt());
+    let rms_gradient: f64 = atom_grad
+        .clone()
+        .mapv(|val| val.powi(2))
+        .mean()
+        .unwrap()
+        .sqrt();
+    let max_gradient: f64 = atom_grad
+        .iter()
+        .cloned()
+        .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+        .unwrap();
+
+    return (rms_gradient, max_gradient);
+}
+
+pub fn inverse_g_matrix(
+    coords: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) -> Array2<f64> {
     let n_at: usize = coords.len() / 3;
     let coords_2d: Array2<f64> = coords.clone().into_shape((n_at, 3)).unwrap();
 
-    let g_matrix: Array2<f64> = build_g_matrix(coords, internal_coords,true,Some(dlc_mat));
+    let g_matrix: Array2<f64> = build_g_matrix(coords, internal_coords, true, Some(dlc_mat));
 
     let (u, s, vh) = g_matrix.svd(true, true).unwrap();
     let ut: Array2<f64> = u.unwrap().reversed_axes();
@@ -502,7 +527,7 @@ pub fn build_delocalized_internal_coordinates(
     // Build the delocalized internal coordinates (DLCs) which are linear
     // combinations of the primitive internal coordinates
 
-    let g_matrix: Array2<f64> = build_g_matrix(coords, primitives,false,None);
+    let g_matrix: Array2<f64> = build_g_matrix(coords, primitives, false, None);
 
     let (l_vec, q_mat): (Array1<f64>, Array2<f64>) = g_matrix.eigh(UPLO::Upper).unwrap();
 
@@ -524,26 +549,42 @@ pub fn build_delocalized_internal_coordinates(
     return qmat_final;
 }
 
-pub fn build_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates, calculated_dlcs:bool,dlc_mat:Option<Array2<f64>>) -> Array2<f64> {
+pub fn build_g_matrix(
+    coords: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    calculated_dlcs: bool,
+    dlc_mat: Option<Array2<f64>>,
+) -> Array2<f64> {
     // Given Cartesian coordinates xyz, return the G-matrix
     // given by G = BuBt where u is an arbitrary matrix (default to identity)
-    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords,calculated_dlcs,dlc_mat);
+    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords, calculated_dlcs, dlc_mat);
     let b_ubt: Array2<f64> = b_mat.dot(&b_mat.clone().t());
 
     return b_ubt;
 }
 
-pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates, calculated_dlcs:bool,dlc_mat:Option<Array2<f64>>) -> Array2<f64> {
+pub fn wilsonB(
+    coords: &Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    calculated_dlcs: bool,
+    dlc_mat: Option<Array2<f64>>,
+) -> Array2<f64> {
     // Given Cartesian coordinates xyz, return the Wilson B-matrix
     // given by dq_i/dx_j where x is flattened (i.e. x1, y1, z1, x2, y2, z2)
     let derivatives: Vec<Array2<f64>> = get_derivatives(coords, internal_coords);
-    let mut deriv_matrix:Array3<f64> = Array::zeros((derivatives.len(),derivatives[0].dim().0,derivatives[0].dim().1));
+    let mut deriv_matrix: Array3<f64> = Array::zeros((
+        derivatives.len(),
+        derivatives[0].dim().0,
+        derivatives[0].dim().1,
+    ));
 
-    for (index,val) in derivatives.iter().enumerate(){
-        deriv_matrix.slice_mut(s![index,..,..]).assign(val);
+    for (index, val) in derivatives.iter().enumerate() {
+        deriv_matrix.slice_mut(s![index, .., ..]).assign(val);
     }
-    if calculated_dlcs{
-        deriv_matrix = tensordot(&dlc_mat.unwrap(),&deriv_matrix,&[Axis(0)],&[Axis(0)]).into_dimensionality::<Ix3>().unwrap();
+    if calculated_dlcs {
+        deriv_matrix = tensordot(&dlc_mat.unwrap(), &deriv_matrix, &[Axis(0)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
     }
     // println!("derivatives");
     // for i in 0..derivatives.len() {
@@ -554,7 +595,9 @@ pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates, calc
         deriv_matrix.dim().1 * deriv_matrix.dim().2,
     ));
     for i in 0..deriv_matrix.dim().0 {
-        let deriv_1d: Array1<f64> = deriv_matrix.slice(s![i,..,..]).to_owned()
+        let deriv_1d: Array1<f64> = deriv_matrix
+            .slice(s![i, .., ..])
+            .to_owned()
             .clone()
             .into_shape((deriv_matrix.dim().1 * deriv_matrix.dim().2))
             .unwrap();
@@ -2360,41 +2403,46 @@ pub fn test_internal_coordinate_gradient() {
         coordinates_1d,
         input_gradient,
         q_internal_ref,
-        &internal_coordinates,q_mat
+        &internal_coordinates,
+        q_mat,
     );
 
-    println!("gradient {:?}",inter_coord_gradient);
-    assert!(inter_coord_gradient.mapv(|val|val.abs()).abs_diff_eq(&gradient_ref.mapv(|val|val.abs()),1e-7));
+    println!("gradient {:?}", inter_coord_gradient);
+    assert!(inter_coord_gradient
+        .mapv(|val| val.abs())
+        .abs_diff_eq(&gradient_ref.mapv(|val| val.abs()), 1e-7));
 
     assert!(1 == 2);
 }
 
 #[test]
-pub fn test_svd(){
-
-    let test_matrix:Array2<f64> = array![[1.0, 2.0, 2.0],
-    [2.0, 1.0, 2.0],
-    [2.0, 2.0, 1.0],
-    ];
-    println!("test_matirx {}",test_matrix);
+pub fn test_svd() {
+    let test_matrix: Array2<f64> = array![[1.0, 2.0, 2.0], [2.0, 1.0, 2.0], [2.0, 2.0, 1.0],];
+    println!("test_matirx {}", test_matrix);
 
     let (u, s, vh) = test_matrix.svd(true, true).unwrap();
     let u: Array2<f64> = u.unwrap();
     let s: Array1<f64> = s;
     // s is okay
-    println!("U matrix from svd {}",u);
-    println!("S matrix from svd {}",s);
+    println!("U matrix from svd {}", u);
+    println!("S matrix from svd {}", s);
     let vh: Array2<f64> = vh.unwrap();
-    println!("Vh matrix from svd {}",vh);
+    println!("Vh matrix from svd {}", vh);
 
-    println!("eigenvectors of AA.T {}",(&test_matrix*&test_matrix.t()).eigh(UPLO::Upper).unwrap().1);
+    println!(
+        "eigenvectors of AA.T {}",
+        (&test_matrix * &test_matrix.t())
+            .eigh(UPLO::Upper)
+            .unwrap()
+            .1
+    );
 
-    let v:Array2<f64> = vh.reversed_axes();
-    let ut:Array2<f64> = u.reversed_axes();
-    let s_diag:Array2<f64> = Array::from_diag(&(1.0/s));
+    let v: Array2<f64> = vh.reversed_axes();
+    let ut: Array2<f64> = u.reversed_axes();
+    let s_diag: Array2<f64> = Array::from_diag(&(1.0 / s));
 
-    let inv:Array2<f64> = v.dot(&s_diag.dot(&ut));
+    let inv: Array2<f64> = v.dot(&s_diag.dot(&ut));
 
-    println!("inv matrix {}",inv);
-    assert!(1==2);
+    println!("inv matrix {}", inv);
+    assert!(1 == 2);
 }
