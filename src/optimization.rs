@@ -22,6 +22,16 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
     let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
     let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
 
+    //if state == 0 {
+    //    let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
+    //    energy = en;
+    //    gradient = grad;
+    //} else {
+    //    let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(x, mol, state - 1);
+    //    energy = en[state - 1];
+    //    gradient = grad;
+    //}
+
     let (internal_coordinates, dlc_mat, interal_coord_vec, internal_coord_grad, initial_hessian): (
         InternalCoordinates,
         Array2<f64>,
@@ -81,7 +91,9 @@ pub fn step(
     // If the step is above the trust radius in Cartesian coordinates, then
     // do the following to reduce the step length:
     if c_norm > 0.11 {
-        // Do something to reduce the stepsize
+        // This is the function f(inorm) = cnorm-target that we find a root
+        // for obtaining a step with the desired Cartesian step size.
+
     }
     // DONE OBTAINING THE STEP
     // Before updating any of our variables, copy current variables to "previous"

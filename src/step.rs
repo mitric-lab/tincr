@@ -13,6 +13,139 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::Deref;
+use rand::Rng;
+
+pub fn find_root_brent(a:f64,b:f64,rel:f64,conv:Option<f64>){
+    // Brent's method for finding the root of a function.
+    // Parameters
+    // ----------
+    // a : float
+    // One side of the "bracket" to start finding the root
+    // b : float
+    // The other side of the "bracket"
+    // rel : float
+    // The denominator used to calculate the fractional error (in our case, the trust radius)
+    // cvg : float
+    // The convergence threshold for the relative error
+}
+
+pub fn evaluate_find_root(
+    trial:f64,
+    v0: f64,
+    cart_coords: Array1<f64>,
+    gradient_ic: Array1<f64>,
+    hessian_ic: Array2<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat:&Array2<f64>,
+    counter:Option<usize>,
+    stored_val:Option<f64>
+)->(f64,usize,Option<f64>){
+    let trust:f64 = 0.1;
+    let target:f64 = 0.1;
+    let mut return_value:f64 = 0.0;
+    let mut cnorm:f64 = 0.0;
+    let mut counter:usize = counter.unwrap_or(0);
+    let mut stored_val:Option<f64> = stored_val;
+
+    if trial == 0.0{
+        return_value = -1.0 * trust;
+    }
+    else{
+        let (dy, sol): (Array1<f64>, f64) = trust_step(
+            target,
+            v0,
+            cart_coords.clone(),
+            gradient_ic.clone(),
+            hessian_ic.clone(),
+            internal_coords,
+        );
+        cnorm = get_cartesian_norm(&cart_coords,dy,internal_coords,dlc_mat);
+        counter +=1;
+    }
+    if cnorm - target < 0.0{
+        if stored_val.is_none() || cnorm > stored_val.unwrap(){
+            stored_val = Some(cnorm);
+        }
+    }
+    let return_val:f64 = cnorm - target;
+
+    return (return_val,counter,stored_val);
+}
+
+pub fn trust_step(
+    target:f64,
+    v0:f64,
+    cart_coords: Array1<f64>,
+    gradient_ic: Array1<f64>,
+    hessian_ic: Array2<f64>,
+    internal_coords: &InternalCoordinates,
+)->(Array1<f64>,f64){
+    let (dy, sol, dy_prime): (Array1<f64>, f64, f64) = get_delta_prime(
+        v0,
+        cart_coords.clone(),
+        gradient_ic.clone(),
+        hessian_ic.clone(),
+        internal_coords,
+        false,
+    );
+    let ndy: f64 = dy.clone().to_vec().norm();
+    let mut return_dy:Array1<f64> = Array::zeros((dy.dim()));
+    let mut return_sol:f64 = 0.0;
+    let mut do_while:bool = true;
+
+    if ndy < target{
+        return_dy = dy.clone();
+        return_sol = sol;
+        do_while = false;
+    }
+    let mut v:f64 = v0;
+    let mut niter:usize = 0;
+    let mut ndy_last:f64 = 0.0;
+    let mut m_ndy:f64 = 0.0;
+    let mut m_dy:Array1<f64> = dy.clone();
+    let mut m_sol:f64 = sol;
+
+    while do_while{
+        v += (1.0-ndy/target)*(ndy/dy_prime);
+        let (dy, sol, dy_prime): (Array1<f64>, f64, f64) = get_delta_prime(
+            v0,
+            cart_coords.clone(),
+            gradient_ic.clone(),
+            hessian_ic.clone(),
+            internal_coords,
+            false,
+        );
+        let ndy: f64 = dy.clone().to_vec().norm();
+
+        if ((ndy-target)/target).abs() < 0.001{
+            return_dy = dy.clone();
+            return_sol = sol;
+            break;
+        }
+        else if niter > 10 && ((ndy_last-ndy)/ndy).abs() < 0.001{
+            return_dy = dy.clone();
+            return_sol = sol;
+            break;
+        }
+        niter += 1;
+        ndy_last = ndy;
+        if ndy < m_ndy{
+            m_ndy = ndy;
+            m_dy = dy.clone();
+            m_sol = sol;
+        }
+        if niter%100 == 99{
+            let rng:f64 = rand::random::<f64>();
+            v += rng * (niter as f64) / 100.0;
+        }
+        if niter%100 == 999{
+            return_dy = dy.clone();
+            return_sol = sol;
+            break;
+        }
+    }
+    return (return_dy,return_sol);
+}
 
 pub fn calc_drms_dmax(x_new: Array1<f64>, x_old: Array1<f64>) -> (f64, f64) {
     // Align and calculate the RMSD for two geometries
