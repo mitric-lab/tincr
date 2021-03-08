@@ -21,19 +21,17 @@ pub fn get_delta_prime(
     hessian_ic: Array2<f64>,
     internal_coords: &InternalCoordinates,
     bool_rfo: bool,
-) {
+) -> (Array1<f64>, f64, f64) {
     // Return the internal coordinate step given a parameter "v".
     // "v" refers to the multiple of the identity added to the Hessian
     // in trust-radius Newton Raphson (TRM), and the multiple of the
     // identity on the RHS matrix in rational function optimization (RFO).
     // Note that reasonable default values are v = 0.0 in TRM and 1.0 in RFO.
 
-    if bool_rfo {
-        // do rfo
-    } else {
-        // do trust radius Newton-Raphson
-        // get_delta_prime_trm(v,coords,grad,hess,internal_coords)
-    }
+    let (dy, sol, dy_prime): (Array1<f64>, f64, f64) =
+        get_delta_prime_trm(v0, cart_coords, gradient_ic, hessian_ic, internal_coords);
+
+    return (dy, sol, dy_prime);
 }
 
 pub fn get_delta_prime_trm(
