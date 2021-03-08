@@ -1,8 +1,10 @@
 use crate::defaults;
 use crate::gradients;
 use crate::gradients::get_gradients;
+use crate::internal_coordinates::*;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
+use crate::step::{get_cartesian_norm, get_delta_prime};
 use crate::Molecule;
 use approx::AbsDiffEq;
 use ndarray::prelude::*;
@@ -12,6 +14,136 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::Deref;
+
+// Optimization using internal coordinates
+// from geomeTRIC
+
+pub fn optimize_geometry_ic(mol: &mut Molecule) {
+    let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+    let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
+
+    let (internal_coordinates, dlc_mat, interal_coord_vec, internal_coord_grad, initial_hessian): (
+        InternalCoordinates,
+        Array2<f64>,
+        Array1<f64>,
+        Array1<f64>,
+        Array2<f64>,
+    ) = prepare_first_step(mol, &coords, gradient);
+
+    // while loop for optimization
+    // step
+    // calc energy and gradient
+    // evaluate step
+}
+
+pub fn step(
+    internal_coordinates: &InternalCoordinates,
+    dlc_mat: &Array2<f64>,
+    internal_coord_vec: &Array1<f64>,
+    internal_coord_grad: &Array1<f64>,
+    hessian: &Array2<f64>,
+    cart_coords: &Array1<f64>,
+) {
+    // get eigenvalue of the hessian
+    let eig: (Array1<f64>, Array2<f64>) = hessian.eigh(UPLO::Upper).unwrap();
+    // sort the eigenvalues
+    let mut eigenvalues: Vec<f64> = eig.0.to_vec();
+    eigenvalues.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
+
+    let emin: f64 = eigenvalues[0];
+
+    // OBTAIN AN OPTIMIZATION STEP
+    // The trust radius is to be computed in Cartesian coordinates.
+    // First take a full-size optimization step
+
+    // in geomeTRIC check for parameter "transition"
+    // If true. use rational function optimization (RFO) for the step
+    // otherwise use trust-radius Newton Raphson (TRM)
+    let mut v0: f64 = 0.0;
+    if emin < 1.0e-5 {
+        v0 = 1.0e-5 - emin;
+    } else {
+        v0 = 0.0;
+    }
+    let (dy, sol, dy_prime): (Array1<f64>, f64, f64) = get_delta_prime(
+        v0,
+        cart_coords.clone(),
+        internal_coord_grad.clone(),
+        hessian.clone(),
+        internal_coordinates,
+        false,
+    );
+    // Internal coordinate step size
+    let i_norm: f64 = dy.clone().to_vec().norm();
+    // Cartesian coordinate step size
+    let c_norm: f64 = get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
+
+    // If the step is above the trust radius in Cartesian coordinates, then
+    // do the following to reduce the step length:
+    if c_norm > 0.11 {
+        // Do something to reduce the stepsize
+    }
+    // DONE OBTAINING THE STEP
+    // Before updating any of our variables, copy current variables to "previous"
+    let internal_coords_prev:Array1<f64> = internal_coord_vec.clone();
+    let x_old: Array1<f64> = cart_coords.clone();
+    // Gradient and gradient in internal coords previous
+    // And previous energy
+
+    // Update the Internal Coordinates
+    let x_new: Array1<f64> = cartesian_from_step(
+        cart_coords.clone(),
+        dy,
+        internal_coordinates,
+        dlc_mat.clone(),
+    );
+    let real_dy:Array1<f64> = get_calc_diff(x_old,x_new,internal_coordinates,dlc_mat.clone());
+    let internal_coords_new:Array1<f64> = internal_coord_vec + &real_dy;
+
+}
+
+pub fn prepare_first_step(
+    mol: &Molecule,
+    coords: &Array1<f64>,
+    gradient: Array1<f64>,
+) -> (
+    InternalCoordinates,
+    Array2<f64>,
+    Array1<f64>,
+    Array1<f64>,
+    Array2<f64>,
+) {
+    // Build the internal coordinates and their primitives
+    // construct the delocalized internal coordinates and the
+    // internal coordinate vectors of the cartesian coordinates and the gs gradients
+    // At last, build the initial hessian for the optimization
+
+    let internal_coordinates: InternalCoordinates = build_primitives(mol);
+
+    let dlc_mat: Array2<f64> =
+        build_delocalized_internal_coordinates(coords.clone(), &internal_coordinates);
+    let q_internal: Array1<f64> =
+        calculate_internal_coordinate_vector(coords.clone(), &internal_coordinates, &dlc_mat);
+
+    let inter_coord_gradient: Array1<f64> = calculate_internal_coordinate_gradient(
+        coords.clone(),
+        gradient,
+        q_internal.clone(),
+        &internal_coordinates,
+        dlc_mat.clone(),
+    );
+
+    let initial_hessian: Array2<f64> =
+        create_initial_hessian(coords.clone(), &mol, &internal_coordinates, dlc_mat.clone());
+
+    return (
+        internal_coordinates,
+        dlc_mat,
+        q_internal,
+        inter_coord_gradient,
+        initial_hessian,
+    );
+}
 
 // solve the following optimization problem:
 // minimize f(x)      subject to  c_i(x) > 0   for  i=1,...,m
