@@ -4,7 +4,7 @@ use crate::gradients::get_gradients;
 use crate::internal_coordinates::*;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
-use crate::step::{get_delta_prime, get_cartesian_norm};
+use crate::step::{get_cartesian_norm, get_delta_prime};
 use crate::Molecule;
 use approx::AbsDiffEq;
 use ndarray::prelude::*;
@@ -74,10 +74,9 @@ pub fn step(
         false,
     );
     // Internal coordinate step size
-    let i_norm:f64 = dy.clone().to_vec().norm();
+    let i_norm: f64 = dy.clone().to_vec().norm();
     // Cartesian coordinate step size
-    let c_norm:f64 = get_cartesian_norm(cart_coords,dy,internal_coordinates,dlc_mat);
-
+    let c_norm: f64 = get_cartesian_norm(cart_coords, dy, internal_coordinates, dlc_mat);
 }
 
 pub fn prepare_first_step(
