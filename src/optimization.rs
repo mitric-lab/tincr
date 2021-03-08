@@ -76,7 +76,30 @@ pub fn step(
     // Internal coordinate step size
     let i_norm: f64 = dy.clone().to_vec().norm();
     // Cartesian coordinate step size
-    let c_norm: f64 = get_cartesian_norm(cart_coords, dy, internal_coordinates, dlc_mat);
+    let c_norm: f64 = get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
+
+    // If the step is above the trust radius in Cartesian coordinates, then
+    // do the following to reduce the step length:
+    if c_norm > 0.11 {
+        // Do something to reduce the stepsize
+    }
+    // DONE OBTAINING THE STEP
+    // Before updating any of our variables, copy current variables to "previous"
+    let internal_coords_prev:Array1<f64> = internal_coord_vec.clone();
+    let x_old: Array1<f64> = cart_coords.clone();
+    // Gradient and gradient in internal coords previous
+    // And previous energy
+
+    // Update the Internal Coordinates
+    let x_new: Array1<f64> = cartesian_from_step(
+        cart_coords.clone(),
+        dy,
+        internal_coordinates,
+        dlc_mat.clone(),
+    );
+    let real_dy:Array1<f64> = get_calc_diff(x_old,x_new,internal_coordinates,dlc_mat.clone());
+    let internal_coords_new:Array1<f64> = internal_coord_vec + &real_dy;
+
 }
 
 pub fn prepare_first_step(
