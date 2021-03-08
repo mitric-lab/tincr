@@ -4,6 +4,7 @@ use crate::gradients::get_gradients;
 use crate::internal_coordinates::*;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
+use crate::step::{get_delta_prime, get_cartesian_norm};
 use crate::Molecule;
 use approx::AbsDiffEq;
 use ndarray::prelude::*;
@@ -30,25 +31,26 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
     ) = prepare_first_step(mol, &coords, gradient);
 
     // while loop for optimization
-        // step
-        // calc energy and gradient
-        // evaluate step
+    // step
+    // calc energy and gradient
+    // evaluate step
 }
 
 pub fn step(
     internal_coordinates: &InternalCoordinates,
-    dlc_mat:&Array2<f64>,
-    internal_coord_vec:&Array1<f64>,
-    internal_coord_grad:&Array1<f64>,
-    hessian:&Array2<f64>
-){
+    dlc_mat: &Array2<f64>,
+    internal_coord_vec: &Array1<f64>,
+    internal_coord_grad: &Array1<f64>,
+    hessian: &Array2<f64>,
+    cart_coords: &Array1<f64>,
+) {
     // get eigenvalue of the hessian
-    let eig:(Array1<f64>,Array2<f64>) = hessian.eigh(UPLO::Upper).unwrap();
+    let eig: (Array1<f64>, Array2<f64>) = hessian.eigh(UPLO::Upper).unwrap();
     // sort the eigenvalues
-    let mut eigenvalues:Vec<f64> = eig.0.to_vec();
-    eigenvalues.sort_by(|&i,&j|i.partial_cmp(&j).unwrap());
+    let mut eigenvalues: Vec<f64> = eig.0.to_vec();
+    eigenvalues.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
 
-    let emin:f64 = eigenvalues[0];
+    let emin: f64 = eigenvalues[0];
 
     // OBTAIN AN OPTIMIZATION STEP
     // The trust radius is to be computed in Cartesian coordinates.
@@ -57,15 +59,25 @@ pub fn step(
     // in geomeTRIC check for parameter "transition"
     // If true. use rational function optimization (RFO) for the step
     // otherwise use trust-radius Newton Raphson (TRM)
-    let mut v0:f64 = 0.0;
-    if emin < 1.0e-5{
+    let mut v0: f64 = 0.0;
+    if emin < 1.0e-5 {
         v0 = 1.0e-5 - emin;
-    }
-    else{
+    } else {
         v0 = 0.0;
     }
+    let (dy, sol, dy_prime): (Array1<f64>, f64, f64) = get_delta_prime(
+        v0,
+        cart_coords.clone(),
+        internal_coord_grad.clone(),
+        hessian.clone(),
+        internal_coordinates,
+        false,
+    );
+    // Internal coordinate step size
+    let i_norm:f64 = dy.clone().to_vec().norm();
+    // Cartesian coordinate step size
+    let c_norm:f64 = get_cartesian_norm(cart_coords,dy,internal_coordinates,dlc_mat);
 
-    //fn get delta prime(v0,coords,g_mat,hessian,internal_coords,transition)
 }
 
 pub fn prepare_first_step(
