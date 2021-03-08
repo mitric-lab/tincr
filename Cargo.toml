@@ -1,7 +1,10 @@
 [package]
 name = "tincr"
 version = "0.1.0"
-authors = ["hochej <37776098+hochej@users.noreply.github.com>"]
+authors = ["Joscha Hoche <joscha.hoche@uni-wuerzburg.de>",
+           "Richard Einsele <richard.einsele@uni-wuerzburg.de>",
+           "Xincheng Miao <xincheng.miao@uni-wuerzburg.de>",
+           "Roland Mitric <roland.mitric@uni-wuerzburg.de>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -21,7 +24,9 @@ peroxide = {version = "0.27.0", features = ["serde"]}
 itertools = "0.9"
 libm = "0.2.1"
 bspline = "0.2.3"
-rusty-fitpack = { path = "/home/einseler/software/Rusty-FITPACK" }
+rusty-fitpack = { path = "/Users/hochej/rusty_dierckx"}
 ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
 nalgebra = "0.24.1"
+clap = "3.0.0-beta.2"
+toml = "0.5"
