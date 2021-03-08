@@ -53,7 +53,7 @@ fn main() {
 
     // the file containing the cartesian coordinates is the only mandatory file to
     // start a calculation.
-    let geometry_file = matches.value_of("INPUT").unwrap();
+    let geometry_file = matches.value_of("xyz-File").unwrap();
     let (atomic_numbers, positions): (Vec<u8>, Array2<f64>) = get_coordinates(geometry_file);
 
     // read tincr configuration file, if it does not exist in the directory
