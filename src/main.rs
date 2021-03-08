@@ -8,79 +8,70 @@ mod diis;
 mod fermi_occupation;
 mod gamma_approximation;
 mod gradients;
+mod graph;
 mod h0_and_s;
+mod internal_coordinates;
 mod molecule;
 mod mulliken;
+mod optimization;
 mod parameters;
 mod scc_routine;
 mod scc_routine_unrestricted;
 mod slako_transformations;
-mod zbrent;
-mod transition_charges;
 mod solver;
-mod optimization;
-mod internal_coordinates;
-mod graph;
+mod transition_charges;
+mod zbrent;
+mod io;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
 
+use crate::gradients::*;
 use crate::molecule::Molecule;
 use ndarray::*;
 use ndarray_linalg::*;
-use std::env;
+use std::{env, fs};
 use std::ptr::eq;
 use std::time::{Duration, Instant};
-use crate::gradients::*;
+#[macro_use]
+extern crate clap;
+use clap::{App, Arg};
+use crate::io::{get_coordinates, GeneralConfig};
+use toml;
+use std::path::Path;
+use crate::defaults::CONFIG_FILE_NAME;
 
 fn main() {
-    println!(
-        r#"   _________  ___  ________   ________  ________
-  |\___   ___\\  \|\   ___  \|\   ____\|\   __  \
-  \|___ \  \_\ \  \ \  \\ \  \ \  \___|\ \  \|\  \
-       \ \  \ \ \  \ \  \\ \  \ \  \    \ \   _  _\
-        \ \  \ \ \  \ \  \\ \  \ \  \____\ \  \\  \|
-         \ \__\ \ \__\ \__\\ \__\ \_______\ \__\\ _\
-          \|__|  \|__|\|__| \|__|\|_______|\|__|\|__| "#
-    );
-    println!("");
-    println!("                       R. Mitric");
-    println!("            Chair of theoretical Chemistry");
-    println!("               University of Wuerzburg");
-    println!("");
-    let args: Vec<String> = env::args().collect();
-    assert!(args.len() == 2, "Please provide one xyz-filename");
-    let filename = &args[1];
-    let mol: Molecule = read_xyz(filename);
-    println!("Start calculation");
-    println!("_______________________________________________________");
-    let now = Instant::now();
-    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol, None, None, None);
-    //gradient_nolc(&mol, or);
-    println!("_______________________________________________________");
-    println!("Time elapsed: {:.4} secs", now.elapsed().as_secs_f32());
+    let matches = App::new(crate_name!())
+        .version(crate_version!())
+        .about("software package for tight-binding DFT calculations")
+        .arg(Arg::new("xyz-File")
+            .about("Sets the xyz file to use")
+            .required(true)
+            .index(1))
+        .get_matches();
+
+    // the file containing the cartesian coordinates is the only mandatory file to
+    // start a calculation.
+    let geometry_file = matches.value_of("INPUT").unwrap();
+    let (atomic_numbers, positions): (Vec<u8>, Array2<f64>) = get_coordinates(geometry_file);
+
+    // read tincr configuration file, if it does not exist in the directory
+    // the program initializes the default settings and writes an configuration file
+    // to the directory
+    let config_file_path: &Path = Path::new(CONFIG_FILE_NAME);
+    let mut config_string: String = if config_file_path.exists() {
+        fs::read_to_string(config_file_path).expect("Unable to read config file")
+    } else {
+        String::from("")
+    };
+    // load the configration settings
+    let config: GeneralConfig = toml::from_str(&config_string).unwrap();
+    // save the configuration file if it does not exist already
+    if config_file_path.exists() == false {
+        config_string = toml::to_string(&config).unwrap();
+        fs::write(config_file_path, config_string).expect("Unable to write config file");
+    }
+
 }
 
-fn read_xyz(path: &str) -> Molecule {
-    let mut trajectory = chemfiles::Trajectory::open(path, 'r').unwrap();
-    let mut frame = chemfiles::Frame::new();
-    trajectory.read(&mut frame).unwrap();
-    let natom: usize = frame.size() as usize;
-    let mut pos: Vec<f64> = Vec::new();
-    for atom in frame.positions().to_vec().iter() {
-        for coord in atom.iter() {
-            pos.push(*coord);
-        }
-    }
-    let mut positions: Array2<f64> = Array::from_shape_vec((natom, 3), pos).unwrap();
-    let atomnos: Vec<u8> = (0..natom)
-        .map(|i| frame.atom(i as u64).atomic_number() as u8)
-        .collect();
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomnos, positions, charge, multiplicity,None,None);
-    return mol;
-}

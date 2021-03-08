@@ -1103,110 +1103,121 @@ pub fn get_calc_diff(
     return return_val;
 }
 
-pub fn create_initial_hessian(coords:Array1<f64>,mol:&Molecule, internal_coords:&InternalCoordinates,dlc_mat:Array2<f64>)->Array2<f64>{
-    let h_prim:Array2<f64> = guess_hessian(coords,mol,internal_coords);
-    let h_mat:Array2<f64> = dlc_mat.t().dot(&h_prim.dot(&dlc_mat));
+pub fn create_initial_hessian(
+    coords: Array1<f64>,
+    mol: &Molecule,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) -> Array2<f64> {
+    let h_prim: Array2<f64> = guess_hessian(coords, mol, internal_coords);
+    let h_mat: Array2<f64> = dlc_mat.t().dot(&h_prim.dot(&dlc_mat));
     return h_mat;
 }
 
-pub fn guess_hessian(coords:Array1<f64>,mol:&Molecule, internal_coords:&InternalCoordinates)->Array2<f64>{
+pub fn guess_hessian(
+    coords: Array1<f64>,
+    mol: &Molecule,
+    internal_coords: &InternalCoordinates,
+) -> Array2<f64> {
     let n_at: usize = coords.len() / 3;
     let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
-    let mut h_diag:Vec<f64> = Vec::new();
+    let mut h_diag: Vec<f64> = Vec::new();
 
-    for i in internal_coords.distance.iter(){
-        let r:f64 = (coords_new.slice(s![i.at_a,..]).to_owned() - coords_new.slice(s![i.at_b,..]).to_owned()).to_vec().norm();
-        let elem_1:u8 = mol.atomic_numbers[i.at_a].min(mol.atomic_numbers[i.at_b]);
-        let elem_2:u8 = mol.atomic_numbers[i.at_a].max(mol.atomic_numbers[i.at_b]);
+    for i in internal_coords.distance.iter() {
+        let r: f64 = (coords_new.slice(s![i.at_a, ..]).to_owned()
+            - coords_new.slice(s![i.at_b, ..]).to_owned())
+        .to_vec()
+        .norm();
+        let elem_1: u8 = mol.atomic_numbers[i.at_a].min(mol.atomic_numbers[i.at_b]);
+        let elem_2: u8 = mol.atomic_numbers[i.at_a].max(mol.atomic_numbers[i.at_b]);
 
-        let a:f64 = 1.734;
-        let mut b:f64 = 0.0;
-        if elem_1 < 3{
-            if elem_2 < 3{
+        let a: f64 = 1.734;
+        let mut b: f64 = 0.0;
+        if elem_1 < 3 {
+            if elem_2 < 3 {
                 b = -0.244;
-            }
-            else if elem_2 < 11{
+            } else if elem_2 < 11 {
                 b = 0.352;
-            }
-            else{
+            } else {
                 b = 0.660;
             }
-        }
-        else if elem_1 < 11{
-            if elem_2 < 11{
+        } else if elem_1 < 11 {
+            if elem_2 < 11 {
                 b = 1.085;
-            }
-            else{
+            } else {
                 b = 1.522;
             }
-        }
-        else{
+        } else {
             b = 2.068;
         }
-        if mol.connectivity_matrix[[i.at_a,i.at_b]] == true{
-            h_diag.push(a/(r-b).powi(3));
-        }
-        else{
+        if mol.connectivity_matrix[[i.at_a, i.at_b]] == true {
+            h_diag.push(a / (r - b).powi(3));
+        } else {
             h_diag.push(0.1);
         }
     }
 
-    for i in internal_coords.angle.iter(){
-        let mut a:f64 = 0.0;
-        let mut b:f64 = 0.0;
-        if mol.atomic_numbers[i.at_a].min(mol.atomic_numbers[i.at_b].min(mol.atomic_numbers[i.at_c])) < 3{
+    for i in internal_coords.angle.iter() {
+        let mut a: f64 = 0.0;
+        let mut b: f64 = 0.0;
+        if mol.atomic_numbers[i.at_a]
+            .min(mol.atomic_numbers[i.at_b].min(mol.atomic_numbers[i.at_c]))
+            < 3
+        {
             a = 0.16;
-        }
-        else{
+        } else {
             a = 0.25;
         }
-        if mol.connectivity_matrix[[i.at_a,i.at_b]] == true && mol.connectivity_matrix[[i.at_b,i.at_c]] == true{
+        if mol.connectivity_matrix[[i.at_a, i.at_b]] == true
+            && mol.connectivity_matrix[[i.at_b, i.at_c]] == true
+        {
             h_diag.push(a);
-        }
-        else{
+        } else {
             h_diag.push(0.1);
         }
     }
-    for i in internal_coords.out_of_plane.iter(){
-        if mol.connectivity_matrix[[i.at_a,i.at_b]] == true && mol.connectivity_matrix[[i.at_a,i.at_c]] == true &&  mol.connectivity_matrix[[i.at_a,i.at_d]] == true{
+    for i in internal_coords.out_of_plane.iter() {
+        if mol.connectivity_matrix[[i.at_a, i.at_b]] == true
+            && mol.connectivity_matrix[[i.at_a, i.at_c]] == true
+            && mol.connectivity_matrix[[i.at_a, i.at_d]] == true
+        {
             h_diag.push(0.045);
-        }
-        else {
+        } else {
             h_diag.push(0.023);
         }
     }
-    for i in internal_coords.dihedral.iter(){
+    for i in internal_coords.dihedral.iter() {
         h_diag.push(0.023);
     }
-    for i in internal_coords.cartesian_x.iter(){
+    for i in internal_coords.cartesian_x.iter() {
         h_diag.push(0.05);
     }
-    for i in internal_coords.cartesian_y.iter(){
+    for i in internal_coords.cartesian_y.iter() {
         h_diag.push(0.05);
     }
-    for i in internal_coords.cartesian_z.iter(){
+    for i in internal_coords.cartesian_z.iter() {
         h_diag.push(0.05);
     }
-    for i in internal_coords.translation_x.iter(){
+    for i in internal_coords.translation_x.iter() {
         h_diag.push(0.05);
     }
-    for i in internal_coords.translation_y.iter(){
+    for i in internal_coords.translation_y.iter() {
         h_diag.push(0.05);
     }
-    for i in internal_coords.translation_z.iter(){
+    for i in internal_coords.translation_z.iter() {
         h_diag.push(0.05);
     }
-    for i in internal_coords.rotation_a.iter(){
+    for i in internal_coords.rotation_a.iter() {
         h_diag.push(0.05);
     }
-    for i in internal_coords.rotation_b.iter(){
+    for i in internal_coords.rotation_b.iter() {
         h_diag.push(0.05);
     }
-    for i in internal_coords.rotation_c.iter(){
+    for i in internal_coords.rotation_c.iter() {
         h_diag.push(0.05);
     }
 
-    let h_diag_mat:Array2<f64> = Array::from_diag(&Array::from(h_diag));
+    let h_diag_mat: Array2<f64> = Array::from_diag(&Array::from(h_diag));
     return h_diag_mat;
 }
 
@@ -3053,17 +3064,47 @@ pub fn test_initial_hessian() {
         None,
     );
 
-    let internal_coords_vec_ref:Array1<f64> = array![-2.33146835e-15 ,-1.79420853e-16 , 2.03964277e-15,  8.26672460e-16,
-        -4.68355644e-16, -2.55154855e+00 ,-1.06165215e-16 , 3.58738580e+00,
-    2.81224494e-16 ,-6.21724894e-15 ,-4.67979293e+00 , 3.14159265e+00,
-        -6.66133815e-16,  1.78238100e-15,  1.33226763e-15  ,1.51891374e+00,
-        -1.68037480e-01 , 5.95584354e-17];
+    let internal_coords_vec_ref: Array1<f64> = array![
+        -2.33146835e-15,
+        -1.79420853e-16,
+        2.03964277e-15,
+        8.26672460e-16,
+        -4.68355644e-16,
+        -2.55154855e+00,
+        -1.06165215e-16,
+        3.58738580e+00,
+        2.81224494e-16,
+        -6.21724894e-15,
+        -4.67979293e+00,
+        3.14159265e+00,
+        -6.66133815e-16,
+        1.78238100e-15,
+        1.33226763e-15,
+        1.51891374e+00,
+        -1.68037480e-01,
+        5.95584354e-17
+    ];
 
-    let gradient_input:Array1<f64> =  array![-1.44114970e-01,  1.30000000e-11,  0.00000000e+00,  1.44114969e-01,
-    4.20000000e-11, -0.00000000e+00,-7.42252641e-03 , 2.70616341e-02,
-        -0.00000000e+00, -7.42252642e-03 ,-2.70616341e-02, -0.00000000e+00,
-    7.42252677e-03, -2.70616347e-02,  0.00000000e+00  ,7.42252675e-03,
-    2.70616347e-02,  0.00000000e+00];
+    let gradient_input: Array1<f64> = array![
+        -1.44114970e-01,
+        1.30000000e-11,
+        0.00000000e+00,
+        1.44114969e-01,
+        4.20000000e-11,
+        -0.00000000e+00,
+        -7.42252641e-03,
+        2.70616341e-02,
+        -0.00000000e+00,
+        -7.42252642e-03,
+        -2.70616341e-02,
+        -0.00000000e+00,
+        7.42252677e-03,
+        -2.70616347e-02,
+        0.00000000e+00,
+        7.42252675e-03,
+        2.70616347e-02,
+        0.00000000e+00
+    ];
 
     let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
@@ -3074,7 +3115,7 @@ pub fn test_initial_hessian() {
     let q_internal: Array1<f64> =
         calculate_internal_coordinate_vector(coordinates_1d.clone(), &internal_coordinates, &q_mat);
 
-    println!("Internal coordinate vector {}",q_internal);
+    println!("Internal coordinate vector {}", q_internal);
 
     let inter_coord_gradient: Array1<f64> = calculate_internal_coordinate_gradient(
         coordinates_1d.clone(),
@@ -3084,16 +3125,32 @@ pub fn test_initial_hessian() {
         q_mat.clone(),
     );
 
-    let gradient_ref:Array1<f64> = array![ 1.63968061e-11, -2.18131816e-16,  6.39918000e-15 , 5.93029720e-18,
-    1.48716194e-12,  4.45539455e-02 ,-1.46588182e-17,  9.94760280e-02,
-        -6.24562746e-17, -5.30667824e-10 ,-8.74239595e-02 , 2.65456467e-17,
-    5.01675425e-10, -4.59502340e-18, -9.62036774e-11,  4.93568126e-02,
-        -8.15092908e-02, -4.46200684e-17];
+    let gradient_ref: Array1<f64> = array![
+        1.63968061e-11,
+        -2.18131816e-16,
+        6.39918000e-15,
+        5.93029720e-18,
+        1.48716194e-12,
+        4.45539455e-02,
+        -1.46588182e-17,
+        9.94760280e-02,
+        -6.24562746e-17,
+        -5.30667824e-10,
+        -8.74239595e-02,
+        2.65456467e-17,
+        5.01675425e-10,
+        -4.59502340e-18,
+        -9.62036774e-11,
+        4.93568126e-02,
+        -8.15092908e-02,
+        -4.46200684e-17
+    ];
 
-    println!("Internal coordinate gradient {}",inter_coord_gradient);
-    println!("Gradient reference {}",gradient_ref);
+    println!("Internal coordinate gradient {}", inter_coord_gradient);
+    println!("Gradient reference {}", gradient_ref);
 
-    let hessian_guess:Array2<f64> = create_initial_hessian(coordinates_1d.clone(),&mol,&internal_coordinates,q_mat);
+    let hessian_guess: Array2<f64> =
+        create_initial_hessian(coordinates_1d.clone(), &mol, &internal_coordinates, q_mat);
     //println!("hessian {:?}", hessian_guess);
 
     assert!(1 == 2);

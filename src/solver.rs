@@ -1359,7 +1359,8 @@ fn excited_energies_tda_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [
@@ -1758,7 +1759,7 @@ fn excited_energies_casida_routine() {
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies( &f_occ.to_vec(),&mol, None, &S, &orbe, &orbs, None);
+        get_exc_energies(&f_occ.to_vec(), &mol, None, &S, &orbe, &orbs, None);
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));
@@ -1988,7 +1989,8 @@ fn excited_energies_non_hermitian_davidson_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [

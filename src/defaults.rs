@@ -3,6 +3,10 @@
 pub const CHARGE: i8 = 0;
 // spin multiplicity 2S + 1
 pub const MULTIPLICITY: u8 = 1;
+// jobtype
+pub const JOBTYPE: &str = "opt";
+// config file
+pub const CONFIG_FILE_NAME: &str = "tincr.toml";
 // occupation of orbitals is smeared out by Fermi
 // distribution with temperature T in Kelvin
 pub const TEMPERATURE: f64 = 0.0;
@@ -10,6 +14,7 @@ pub const TEMPERATURE: f64 = 0.0;
 pub const LONG_RANGE_RADIUS: f64 = 3.03;
 pub const PROXIMITY_CUTOFF: f64 = 30.00;
 pub const LONG_RANGE_CORRECTION: bool = true;
+pub const DISPERSION_CORRECTION: bool = true;
 
 // PARAMETERS
 // scaling of hubbard parameters by this factor
@@ -47,6 +52,14 @@ pub const BROYDEN_MIXING_PARAMETER: f64 = 0.2;
 pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
 
 // Number of active orbitals
-pub const ACTIVE_ORBITALS:(usize,usize) = (1000,1000);
+pub const ACTIVE_ORBITALS: (usize, usize) = (1000, 1000);
 // Numver of excited states
-pub const EXCITED_STATES:usize = 1000;
+pub const EXCITED_STATES: usize = 1000;
+// DO RPA or Casida
+pub const RPA: bool = true;
+
+// Optimization
+pub const GEOM_OPT_MAX_CYCLES: usize = 500;
+pub const GEOM_OPT_TOL_DISPLACEMENT: f64 = 0.0;
+pub const GEOM_OPT_TOL_GRADIENT: f64 = 0.0;
+pub const GEOM_OPT_TOL_ENERGY: f64 = 0.0;

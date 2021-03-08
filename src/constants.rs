@@ -216,8 +216,6 @@ pub static COVALENCE_RADII: phf::Map<u8, f64> = phf_map! {
     96u8 =>1.69
 };
 
-
-
 // //  occupation numbers of valence orbitals
 // //  which are used to assign the correct occupation to orbitals loaded from hotbit .elm files
 // pub static OCCUPATION_NUMBERS: phf::Map<&'static str, f64> = phf_map! {
