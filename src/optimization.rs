@@ -1,6 +1,8 @@
 use crate::defaults;
 use crate::gradients;
 use crate::gradients::get_gradients;
+use crate::internal_coordinates::*;
+use crate::internal_coordinates::{build_primitives, InternalCoordinates};
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
 use crate::Molecule;
@@ -12,6 +14,71 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::Deref;
+
+// Optimization using internal coordinates
+// from geomeTRIC
+
+pub fn optimize_geometry_ic(mol: &mut Molecule) {
+    let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+    let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
+
+    let (internal_coordinates, dlc_mat, interal_coord_vec, internal_coord_grad, initial_hessian): (
+        InternalCoordinates,
+        Array2<f64>,
+        Array1<f64>,
+        Array1<f64>,
+        Array2<f64>,
+    ) = prepare_first_step(mol, &coords, gradient);
+
+    // while loop for optimization
+        // step
+        // calc energy and gradient
+        // evaluate step
+
+}
+
+pub fn prepare_first_step(
+    mol: &Molecule,
+    coords: &Array1<f64>,
+    gradient: Array1<f64>,
+) -> (
+    InternalCoordinates,
+    Array2<f64>,
+    Array1<f64>,
+    Array1<f64>,
+    Array2<f64>,
+) {
+    // Build the internal coordinates and their primitives
+    // construct the delocalized internal coordinates and the
+    // internal coordinate vectors of the cartesian coordinates and the gs gradients
+    // At last, build the initial hessian for the optimization
+
+    let internal_coordinates: InternalCoordinates = build_primitives(mol);
+
+    let dlc_mat: Array2<f64> =
+        build_delocalized_internal_coordinates(coords.clone(), &internal_coordinates);
+    let q_internal: Array1<f64> =
+        calculate_internal_coordinate_vector(coords.clone(), &internal_coordinates, &dlc_mat);
+
+    let inter_coord_gradient: Array1<f64> = calculate_internal_coordinate_gradient(
+        coords.clone(),
+        gradient,
+        q_internal.clone(),
+        &internal_coordinates,
+        dlc_mat.clone(),
+    );
+
+    let initial_hessian: Array2<f64> =
+        create_initial_hessian(coords.clone(), &mol, &internal_coordinates, dlc_mat.clone());
+
+    return (
+        internal_coordinates,
+        dlc_mat,
+        q_internal,
+        inter_coord_gradient,
+        initial_hessian,
+    );
+}
 
 // solve the following optimization problem:
 // minimize f(x)      subject to  c_i(x) > 0   for  i=1,...,m
@@ -67,8 +134,8 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
     println!("Enegies and gradient");
-    println!("Energy: {}",&energy);
-    println!("Gradient E0 {}",&grad_e0);
+    println!("Energy: {}", &energy);
+    println!("Gradient E0 {}", &grad_e0);
     println!("Grad vrep {}", grad_vrep);
     return (energy, grad_e0 + grad_vrep);
 }
@@ -176,7 +243,7 @@ pub fn minimize(
     let mut iter_index: usize = 0;
     let mut sk: Array1<f64> = Array::zeros(n);
     let mut yk: Array1<f64> = Array::zeros(n);
-    let mut inv_hk: Array2<f64> =Array::eye(n);
+    let mut inv_hk: Array2<f64> = Array::eye(n);
 
     println!("Test coordinate vector x0 {}", x0);
 
@@ -187,10 +254,10 @@ pub fn minimize(
             break;
         }
         if method == "BFGS" {
-            if k >0 {
+            if k > 0 {
                 if yk.dot(&sk) <= 0.0 {
-                    println!("yk {}",yk);
-                    println!("sk {}",sk);
+                    println!("yk {}", yk);
+                    println!("sk {}", sk);
                     println!("Warning: positive definiteness of Hessian approximation lost in BFGS update, since yk.sk <= 0!")
                 }
                 inv_hk = bfgs_update(&inv_hk, &sk, &yk, k);
@@ -199,7 +266,7 @@ pub fn minimize(
         } else if method == "Steepest Descent" {
             pk = -grad_fk.clone();
         }
-        println!("pk {}",pk);
+        println!("pk {}", pk);
         if line_search == "Armijo" {
             println!("start line search");
             x_kp1 = line_search_backtracking(
@@ -212,10 +279,9 @@ pub fn minimize(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
             );
             println!("X_KP1 {}", &x_kp1);
-        }
-        else if line_search == "largest"{
+        } else if line_search == "largest" {
             let amax = 1.0;
-            x_kp1 = &xk + &(amax* &pk);
+            x_kp1 = &xk + &(amax * &pk);
             println!("x_kp1 {}", x_kp1);
         }
         let mut f_kp1: f64 = 0.0;
@@ -225,7 +291,7 @@ pub fn minimize(
             f_kp1 = tmp.0;
             grad_f_kp1 = tmp.1;
         }
-        println!("grad {}",grad_f_kp1);
+        println!("grad {}", grad_f_kp1);
         // else {
         //     let tmp: (f64, Array1<f64>) = objective_intern(&x_kp1);
         //     f_kp1 = tmp.0;
@@ -741,9 +807,17 @@ fn line_search_routine() {
         0.0034773655435618
     ];
 
-    let x_kp1:Array1<f64> = array![ 0.5765484779112765 , 2.1694530961623220, -0.0840099748693559,
-  2.5571353008877105 , 2.2321789936370471,  0.0164973322576322,
-  0.0280545672121809,  3.1790037133849824  ,1.5336187563309098];
+    let x_kp1: Array1<f64> = array![
+        0.5765484779112765,
+        2.1694530961623220,
+        -0.0840099748693559,
+        2.5571353008877105,
+        2.2321789936370471,
+        0.0164973322576322,
+        0.0280545672121809,
+        3.1790037133849824,
+        1.5336187563309098
+    ];
 
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let mut positions: Array2<f64> = array![
@@ -755,15 +829,17 @@ fn line_search_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
-    let test:Array1<f64> = line_search_backtracking(&xk,fk,&grad_fk,&pk,None,None,None,None,true,0,&mut mol);
+    let test: Array1<f64> = line_search_backtracking(
+        &xk, fk, &grad_fk, &pk, None, None, None, None, true, 0, &mut mol,
+    );
 
-    assert!(test.abs_diff_eq(&x_kp1,1e-14));
-
+    assert!(test.abs_diff_eq(&x_kp1, 1e-14));
 }
