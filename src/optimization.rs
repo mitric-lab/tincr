@@ -2,7 +2,6 @@ use crate::defaults;
 use crate::gradients;
 use crate::gradients::get_gradients;
 use crate::internal_coordinates::*;
-use crate::internal_coordinates::{build_primitives, InternalCoordinates};
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
 use crate::Molecule;
@@ -34,7 +33,39 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
         // step
         // calc energy and gradient
         // evaluate step
+}
 
+pub fn step(
+    internal_coordinates: &InternalCoordinates,
+    dlc_mat:&Array2<f64>,
+    internal_coord_vec:&Array1<f64>,
+    internal_coord_grad:&Array1<f64>,
+    hessian:&Array2<f64>
+){
+    // get eigenvalue of the hessian
+    let eig:(Array1<f64>,Array2<f64>) = hessian.eigh(UPLO::Upper).unwrap();
+    // sort the eigenvalues
+    let mut eigenvalues:Vec<f64> = eig.0.to_vec();
+    eigenvalues.sort_by(|&i,&j|i.partial_cmp(&j).unwrap());
+
+    let emin:f64 = eigenvalues[0];
+
+    // OBTAIN AN OPTIMIZATION STEP
+    // The trust radius is to be computed in Cartesian coordinates.
+    // First take a full-size optimization step
+
+    // in geomeTRIC check for parameter "transition"
+    // If true. use rational function optimization (RFO) for the step
+    // otherwise use trust-radius Newton Raphson (TRM)
+    let mut v0:f64 = 0.0;
+    if emin < 1.0e-5{
+        v0 = 1.0e-5 - emin;
+    }
+    else{
+        v0 = 0.0;
+    }
+
+    //fn get delta prime(v0,coords,g_mat,hessian,internal_coords,transition)
 }
 
 pub fn prepare_first_step(
