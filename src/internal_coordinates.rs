@@ -957,7 +957,7 @@ pub fn cartesian_from_step(
     dy: Array1<f64>,
     internal_coords: &InternalCoordinates,
     dlc_mat: Array2<f64>,
-) -> Array1<f64> {
+) -> (Array1<f64>,bool) {
     let mut microiter: usize = 0;
     let mut ndqs: Vec<f64> = Vec::new();
     let mut rmsds: Vec<f64> = Vec::new();
@@ -970,6 +970,7 @@ pub fn cartesian_from_step(
     let mut rmsdt: f64 = 0.0;
     let mut xyz_iter1: Array1<f64> = Array::zeros((cart_coords.clone().len()));
     let mut xyz_save: Array1<f64> = Array::zeros((cart_coords.clone().len()));
+    let mut bork:bool = false;
 
     while true {
         microiter += 1;
@@ -1027,7 +1028,7 @@ pub fn cartesian_from_step(
     }
     let mut return_val: Array1<f64> = Array::zeros((cart_coords.clone().len()));
     if ndqt > 1e-1 {
-        // bork = true
+        bork = true;
         return_val = xyz_iter1;
         println!("Failed to obtain cartesians");
     } else if ndqt > 1e-3 {
@@ -1035,7 +1036,7 @@ pub fn cartesian_from_step(
     }
     return_val = xyz_save;
 
-    return return_val;
+    return (return_val,bork);
 }
 
 pub fn get_calc_diff(
