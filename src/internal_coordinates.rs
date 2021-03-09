@@ -1099,7 +1099,7 @@ pub fn get_calc_diff(
         calc_diffs.push(p_val);
     }
     let pm_diff: Array1<f64> = Array::from(calc_diffs);
-    let return_val: Array1<f64> = dlc_mat.dot(&pm_diff);
+    let return_val: Array1<f64> = dlc_mat.reversed_axes().dot(&pm_diff);
 
     return return_val;
 }
@@ -2815,7 +2815,7 @@ pub fn calc_rot_vec_diff(vec_1: Array1<f64>, vec_2: Array1<f64>) -> Array1<f64> 
         vb = vec_1;
     }
     let vh: Array1<f64> = va.clone() / va.clone().to_vec().norm();
-    let mut revcount: usize = 0;
+    let mut revcount: i64 = 0;
 
     while true {
         let vd: f64 = (&va - &vb).dot(&(&va - &vb));

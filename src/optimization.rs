@@ -20,13 +20,13 @@ use std::ops::Deref;
 // Optimization using internal coordinates
 // from geomeTRIC
 
-pub fn optimize_geometry_ic(mol: &mut Molecule)->(f64,Array1<f64>) {
+pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>) {
     let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
     let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
 
     let mut old_gradient: Array1<f64> = gradient.clone();
     let mut old_energy: f64 = energy;
-    let mut optimization_failed:bool = false;
+    let mut optimization_failed: bool = false;
 
     //if state == 0 {
     //    let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
@@ -49,11 +49,11 @@ pub fn optimize_geometry_ic(mol: &mut Molecule)->(f64,Array1<f64>) {
     let mut internal_coords: InternalCoordinates = internal_coordinates;
     let mut iteration: usize = 0;
     let mut trust: f64 = 0.1;
-    let mut internal_coordinate_vec:Array1<f64> = internal_coord_vec;
-    let mut internal_coordinate_gradient:Array1<f64> = internal_coord_grad;
-    let mut prev_hessian:Array2<f64> = initial_hessian;
-    let mut prev_cart_coords:Array1<f64> = coords;
-    let mut dlc_mat:Array2<f64> = dlc_mat;
+    let mut internal_coordinate_vec: Array1<f64> = internal_coord_vec;
+    let mut internal_coordinate_gradient: Array1<f64> = internal_coord_grad.clone();
+    let mut prev_hessian: Array2<f64> = initial_hessian.clone();
+    let mut prev_cart_coords: Array1<f64> = coords;
+    let mut dlc_mat: Array2<f64> = dlc_mat;
 
     while true {
         let mut energy_prev: f64 = energy;
@@ -83,7 +83,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule)->(f64,Array1<f64>) {
             &prev_hessian,
             &prev_cart_coords,
             &mol,
-            trust
+            trust,
         );
         if step_failed {
             internal_coords = new_graph.unwrap();
@@ -102,7 +102,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule)->(f64,Array1<f64>) {
                 return_hessian,
                 new_trust,
                 converged,
-                opt_failed
+                opt_failed,
             ): (
                 f64,
                 Array1<f64>,
@@ -112,7 +112,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule)->(f64,Array1<f64>) {
                 Array2<f64>,
                 f64,
                 bool,
-                bool
+                bool,
             ) = evaluate_step(
                 &internal_coords,
                 &dlc_mat,
@@ -141,11 +141,11 @@ pub fn optimize_geometry_ic(mol: &mut Molecule)->(f64,Array1<f64>) {
             internal_coordinate_gradient = return_int_grad;
             trust = new_trust;
 
-            if converged{
+            if converged {
                 println!("Optimization converged");
                 break;
             }
-            if opt_failed{
+            if opt_failed {
                 println!("optimization failed");
                 optimization_failed = true;
                 break;
@@ -154,7 +154,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule)->(f64,Array1<f64>) {
         iteration += 1;
     }
 
-    return(old_energy, old_gradient);
+    return (old_energy, old_gradient);
 }
 
 pub fn evaluate_step(
@@ -184,7 +184,7 @@ pub fn evaluate_step(
     Array2<f64>,
     f64,
     bool,
-    bool
+    bool,
 ) {
     let (rms_gradient, max_gradient): (f64, f64) =
         calculate_internal_gradient_norm(new_cart_gradient.clone());
@@ -301,7 +301,7 @@ pub fn evaluate_step(
         return_hessian,
         trust,
         converged,
-        opt_failed
+        opt_failed,
     );
 }
 
@@ -386,7 +386,7 @@ pub fn step(
     hessian: &Array2<f64>,
     cart_coords: &Array1<f64>,
     mol: &Molecule,
-    trust:f64
+    trust: f64,
 ) -> (
     Array1<f64>,
     Array1<f64>,
@@ -405,6 +405,9 @@ pub fn step(
     // sort the eigenvalues
     let mut eigenvalues: Vec<f64> = eig.0.to_vec();
     eigenvalues.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
+
+    println!("Eigenvalue of the hessian");
+    println!("{:?}",eigenvalues);
 
     let emin: f64 = eigenvalues[0];
 
@@ -431,6 +434,9 @@ pub fn step(
     );
     let mut dy: Array1<f64> = tmp_0.0;
     let mut sol: f64 = tmp_0.1;
+    println!("dy");
+    println!("{}",dy);
+
     let dy_prime: f64 = tmp_0.2;
     // Internal coordinate step size
     let i_norm: f64 = dy.clone().to_vec().norm();
@@ -439,6 +445,8 @@ pub fn step(
         get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
     let mut c_norm: f64 = tmp.0;
     let mut bork: bool = tmp.1;
+    println!("cnorm {}",c_norm);
+    println!("bork {}",bork);
 
     // If the step is above the trust radius in Cartesian coordinates, then
     // do the following to reduce the step length:
@@ -456,7 +464,7 @@ pub fn step(
             hessian.clone(),
             internal_coordinates,
             dlc_mat,
-            trust
+            trust,
         );
         let mut iopt: f64 = tmp.0;
         let brent_failed: bool = tmp.1;
@@ -484,7 +492,7 @@ pub fn step(
                     hessian.clone(),
                     internal_coordinates,
                     dlc_mat,
-                    trust
+                    trust,
                 );
                 iopt = tmp.0;
                 bork = tmp.3;
@@ -540,7 +548,10 @@ pub fn step(
             .into_dimensionality::<Ix2>()
             .unwrap();
 
-    let expect: f64 = expect_part_1.clone().into_shape((expect_part_1.dim().0 * expect_part_1.dim().1)).unwrap()[0]
+    let expect: f64 = expect_part_1
+        .clone()
+        .into_shape((expect_part_1.dim().0 * expect_part_1.dim().1))
+        .unwrap()[0]
         + real_dy.clone().dot(internal_coord_grad);
 
     return (
@@ -1360,4 +1371,96 @@ fn line_search_routine() {
     );
 
     assert!(test.abs_diff_eq(&x_kp1, 1e-14));
+}
+
+#[test]
+fn test_optimization_geomeTRIC_1() {
+    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
+    // transform coordinates in au
+    positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let cart_gradient_input: Array1<f64> = array![
+        -1.22987162e-01,
+        -8.00000000e-12,
+        0.00000000e+00,
+        1.22987163e-01,
+        -2.90000000e-11,
+        0.00000000e+00,
+        -3.20163906e-03,
+        1.78966620e-02,
+        0.00000000e+00,
+        -3.20163905e-03,
+        -1.78966620e-02,
+        -0.00000000e+00,
+        3.20163874e-03,
+        -1.78966615e-02,
+        0.00000000e+00,
+        3.20163875e-03,
+        1.78966615e-02,
+        0.00000000e+00
+    ];
+
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+    let energy_input:f64 = -78.54289384457864;
+
+    let (internal_coordinates, dlc_mat, internal_coord_vec, internal_coord_grad, initial_hessian): (
+        InternalCoordinates,
+        Array2<f64>,
+        Array1<f64>,
+        Array1<f64>,
+        Array2<f64>,
+    ) = prepare_first_step(&mol, &coordinates_1d, cart_gradient_input);
+
+    println!("Internal coordinate vector {}",internal_coord_vec);
+    println!("Internal coordinate gradient {}", internal_coord_grad);
+
+    let (
+        new_cart_coords,
+        old_cart_coords,
+        new_int_coords,
+        old_int_coords,
+        new_graph,
+        step_failed,
+        expect,
+        c_norm,
+    ): (
+        Array1<f64>,
+        Array1<f64>,
+        Array1<f64>,
+        Array1<f64>,
+        Option<InternalCoordinates>,
+        bool,
+        f64,
+        f64,
+    ) = step(
+        &internal_coordinates,
+        &dlc_mat,
+        &internal_coord_vec,
+        &internal_coord_grad,
+        &initial_hessian,
+        &coordinates_1d,
+        &mol,
+        0.1,
+    );
+
+
+    assert!(1==2);
 }

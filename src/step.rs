@@ -5,6 +5,7 @@ use crate::internal_coordinates::*;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
 use crate::Molecule;
+use crate::optimization::*;
 use approx::AbsDiffEq;
 use itertools::any;
 use ndarray::prelude::*;
@@ -337,12 +338,15 @@ pub fn calc_drms_dmax(x_new: Array1<f64>, x_old: Array1<f64>) -> (f64, f64) {
     coords_new = coords_new.clone() - coords_new.mean_axis(Axis(0)).unwrap();
     // Obtain the rotation
     let u: Array2<f64> = get_rot(coords_new.clone(), coords_old.clone());
-    let mut x_rot: Array2<f64> = u.dot(&coords_new.t());
-    x_rot = x_rot.reversed_axes();
-    let x_rot_new: Array1<f64> = x_rot
+    println!("u from calc_drms_dmax {}",u);
+    let x_rot: Array2<f64> = u.dot(&coords_new.t());
+    let x_rot_temp:Array2<f64> = x_rot.as_standard_layout().to_owned();
+    println!("x_rot before into shape {:?}",x_rot_temp);
+    let x_rot_new: Array1<f64> = x_rot_temp
         .clone()
         .into_shape((x_rot.dim().0 * x_rot.dim().1))
         .unwrap();
+    println!("x rot new from calc drms dmax {:?}",x_rot_new);
     let x_old_new: Array1<f64> = coords_old.into_shape(x_old.len()).unwrap();
     let difference_arr: Array2<f64> = ((x_rot_new - x_old_new) / 1.8897261278504418)
         .into_shape((n_at, 3))
@@ -372,6 +376,7 @@ pub fn get_cartesian_norm(
         cartesian_from_step(coords.clone(), dy, internal_coordinates, dlc_mat.clone());
     let x_new: Array1<f64> = tmp.0;
     let bork: bool = tmp.1;
+    println!("new cartesian coords: {}", x_new);
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(x_new, coords.clone());
     return (rmsd, bork);
 }
