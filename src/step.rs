@@ -18,6 +18,22 @@ use rand::Rng;
 use std::ops::Deref;
 use std::ops::Not;
 
+pub trait ToOwnedF<A, D> {
+    fn to_owned_f(&self) -> Array<A, D>;
+}
+impl<A, S, D> ToOwnedF<A, D> for ArrayBase<S, D>
+    where
+        A: Copy + Clone,
+        S: Data<Elem = A>,
+        D: Dimension,
+{
+    fn to_owned_f(&self) -> Array<A, D> {
+        let mut tmp = unsafe { Array::uninitialized(self.dim().f()) };
+        tmp.assign(self);
+        tmp
+    }
+}
+
 pub fn find_root_brent(
     a: f64,
     b: f64,
@@ -340,7 +356,7 @@ pub fn calc_drms_dmax(x_new: Array1<f64>, x_old: Array1<f64>) -> (f64, f64) {
     let u: Array2<f64> = get_rot(coords_new.clone(), coords_old.clone());
     println!("u from calc_drms_dmax {}",u);
     let x_rot: Array2<f64> = u.dot(&coords_new.t());
-    let x_rot_temp:Array2<f64> = x_rot.as_standard_layout().to_owned();
+    let x_rot_temp:Array2<f64> = x_rot.to_owned_f().t().to_owned();
     println!("x_rot before into shape {:?}",x_rot_temp);
     let x_rot_new: Array1<f64> = x_rot_temp
         .clone()
