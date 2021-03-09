@@ -1520,7 +1520,8 @@ fn excited_energies_tda_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [
@@ -2150,7 +2151,8 @@ fn excited_energies_non_hermitian_davidson_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let S: Array2<f64> = array![
         [

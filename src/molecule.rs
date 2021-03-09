@@ -2,22 +2,22 @@ use crate::calculator::*;
 use crate::constants::ATOM_NAMES;
 use crate::defaults;
 use crate::gamma_approximation;
-use crate::parameters::*;
+use crate::graph::build_connectivity_matrix;
 use crate::graph::*;
-use petgraph::algo::*;
-use petgraph::data::*;
-use petgraph::dot::{Config, Dot};
-use petgraph::graph::*;
-use petgraph::stable_graph::*;
+use crate::parameters::*;
 use approx::AbsDiffEq;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::*;
 use ndarray_linalg::*;
+use petgraph::algo::*;
+use petgraph::data::*;
+use petgraph::dot::{Config, Dot};
+use petgraph::graph::*;
+use petgraph::stable_graph::*;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::ops::{Neg, Deref};
-use crate::graph::build_connectivity_matrix;
+use std::ops::{Deref, Neg};
 
 #[derive(Clone)]
 pub struct Molecule {
@@ -31,10 +31,10 @@ pub struct Molecule {
     pub distance_matrix: Array2<f64>,
     pub directions_matrix: Array3<f64>,
     pub calculator: DFTBCalculator,
-    pub connectivity_matrix:Array2<bool>,
-    pub full_graph:StableUnGraph<u8,f64>,
-    pub full_graph_indices:Vec<NodeIndex>,
-    pub sub_graphs: Vec<StableUnGraph<u8,f64>>
+    pub connectivity_matrix: Array2<bool>,
+    pub full_graph: StableUnGraph<u8, f64>,
+    pub full_graph_indices: Vec<NodeIndex>,
+    pub sub_graphs: Vec<StableUnGraph<u8, f64>>,
 }
 
 impl Molecule {
@@ -43,8 +43,8 @@ impl Molecule {
         positions: Array2<f64>,
         charge: Option<i8>,
         multiplicity: Option<u8>,
-        r_lr:Option<f64>,
-        active_orbitals:Option<(usize,usize)>
+        r_lr: Option<f64>,
+        active_orbitals: Option<(usize, usize)>,
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
@@ -55,20 +55,23 @@ impl Molecule {
 
         let n_atoms: usize = positions.nrows();
 
-        let calculator: DFTBCalculator = DFTBCalculator::new(&atomic_numbers, &atomtypes, active_orbitals,&dist_matrix,r_lr);
+        let calculator: DFTBCalculator = DFTBCalculator::new(
+            &atomic_numbers,
+            &atomtypes,
+            active_orbitals,
+            &dist_matrix,
+            r_lr,
+        );
         //(&atomic_numbers, &atomtypes, model);
 
-        let connectivity_matrix:Array2<bool> = build_connectivity_matrix(n_atoms,&dist_matrix,&atomic_numbers);
+        let connectivity_matrix: Array2<bool> =
+            build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
 
         let (graph, graph_indexes, subgraphs): (
             StableUnGraph<u8, f64>,
             Vec<NodeIndex>,
             Vec<StableUnGraph<u8, f64>>,
-        ) = build_graph(
-            &atomic_numbers,
-            &connectivity_matrix,
-            &dist_matrix,
-        );
+        ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
 
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
@@ -82,7 +85,7 @@ impl Molecule {
             directions_matrix: dir_matrix,
             calculator: calculator,
             connectivity_matrix: connectivity_matrix,
-            full_graph:graph,
+            full_graph: graph,
             full_graph_indices: graph_indexes,
             sub_graphs: subgraphs,
         };
@@ -99,7 +102,7 @@ impl Molecule {
         self.atomic_numbers.iter().zip(self.positions.outer_iter())
     }
 
-    pub fn update_geometry(&mut self,coordinates:Array2<f64>){
+    pub fn update_geometry(&mut self, coordinates: Array2<f64>) {
         self.positions = coordinates;
         let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
             distance_matrix(self.positions.view(), None);
@@ -136,12 +139,12 @@ pub fn distance_matrix(
             let j: usize = j0 + i;
             let r: Array1<f64> = &pos_i - &pos_j;
             let r_ij = r.norm();
-            if i != j{
+            if i != j {
                 dist_matrix[[i, j]] = r_ij;
                 dist_matrix[[j, i]] = r_ij;
-                let e_ij:Array1<f64> = r/r_ij;
-                directions_matrix.slice_mut(s![i,j,..]).assign(&e_ij);
-                directions_matrix.slice_mut(s![j,i,..]).assign(&-e_ij);
+                let e_ij: Array1<f64> = r / r_ij;
+                directions_matrix.slice_mut(s![i, j, ..]).assign(&e_ij);
+                directions_matrix.slice_mut(s![j, i, ..]).assign(&-e_ij);
             }
             if r_ij <= cutoff {
                 prox_matrix[[i, j]] = true;
@@ -183,20 +186,24 @@ fn test_distance_matrix() {
         [1.8330287870558954, 2.9933251510242216, 0.0000000000000000]
     ];
 
-    let  direction: Array3<f64> = array![
-       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
-        [-1.0000000000000000,  0.0000000000000000,  0.0000000000000000],
-        [ 0.3333308828545918, -0.4991664249199420, -0.7998271080477469]],
-
-       [[ 1.0000000000000000, -0.0000000000000000, -0.0000000000000000],
-        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
-        [ 0.8164964343992185, -0.3056755882657617, -0.4897918000045972]],
-
-       [[-0.3333308828545918,  0.4991664249199420,  0.7998271080477469],
-        [-0.8164964343992185,  0.3056755882657617,  0.4897918000045972],
-        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000]]
-];
-    assert!(dir_matrix.abs_diff_eq(&direction,1.0e-14));
+    let direction: Array3<f64> = array![
+        [
+            [0.0000000000000000, 0.0000000000000000, 0.0000000000000000],
+            [-1.0000000000000000, 0.0000000000000000, 0.0000000000000000],
+            [0.3333308828545918, -0.4991664249199420, -0.7998271080477469]
+        ],
+        [
+            [1.0000000000000000, -0.0000000000000000, -0.0000000000000000],
+            [0.0000000000000000, 0.0000000000000000, 0.0000000000000000],
+            [0.8164964343992185, -0.3056755882657617, -0.4897918000045972]
+        ],
+        [
+            [-0.3333308828545918, 0.4991664249199420, 0.7998271080477469],
+            [-0.8164964343992185, 0.3056755882657617, 0.4897918000045972],
+            [0.0000000000000000, 0.0000000000000000, 0.0000000000000000]
+        ]
+    ];
+    assert!(dir_matrix.abs_diff_eq(&direction, 1.0e-14));
     assert!(dist_matrix.abs_diff_eq(&dist_matrix_ref, 1e-05));
 
     let prox_matrix_ref: Array2<bool> =

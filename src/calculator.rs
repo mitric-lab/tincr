@@ -90,10 +90,10 @@ impl DFTBCalculator {
             &valorbs,
             Some(0.0),
         );
-        let mut g0_lr:Array2<f64> = Array::zeros((g0.dim().0,g0.dim().1));
-        let mut g0_lr_a0:Array2<f64> = Array::zeros((g0_a0.dim().0,g0_a0.dim().1));
+        let mut g0_lr: Array2<f64> = Array::zeros((g0.dim().0, g0.dim().1));
+        let mut g0_lr_a0: Array2<f64> = Array::zeros((g0_a0.dim().0, g0_a0.dim().1));
         if r_lr.is_none() || r_lr.unwrap() > 0.0 {
-            let tmp:(Array2<f64>, Array2<f64>) = get_gamma_matrix(
+            let tmp: (Array2<f64>, Array2<f64>) = get_gamma_matrix(
                 atomic_numbers,
                 atomic_numbers.len(),
                 n_orbs,
@@ -130,7 +130,7 @@ impl DFTBCalculator {
             full_virt: None,
         }
     }
-    pub fn set_active_orbitals(&mut self,f: Vec<f64>) {
+    pub fn set_active_orbitals(&mut self, f: Vec<f64>) {
         let tmp: (usize, usize) = self.active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
         let mut nr_active_occ: usize = tmp.0;
         let mut nr_active_virt: usize = tmp.1;
@@ -154,7 +154,7 @@ impl DFTBCalculator {
         let active_occ_indices: Vec<usize> = (occ_indices
             .slice(s![(occ_indices.len() - nr_active_occ)..])
             .to_owned())
-            .to_vec();
+        .to_vec();
         let active_virt_indices: Vec<usize> =
             (virt_indices.slice(s![..nr_active_virt]).to_owned()).to_vec();
 

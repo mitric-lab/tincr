@@ -1,4 +1,5 @@
 use crate::defaults;
+use approx::AbsDiffEq;
 use ndarray::array;
 use ndarray::{Array, Array1, Array2};
 use ron::de::from_str;
@@ -9,7 +10,6 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
-use approx::AbsDiffEq;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -86,7 +86,7 @@ pub struct PseudoAtom {
     orbital_3d: Vec<f64>,
 }
 
-#[derive(Serialize, Deserialize,Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SlaterKosterTable {
     dipole: HashMap<(u8, u8, u8), Vec<f64>>,
     h: HashMap<(u8, u8, u8), Vec<f64>>,
@@ -132,7 +132,7 @@ impl SlaterKosterTable {
     }
 }
 
-#[derive(Serialize, Deserialize,Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct RepulsivePotentialTable {
     /// RepulsivePotentialTable should be a struct with the following members
     ///

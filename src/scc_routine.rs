@@ -77,13 +77,8 @@ pub fn run_scc(
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
         if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
-            let h_x: Array2<f64> = lc_exact_exchange(
-                &s,
-                &molecule.calculator.g0_lr_ao,
-                &p0,
-                &p,
-                h.dim().0,
-            );
+            let h_x: Array2<f64> =
+                lc_exact_exchange(&s, &molecule.calculator.g0_lr_ao, &p0, &p, h.dim().0);
             h = h + h_x;
         }
         // H' = X^t.H.X
@@ -540,7 +535,14 @@ fn self_consistent_charge_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, Some(0.0), None);
+    let mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions,
+        charge,
+        multiplicity,
+        Some(0.0),
+        None,
+    );
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
@@ -568,7 +570,14 @@ fn self_consistent_charge_routine_near_coin() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, Some(0.0), None);
+    let mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions,
+        charge,
+        multiplicity,
+        Some(0.0),
+        None,
+    );
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE

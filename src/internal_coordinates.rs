@@ -3,6 +3,7 @@ use crate::defaults;
 use crate::gradients;
 use crate::molecule::distance_matrix;
 use crate::Molecule;
+use approx::AbsDiffEq;
 use itertools::Itertools;
 use nalgebra::*;
 use ndarray::prelude::*;
@@ -38,7 +39,6 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
     // then angles
     // then out of plane
     // then dihedrals
-    let mut internal_coords: Vec<IC> = Vec::new();
     let mut distances_vec: Vec<Distance> = Vec::new();
     let mut angles_vec: Vec<Angle> = Vec::new();
     let mut outofplane_vec: Vec<Out_of_plane> = Vec::new();
@@ -71,9 +71,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 node_vec.clone(),
                 Array::ones(node_vec.len()) / (node_vec.len() as f64),
             );
-            // internal_coords.push(IC::translation_x(trans_x));
-            // internal_coords.push(IC::translation_y(trans_y));
-            // internal_coords.push(IC::translation_z(trans_z));
+
             translation_x_vec.push(trans_x);
             translation_y_vec.push(trans_y);
             translation_z_vec.push(trans_z);
@@ -83,7 +81,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 .into_shape((mol.n_atoms, 3))
                 .unwrap()
                 .slice(s![
-                    node_vec[0].index()..node_vec.last().unwrap().index(),
+                    node_vec[0].index()..node_vec.last().unwrap().index() + 1,
                     ..
                 ])
                 .to_owned();
@@ -99,9 +97,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
             let rot_a: RotationA = RotationA::new(node_vec.clone(), coordinate_vector.clone(), rg);
             let rot_b: RotationB = RotationB::new(node_vec.clone(), coordinate_vector.clone(), rg);
             let rot_c: RotationC = RotationC::new(node_vec.clone(), coordinate_vector.clone(), rg);
-            // internal_coords.push(IC::rotation_a(rot_a));
-            // internal_coords.push(IC::rotation_b(rot_b));
-            // internal_coords.push(IC::rotation_c(rot_c));
+
             rotation_a_Vec.push(rot_a);
             rotation_b_Vec.push(rot_b);
             rotation_c_Vec.push(rot_c);
@@ -111,9 +107,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 let cart_x: CartesianX = CartesianX::new(j.index(), 1.0);
                 let cart_y: CartesianY = CartesianY::new(j.index(), 1.0);
                 let cart_z: CartesianZ = CartesianZ::new(j.index(), 1.0);
-                // internal_coords.push(IC::cartesian_x(cart_x));
-                // internal_coords.push(IC::cartesian_y(cart_y));
-                // internal_coords.push(IC::cartesian_z(cart_z));
+
                 cartesian_x_vec.push(cart_x);
                 cartesian_y_vec.push(cart_y);
                 cartesian_z_vec.push(cart_z);
@@ -133,68 +127,97 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
 
     //angles
     let linthre: f64 = 0.95;
+    let mut index: usize = 0;
+    let mut index_inner: usize = 0;
+    let mut index_vec: Vec<Vec<NodeIndex>> = Vec::new();
+
     for b in mol.full_graph.node_indices() {
         for a in mol.full_graph.neighbors(b) {
             for c in mol.full_graph.neighbors(b) {
                 if a.index() < c.index() {
                     let angl: Angle = Angle::new(a.index(), b.index(), c.index());
                     // nnc part doesnt work
-
+                    println!("Angle for indices");
+                    print!("Index 1: {:?}", a);
+                    print!("  Index 2: {:?}", b);
+                    println!("  Index 3: {:?}", c);
+                    println!(
+                        "value of angle: {:?}",
+                        angl.clone().value(&coordinate_vector)
+                    );
                     if angl.clone().value(&coordinate_vector).cos().abs() < linthre {
                         //let angl_ic = IC::angle(angl);
                         //internal_coords.push(angl_ic);
-                        angles_vec.push(angl);
+                        angles_vec.insert(index, angl);
+                        index_inner += 1;
+                        index_vec.insert(index, vec![a, b, c]);
                     }
                     // cant check for nnc
                 }
             }
         }
+        index += index_inner;
+        index_inner = 0;
     }
+    println!("Index vec {:?}", index_vec);
     //out of planes
     for b in mol.full_graph.node_indices() {
         for a in mol.full_graph.neighbors(b) {
             for c in mol.full_graph.neighbors(b) {
                 for d in mol.full_graph.neighbors(b) {
-                    // nc doesnt work
-                    let it = vec![a.index(), c.index(), d.index()]
-                        .into_iter()
-                        .permutations(3);
-                    for index in it.into_iter() {
-                        let i = index[0];
-                        let j = index[1];
-                        let k = index[2];
+                    if a.index() < c.index() && c.index() < d.index() {
+                        // nc doesnt work
+                        let it = vec![a.index(), c.index(), d.index()]
+                            .into_iter()
+                            .permutations(3);
+                        for index in it.into_iter() {
+                            let i = index[0];
+                            let j = index[1];
+                            let k = index[2];
 
-                        let angl1: Angle = Angle::new(b.index(), i, j);
-                        let angl2: Angle = Angle::new(i, j, k);
-                        if angl1.value(&coordinate_vector).cos().abs() > linthre {
-                            continue;
-                        }
-                        if angl2.value(&coordinate_vector).cos().abs() > linthre {
-                            continue;
-                        }
-                        // need normal_vector fn here
-                        if (angl1
-                            .normal_vector(&coordinate_vector)
-                            .dot(&angl2.normal_vector(&coordinate_vector)))
-                        .abs()
-                            > linthre
-                        {
-                            // delete angle i,b,j
-                            // for i in (0..internal_coords.len()).rev() {
-                            //     if internal_coords[i] == IC::angle(Angle::new(i, b.index(), j)) {
-                            //         internal_coords.remove(i);
-                            //     }
-                            // }
-                            for i in (0..angles_vec.len()).rev() {
-                                if angles_vec[i] == Angle::new(i, b.index(), j) {
-                                    angles_vec.remove(i);
-                                }
+                            println!("Indices Angle 1:");
+                            print!("{:?}", b.index());
+                            print!("{:?}", i);
+                            println!("{:?}", j);
+
+                            println!("Indices Angle 2:");
+                            print!("{:?}", i);
+                            print!("{:?}", j);
+                            println!("{:?}", k);
+
+                            let angl1: Angle = Angle::new(b.index(), i, j);
+                            let angl2: Angle = Angle::new(i, j, k);
+                            if angl1.value(&coordinate_vector).cos().abs() > linthre {
+                                continue;
                             }
-                            // out of plane bijk
-                            let out_of_pl1: Out_of_plane = Out_of_plane::new(b.index(), i, j, k);
-                            // let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
-                            // internal_coords.push(out_of_pl_ic);
-                            outofplane_vec.push(out_of_pl1);
+                            if angl2.value(&coordinate_vector).cos().abs() > linthre {
+                                continue;
+                            }
+                            // need normal_vector fn here
+                            if (angl1
+                                .normal_vector(&coordinate_vector)
+                                .dot(&angl2.normal_vector(&coordinate_vector)))
+                            .abs()
+                                > linthre
+                            {
+                                let removed_angle: Angle = Angle::new(i, b.index(), j);
+                                // delete angle i,b,j
+                                for m in (0..angles_vec.len()).rev() {
+                                    if (angles_vec[m].at_a == removed_angle.at_a)
+                                        && (angles_vec[m].at_b == removed_angle.at_b)
+                                        && (angles_vec[m].at_c == removed_angle.at_c)
+                                    {
+                                        angles_vec.remove(m);
+                                    }
+                                }
+                                // out of plane bijk
+                                let out_of_pl1: Out_of_plane =
+                                    Out_of_plane::new(b.index(), i, j, k);
+                                // let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
+                                // internal_coords.push(out_of_pl_ic);
+                                outofplane_vec.push(out_of_pl1);
+                                break;
+                            }
                         }
                     }
                 }
@@ -210,14 +233,15 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
         aline.push(ay);
         atom_lines.push(aline);
     }
+
     let mut aline_new: Vec<NodeIndex> = Vec::new();
-    let mut atom_lines_new: Vec<Vec<NodeIndex>> = Vec::new();
+    let mut atom_lines_new: Vec<Vec<NodeIndex>> = atom_lines;
+    let mut convergence_1: bool = false;
+    let mut convergence_2: bool = false;
 
     while true {
         atom_lines = atom_lines_new.clone();
         atom_lines_new = Vec::new();
-        let mut convergence_1: bool = false;
-        let mut convergence_2: bool = false;
 
         for aline in atom_lines {
             aline_new = aline.clone();
@@ -225,7 +249,8 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
             let ay: NodeIndex = *aline.last().unwrap();
 
             for aa in mol.full_graph.neighbors(ab) {
-                if aa != ab && aa != ay {
+                if aline_new.contains(&aa) == false {
+                    //if aa != ab && aa != ay {
                     // If the angle that AA makes with AB and ALL other atoms AC in the line are linear:
                     // Add AA to the front of the list
                     let mut val_vector: Vec<f64> = Vec::new();
@@ -233,24 +258,28 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                         if *ac != ab {
                             let angl = Angle::new(aa.index(), ab.index(), ac.index());
                             let val: f64 = angl.value(&coordinate_vector).cos().abs();
-                            val_vector.insert(0, val);
+                            val_vector.push(val);
                         }
                     }
+
                     let indices_values: Array1<usize> = Array::from_vec(val_vector.clone())
                         .indexed_iter()
                         .filter_map(
                             |(index, &item)| if item > linthre { Some(index) } else { None },
                         )
                         .collect();
-                    if indices_values.len() == val_vector.len() {
-                        aline_new.push(aa);
+                    if indices_values.len() == val_vector.len() && val_vector.len() != 0 {
+                        aline_new.insert(0, aa);
                     } else {
                         convergence_1 = true;
                     }
+                } else {
+                    convergence_1 = true;
                 }
             }
             for az in mol.full_graph.neighbors(ay) {
-                if az != ab && az != ay {
+                if aline_new.contains(&az) == false {
+                    //if az != ab && az != ay {
                     let mut val_vector: Vec<f64> = Vec::new();
                     for ax in aline[1..].iter() {
                         if *ax != ay {
@@ -265,11 +294,13 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                             |(index, &item)| if item > linthre { Some(index) } else { None },
                         )
                         .collect();
-                    if indices_values.len() == val_vector.len() {
+                    if indices_values.len() == val_vector.len() && val_vector.len() != 0 {
                         aline_new.push(az);
                     } else {
                         convergence_2 = true;
                     }
+                } else {
+                    convergence_2 = true;
                 }
             }
             atom_lines_new.push(aline_new.clone());
@@ -279,22 +310,33 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
         }
     }
 
+    let mut index_vec: Vec<Vec<NodeIndex>> = Vec::new();
+
     // dihedrals
     for aline in atom_lines_new {
         //Go over ALL pairs of atoms in a line
         for vec in aline.clone().into_iter().combinations(2) {
-            let b: NodeIndex = vec[0];
-            let c: NodeIndex = vec[1];
-            let mut b_new: NodeIndex = b;
-            let mut c_new: NodeIndex = c;
+            let b_new: NodeIndex = vec[0];
+            let c_new: NodeIndex = vec[1];
+            let mut b: NodeIndex = b_new;
+            let mut c: NodeIndex = c_new;
 
             if b.index() > c.index() {
-                b_new = c;
-                c_new = b;
+                b = c_new;
+                c = b_new;
             }
-            for a in mol.full_graph.neighbors(b_new) {
-                for d in mol.full_graph.neighbors(c_new) {
+            println!("Combinations");
+            print!("{}", b.index());
+            println!("{}", c.index());
+            for a in mol.full_graph.neighbors(b) {
+                for d in mol.full_graph.neighbors(c) {
                     if aline.contains(&a) == false && aline.contains(&d) == false && a != d {
+                        println!("Indices Dihedral");
+                        print!("{}", a.index());
+                        print!("{}", b.index());
+                        print!("{}", c.index());
+                        println!("{}", d.index());
+
                         let angl1: Angle = Angle::new(a.index(), b.index(), c.index());
                         let angl2: Angle = Angle::new(b.index(), c.index(), d.index());
 
@@ -307,68 +349,16 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                         let dihedral: Dihedral =
                             Dihedral::new(a.index(), b.index(), c.index(), d.index());
                         //internal_coords.push(IC::dihedral(dihedral));
-                        dihedral_vec.push(dihedral);
+                        dihedral_vec.insert(0, dihedral);
+                        index_vec.insert(0, vec![a, b, c, d]);
                     }
                 }
             }
         }
     }
-    // reorder internal coordinates
-    // One is unable to iterate over enum
-    // thus, separate vectors are needed for
-    // each operation
-    // for i in distances_vec {
-    //     let dist = IC::distance(i);
-    //     internal_coords.push(dist);
-    // }
-    // for i in angles_vec {
-    //     let angl = IC::angle(i);
-    //     internal_coords.push(angl);
-    // }
-    // for i in outofplane_vec {
-    //     let out_of_pl = IC::out_of_plane(i);
-    //     internal_coords.push(out_of_pl);
-    // }
-    // for i in dihedral_vec {
-    //     let dihedral = IC::dihedral(i);
-    //     internal_coords.push(dihedral);
-    // }
-    // for i in cartesian_x_vec {
-    //     let cart = IC::cartesian_x(i);
-    //     internal_coords.push(cart);
-    // }
-    // for i in cartesian_y_vec {
-    //     let cart = IC::cartesian_y(i);
-    //     internal_coords.push(cart);
-    // }
-    // for i in cartesian_z_vec {
-    //     let cart = IC::cartesian_z(i);
-    //     internal_coords.push(cart);
-    // }
-    // for i in translation_x_vec {
-    //     let trans = IC::translation_x(i);
-    //     internal_coords.push(trans);
-    // }
-    // for i in translation_y_vec {
-    //     let trans = IC::translation_y(i);
-    //     internal_coords.push(trans);
-    // }
-    // for i in translation_z_vec {
-    //     let trans = IC::translation_z(i);
-    //     internal_coords.push(trans);
-    // }
-    // for i in rotation_a_Vec {
-    //     let rot = IC::rotation_a(i);
-    //     internal_coords.push(rot);
-    // }
-    // for i in rotation_b_Vec {
-    //     let rot = IC::rotation_b(i);
-    //     internal_coords.push(rot);
-    // }
-    // for i in rotation_c_Vec {
-    //     let rot = IC::rotation_c(i);
-    //     internal_coords.push(rot);
-    // }
+
+    println!("Indices Dihedrals");
+    println!("{:?}", index_vec);
 
     let internal_coordinates: InternalCoordinates = InternalCoordinates::new(
         distances_vec,
@@ -389,59 +379,227 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
     return internal_coordinates;
 }
 
+pub fn calculate_primitive_values(
+    coords: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+) -> Array1<f64> {
+    let mut prim_vals: Vec<f64> = Vec::new();
+    for i in &internal_coords.distance {
+        let p_val: f64 = i.value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.angle {
+        let p_val: f64 = i.value(&coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.out_of_plane {
+        let p_val: f64 = i.value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.dihedral {
+        let p_val: f64 = i.value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.cartesian_x {
+        let p_val: f64 = i.clone().value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.cartesian_y {
+        let p_val: f64 = i.clone().value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.cartesian_z {
+        let p_val: f64 = i.clone().value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.translation_x {
+        let p_val: f64 = i.clone().value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.translation_y {
+        let p_val: f64 = i.clone().value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.translation_z {
+        let p_val: f64 = i.clone().value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.rotation_a {
+        let p_val: f64 = i.value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.rotation_b {
+        let p_val: f64 = i.value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    for i in &internal_coords.rotation_c {
+        let p_val: f64 = i.value(coords.clone());
+        prim_vals.push(p_val);
+    }
+    let return_val: Array1<f64> = Array::from(prim_vals);
+
+    return return_val;
+}
+
+pub fn calculate_internal_coordinate_gradient(
+    coords: Array1<f64>,
+    gradient: Array1<f64>,
+    internal_coord_vector: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) -> Array1<f64> {
+    let g_inv: Array2<f64> = inverse_g_matrix(coords.clone(), internal_coords, dlc_mat.clone());
+    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords, true, Some(dlc_mat));
+    let gq: Array1<f64> = g_inv.dot(&b_mat.dot(&gradient.t()));
+
+    return gq;
+}
+
+pub fn calculate_internal_gradient_norm(grad: Array1<f64>) -> (f64, f64) {
+    let grad_2d: Array2<f64> = grad.clone().into_shape((grad.len() / 3, 3)).unwrap();
+    let atom_grad: Array1<f64> = grad_2d
+        .mapv(|val| val.powi(2))
+        .sum_axis(Axis(1))
+        .mapv(|val| val.sqrt());
+    let rms_gradient: f64 = atom_grad
+        .clone()
+        .mapv(|val| val.powi(2))
+        .mean()
+        .unwrap()
+        .sqrt();
+    let max_gradient: f64 = atom_grad
+        .iter()
+        .cloned()
+        .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+        .unwrap();
+
+    return (rms_gradient, max_gradient);
+}
+
+pub fn inverse_g_matrix(
+    coords: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) -> Array2<f64> {
+    let n_at: usize = coords.len() / 3;
+    let coords_2d: Array2<f64> = coords.clone().into_shape((n_at, 3)).unwrap();
+
+    let g_matrix: Array2<f64> = build_g_matrix(coords, internal_coords, true, Some(dlc_mat));
+
+    let (u, s, vh) = g_matrix.svd(true, true).unwrap();
+    let ut: Array2<f64> = u.unwrap().reversed_axes();
+    let s: Array1<f64> = s;
+    // s is okay
+    let v: Array2<f64> = vh.unwrap().reversed_axes();
+
+    let mut large_vals: usize = 0;
+    let mut s_inv: Array1<f64> = Array::zeros((s.dim()));
+
+    for (ival, value) in s.iter().enumerate() {
+        if value.abs() > 1.0e-6 {
+            large_vals += 1;
+            s_inv[ival] = 1.0 / value;
+        }
+    }
+    //println!("V matrix from svd {}",v.t());
+    //println!("ut matrix from svd {}",ut.t());
+    let s_inv_2d: Array2<f64> = Array::from_diag(&s_inv);
+    let inv: Array2<f64> = v.dot(&s_inv_2d.dot(&ut));
+
+    return inv;
+}
+
+pub fn calculate_internal_coordinate_vector(
+    coords: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: &Array2<f64>,
+) -> Array1<f64> {
+    let prim_values: Array1<f64> = calculate_primitive_values(coords, internal_coords);
+    let dlc: Array1<f64> = dlc_mat.t().dot(&prim_values);
+
+    return dlc;
+}
+
 pub fn build_delocalized_internal_coordinates(
     coords: Array1<f64>,
     primitives: &InternalCoordinates,
-) {
+) -> Array2<f64> {
     // Build the delocalized internal coordinates (DLCs) which are linear
     // combinations of the primitive internal coordinates
 
-    // Constrained primitive ICs (PICs) are
-    // first set aside from the rest of the PICs. Next, a G-matrix is constructed
-    // from the rest of the PICs and diagonalized to form DLCs, called "residual" DLCs.
-    // The union of the cPICs and rDLCs forms a generalized set of DLCs, but the
-    // cPICs are not orthogonal to each other or to the rDLCs.
-    //let nprims: usize = primitives.len();
-    let g_matrix: Array2<f64> = build_g_matrix(coords, primitives);
+    let g_matrix: Array2<f64> = build_g_matrix(coords, primitives, false, None);
 
-    //  Form a sub-G-matrix that doesn't include the constrained primitives and diagonalize it to form DLCs.
-    // g matrix does not contain constraints
+    let (l_vec, q_mat): (Array1<f64>, Array2<f64>) = g_matrix.eigh(UPLO::Upper).unwrap();
 
-    let (l_vec,q_mat):(Array1<f64>,Array2<f64>) = g_matrix.eigh(UPLO::Upper).unwrap();
-    // Sort eigenvalues and eigenvectors in descending order (for cleanliness)
-    let dim_0: usize = q_mat.dim().0;
-    let dim_1: usize = q_mat.dim().1;
-    let mut l_vec_ordered:Array1<f64> = Array::zeros(dim_0);
-    let mut q_mat_ordered:Array2<f64> = Array::zeros((dim_0,dim_1));
-
-    for i in 0..dim_0{
-        l_vec_ordered[i] = l_vec[dim_0-1-i];
-        q_mat_ordered.slice_mut(s![..,i]).assign(&q_mat.slice(s![..,dim_1-1-i]));
+    let mut large_val: usize = 0;
+    let mut large_index_vec: Vec<usize> = Vec::new();
+    for (ival, value) in l_vec.iter().enumerate() {
+        if value.abs() > 1e-6 {
+            large_val += 1;
+            large_index_vec.push(ival);
+        }
+    }
+    let mut qmat_final: Array2<f64> = Array::zeros((q_mat.dim().0, large_index_vec.len()));
+    for (index, val) in large_index_vec.iter().enumerate() {
+        qmat_final
+            .slice_mut(s![.., index])
+            .assign(&q_mat.slice(s![.., *val]));
     }
 
+    return qmat_final;
 }
 
-pub fn build_g_matrix(coords: Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
+pub fn build_g_matrix(
+    coords: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    calculated_dlcs: bool,
+    dlc_mat: Option<Array2<f64>>,
+) -> Array2<f64> {
     // Given Cartesian coordinates xyz, return the G-matrix
     // given by G = BuBt where u is an arbitrary matrix (default to identity)
-    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords);
+    let b_mat: Array2<f64> = wilsonB(&coords, internal_coords, calculated_dlcs, dlc_mat);
     let b_ubt: Array2<f64> = b_mat.dot(&b_mat.clone().t());
 
     return b_ubt;
 }
 
-pub fn wilsonB(coords: &Array1<f64>, internal_coords: &InternalCoordinates) -> Array2<f64> {
+pub fn wilsonB(
+    coords: &Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    calculated_dlcs: bool,
+    dlc_mat: Option<Array2<f64>>,
+) -> Array2<f64> {
     // Given Cartesian coordinates xyz, return the Wilson B-matrix
     // given by dq_i/dx_j where x is flattened (i.e. x1, y1, z1, x2, y2, z2)
     let derivatives: Vec<Array2<f64>> = get_derivatives(coords, internal_coords);
-    let mut wilson_b: Array2<f64> = Array::zeros((
+    let mut deriv_matrix: Array3<f64> = Array::zeros((
         derivatives.len(),
-        derivatives[0].dim().0 + derivatives[0].dim().1,
+        derivatives[0].dim().0,
+        derivatives[0].dim().1,
     ));
-    for i in 0..derivatives.len() {
-        let deriv_1d: Array1<f64> = derivatives[i]
+
+    for (index, val) in derivatives.iter().enumerate() {
+        deriv_matrix.slice_mut(s![index, .., ..]).assign(val);
+    }
+    if calculated_dlcs {
+        deriv_matrix = tensordot(&dlc_mat.unwrap(), &deriv_matrix, &[Axis(0)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+    }
+    // println!("derivatives");
+    // for i in 0..derivatives.len() {
+    //     println!("{:?}", derivatives[i]);
+    // }
+    let mut wilson_b: Array2<f64> = Array::zeros((
+        deriv_matrix.dim().0,
+        deriv_matrix.dim().1 * deriv_matrix.dim().2,
+    ));
+    for i in 0..deriv_matrix.dim().0 {
+        let deriv_1d: Array1<f64> = deriv_matrix
+            .slice(s![i, .., ..])
+            .to_owned()
             .clone()
-            .into_shape((derivatives[i].dim().0 + derivatives[i].dim().1))
+            .into_shape((deriv_matrix.dim().1 * deriv_matrix.dim().2))
             .unwrap();
         wilson_b.slice_mut(s![i, ..]).assign(&deriv_1d);
     }
@@ -794,21 +952,274 @@ pub fn dn_cross(vec_1: &Vec<f64>, vec_2: &Vec<f64>) -> Array1<f64> {
     return result;
 }
 
-#[derive(PartialEq, Clone)]
-pub enum IC {
-    distance(Distance),
-    angle(Angle),
-    out_of_plane(Out_of_plane),
-    dihedral(Dihedral),
-    cartesian_x(CartesianX),
-    cartesian_y(CartesianY),
-    cartesian_z(CartesianZ),
-    translation_x(TranslationX),
-    translation_y(TranslationY),
-    translation_z(TranslationZ),
-    rotation_a(RotationA),
-    rotation_b(RotationB),
-    rotation_c(RotationC),
+pub fn cartesian_from_step(
+    cart_coords: Array1<f64>,
+    dy: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) -> (Array1<f64>,bool) {
+    let mut microiter: usize = 0;
+    let mut ndqs: Vec<f64> = Vec::new();
+    let mut rmsds: Vec<f64> = Vec::new();
+    let mut damp: f64 = 1.0;
+    let mut fail_counter: usize = 0;
+
+    let mut dq: Array1<f64> = dy;
+    let mut xyz: Array1<f64> = cart_coords.clone();
+    let mut ndqt: f64 = 0.0;
+    let mut rmsdt: f64 = 0.0;
+    let mut xyz_iter1: Array1<f64> = Array::zeros((cart_coords.clone().len()));
+    let mut xyz_save: Array1<f64> = Array::zeros((cart_coords.clone().len()));
+    let mut bork:bool = false;
+
+    while true {
+        microiter += 1;
+        let b_mat: Array2<f64> =
+            wilsonB(&cart_coords, internal_coords, true, Some(dlc_mat.clone()));
+        let g_inv: Array2<f64> =
+            inverse_g_matrix(cart_coords.clone(), internal_coords, dlc_mat.clone());
+        let dxyz: Array1<f64> = damp * b_mat.t().dot(&g_inv.dot(&dq.t()));
+        let xyz_2: Array1<f64> = xyz.clone() + dxyz;
+
+        if microiter == 1 {
+            xyz_iter1 = xyz_2.clone();
+        }
+
+        // Calculate the actual change in internal coordinates
+        let dq_actual: Array1<f64> =
+            get_calc_diff(xyz_2.clone(), xyz.clone(), internal_coords, dlc_mat.clone());
+        let rmsd: f64 = (&xyz_2 - &xyz)
+            .mapv(|val| val.powi(2))
+            .mean()
+            .unwrap()
+            .sqrt();
+        let ndq: f64 = (&dq - &dq_actual).to_vec().norm();
+
+        if ndqs.len() > 0 {
+            if ndq > ndqt {
+                damp = damp / 2.0;
+                fail_counter += 1;
+            } else {
+                fail_counter = 0;
+                damp = 1.0_f64.min(damp * 1.2);
+                rmsdt = rmsd;
+                ndqt = ndq;
+                xyz_save = xyz_2.clone();
+            }
+        } else {
+            rmsdt = rmsd;
+            ndqt = ndq;
+        }
+        ndqs.push(ndq);
+        rmsds.push(rmsd);
+
+        // Check convergence / fail criteria
+        if rmsd < 1.0e-6 || ndq < 1.0e-6 {
+            break;
+        }
+        if fail_counter >= 5 {
+            break;
+        }
+        if microiter == 50 {
+            break;
+        }
+        dq = dq - dq_actual;
+        xyz = xyz_2;
+    }
+    let mut return_val: Array1<f64> = Array::zeros((cart_coords.clone().len()));
+    if ndqt > 1e-1 {
+        bork = true;
+        return_val = xyz_iter1;
+        println!("Failed to obtain cartesians");
+    } else if ndqt > 1e-3 {
+        println!("Obtained approximate Cartesians");
+    }
+    return_val = xyz_save;
+
+    return (return_val,bork);
+}
+
+pub fn get_calc_diff(
+    coord_1: Array1<f64>,
+    coord_2: Array1<f64>,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) -> Array1<f64> {
+    let mut calc_diffs: Vec<f64> = Vec::new();
+    for i in &internal_coords.distance {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.angle {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.out_of_plane {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.dihedral {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.cartesian_x {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.cartesian_y {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.cartesian_z {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.translation_x {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.translation_y {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.translation_z {
+        let p_val: f64 = i.clone().calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.rotation_a {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.rotation_b {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    for i in &internal_coords.rotation_c {
+        let p_val: f64 = i.calc_diff(coord_1.clone(), coord_2.clone());
+        calc_diffs.push(p_val);
+    }
+    let pm_diff: Array1<f64> = Array::from(calc_diffs);
+    let return_val: Array1<f64> = dlc_mat.dot(&pm_diff);
+
+    return return_val;
+}
+
+pub fn create_initial_hessian(
+    coords: Array1<f64>,
+    mol: &Molecule,
+    internal_coords: &InternalCoordinates,
+    dlc_mat: Array2<f64>,
+) -> Array2<f64> {
+    let h_prim: Array2<f64> = guess_hessian(coords, mol, internal_coords);
+    let h_mat: Array2<f64> = dlc_mat.t().dot(&h_prim.dot(&dlc_mat));
+    return h_mat;
+}
+
+pub fn guess_hessian(
+    coords: Array1<f64>,
+    mol: &Molecule,
+    internal_coords: &InternalCoordinates,
+) -> Array2<f64> {
+    let n_at: usize = coords.len() / 3;
+    let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+    let mut h_diag: Vec<f64> = Vec::new();
+
+    for i in internal_coords.distance.iter() {
+        let r: f64 = (coords_new.slice(s![i.at_a, ..]).to_owned()
+            - coords_new.slice(s![i.at_b, ..]).to_owned())
+        .to_vec()
+        .norm();
+        let elem_1: u8 = mol.atomic_numbers[i.at_a].min(mol.atomic_numbers[i.at_b]);
+        let elem_2: u8 = mol.atomic_numbers[i.at_a].max(mol.atomic_numbers[i.at_b]);
+
+        let a: f64 = 1.734;
+        let mut b: f64 = 0.0;
+        if elem_1 < 3 {
+            if elem_2 < 3 {
+                b = -0.244;
+            } else if elem_2 < 11 {
+                b = 0.352;
+            } else {
+                b = 0.660;
+            }
+        } else if elem_1 < 11 {
+            if elem_2 < 11 {
+                b = 1.085;
+            } else {
+                b = 1.522;
+            }
+        } else {
+            b = 2.068;
+        }
+        if mol.connectivity_matrix[[i.at_a, i.at_b]] == true {
+            h_diag.push(a / (r - b).powi(3));
+        } else {
+            h_diag.push(0.1);
+        }
+    }
+
+    for i in internal_coords.angle.iter() {
+        let mut a: f64 = 0.0;
+        let mut b: f64 = 0.0;
+        if mol.atomic_numbers[i.at_a]
+            .min(mol.atomic_numbers[i.at_b].min(mol.atomic_numbers[i.at_c]))
+            < 3
+        {
+            a = 0.16;
+        } else {
+            a = 0.25;
+        }
+        if mol.connectivity_matrix[[i.at_a, i.at_b]] == true
+            && mol.connectivity_matrix[[i.at_b, i.at_c]] == true
+        {
+            h_diag.push(a);
+        } else {
+            h_diag.push(0.1);
+        }
+    }
+    for i in internal_coords.out_of_plane.iter() {
+        if mol.connectivity_matrix[[i.at_a, i.at_b]] == true
+            && mol.connectivity_matrix[[i.at_a, i.at_c]] == true
+            && mol.connectivity_matrix[[i.at_a, i.at_d]] == true
+        {
+            h_diag.push(0.045);
+        } else {
+            h_diag.push(0.023);
+        }
+    }
+    for i in internal_coords.dihedral.iter() {
+        h_diag.push(0.023);
+    }
+    for i in internal_coords.cartesian_x.iter() {
+        h_diag.push(0.05);
+    }
+    for i in internal_coords.cartesian_y.iter() {
+        h_diag.push(0.05);
+    }
+    for i in internal_coords.cartesian_z.iter() {
+        h_diag.push(0.05);
+    }
+    for i in internal_coords.translation_x.iter() {
+        h_diag.push(0.05);
+    }
+    for i in internal_coords.translation_y.iter() {
+        h_diag.push(0.05);
+    }
+    for i in internal_coords.translation_z.iter() {
+        h_diag.push(0.05);
+    }
+    for i in internal_coords.rotation_a.iter() {
+        h_diag.push(0.05);
+    }
+    for i in internal_coords.rotation_b.iter() {
+        h_diag.push(0.05);
+    }
+    for i in internal_coords.rotation_c.iter() {
+        h_diag.push(0.05);
+    }
+
+    let h_diag_mat: Array2<f64> = Array::from_diag(&Array::from(h_diag));
+    return h_diag_mat;
 }
 
 #[derive(Clone, PartialEq)]
@@ -878,6 +1289,18 @@ impl CartesianX {
         };
         return cart;
     }
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let val: f64 = coords_new[[self.at_a, 0]] * self.w_val;
+        return val;
+    }
     pub fn derivatives(self, coords: Array1<f64>) -> Array2<f64> {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -903,6 +1326,18 @@ impl CartesianY {
             w_val: w_val,
         };
         return cart;
+    }
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let val: f64 = coords_new[[self.at_a, 1]] * self.w_val;
+        return val;
     }
 
     pub fn derivatives(self, coords: Array1<f64>) -> Array2<f64> {
@@ -931,6 +1366,19 @@ impl CartesianZ {
         };
         return cart;
     }
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let val: f64 = coords_new[[self.at_a, 2]] * self.w_val;
+        return val;
+    }
+
     pub fn derivatives(self, coords: Array1<f64>) -> Array2<f64> {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -957,6 +1405,23 @@ impl TranslationX {
         };
         return trans;
     }
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let mut val: f64 = 0.0;
+
+        for (i, index) in self.nodes.iter().enumerate() {
+            val += coords_new[[index.index(), 0]] * self.w_vec[i];
+        }
+        return val;
+    }
+
     pub fn derivatives(self, coords: Array1<f64>) -> Array2<f64> {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -965,7 +1430,6 @@ impl TranslationX {
         for (i, a) in self.nodes.iter().enumerate() {
             derivatives[[a.index(), 0]] = self.w_vec[i];
         }
-
         return derivatives;
     }
 }
@@ -985,6 +1449,22 @@ impl TranslationY {
             w_vec: w_vec,
         };
         return trans;
+    }
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let mut val: f64 = 0.0;
+
+        for (i, index) in self.nodes.iter().enumerate() {
+            val += coords_new[[index.index(), 1]] * self.w_vec[i];
+        }
+        return val;
     }
 
     pub fn derivatives(self, coords: Array1<f64>) -> Array2<f64> {
@@ -1016,6 +1496,23 @@ impl TranslationZ {
         };
         return trans;
     }
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let mut val: f64 = 0.0;
+
+        for (i, index) in self.nodes.iter().enumerate() {
+            val += coords_new[[index.index(), 2]] * self.w_vec[i];
+        }
+        return val;
+    }
+
     pub fn derivatives(self, coords: Array1<f64>) -> Array2<f64> {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1046,8 +1543,20 @@ impl Distance {
 
         return dist;
     }
-    pub fn get_distance(self, dist_matrix: &Array2<f64>) -> f64 {
-        let distance: f64 = dist_matrix[[self.at_a, self.at_b]];
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(coords_1) - self.value(coords_2);
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let distance: f64 = (coords_new.slice(s![self.at_a, ..]).to_owned()
+            - coords_new.slice(s![self.at_b, ..]).to_owned())
+        .mapv(|dist| dist.powi(2))
+        .sum()
+        .sqrt();
         return distance;
     }
 
@@ -1091,6 +1600,51 @@ impl Out_of_plane {
         };
 
         return out_of_plane;
+    }
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let mut diff: f64 = self.value(coords_1) - self.value(coords_2);
+
+        let plus_2_pi: f64 = diff + 2.0_f64 * PI;
+        let minus_2_pi: f64 = diff - 2.0_f64 * PI;
+
+        if diff.abs() > plus_2_pi.abs() {
+            diff = plus_2_pi;
+        }
+        if diff.abs() > minus_2_pi.abs() {
+            diff = minus_2_pi;
+        }
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let a: usize = self.at_a;
+        let b: usize = self.at_b;
+        let c: usize = self.at_c;
+        let d: usize = self.at_d;
+
+        let vec_1: Vec<f64> = (coords_new.slice(s![b, ..]).to_owned()
+            - coords_new.slice(s![a, ..]).to_owned())
+        .to_vec();
+        let vec_2: Vec<f64> = (coords_new.slice(s![c, ..]).to_owned()
+            - coords_new.slice(s![b, ..]).to_owned())
+        .to_vec();
+        let vec_3: Vec<f64> = (coords_new.slice(s![d, ..]).to_owned()
+            - coords_new.slice(s![c, ..]).to_owned())
+        .to_vec();
+
+        let cross_1: Array1<f64> = Array::from(vec_2.cross(&vec_3));
+        let cross_2: Array1<f64> = Array::from(vec_1.cross(&vec_2));
+
+        let arg_1: f64 = (&Array::from(vec_1) * &cross_1).sum()
+            * Array::from(vec_2).mapv(|val| val.powi(2)).sum().sqrt();
+        let arg_2: f64 = (&cross_1 * &cross_2).sum();
+
+        let return_val: f64 = arg_1.atan2(arg_2);
+
+        return return_val;
     }
 
     pub fn derivatives(&self, coords: Array1<f64>) -> Array2<f64> {
@@ -1144,7 +1698,7 @@ impl Out_of_plane {
         derivatives.slice_mut(s![n, ..]).assign(&(-&term_2));
         derivatives
             .slice_mut(s![o, ..])
-            .assign(&(-&term_1 + &term_2 - &term_4));
+            .assign(&(-&term_1 + &term_3 - &term_4));
         derivatives
             .slice_mut(s![p, ..])
             .assign(&(&term_2 - &term_3 + &term_4));
@@ -1175,6 +1729,11 @@ impl Angle {
         return angle;
     }
 
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let diff: f64 = self.value(&coords_1) - self.value(&coords_2);
+        return diff;
+    }
+
     pub fn value(self, coord_vector: &Array1<f64>) -> f64 {
         let a: usize = self.at_a;
         let b: usize = self.at_b;
@@ -1188,9 +1747,14 @@ impl Angle {
         let vec_2: Vec<f64> = (coord_vector.slice(s![3 * c..3 * c + 3]).to_owned()
             - coord_vector.slice(s![3 * b..3 * b + 3]).to_owned())
         .to_vec();
+
         // norm of the vectors
-        let norm_1: f64 = vec_1.norm();
-        let norm_2: f64 = vec_2.norm();
+        // let norm_1: f64 = vec_1.norm();
+        // let norm_2: f64 = vec_2.norm();
+        let vec_1_new: Array1<f64> = Array::from(vec_1.clone());
+        let vec_2_new: Array1<f64> = Array::from(vec_2.clone());
+        let norm_1: f64 = (vec_1_new.mapv(|vec_1_new| vec_1_new.powi(2))).sum().sqrt();
+        let norm_2: f64 = (vec_2_new.mapv(|vec_2_new| vec_2_new.powi(2))).sum().sqrt();
         let dot: f64 = Array::from_vec(vec_1).dot(&Array::from_vec(vec_2));
         let factor: f64 = dot / (norm_1 * norm_2);
 
@@ -1307,6 +1871,51 @@ impl Dihedral {
         return dihedral;
     }
 
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let mut diff: f64 = self.value(coords_1) - self.value(coords_2);
+
+        let plus_2_pi: f64 = diff + 2.0_f64 * PI;
+        let minus_2_pi: f64 = diff - 2.0_f64 * PI;
+
+        if diff.abs() > plus_2_pi.abs() {
+            diff = plus_2_pi;
+        }
+        if diff.abs() > minus_2_pi.abs() {
+            diff = minus_2_pi;
+        }
+        return diff;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let a: usize = self.at_a;
+        let b: usize = self.at_b;
+        let c: usize = self.at_c;
+        let d: usize = self.at_d;
+
+        let vec_1: Vec<f64> = (coords_new.slice(s![b, ..]).to_owned()
+            - coords_new.slice(s![a, ..]).to_owned())
+        .to_vec();
+        let vec_2: Vec<f64> = (coords_new.slice(s![c, ..]).to_owned()
+            - coords_new.slice(s![b, ..]).to_owned())
+        .to_vec();
+        let vec_3: Vec<f64> = (coords_new.slice(s![d, ..]).to_owned()
+            - coords_new.slice(s![c, ..]).to_owned())
+        .to_vec();
+
+        let cross_1: Array1<f64> = Array::from(vec_2.cross(&vec_3));
+        let cross_2: Array1<f64> = Array::from(vec_1.cross(&vec_2));
+
+        let arg_1: f64 = (&Array::from(vec_1) * &cross_1).sum()
+            * Array::from(vec_2).mapv(|val| val.powi(2)).sum().sqrt();
+        let arg_2: f64 = (&cross_1 * &cross_2).sum();
+
+        let return_val: f64 = arg_1.atan2(arg_2);
+
+        return return_val;
+    }
+
     pub fn derivatives(&self, coords: Array1<f64>) -> Array2<f64> {
         let n_at: usize = coords.len() / 3;
         let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
@@ -1358,7 +1967,7 @@ impl Dihedral {
         derivatives.slice_mut(s![n, ..]).assign(&(-&term_2));
         derivatives
             .slice_mut(s![o, ..])
-            .assign(&(-&term_1 + &term_2 - &term_4));
+            .assign(&(-&term_1 + &term_3 - &term_4));
         derivatives
             .slice_mut(s![p, ..])
             .assign(&(&term_2 - &term_3 + &term_4));
@@ -1386,6 +1995,129 @@ impl RotationA {
         };
 
         return rotation;
+    }
+
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let vec_1: Array1<f64> = self.value_vec(coords_1);
+        let vec_2: Array1<f64> = self.value_vec(coords_2);
+        let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
+
+        let return_val: f64 = vec_diff[0] * self.w_val;
+        return return_val;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        let return_val: f64 = answer[0] * self.w_val;
+
+        return return_val;
+    }
+
+    pub fn value_vec(&self, coords: Array1<f64>) -> Array1<f64> {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        return answer;
     }
 
     pub fn calc_e0(&self) -> (Vec<f64>) {
@@ -1537,6 +2269,129 @@ impl RotationB {
         return rotation;
     }
 
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let vec_1: Array1<f64> = self.value_vec(coords_1);
+        let vec_2: Array1<f64> = self.value_vec(coords_2);
+        let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
+
+        let return_val: f64 = vec_diff[1] * self.w_val;
+        return return_val;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        let return_val: f64 = answer[1] * self.w_val;
+
+        return return_val;
+    }
+
+    pub fn value_vec(&self, coords: Array1<f64>) -> Array1<f64> {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        return answer;
+    }
+
     pub fn calc_e0(&self) -> (Vec<f64>) {
         let n_at: usize = self.coords.clone().len() / 3;
         let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
@@ -1685,6 +2540,129 @@ impl RotationC {
         return rotation;
     }
 
+    pub fn calc_diff(&self, coords_1: Array1<f64>, coords_2: Array1<f64>) -> f64 {
+        let vec_1: Array1<f64> = self.value_vec(coords_1);
+        let vec_2: Array1<f64> = self.value_vec(coords_2);
+        let vec_diff: Array1<f64> = calc_rot_vec_diff(vec_1, vec_2);
+
+        let return_val: f64 = vec_diff[2] * self.w_val;
+        return return_val;
+    }
+
+    pub fn value(&self, coords: Array1<f64>) -> f64 {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        let return_val: f64 = answer[2] * self.w_val;
+
+        return return_val;
+    }
+
+    pub fn value_vec(&self, coords: Array1<f64>) -> Array1<f64> {
+        let n_at: usize = coords.len() / 3;
+        let coords_new: Array2<f64> = coords.into_shape((n_at, 3)).unwrap();
+        let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
+
+        let mut x_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        let mut y_sel: Array2<f64> = Array::zeros((self.nodes.len(), 3));
+        for (i, j) in self.nodes.iter().enumerate() {
+            x_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_new.slice(s![j.index(), ..]));
+            y_sel
+                .slice_mut(s![i, ..])
+                .assign(&coords_self.slice(s![j.index(), ..]));
+        }
+        let x_mean: Array1<f64> = x_sel.mean_axis(Axis(0)).unwrap();
+        let y_mean: Array1<f64> = y_sel.mean_axis(Axis(0)).unwrap();
+
+        let mut bool_linear: bool = false;
+
+        if check_linearity(&x_sel, &y_sel) {
+            bool_linear = true;
+        }
+        let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
+
+        if bool_linear {
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0, ..]) - &y_sel.slice(s![0, ..]);
+            let e0: Vec<f64> = self.calc_e0();
+            let xdum: Vec<f64> = vx.to_vec().cross(&e0);
+            let ydum: Vec<f64> = vy.to_vec().cross(&e0);
+            let exdum: Array1<f64> = (Array::from(xdum.clone()) / xdum.norm());
+            let eydum: Array1<f64> = (Array::from(ydum.clone()) / ydum.norm());
+
+            let mut x_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            let mut y_sel_new: Array2<f64> = Array::zeros((self.nodes.len() + 1, 3));
+            // vstacks
+            x_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&x_sel);
+            y_sel_new
+                .slice_mut(s![0..self.nodes.len() - 1, ..])
+                .assign(&y_sel);
+            x_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(exdum + x_mean));
+            y_sel_new
+                .slice_mut(s![self.nodes.len(), ..])
+                .assign(&(eydum + y_mean));
+
+            answer = get_exmap_rot(&x_sel_new, &y_sel_new);
+        }
+
+        return answer;
+    }
+
     pub fn calc_e0(&self) -> (Vec<f64>) {
         let n_at: usize = self.coords.clone().len() / 3;
         let coords_self: Array2<f64> = self.coords.clone().into_shape((n_at, 3)).unwrap();
@@ -1811,4 +2789,370 @@ impl RotationC {
 
         return derivatives_new;
     }
+}
+
+pub fn calc_rot_vec_diff(vec_1: Array1<f64>, vec_2: Array1<f64>) -> Array1<f64> {
+    // Calculate the difference in two provided rotation vectors v1_in - v2_in
+    let v1: Vec<f64> = vec_1.to_vec();
+    let v2: Vec<f64> = vec_2.to_vec();
+    let length: usize = vec_1.len();
+
+    let mut return_val: Array1<f64> = Array::zeros(length);
+
+    if v1.norm() < 1e-6 && v2.norm() < 1e-6 {
+        return_val = &vec_1 - &vec_2;
+    }
+    let mut va: Array1<f64> = Array::zeros(length);
+    let mut vb: Array1<f64> = Array::zeros(length);
+    let mut va_is_v1: bool = false;
+
+    if vec_1.dot(&vec_1) > vec_2.dot(&vec_2) {
+        va = vec_1;
+        vb = vec_2;
+        va_is_v1 = true;
+    } else {
+        va = vec_2;
+        vb = vec_1;
+    }
+    let vh: Array1<f64> = va.clone() / va.clone().to_vec().norm();
+    let mut revcount: usize = 0;
+
+    while true {
+        let vd: f64 = (&va - &vb).dot(&(&va - &vb));
+        va = va + 2.0_f64 * PI * vh.clone();
+        revcount += 1;
+        if (&va - &vb).dot(&(&va - &vb)) > vd {
+            va = va - 2.0_f64 * PI * vh.clone();
+            revcount -= 1;
+            break;
+        }
+    }
+    while true {
+        let vd: f64 = (&va - &vb).dot(&(&va - &vb));
+        va = va - 2.0_f64 * PI * vh.clone();
+        revcount -= 1;
+        if (&va - &vb).dot(&(&va - &vb)) > vd {
+            va = va + 2.0_f64 * PI * vh.clone();
+            revcount += 1;
+            break;
+        }
+    }
+    let mut return_val: Array1<f64> = Array::zeros(length);
+    if va_is_v1 {
+        return_val = &va - &vb;
+    } else {
+        return_val = &vb - &va;
+    }
+    return return_val;
+}
+
+#[test]
+pub fn test_make_primitives() {
+    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+
+    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
+}
+
+#[test]
+pub fn test_build_gmatrix() {
+    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
+    // transform coordinates in au
+    positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
+
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+
+    // let g_matrix:Array2<f64> = build_g_matrix(coordinates_1d.clone(),&internal_coordinates);
+    //
+    // println!("Gmatrix");
+    // for i in 0..g_matrix.dim().0{
+    //     println!("{:?}",g_matrix.slice(s![i,..]));
+    // }
+
+    let q_mat: Array2<f64> =
+        build_delocalized_internal_coordinates(coordinates_1d.clone(), &internal_coordinates);
+
+    let q_internal: Array1<f64> =
+        calculate_internal_coordinate_vector(coordinates_1d, &internal_coordinates, &q_mat);
+
+    println!("q_internal: {:?}", q_internal);
+
+    assert!(1 == 2);
+}
+
+#[test]
+pub fn test_internal_coordinate_gradient() {
+    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
+    // transform coordinates in au
+    positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let input_gradient: Array1<f64> = array![
+        -0.2053378, 0., -0., 0.2053378, -0., 0., -0.0037439, 0.025855, -0., -0.0037439, -0.025855,
+        0., 0.0037439, -0.025855, -0., 0.0037439, 0.025855, -0.
+    ];
+
+    let gradient_ref: Array1<f64> = array![
+        -3.30076111e-17,
+        -2.54335801e-16,
+        -7.42617391e-17,
+        1.97525723e-16,
+        -1.74612938e-16,
+        5.72171395e-02,
+        3.22493572e-16,
+        -1.27575900e-01,
+        5.11402705e-17,
+        -5.32899069e-17,
+        9.69124822e-02,
+        -4.12639859e-19,
+        -6.56895453e-17,
+        1.15575994e-17,
+        2.50169279e-17,
+        7.29185310e-02,
+        -1.18933990e-01,
+        -1.17062344e-17
+    ];
+
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
+
+    let q_mat: Array2<f64> =
+        build_delocalized_internal_coordinates(coordinates_1d.clone(), &internal_coordinates);
+
+    let q_internal_ref: Array1<f64> = array![
+        8.88178420e-16,
+        4.09397937e-16,
+        5.29106653e-16,
+        -8.79253055e-16,
+        -1.26513229e-15,
+        -2.55154855e+00,
+        -8.99118363e-18,
+        -3.58738579e+00,
+        1.32047184e-16,
+        3.10862447e-15,
+        4.67979294e+00,
+        3.14159265e+00,
+        -1.77635684e-15,
+        2.26651913e-16,
+        4.44089210e-16,
+        1.51891374e+00,
+        -1.68037480e-01,
+        -3.32286896e-16
+    ];
+
+    //let q_internal: Array1<f64> =
+    //    calculate_internal_coordinates(coordinates_1d.clone(), &internal_coordinates, &q_mat);
+
+    let inter_coord_gradient: Array1<f64> = calculate_internal_coordinate_gradient(
+        coordinates_1d,
+        input_gradient,
+        q_internal_ref,
+        &internal_coordinates,
+        q_mat,
+    );
+
+    println!("gradient {:?}", inter_coord_gradient);
+    assert!(inter_coord_gradient
+        .mapv(|val| val.abs())
+        .abs_diff_eq(&gradient_ref.mapv(|val| val.abs()), 1e-7));
+
+    assert!(1 == 2);
+}
+
+#[test]
+pub fn test_svd() {
+    let test_matrix: Array2<f64> = array![[1.0, 2.0, 2.0], [2.0, 1.0, 2.0], [2.0, 2.0, 1.0],];
+    println!("test_matirx {}", test_matrix);
+
+    let (u, s, vh) = test_matrix.svd(true, true).unwrap();
+    let u: Array2<f64> = u.unwrap();
+    let s: Array1<f64> = s;
+    // s is okay
+    println!("U matrix from svd {}", u);
+    println!("S matrix from svd {}", s);
+    let vh: Array2<f64> = vh.unwrap();
+    println!("Vh matrix from svd {}", vh);
+
+    println!(
+        "eigenvectors of AA.T {}",
+        (&test_matrix * &test_matrix.t())
+            .eigh(UPLO::Upper)
+            .unwrap()
+            .1
+    );
+
+    let v: Array2<f64> = vh.reversed_axes();
+    let ut: Array2<f64> = u.reversed_axes();
+    let s_diag: Array2<f64> = Array::from_diag(&(1.0 / s));
+
+    let inv: Array2<f64> = v.dot(&s_diag.dot(&ut));
+
+    println!("inv matrix {}", inv);
+    assert!(1 == 2);
+}
+
+#[test]
+pub fn test_initial_hessian() {
+    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
+    // transform coordinates in au
+    positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let internal_coords_vec_ref: Array1<f64> = array![
+        -2.33146835e-15,
+        -1.79420853e-16,
+        2.03964277e-15,
+        8.26672460e-16,
+        -4.68355644e-16,
+        -2.55154855e+00,
+        -1.06165215e-16,
+        3.58738580e+00,
+        2.81224494e-16,
+        -6.21724894e-15,
+        -4.67979293e+00,
+        3.14159265e+00,
+        -6.66133815e-16,
+        1.78238100e-15,
+        1.33226763e-15,
+        1.51891374e+00,
+        -1.68037480e-01,
+        5.95584354e-17
+    ];
+
+    let gradient_input: Array1<f64> = array![
+        -1.44114970e-01,
+        1.30000000e-11,
+        0.00000000e+00,
+        1.44114969e-01,
+        4.20000000e-11,
+        -0.00000000e+00,
+        -7.42252641e-03,
+        2.70616341e-02,
+        -0.00000000e+00,
+        -7.42252642e-03,
+        -2.70616341e-02,
+        -0.00000000e+00,
+        7.42252677e-03,
+        -2.70616347e-02,
+        0.00000000e+00,
+        7.42252675e-03,
+        2.70616347e-02,
+        0.00000000e+00
+    ];
+
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
+
+    let q_mat: Array2<f64> =
+        build_delocalized_internal_coordinates(coordinates_1d.clone(), &internal_coordinates);
+
+    let q_internal: Array1<f64> =
+        calculate_internal_coordinate_vector(coordinates_1d.clone(), &internal_coordinates, &q_mat);
+
+    println!("Internal coordinate vector {}", q_internal);
+
+    let inter_coord_gradient: Array1<f64> = calculate_internal_coordinate_gradient(
+        coordinates_1d.clone(),
+        gradient_input,
+        internal_coords_vec_ref,
+        &internal_coordinates,
+        q_mat.clone(),
+    );
+
+    let gradient_ref: Array1<f64> = array![
+        1.63968061e-11,
+        -2.18131816e-16,
+        6.39918000e-15,
+        5.93029720e-18,
+        1.48716194e-12,
+        4.45539455e-02,
+        -1.46588182e-17,
+        9.94760280e-02,
+        -6.24562746e-17,
+        -5.30667824e-10,
+        -8.74239595e-02,
+        2.65456467e-17,
+        5.01675425e-10,
+        -4.59502340e-18,
+        -9.62036774e-11,
+        4.93568126e-02,
+        -8.15092908e-02,
+        -4.46200684e-17
+    ];
+
+    println!("Internal coordinate gradient {}", inter_coord_gradient);
+    println!("Gradient reference {}", gradient_ref);
+
+    let hessian_guess: Array2<f64> =
+        create_initial_hessian(coordinates_1d.clone(), &mol, &internal_coordinates, q_mat);
+    //println!("hessian {:?}", hessian_guess);
+
+    assert!(1 == 2);
 }

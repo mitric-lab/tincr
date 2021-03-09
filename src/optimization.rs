@@ -1,8 +1,10 @@
 use crate::defaults;
 use crate::gradients;
 use crate::gradients::get_gradients;
+use crate::internal_coordinates::*;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
+use crate::step::{find_root_brent, get_cartesian_norm, get_delta_prime,trust_step};
 use crate::Molecule;
 use approx::AbsDiffEq;
 use ndarray::prelude::*;
@@ -12,6 +14,221 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::Deref;
+
+// Optimization using internal coordinates
+// from geomeTRIC
+
+pub fn optimize_geometry_ic(mol: &mut Molecule) {
+    let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+    let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
+
+    //if state == 0 {
+    //    let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
+    //    energy = en;
+    //    gradient = grad;
+    //} else {
+    //    let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(x, mol, state - 1);
+    //    energy = en[state - 1];
+    //    gradient = grad;
+    //}
+
+    let (internal_coordinates, dlc_mat, interal_coord_vec, internal_coord_grad, initial_hessian): (
+        InternalCoordinates,
+        Array2<f64>,
+        Array1<f64>,
+        Array1<f64>,
+        Array2<f64>,
+    ) = prepare_first_step(mol, &coords, gradient);
+
+    // while loop for optimization
+    // step
+    // calc energy and gradient
+    // evaluate step
+}
+
+pub fn step(
+    internal_coordinates: &InternalCoordinates,
+    dlc_mat: &Array2<f64>,
+    internal_coord_vec: &Array1<f64>,
+    internal_coord_grad: &Array1<f64>,
+    hessian: &Array2<f64>,
+    cart_coords: &Array1<f64>,
+    mol:&Molecule
+) ->(Array1<f64>,Array1<f64>,Option<InternalCoordinates>){
+    // variables in case the step fails
+    let mut new_internal_coords:Option<InternalCoordinates> = None;
+    let mut step_failed:bool = false;
+    // get eigenvalue of the hessian
+    let eig: (Array1<f64>, Array2<f64>) = hessian.eigh(UPLO::Upper).unwrap();
+    // sort the eigenvalues
+    let mut eigenvalues: Vec<f64> = eig.0.to_vec();
+    eigenvalues.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
+
+    let emin: f64 = eigenvalues[0];
+
+    // OBTAIN AN OPTIMIZATION STEP
+    // The trust radius is to be computed in Cartesian coordinates.
+    // First take a full-size optimization step
+
+    // in geomeTRIC check for parameter "transition"
+    // If true. use rational function optimization (RFO) for the step
+    // otherwise use trust-radius Newton Raphson (TRM)
+    let mut v0: f64 = 0.0;
+    if emin < 1.0e-5 {
+        v0 = 1.0e-5 - emin;
+    } else {
+        v0 = 0.0;
+    }
+    let tmp_0: (Array1<f64>, f64, f64) = get_delta_prime(
+        v0,
+        cart_coords.clone(),
+        internal_coord_grad.clone(),
+        hessian.clone(),
+        internal_coordinates,
+        false,
+    );
+    let mut dy:Array1<f64> = tmp_0.0;
+    let mut sol:f64 = tmp_0.1;
+    let dy_prime:f64 = tmp_0.2;
+    // Internal coordinate step size
+    let i_norm: f64 = dy.clone().to_vec().norm();
+    // Cartesian coordinate step size
+    let tmp:(f64,bool) = get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
+    let mut c_norm: f64 = tmp.0;
+    let mut bork:bool = tmp.1;
+
+    // If the step is above the trust radius in Cartesian coordinates, then
+    // do the following to reduce the step length:
+    if c_norm > 0.11 {
+        // This is the function f(inorm) = cnorm-target that we find a root
+        // for obtaining a step with the desired Cartesian step size.
+        let tmp: (f64, bool,Option<f64>,bool) = find_root_brent(
+            0.0,
+            i_norm,
+            0.1,
+            Some(0.1),
+            v0,
+            cart_coords.clone(),
+            internal_coord_grad.clone(),
+            hessian.clone(),
+            internal_coordinates,
+            dlc_mat,
+        );
+        let mut iopt:f64 = tmp.0;
+        let brent_failed:bool = tmp.1;
+        let mut stored_arg:Option<f64> = None;
+        bork = tmp.3;
+        if tmp.2.is_some(){
+            stored_arg = tmp.2;
+        }
+        // If Brent fails but we obtained an IC step that is smaller than the Cartesian trust radius, use it
+        if brent_failed == true && stored_arg.is_some(){
+            iopt = stored_arg.unwrap();
+        }
+        else if bork{
+            // Decrease the target Cartesian step size and try again
+            let mut target:f64 = 0.1;
+            for i in 0..3{
+                target = target /2.0;
+                let tmp: (f64, bool,Option<f64>,bool) = find_root_brent(
+                    0.0,
+                    iopt,
+                    target,
+                    Some(0.1),
+                    v0,
+                    cart_coords.clone(),
+                    internal_coord_grad.clone(),
+                    hessian.clone(),
+                    internal_coordinates,
+                    dlc_mat,
+                );
+                iopt = tmp.0;
+                bork = tmp.3;
+                if bork == false {
+                    break;
+                }
+            }
+        }
+        if bork{
+            // Force a rebuild of the coordinate system and skip the energy / gradient and evaluation steps.
+            new_internal_coords= Some(build_primitives(mol));
+            // skip energy and evaluation step
+            step_failed = true;
+        }
+        let tmp_new: (Array1<f64>, f64) = trust_step(
+            iopt,
+            0.0,
+            cart_coords.clone(),
+            internal_coord_grad.clone(),
+            hessian.clone(),
+            internal_coordinates,
+        );
+        dy = tmp_new.0;
+        sol = tmp_new.1;
+        let tmp:(f64,bool) = get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
+        c_norm= tmp.0;
+    }
+    // DONE OBTAINING THE STEP
+    // Before updating any of our variables, copy current variables to "previous"
+    let internal_coords_prev: Array1<f64> = internal_coord_vec.clone();
+    let x_old: Array1<f64> = cart_coords.clone();
+
+    // Update the Internal Coordinates
+    let tmp:(Array1<f64>, bool) = cartesian_from_step(
+        cart_coords.clone(),
+        dy,
+        internal_coordinates,
+        dlc_mat.clone(),
+    );
+    let x_new: Array1<f64> = tmp.0;
+    let real_dy: Array1<f64> = get_calc_diff(x_old, x_new.clone(), internal_coordinates, dlc_mat.clone());
+    let internal_coords_new: Array1<f64> = internal_coord_vec + &real_dy;
+
+    return (x_new, internal_coords_new, new_internal_coords);
+}
+
+pub fn prepare_first_step(
+    mol: &Molecule,
+    coords: &Array1<f64>,
+    gradient: Array1<f64>,
+) -> (
+    InternalCoordinates,
+    Array2<f64>,
+    Array1<f64>,
+    Array1<f64>,
+    Array2<f64>,
+) {
+    // Build the internal coordinates and their primitives
+    // construct the delocalized internal coordinates and the
+    // internal coordinate vectors of the cartesian coordinates and the gs gradients
+    // At last, build the initial hessian for the optimization
+
+    let internal_coordinates: InternalCoordinates = build_primitives(mol);
+
+    let dlc_mat: Array2<f64> =
+        build_delocalized_internal_coordinates(coords.clone(), &internal_coordinates);
+    let q_internal: Array1<f64> =
+        calculate_internal_coordinate_vector(coords.clone(), &internal_coordinates, &dlc_mat);
+
+    let inter_coord_gradient: Array1<f64> = calculate_internal_coordinate_gradient(
+        coords.clone(),
+        gradient,
+        q_internal.clone(),
+        &internal_coordinates,
+        dlc_mat.clone(),
+    );
+
+    let initial_hessian: Array2<f64> =
+        create_initial_hessian(coords.clone(), &mol, &internal_coordinates, dlc_mat.clone());
+
+    return (
+        internal_coordinates,
+        dlc_mat,
+        q_internal,
+        inter_coord_gradient,
+        initial_hessian,
+    );
+}
 
 // solve the following optimization problem:
 // minimize f(x)      subject to  c_i(x) > 0   for  i=1,...,m
@@ -67,8 +284,8 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
     println!("Enegies and gradient");
-    println!("Energy: {}",&energy);
-    println!("Gradient E0 {}",&grad_e0);
+    println!("Energy: {}", &energy);
+    println!("Gradient E0 {}", &grad_e0);
     println!("Grad vrep {}", grad_vrep);
     return (energy, grad_e0 + grad_vrep);
 }
@@ -176,7 +393,7 @@ pub fn minimize(
     let mut iter_index: usize = 0;
     let mut sk: Array1<f64> = Array::zeros(n);
     let mut yk: Array1<f64> = Array::zeros(n);
-    let mut inv_hk: Array2<f64> =Array::eye(n);
+    let mut inv_hk: Array2<f64> = Array::eye(n);
 
     println!("Test coordinate vector x0 {}", x0);
 
@@ -187,10 +404,10 @@ pub fn minimize(
             break;
         }
         if method == "BFGS" {
-            if k >0 {
+            if k > 0 {
                 if yk.dot(&sk) <= 0.0 {
-                    println!("yk {}",yk);
-                    println!("sk {}",sk);
+                    println!("yk {}", yk);
+                    println!("sk {}", sk);
                     println!("Warning: positive definiteness of Hessian approximation lost in BFGS update, since yk.sk <= 0!")
                 }
                 inv_hk = bfgs_update(&inv_hk, &sk, &yk, k);
@@ -199,7 +416,7 @@ pub fn minimize(
         } else if method == "Steepest Descent" {
             pk = -grad_fk.clone();
         }
-        println!("pk {}",pk);
+        println!("pk {}", pk);
         if line_search == "Armijo" {
             println!("start line search");
             x_kp1 = line_search_backtracking(
@@ -212,10 +429,9 @@ pub fn minimize(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
             );
             println!("X_KP1 {}", &x_kp1);
-        }
-        else if line_search == "largest"{
+        } else if line_search == "largest" {
             let amax = 1.0;
-            x_kp1 = &xk + &(amax* &pk);
+            x_kp1 = &xk + &(amax * &pk);
             println!("x_kp1 {}", x_kp1);
         }
         let mut f_kp1: f64 = 0.0;
@@ -225,7 +441,7 @@ pub fn minimize(
             f_kp1 = tmp.0;
             grad_f_kp1 = tmp.1;
         }
-        println!("grad {}",grad_f_kp1);
+        println!("grad {}", grad_f_kp1);
         // else {
         //     let tmp: (f64, Array1<f64>) = objective_intern(&x_kp1);
         //     f_kp1 = tmp.0;
@@ -741,9 +957,17 @@ fn line_search_routine() {
         0.0034773655435618
     ];
 
-    let x_kp1:Array1<f64> = array![ 0.5765484779112765 , 2.1694530961623220, -0.0840099748693559,
-  2.5571353008877105 , 2.2321789936370471,  0.0164973322576322,
-  0.0280545672121809,  3.1790037133849824  ,1.5336187563309098];
+    let x_kp1: Array1<f64> = array![
+        0.5765484779112765,
+        2.1694530961623220,
+        -0.0840099748693559,
+        2.5571353008877105,
+        2.2321789936370471,
+        0.0164973322576322,
+        0.0280545672121809,
+        3.1790037133849824,
+        1.5336187563309098
+    ];
 
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let mut positions: Array2<f64> = array![
@@ -755,15 +979,17 @@ fn line_search_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule =
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
-    let test:Array1<f64> = line_search_backtracking(&xk,fk,&grad_fk,&pk,None,None,None,None,true,0,&mut mol);
+    let test: Array1<f64> = line_search_backtracking(
+        &xk, fk, &grad_fk, &pk, None, None, None, None, true, 0, &mut mol,
+    );
 
-    assert!(test.abs_diff_eq(&x_kp1,1e-14));
-
+    assert!(test.abs_diff_eq(&x_kp1, 1e-14));
 }
