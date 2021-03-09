@@ -24,8 +24,8 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
     let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
     let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
 
-    let mut old_gradient:Array1<f64> = gradient.clone();
-    let mut old_energy:f64 = energy;
+    let mut old_gradient: Array1<f64> = gradient.clone();
+    let mut old_energy: f64 = energy;
     //if state == 0 {
     //    let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
     //    energy = en;
@@ -92,6 +92,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
                 return_int_coord,
                 return_int_grad,
                 return_hessian,
+                new_trust,
             ): (
                 f64,
                 Array1<f64>,
@@ -99,6 +100,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
                 Array1<f64>,
                 Array1<f64>,
                 Array2<f64>,
+                f64,
             ) = evaluate_step(
                 &internal_coords,
                 &dlc_mat,
@@ -148,6 +150,7 @@ pub fn evaluate_step(
     Array1<f64>,
     Array1<f64>,
     Array2<f64>,
+    f64,
 ) {
     let (rms_gradient, max_gradient): (f64, f64) =
         calculate_internal_gradient_norm(new_cart_gradient.clone());
@@ -262,6 +265,7 @@ pub fn evaluate_step(
         return_int_coord,
         return_int_grad,
         return_hessian,
+        trust,
     );
 }
 
@@ -491,11 +495,13 @@ pub fn step(
     );
     let internal_coords_new: Array1<f64> = internal_coord_vec + &real_dy;
 
-    let expect: f64 = 0.5
-        * real_dy
-            .clone()
-            .reversed_axes()
-            .dot(&hessian.dot(&real_dy.clone().t()))
+    let expect_part_1: Array2<f64> = 0.5
+        * einsum("i,j->ij", &[&real_dy, &hessian.dot(&real_dy)])
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+
+    let expect: f64 = expect_part_1.clone().into_shape((expect_part_1.dim().0 * expect_part_1.dim().1)).unwrap()[0]
         + real_dy.clone().dot(internal_coord_grad);
 
     return (

@@ -28,7 +28,7 @@ pub fn find_root_brent(
     hessian_ic: Array2<f64>,
     internal_coords: &InternalCoordinates,
     dlc_mat: &Array2<f64>,
-) -> (f64, bool,Option<f64>,bool) {
+) -> (f64, bool, Option<f64>, bool) {
     // Brent's method for finding the root of a function.
     // Parameters
     // ----------
@@ -40,7 +40,7 @@ pub fn find_root_brent(
     // The denominator used to calculate the fractional error (in our case, the trust radius)
     // conv : float
     // The convergence threshold for the relative error
-    let tmp_1: (f64, usize, Option<f64>,Option<f64>,bool) = evaluate_find_root(
+    let tmp_1: (f64, usize, Option<f64>, Option<f64>, bool) = evaluate_find_root(
         a,
         v0,
         cart_coords.clone(),
@@ -51,11 +51,11 @@ pub fn find_root_brent(
         None,
         None,
     );
-    let mut stored_arg:Option<f64> = None;
-    if tmp_1.3.is_some(){
+    let mut stored_arg: Option<f64> = None;
+    if tmp_1.3.is_some() {
         stored_arg = tmp_1.3;
     }
-    let tmp_2: (f64, usize, Option<f64>,Option<f64>,bool) = evaluate_find_root(
+    let tmp_2: (f64, usize, Option<f64>, Option<f64>, bool) = evaluate_find_root(
         b,
         v0,
         cart_coords.clone(),
@@ -66,7 +66,7 @@ pub fn find_root_brent(
         None,
         None,
     );
-    if tmp_2.3.is_some(){
+    if tmp_2.3.is_some() {
         stored_arg = tmp_2.3;
     }
     let mut f_a: f64 = tmp_1.0;
@@ -99,7 +99,7 @@ pub fn find_root_brent(
     let mut return_value: f64 = 0.0;
     let mut brent_failed: bool = false;
     let mut f_d: f64 = 0.0;
-    let mut bork:bool = false;
+    let mut bork: bool = false;
 
     while true {
         let mut s: f64 = 0.0;
@@ -129,7 +129,7 @@ pub fn find_root_brent(
         } else {
             mflag = false;
         }
-        let tmp_1: (f64, usize, Option<f64>,Option<f64>,bool) = evaluate_find_root(
+        let tmp_1: (f64, usize, Option<f64>, Option<f64>, bool) = evaluate_find_root(
             a,
             v0,
             cart_coords.clone(),
@@ -140,7 +140,7 @@ pub fn find_root_brent(
             None,
             None,
         );
-        if tmp_1.3.is_some(){
+        if tmp_1.3.is_some() {
             stored_arg = tmp_1.3;
         }
         bork = tmp_1.4;
@@ -180,7 +180,7 @@ pub fn find_root_brent(
             f_b_new = f_b;
         }
     }
-    return (return_value, brent_failed,stored_arg,bork);
+    return (return_value, brent_failed, stored_arg, bork);
 }
 
 pub fn between_floats(s: f64, a: f64, b: f64) -> bool {
@@ -212,7 +212,7 @@ pub fn evaluate_find_root(
     dlc_mat: &Array2<f64>,
     counter: Option<usize>,
     stored_val: Option<f64>,
-) -> (f64, usize, Option<f64>,Option<f64>,bool) {
+) -> (f64, usize, Option<f64>, Option<f64>, bool) {
     let trust: f64 = 0.1;
     let target: f64 = 0.1;
     let mut return_value: f64 = 0.0;
@@ -220,7 +220,7 @@ pub fn evaluate_find_root(
     let mut counter: usize = counter.unwrap_or(0);
     let mut stored_val: Option<f64> = stored_val;
     let mut stored_arg: Option<f64> = None;
-    let mut bork:bool = false;
+    let mut bork: bool = false;
 
     if trial == 0.0 {
         return_value = -1.0 * trust;
@@ -233,7 +233,8 @@ pub fn evaluate_find_root(
             hessian_ic.clone(),
             internal_coords,
         );
-        let tmp:(f64,bool) = get_cartesian_norm(&cart_coords, dy.clone(), internal_coords, dlc_mat);
+        let tmp: (f64, bool) =
+            get_cartesian_norm(&cart_coords, dy.clone(), internal_coords, dlc_mat);
         let c_norm: f64 = tmp.0;
         bork = tmp.1;
         counter += 1;
@@ -246,7 +247,7 @@ pub fn evaluate_find_root(
     }
     let return_val: f64 = cnorm - target;
 
-    return (return_val, counter, stored_val,stored_arg,bork);
+    return (return_val, counter, stored_val, stored_arg, bork);
 }
 
 pub fn trust_step(
@@ -361,18 +362,14 @@ pub fn get_cartesian_norm(
     dy: Array1<f64>,
     internal_coordinates: &InternalCoordinates,
     dlc_mat: &Array2<f64>,
-) -> (f64,bool) {
+) -> (f64, bool) {
     // Get the norm of the optimization step in Cartesian coordinates.
-    let tmp:(Array1<f64>, bool) = cartesian_from_step(
-        coords.clone(),
-        dy,
-        internal_coordinates,
-        dlc_mat.clone(),
-    );
+    let tmp: (Array1<f64>, bool) =
+        cartesian_from_step(coords.clone(), dy, internal_coordinates, dlc_mat.clone());
     let x_new: Array1<f64> = tmp.0;
-    let bork:bool = tmp.1;
+    let bork: bool = tmp.1;
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(x_new, coords.clone());
-    return (rmsd,bork);
+    return (rmsd, bork);
 }
 
 pub fn get_rot(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
@@ -477,10 +474,19 @@ pub fn get_delta_prime_trm(
     // invert svd for ht
     let h_i: Array2<f64> = invert_svd(ht);
 
-    let dy: Array1<f64> = -1.0 * h_i.dot(&gc.t());
-    let d_prime: Array1<f64> = -1.0 * h_i.dot(&dy.t());
+    let dy: Array1<f64> = -1.0 * h_i.dot(&gc);
+    let d_prime: Array1<f64> = -1.0 * h_i.dot(&dy);
     let dy_prime: f64 = dy.dot(&d_prime) / dy.clone().to_vec().norm();
-    let sol: f64 = 0.5 * dy.dot(&hessian_ic.dot(&dy)) + dy.dot(&gradient_ic);
+    let sol_part_1: Array2<f64> = 0.5
+        * einsum("i,j->ij", &[&dy, &hessian_ic.dot(&dy)])
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+    let sol: f64 = sol_part_1
+        .clone()
+        .into_shape((sol_part_1.dim().0 * sol_part_1.dim().1))
+        .unwrap()[0]
+        + dy.dot(&gradient_ic);
 
     return (dy, sol, dy_prime);
 }
