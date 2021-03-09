@@ -115,7 +115,7 @@ pub fn run_scc(
         // charge difference to previous iteration
         let dq_diff: Array1<f64> = &new_dq - &dq;
 
-        // check if charge difference to the previus iteration is lower then 1e-5
+        // check if charge difference to the previous iteration is lower then 1e-5
         if (dq_diff.map(|x| x.abs()).max().unwrap() < &scf_conv) {
             converged = true;
         }

@@ -281,6 +281,7 @@ pub fn get_gamma_matrix(
     gf.initialize();
     let (gm, gm_ao): (Array2<f64>, Array2<f64>) =
         gamma_approximation::gamma_ao_wise(gf, atomic_numbers, n_atoms, n_orbs, distances, valorbs);
+
     return (gm, gm_ao);
 }
 

@@ -301,7 +301,7 @@ pub fn get_energies_and_gradient(
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol, None, None, None);
     let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
-        get_exc_energies(&f, &mol, None, &s, &orbe, &orbs, None);
+        get_exc_energies(&f, &mol, None, &s, &orbe, &orbs, false,None);
     let omega: Array1<f64> = tmp.0.clone();
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
         &orbe,
