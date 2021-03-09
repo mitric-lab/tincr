@@ -28,6 +28,7 @@ pub fn find_root_brent(
     hessian_ic: Array2<f64>,
     internal_coords: &InternalCoordinates,
     dlc_mat: &Array2<f64>,
+    trust:f64
 ) -> (f64, bool, Option<f64>, bool) {
     // Brent's method for finding the root of a function.
     // Parameters
@@ -48,6 +49,7 @@ pub fn find_root_brent(
         hessian_ic.clone(),
         internal_coords,
         dlc_mat,
+        trust,
         None,
         None,
     );
@@ -63,6 +65,7 @@ pub fn find_root_brent(
         hessian_ic.clone(),
         internal_coords,
         dlc_mat,
+        trust,
         None,
         None,
     );
@@ -137,6 +140,7 @@ pub fn find_root_brent(
             hessian_ic.clone(),
             internal_coords,
             dlc_mat,
+            trust,
             None,
             None,
         );
@@ -210,10 +214,10 @@ pub fn evaluate_find_root(
     hessian_ic: Array2<f64>,
     internal_coords: &InternalCoordinates,
     dlc_mat: &Array2<f64>,
+    trust:f64,
     counter: Option<usize>,
     stored_val: Option<f64>,
 ) -> (f64, usize, Option<f64>, Option<f64>, bool) {
-    let trust: f64 = 0.1;
     let target: f64 = 0.1;
     let mut return_value: f64 = 0.0;
     let mut cnorm: f64 = 0.0;

@@ -20,12 +20,14 @@ use std::ops::Deref;
 // Optimization using internal coordinates
 // from geomeTRIC
 
-pub fn optimize_geometry_ic(mol: &mut Molecule) {
+pub fn optimize_geometry_ic(mol: &mut Molecule)->(f64,Array1<f64>) {
     let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
     let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
 
     let mut old_gradient: Array1<f64> = gradient.clone();
     let mut old_energy: f64 = energy;
+    let mut optimization_failed:bool = false;
+
     //if state == 0 {
     //    let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
     //    energy = en;
@@ -47,6 +49,11 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
     let mut internal_coords: InternalCoordinates = internal_coordinates;
     let mut iteration: usize = 0;
     let mut trust: f64 = 0.1;
+    let mut internal_coordinate_vec:Array1<f64> = internal_coord_vec;
+    let mut internal_coordinate_gradient:Array1<f64> = internal_coord_grad;
+    let mut prev_hessian:Array2<f64> = initial_hessian;
+    let mut prev_cart_coords:Array1<f64> = coords;
+    let mut dlc_mat:Array2<f64> = dlc_mat;
 
     while true {
         let mut energy_prev: f64 = energy;
@@ -71,11 +78,12 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
         ) = step(
             &internal_coords,
             &dlc_mat,
-            &internal_coord_vec,
-            &internal_coord_grad,
-            &initial_hessian,
-            &coords,
+            &internal_coordinate_vec,
+            &internal_coordinate_gradient,
+            &prev_hessian,
+            &prev_cart_coords,
             &mol,
+            trust
         );
         if step_failed {
             internal_coords = new_graph.unwrap();
@@ -93,6 +101,8 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
                 return_int_grad,
                 return_hessian,
                 new_trust,
+                converged,
+                opt_failed
             ): (
                 f64,
                 Array1<f64>,
@@ -101,6 +111,8 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
                 Array1<f64>,
                 Array2<f64>,
                 f64,
+                bool,
+                bool
             ) = evaluate_step(
                 &internal_coords,
                 &dlc_mat,
@@ -120,9 +132,29 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
                 c_norm,
                 mol,
             );
+
+            prev_hessian = return_hessian;
+            old_energy = return_energy;
+            old_gradient = return_cart_grad;
+            prev_cart_coords = return_cart_coord;
+            internal_coordinate_vec = return_int_coord;
+            internal_coordinate_gradient = return_int_grad;
+            trust = new_trust;
+
+            if converged{
+                println!("Optimization converged");
+                break;
+            }
+            if opt_failed{
+                println!("optimization failed");
+                optimization_failed = true;
+                break;
+            }
         }
         iteration += 1;
     }
+
+    return(old_energy, old_gradient);
 }
 
 pub fn evaluate_step(
@@ -151,6 +183,8 @@ pub fn evaluate_step(
     Array1<f64>,
     Array2<f64>,
     f64,
+    bool,
+    bool
 ) {
     let (rms_gradient, max_gradient): (f64, f64) =
         calculate_internal_gradient_norm(new_cart_gradient.clone());
@@ -266,6 +300,8 @@ pub fn evaluate_step(
         return_int_grad,
         return_hessian,
         trust,
+        converged,
+        opt_failed
     );
 }
 
@@ -350,6 +386,7 @@ pub fn step(
     hessian: &Array2<f64>,
     cart_coords: &Array1<f64>,
     mol: &Molecule,
+    trust:f64
 ) -> (
     Array1<f64>,
     Array1<f64>,
@@ -419,6 +456,7 @@ pub fn step(
             hessian.clone(),
             internal_coordinates,
             dlc_mat,
+            trust
         );
         let mut iopt: f64 = tmp.0;
         let brent_failed: bool = tmp.1;
@@ -446,6 +484,7 @@ pub fn step(
                     hessian.clone(),
                     internal_coordinates,
                     dlc_mat,
+                    trust
                 );
                 iopt = tmp.0;
                 bork = tmp.3;
