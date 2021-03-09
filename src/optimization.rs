@@ -26,7 +26,6 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) {
 
     let mut old_gradient:Array1<f64> = gradient.clone();
     let mut old_energy:f64 = energy;
-
     //if state == 0 {
     //    let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
     //    energy = en;
