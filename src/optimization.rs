@@ -20,7 +20,7 @@ use std::ops::Deref;
 // Optimization using internal coordinates
 // from geomeTRIC
 
-pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>) {
+pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>,Array1<f64>) {
     let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
     let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
 
@@ -154,7 +154,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>) {
         iteration += 1;
     }
 
-    return (old_energy, old_gradient);
+    return (old_energy, old_gradient,prev_cart_coords);
 }
 
 pub fn evaluate_step(
@@ -215,7 +215,7 @@ pub fn evaluate_step(
             step_state = 0;
         }
     }
-    println!("Stape state = {}",step_state);
+    println!("Step state = {}. The value 0 is the worst result, 3 the best. ",step_state);
     // check convergence criteria
     let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-6;
     let converged_grms: bool = rms_gradient < 5.0e-4;
@@ -330,8 +330,7 @@ pub fn update_hessian(
         // stop procedure
         println!("UpdateHessian error dg norm to small");
     }
-    println!("dy {}",d_y);
-    println!("dg {}",d_g);
+
     // BFGS Hessian update
     let mat_1: Array2<f64> = einsum("i,j->ij", &[&d_g, &d_g])
         .unwrap()
@@ -349,8 +348,6 @@ pub fn update_hessian(
     .into_dimensionality::<Ix2>()
     .unwrap();
     let dividend: f64 = d_y.clone().dot(&old_hessian.dot(&d_y));
-    println!("Divident 1 {}", d_g.clone().dot(&d_y));
-    println!("Divident 2 {}",dividend);
     mat_2 = mat_2 / dividend;
 
     let eig: (Array1<f64>, Array2<f64>) = old_hessian.eigh(UPLO::Upper).unwrap();
@@ -368,7 +365,6 @@ pub fn update_hessian(
     let mut new_eigenvalues: Vec<f64> = eig_1.0.to_vec();
     new_eigenvalues.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
     let emin: f64 = new_eigenvalues[0];
-    println!("Eigenvalues of the new hessian: {:?}",new_eigenvalues);
 
     if emin <= 1e-5 {
         new_hessian = create_initial_hessian(
@@ -378,7 +374,6 @@ pub fn update_hessian(
             dlc_mat.clone(),
         );
     }
-
     return new_hessian;
 }
 
@@ -439,6 +434,7 @@ pub fn step(
     let dy_prime: f64 = tmp_0.2;
     // Internal coordinate step size
     let i_norm: f64 = dy.clone().to_vec().norm();
+    println!("inorm {}",i_norm);
     // Cartesian coordinate step size
     let tmp: (f64, bool) =
         get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
@@ -455,7 +451,7 @@ pub fn step(
             0.0,
             i_norm,
             0.1,
-            Some(0.1),
+            Some(0.001),
             v0,
             cart_coords.clone(),
             internal_coord_grad.clone(),
@@ -468,6 +464,7 @@ pub fn step(
         let brent_failed: bool = tmp.1;
         let mut stored_arg: Option<f64> = None;
         bork = tmp.3;
+        println!("Bork {}",bork);
         if tmp.2.is_some() {
             stored_arg = tmp.2;
         }
@@ -483,7 +480,7 @@ pub fn step(
                     0.0,
                     iopt,
                     target,
-                    Some(0.1),
+                    Some(0.001),
                     v0,
                     cart_coords.clone(),
                     internal_coord_grad.clone(),
@@ -540,8 +537,10 @@ pub fn step(
     );
     let internal_coords_new: Array1<f64> = internal_coord_vec + &real_dy;
 
-    let expect_part_1: f64 = 0.5*real_dy.clone().dot(&hessian.dot(&real_dy));
+    let new_cart_coord_3d:Array2<f64> = x_new.clone().into_shape((x_new.dim()/3,3)).unwrap();
+    println!("new coordinates of the molecule {}",new_cart_coord_3d);
 
+    let expect_part_1: f64 = 0.5*real_dy.clone().dot(&hessian.dot(&real_dy));
     let expect: f64 = expect_part_1+ real_dy.clone().dot(internal_coord_grad);
 
     return (
@@ -768,7 +767,7 @@ pub fn minimize(
 
     for k in 0..maxiter {
         println!("iteration {}", k);
-        if k == 2 {
+        if k == 50 {
             println!("End of opt");
             break;
         }
@@ -1100,7 +1099,7 @@ pub fn zoom(
     return a_wolfe;
 }
 
-#[test]
+//#[test]
 fn test_optimization() {
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let mut positions: Array2<f64> = array![
@@ -1561,4 +1560,105 @@ fn test_optimization_geomeTRIC_step() {
     );
 
     assert!(1 == 2);
+}
+
+#[test]
+fn test_opt_benzene(){
+    let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
+    let mut positions: Array2<f64> = array![
+        [1.2194, -0.1652, 2.1600],
+        [0.6825, -0.0924, 1.2087],
+        [-0.7075, -0.0352, 1.1973],
+        [-1.2644, -0.0630, 2.1393],
+        [-1.3898, 0.0572, -0.0114],
+        [-2.4836, 0.1021, -0.0204],
+        [-0.6824, 0.0925, -1.2088],
+        [-1.2194, 0.1652, -2.1599],
+        [0.7075, 0.0352, -1.1973],
+        [1.2641, 0.0628, -2.1395],
+        [1.3899, -0.0572, 0.0114],
+        [2.4836, -0.1022, 0.0205]
+    ];
+    // transform coordinates in au
+    positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+        scc_routine::run_scc(&mol, None, None, None);
+
+    mol.calculator.set_active_orbitals(f.to_vec());
+
+    let tmp:(f64,Array1<f64>,Array1<f64>) = optimize_geometry_ic(&mut mol);
+    let new_energy:f64 = tmp.0;
+    let new_gradient:Array1<f64> = tmp.1;
+    let new_coords:Array1<f64> = tmp.2;
+
+    let coords_3d:Array2<f64> = new_coords.clone().into_shape((new_coords.len()/3,3)).unwrap();
+
+    println!("New Energy {}",new_energy);
+    println!("New coords {}",coords_3d);
+
+    assert!(1==2);
+}
+
+//#[test]
+fn test_opt_water_6(){
+    let atomic_numbers: Vec<u8> = vec![8,1,1,8,1,1,8,1,1,8,1,1,8,1,1,8,1,1];
+    let mut positions: Array2<f64> = array![
+            [0.8559100000,   -1.3823600000,    0.3174600000],
+            [1.6752400000,   -1.8477400000,    0.4858000000],
+            [1.1176100000,   -0.4684300000,    0.2057500000],
+           [-1.0986300000,   -0.8583700000,    2.1731900000],
+           [-0.4031000000,   -1.1460800000,    1.5818400000],
+           [-1.0851100000,    0.0968300000,    2.1128200000],
+            [1.8644800000,    1.2201800000,    1.3331100000],
+            [2.0104700000,    1.8829200000,    0.6580600000],
+            [2.6420500000,    0.6632600000,    1.2947900000],
+            [0.4360100000,    0.8591100000,   -1.7990100000],
+            [1.2952700000,    0.5943600000,   -1.4706600000],
+            [0.1355600000,    0.1112200000,   -2.3153700000],
+           [-0.8009300000,   -2.0911300000,   -1.5730000000],
+           [-0.2203200000,   -1.8297700000,   -0.8582800000],
+           [-0.3280600000,   -1.8458100000,   -2.3682600000],
+           [-1.4967600000,    2.2679100000,   -0.3295400000],
+           [-0.8467900000,    1.6940800000,   -0.7351300000],
+           [-2.3252600000,    1.7984600000,   -0.4267000000]];
+    // transform coordinates in au
+    positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+        scc_routine::run_scc(&mol, None, None, None);
+
+    mol.calculator.set_active_orbitals(f.to_vec());
+
+    let tmp:(f64,Array1<f64>,Array1<f64>) = optimize_geometry_ic(&mut mol);
+    let new_energy:f64 = tmp.0;
+    let new_gradient:Array1<f64> = tmp.1;
+    let new_coords:Array1<f64> = tmp.2;
+
+    let coords_3d:Array2<f64> = new_coords.clone().into_shape((new_coords.len()/3,3)).unwrap();
+
+    println!("New Energy {}",new_energy);
+    println!("New coords {}",coords_3d);
+
+    assert!(1==2);
 }

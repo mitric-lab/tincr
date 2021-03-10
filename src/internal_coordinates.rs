@@ -213,6 +213,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                                 // out of plane bijk
                                 let out_of_pl1: Out_of_plane =
                                     Out_of_plane::new(b.index(), i, j, k);
+                                println!("New out of plane {} {} {} {}",b.index(), i, j, k);
                                 // let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
                                 // internal_coords.push(out_of_pl_ic);
                                 outofplane_vec.push(out_of_pl1);
@@ -313,6 +314,8 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
     let mut index_vec: Vec<Vec<NodeIndex>> = Vec::new();
 
     // dihedrals
+    let mut index_inner: usize = 0;
+
     for aline in atom_lines_new {
         //Go over ALL pairs of atoms in a line
         for vec in aline.clone().into_iter().combinations(2) {
@@ -328,9 +331,11 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
             println!("Combinations");
             print!("{}", b.index());
             println!("{}", c.index());
+            let index:usize = index_inner;
             for a in mol.full_graph.neighbors(b) {
                 for d in mol.full_graph.neighbors(c) {
                     if aline.contains(&a) == false && aline.contains(&d) == false && a != d {
+
                         println!("Indices Dihedral");
                         print!("{}", a.index());
                         print!("{}", b.index());
@@ -349,8 +354,9 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                         let dihedral: Dihedral =
                             Dihedral::new(a.index(), b.index(), c.index(), d.index());
                         //internal_coords.push(IC::dihedral(dihedral));
-                        dihedral_vec.insert(0, dihedral);
-                        index_vec.insert(0, vec![a, b, c, d]);
+                        dihedral_vec.insert(index, dihedral);
+                        index_vec.insert(index, vec![a, b, c, d]);
+                        index_inner += 1;
                     }
                 }
             }
@@ -975,9 +981,9 @@ pub fn cartesian_from_step(
     while true {
         microiter += 1;
         let b_mat: Array2<f64> =
-            wilsonB(&cart_coords, internal_coords, true, Some(dlc_mat.clone()));
+            wilsonB(&xyz, internal_coords, true, Some(dlc_mat.clone()));
         let g_inv: Array2<f64> =
-            inverse_g_matrix(cart_coords.clone(), internal_coords, dlc_mat.clone());
+            inverse_g_matrix(xyz.clone(), internal_coords, dlc_mat.clone());
         let dxyz: Array1<f64> = damp * b_mat.t().dot(&g_inv.dot(&dq.t()));
         let xyz_2: Array1<f64> = xyz.clone() + dxyz;
 
@@ -1029,12 +1035,18 @@ pub fn cartesian_from_step(
     let mut return_val: Array1<f64> = Array::zeros((cart_coords.clone().len()));
     if ndqt > 1e-1 {
         bork = true;
-        return_val = xyz_iter1;
+        return_val = xyz_iter1.clone();
         println!("Failed to obtain cartesians");
     } else if ndqt > 1e-3 {
         println!("Obtained approximate Cartesians");
     }
-    return_val = xyz_save;
+    if microiter == 1{
+        return_val = xyz_iter1;
+    }
+    else{
+        return_val = xyz_save;
+    }
+    println!("microiter cartesian from step {}",microiter);
 
     return (return_val,bork);
 }
