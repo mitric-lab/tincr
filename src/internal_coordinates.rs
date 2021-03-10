@@ -978,12 +978,16 @@ pub fn cartesian_from_step(
     let mut xyz_save: Array1<f64> = Array::zeros((cart_coords.clone().len()));
     let mut bork:bool = false;
 
+    println!("start while");
     while true {
         microiter += 1;
+        println!("Test1");
         let b_mat: Array2<f64> =
             wilsonB(&xyz, internal_coords, true, Some(dlc_mat.clone()));
+        println!("Test2");
         let g_inv: Array2<f64> =
             inverse_g_matrix(xyz.clone(), internal_coords, dlc_mat.clone());
+        println!("Test3");
         let dxyz: Array1<f64> = damp * b_mat.t().dot(&g_inv.dot(&dq.t()));
         let xyz_2: Array1<f64> = xyz.clone() + dxyz;
 
@@ -992,8 +996,10 @@ pub fn cartesian_from_step(
         }
 
         // Calculate the actual change in internal coordinates
+        println!("Test4");
         let dq_actual: Array1<f64> =
             get_calc_diff(xyz_2.clone(), xyz.clone(), internal_coords, dlc_mat.clone());
+        println!("Test5");
         let rmsd: f64 = (&xyz_2 - &xyz)
             .mapv(|val| val.powi(2))
             .mean()

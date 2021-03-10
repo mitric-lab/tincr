@@ -142,7 +142,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>,Array1<f64>
             trust = new_trust;
 
             if converged {
-                println!("Number of iterations : {}",iteration);
+                println!("Final number of iterations : {}",iteration);
                 println!("Optimization converged");
                 break;
             }
@@ -152,6 +152,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>,Array1<f64>
                 break;
             }
         }
+        println!("Number of iterations : {}",iteration);
         iteration += 1;
     }
 
@@ -437,6 +438,7 @@ pub fn step(
     let i_norm: f64 = dy.clone().to_vec().norm();
     println!("inorm {}",i_norm);
     // Cartesian coordinate step size
+    println!("Before get cartesian norm");
     let tmp: (f64, bool) =
         get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
     let mut c_norm: f64 = tmp.0;

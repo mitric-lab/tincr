@@ -408,9 +408,11 @@ pub fn get_cartesian_norm(
     dlc_mat: &Array2<f64>,
 ) -> (f64, bool) {
     // Get the norm of the optimization step in Cartesian coordinates.
+    println!("Before cartesian from step");
     let tmp: (Array1<f64>, bool) =
         cartesian_from_step(coords.clone(), dy, internal_coordinates, dlc_mat.clone());
     let x_new: Array1<f64> = tmp.0;
+    println!("After cartesian from step");
     //println!("New cartesian coordinates {}",x_new);
     let bork: bool = tmp.1;
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(x_new, coords.clone());
