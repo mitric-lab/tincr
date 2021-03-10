@@ -107,9 +107,10 @@ impl Molecule {
         let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
             distance_matrix(self.positions.view(), None);
 
-        self.distance_matrix = dist_matrix;
+        self.distance_matrix = dist_matrix.clone();
         self.directions_matrix = dir_matrix;
         self.proximity_matrix = prox_matrix;
+        self.calculator.update_gamma_matrices(dist_matrix,&self.atomic_numbers);
     }
 }
 
