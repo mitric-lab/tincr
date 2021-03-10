@@ -142,6 +142,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>,Array1<f64>
             trust = new_trust;
 
             if converged {
+                println!("Number of iterations : {}",iteration);
                 println!("Optimization converged");
                 break;
             }
@@ -1610,7 +1611,7 @@ fn test_opt_benzene(){
     assert!(1==2);
 }
 
-//#[test]
+#[test]
 fn test_opt_water_6(){
     let atomic_numbers: Vec<u8> = vec![8,1,1,8,1,1,8,1,1,8,1,1,8,1,1,8,1,1];
     let mut positions: Array2<f64> = array![

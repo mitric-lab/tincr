@@ -1024,6 +1024,7 @@ pub fn cartesian_from_step(
             break;
         }
         if fail_counter >= 5 {
+            println!("Fail counter over 5");
             break;
         }
         if microiter == 50 {
