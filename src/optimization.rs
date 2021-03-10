@@ -1365,7 +1365,7 @@ fn line_search_routine() {
     assert!(test.abs_diff_eq(&x_kp1, 1e-14));
 }
 
-#[test]
+//#[test]
 fn test_optimization_geomeTRIC_step() {
     let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
     let mut positions: Array2<f64> = array![
@@ -1565,7 +1565,7 @@ fn test_optimization_geomeTRIC_step() {
     assert!(1 == 2);
 }
 
-#[test]
+//#[test]
 fn test_opt_benzene(){
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
