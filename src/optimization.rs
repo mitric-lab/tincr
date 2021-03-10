@@ -1,6 +1,6 @@
 use crate::defaults;
 use crate::gradients;
-use crate::gradients::get_gradients;
+use crate::gradients::{get_gradients, ToOwnedF};
 use crate::internal_coordinates::*;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
@@ -191,6 +191,8 @@ pub fn evaluate_step(
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(cart_coords.clone(), old_cart_coords.clone());
     // The ratio of the actual energy change to the expected change
     let quality: f64 = (energy - energy_prev) / expect;
+    println!("Quality of the step {}",quality);
+    println!("Expect {}",expect);
     let mut step_state: usize = 0;
     let mut converged: bool = false;
     let mut opt_failed: bool = false;
@@ -213,6 +215,7 @@ pub fn evaluate_step(
             step_state = 0;
         }
     }
+    println!("Stape state = {}",step_state);
     // check convergence criteria
     let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-6;
     let converged_grms: bool = rms_gradient < 5.0e-4;
@@ -281,7 +284,7 @@ pub fn evaluate_step(
             dlc_mat,
             internal_coord_vec,
             old_internal_coord_vec,
-            internal_coord_vec,
+            &new_inter_coord_gradient,
             old_internal_gradient,
             hessian,
             cart_coords,
@@ -321,19 +324,20 @@ pub fn update_hessian(
     // Catch some abnormal cases of extremely small changes
     if d_y.to_vec().norm() < 1e-6 {
         // stop procedure
+        println!("UpdateHessian error dy norm to small");
     }
     if d_g.to_vec().norm() < 1e-6 {
         // stop procedure
+        println!("UpdateHessian error dg norm to small");
     }
+    println!("dy {}",d_y);
+    println!("dg {}",d_g);
     // BFGS Hessian update
     let mat_1: Array2<f64> = einsum("i,j->ij", &[&d_g, &d_g])
         .unwrap()
         .into_dimensionality::<Ix2>()
         .unwrap()
-        / einsum("i,j->ij", &[&d_g, &d_y])
-            .unwrap()
-            .into_dimensionality::<Ix2>()
-            .unwrap()[[0, 0]];
+        / d_g.clone().dot(&d_y);
     let mut mat_2: Array2<f64> = einsum(
         "i,j->ij",
         &[
@@ -344,10 +348,9 @@ pub fn update_hessian(
     .unwrap()
     .into_dimensionality::<Ix2>()
     .unwrap();
-    let dividend: f64 = einsum("i,j->ij", &[&d_y, &old_hessian.clone().dot(&d_y)])
-        .unwrap()
-        .into_dimensionality::<Ix2>()
-        .unwrap()[[0, 0]];
+    let dividend: f64 = d_y.clone().dot(&old_hessian.dot(&d_y));
+    println!("Divident 1 {}", d_g.clone().dot(&d_y));
+    println!("Divident 2 {}",dividend);
     mat_2 = mat_2 / dividend;
 
     let eig: (Array1<f64>, Array2<f64>) = old_hessian.eigh(UPLO::Upper).unwrap();
@@ -360,11 +363,12 @@ pub fn update_hessian(
     let nhdy: Array1<f64> =
         old_hessian.clone().dot(&d_y) / old_hessian.clone().dot(&d_y).to_vec().norm();
 
-    let mut new_hessian: Array2<f64> = mat_1 + mat_2;
+    let mut new_hessian: Array2<f64> = old_hessian.clone() +(mat_1 - mat_2);
     let eig_1: (Array1<f64>, Array2<f64>) = new_hessian.eigh(UPLO::Upper).unwrap();
-    let mut new_eigenvalues: Vec<f64> = eig.0.to_vec();
+    let mut new_eigenvalues: Vec<f64> = eig_1.0.to_vec();
     new_eigenvalues.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
-    let emin: f64 = eigenvalues[0];
+    let emin: f64 = new_eigenvalues[0];
+    println!("Eigenvalues of the new hessian: {:?}",new_eigenvalues);
 
     if emin <= 1e-5 {
         new_hessian = create_initial_hessian(
@@ -406,9 +410,6 @@ pub fn step(
     let mut eigenvalues: Vec<f64> = eig.0.to_vec();
     eigenvalues.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
 
-    println!("Eigenvalue of the hessian");
-    println!("{:?}",eigenvalues);
-
     let emin: f64 = eigenvalues[0];
 
     // OBTAIN AN OPTIMIZATION STEP
@@ -434,8 +435,6 @@ pub fn step(
     );
     let mut dy: Array1<f64> = tmp_0.0;
     let mut sol: f64 = tmp_0.1;
-    println!("dy");
-    println!("{}",dy);
 
     let dy_prime: f64 = tmp_0.2;
     // Internal coordinate step size
@@ -445,8 +444,7 @@ pub fn step(
         get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
     let mut c_norm: f64 = tmp.0;
     let mut bork: bool = tmp.1;
-    println!("cnorm {}",c_norm);
-    println!("bork {}",bork);
+    println!("cnorm {}", c_norm);
 
     // If the step is above the trust radius in Cartesian coordinates, then
     // do the following to reduce the step length:
@@ -535,24 +533,16 @@ pub fn step(
     );
     let x_new: Array1<f64> = tmp.0;
     let real_dy: Array1<f64> = get_calc_diff(
-        x_old.clone(),
         x_new.clone(),
+        x_old.clone(),
         internal_coordinates,
         dlc_mat.clone(),
     );
     let internal_coords_new: Array1<f64> = internal_coord_vec + &real_dy;
 
-    let expect_part_1: Array2<f64> = 0.5
-        * einsum("i,j->ij", &[&real_dy, &hessian.dot(&real_dy)])
-            .unwrap()
-            .into_dimensionality::<Ix2>()
-            .unwrap();
+    let expect_part_1: f64 = 0.5*real_dy.clone().dot(&hessian.dot(&real_dy));
 
-    let expect: f64 = expect_part_1
-        .clone()
-        .into_shape((expect_part_1.dim().0 * expect_part_1.dim().1))
-        .unwrap()[0]
-        + real_dy.clone().dot(internal_coord_grad);
+    let expect: f64 = expect_part_1+ real_dy.clone().dot(internal_coord_grad);
 
     return (
         x_new,
@@ -1374,7 +1364,7 @@ fn line_search_routine() {
 }
 
 #[test]
-fn test_optimization_geomeTRIC_1() {
+fn test_optimization_geomeTRIC_step() {
     let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
     let mut positions: Array2<f64> = array![
         [-0.7575800000, 0.0000000000, -0.0000000000],
@@ -1419,7 +1409,7 @@ fn test_optimization_geomeTRIC_1() {
     ];
 
     let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
-    let energy_input:f64 = -78.54289384457864;
+    let energy_input: f64 = -78.54289384457864;
 
     let (internal_coordinates, dlc_mat, internal_coord_vec, internal_coord_grad, initial_hessian): (
         InternalCoordinates,
@@ -1427,10 +1417,7 @@ fn test_optimization_geomeTRIC_1() {
         Array1<f64>,
         Array1<f64>,
         Array2<f64>,
-    ) = prepare_first_step(&mol, &coordinates_1d, cart_gradient_input);
-
-    println!("Internal coordinate vector {}",internal_coord_vec);
-    println!("Internal coordinate gradient {}", internal_coord_grad);
+    ) = prepare_first_step(&mol, &coordinates_1d, cart_gradient_input.clone());
 
     let (
         new_cart_coords,
@@ -1461,6 +1448,117 @@ fn test_optimization_geomeTRIC_1() {
         0.1,
     );
 
+    let new_cartesian_coordinates_ref: Array1<f64> = array![
+        -1.22152670e+00,
+        2.70003806e-02,
+        4.17575983e-15,
+        1.22152670e+00,
+        -2.70003807e-02,
+        2.98675764e-15,
+        -2.27704538e+00,
+        1.77734457e+00,
+        5.09920537e-15,
+        -2.22510266e+00,
+        -1.75363427e+00,
+        2.76272068e-15,
+        2.27704538e+00,
+        -1.77734457e+00,
+        3.63139227e-15,
+        2.22510266e+00,
+        1.75363427e+00,
+        3.89275275e-15
+    ];
 
-    assert!(1==2);
+    let new_internal_coordinates_ref: Array1<f64> = array![
+        -7.14653302e-11,
+        4.51530872e-12,
+        1.98790469e-11,
+        -1.94833375e-11,
+        -2.86104087e-11,
+        -2.62634888e+00,
+        1.47640772e-16,
+        3.34849484e+00,
+        1.24160399e-15,
+        1.85743924e-10,
+        -4.46150014e+00,
+        3.14159265e+00,
+        -6.25994916e-11,
+        2.45602366e-15,
+        7.71995870e-11,
+        1.36522015e+00,
+        8.53084589e-02,
+        1.90743594e-15
+    ];
+
+    println!("New cartesian coordinates {}", new_cart_coords);
+    assert!(new_cart_coords.abs_diff_eq(&new_cartesian_coordinates_ref, 1e-6));
+    assert!(new_int_coords
+        .mapv(|val| val.powi(2))
+        .abs_diff_eq(&new_internal_coordinates_ref.mapv(|val| val.powi(2)), 1e-5));
+
+    let energy_new: f64 = -78.56822221101037;
+    let new_cart_gradient: Array1<f64> = array![
+        0.04914098,
+        0.00926468,
+        -0.,
+        -0.04914098,
+        -0.00926468,
+        -0.,
+        0.00455207,
+        -0.00014426,
+        0.,
+        0.01076247,
+        -0.00069351,
+        0.,
+        -0.00455207,
+        0.00014426,
+        -0.,
+        -0.01076247,
+        0.00069351,
+        0.
+    ];
+
+    let (
+        return_energy,
+        return_cart_coord,
+        return_cart_grad,
+        return_int_coord,
+        return_int_grad,
+        return_hessian,
+        new_trust,
+        converged,
+        opt_failed,
+    ): (
+        f64,
+        Array1<f64>,
+        Array1<f64>,
+        Array1<f64>,
+        Array1<f64>,
+        Array2<f64>,
+        f64,
+        bool,
+        bool,
+    ) = evaluate_step(
+        &internal_coordinates,
+        &dlc_mat,
+        &new_int_coords,
+        &internal_coord_vec,
+        &internal_coord_grad,
+        &new_cart_gradient,
+        &cart_gradient_input,
+        &initial_hessian,
+        &new_cart_coords,
+        &old_cart_coords,
+        energy_new,
+        energy_input,
+        expect,
+        0,
+        0.1,
+        c_norm,
+        &mol,
+
+
+    );
+
+    assert!(1 == 2);
 }
