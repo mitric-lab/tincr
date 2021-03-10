@@ -30,7 +30,7 @@ pub fn run_scc(
 
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
-    let mut p: Array2<f64> = Array2::zeros(p0.raw_dim());
+    let mut p: Array2<f64> = p0.clone();
     // charge guess
     let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
     let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
@@ -76,6 +76,7 @@ pub fn run_scc(
         );
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
+        //let mut prev_h_X:Array2<f64>
         if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
             let h_x: Array2<f64> =
                 lc_exact_exchange(&s, &molecule.calculator.g0_lr_ao, &p0, &p, h.dim().0);
@@ -581,4 +582,39 @@ fn self_consistent_charge_routine_near_coin() {
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
+}
+
+#[test]
+fn test_scc_routine_benzene() {
+    let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
+    let mut positions: Array2<f64> = array![
+        [1.2194, -0.1652, 2.1600],
+        [0.6825, -0.0924, 1.2087],
+        [-0.7075, -0.0352, 1.1973],
+        [-1.2644, -0.0630, 2.1393],
+        [-1.3898, 0.0572, -0.0114],
+        [-2.4836, 0.1021, -0.0204],
+        [-0.6824, 0.0925, -1.2088],
+        [-1.2194, 0.1652, -2.1599],
+        [0.7075, 0.0352, -1.1973],
+        [1.2641, 0.0628, -2.1395],
+        [1.3899, -0.0572, 0.0114],
+        [2.4836, -0.1022, 0.0205]
+    ];
+
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let energy = run_scc(&mol, None, None, None);
+
+    assert!(1==2);
 }
