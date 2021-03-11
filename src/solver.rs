@@ -1,19 +1,19 @@
 use crate::calculator::{get_gamma_gradient_matrix, lambda2_calc_oia};
-use crate::gamma_approximation::m_atomwise;
 use crate::defaults;
+use crate::gamma_approximation::m_atomwise;
 use crate::gradients;
+use crate::scc_routine::*;
 use crate::transition_charges::trans_charges;
 use crate::Molecule;
 use approx::AbsDiffEq;
 use ndarray::prelude::*;
 use ndarray::Data;
-use ndarray::{Array2, Array4, Array6, ArrayView1, ArrayView2, ArrayView3, stack};
+use ndarray::{stack, Array2, Array4, Array6, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::cmp::Ordering;
 use std::ops::AddAssign;
-use crate::scc_routine::*;
 use std::time::Instant;
 
 pub trait ToOwnedF<A, D> {
@@ -107,12 +107,14 @@ pub fn get_exc_energies(
 
     // Get M matrix if required
     let m: Array4<f64> = if magnetic_correction {
-        m_atomwise(&molecule.atomic_numbers[..], molecule.n_atoms,
-                   molecule.calculator.spin_couplings.view())
+        m_atomwise(
+            &molecule.atomic_numbers[..],
+            molecule.n_atoms,
+            molecule.calculator.spin_couplings.view(),
+        )
     } else {
         Array::zeros((molecule.n_atoms, molecule.n_atoms, 2, 2))
     };
-
 
     let mut omega_out: Array1<f64> = Array::zeros((n_occ * n_virt));
     let mut c_ij: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
@@ -251,7 +253,7 @@ pub fn build_a_matrix(
     )
     .into_dimensionality::<Ix4>()
     .unwrap();
-    
+
     // K_lr_A = np.swapaxes(K_lr_A, 1, 2)
     // swap axes still missing
     k_lr_a.swap_axes(1, 2);
@@ -284,14 +286,26 @@ pub fn build_a_matrix(
 
         // Get the correction matrix K_m
         let delta_st: Array2<f64> = Array::eye(2);
-        let k_m: Array6<f64> = 2.0 * einsum("aijs,bklt,abst,st->sijtkl", &[&q_trans_ovs, &q_trans_ovs, &m.unwrap(), &delta_st])
-            .unwrap().into_dimensionality::<Ix6>().unwrap().as_standard_layout().to_owned();
+        let k_m: Array6<f64> = 2.0
+            * einsum(
+                "aijs,bklt,abst,st->sijtkl",
+                &[&q_trans_ovs, &q_trans_ovs, &m.unwrap(), &delta_st],
+            )
+            .unwrap()
+            .into_dimensionality::<Ix6>()
+            .unwrap()
+            .as_standard_layout()
+            .to_owned();
 
-        let k_m_coupling: Array2<f64> = k_m.into_shape((2 * n_occ * n_virt, 2 * n_occ * n_virt)).unwrap();
+        let k_m_coupling: Array2<f64> = k_m
+            .into_shape((2 * n_occ * n_virt, 2 * n_occ * n_virt))
+            .unwrap();
         // println!("K_m_coupling {}", k_m_coupling);
         // assert!(k_m_coupling.abs_diff_eq(&k_m_coupling_2, 1e-16));
 
-        k_m_coupling.slice(s![0..n_occ*n_virt, 0..n_occ*n_virt]).to_owned()
+        k_m_coupling
+            .slice(s![0..n_occ * n_virt, 0..n_occ * n_virt])
+            .to_owned()
     } else {
         Array::zeros(k_coupling.raw_dim())
     };
@@ -391,7 +405,6 @@ pub fn build_a_matrix(
 //     return &df_half.dot(&omega) + &df_half.dot(&k_coupling.dot(&df_half));
 // }
 
-
 pub fn build_b_matrix(
     gamma: ArrayView2<f64>,
     gamma_lr: ArrayView2<f64>,
@@ -446,14 +459,26 @@ pub fn build_b_matrix(
 
         // Get the correction matrix K_m
         let delta_st: Array2<f64> = Array::eye(2);
-        let k_m: Array6<f64> = 2.0 * einsum("aijs,bklt,abst,st->sijtlk", &[&q_trans_ovs, &q_trans_ovs, &m.unwrap(), &delta_st])
-            .unwrap().into_dimensionality::<Ix6>().unwrap().as_standard_layout().to_owned();
+        let k_m: Array6<f64> = 2.0
+            * einsum(
+                "aijs,bklt,abst,st->sijtlk",
+                &[&q_trans_ovs, &q_trans_ovs, &m.unwrap(), &delta_st],
+            )
+            .unwrap()
+            .into_dimensionality::<Ix6>()
+            .unwrap()
+            .as_standard_layout()
+            .to_owned();
 
-        let k_m_coupling: Array2<f64> = k_m.into_shape((2 * n_occ * n_virt, 2 * n_occ * n_virt)).unwrap();
+        let k_m_coupling: Array2<f64> = k_m
+            .into_shape((2 * n_occ * n_virt, 2 * n_occ * n_virt))
+            .unwrap();
         // println!("K_m_coupling {}", k_m_coupling);
         // assert!(k_m_coupling.abs_diff_eq(&k_m_coupling_2, 1e-16));
 
-        k_m_coupling.slice(s![0..n_occ*n_virt, 0..n_occ*n_virt]).to_owned()
+        k_m_coupling
+            .slice(s![0..n_occ * n_virt, 0..n_occ * n_virt])
+            .to_owned()
     } else {
         Array::zeros(k_coupling.raw_dim())
     };
@@ -1921,7 +1946,7 @@ fn excited_energies_casida_routine() {
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies( &f_occ.to_vec(),&mol, None, &S, &orbe, &orbs, false, None);
+        get_exc_energies(&f_occ.to_vec(), &mol, None, &S, &orbe, &orbs, false, None);
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));
@@ -2130,8 +2155,16 @@ fn excited_energies_hermitian_davidson_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies(&f_occ.to_vec(), &mol, Some(4), &S, &orbe, &orbs, false,None);
+    let (omega_out, c_ij, XmY, XpY) = get_exc_energies(
+        &f_occ.to_vec(),
+        &mol,
+        Some(4),
+        &S,
+        &orbe,
+        &orbs,
+        false,
+        None,
+    );
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));
@@ -2334,8 +2367,16 @@ fn excited_energies_non_hermitian_davidson_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies(&f_occ.to_vec(), &mol, Some(4), &S, &orbe, &orbs, false, None);
+    let (omega_out, c_ij, XmY, XpY) = get_exc_energies(
+        &f_occ.to_vec(),
+        &mol,
+        Some(4),
+        &S,
+        &orbe,
+        &orbs,
+        false,
+        None,
+    );
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));
@@ -2479,7 +2520,6 @@ fn tda_routine() {
     println!("omega_ref {}", omega_ref);
     assert!(omega.abs_diff_eq(&omega_ref, 1e-14));
     assert!(c_ij.abs_diff_eq(&c_ij_ref, 1e-14));
-
 
     let (omega_spin, c_ij_spin): (Array1<f64>, Array3<f64>) = tda(
         gamma.view(),
@@ -3075,17 +3115,16 @@ fn non_hermitian_davidson_routine() {
     assert!((&XpY * &XpY).abs_diff_eq(&(&XpY_ref * &XpY_ref), 1e-14));
 }
 
-
 #[test]
 fn ethylene_tda() {
     // Define ethylene
     let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
     let mut positions: Array2<f64> = array![
-        [ 0.6579, -0.0045,  0.0639],
-        [-0.6579,  0.0045, -0.0639],
-        [ 1.1610,  0.0661,  1.0238],
-        [ 1.3352, -0.0830, -0.7815],
-        [-1.3355,  0.0830,  0.7812],
+        [0.6579, -0.0045, 0.0639],
+        [-0.6579, 0.0045, -0.0639],
+        [1.1610, 0.0661, 1.0238],
+        [1.3352, -0.0830, -0.7815],
+        [-1.3355, 0.0830, 0.7812],
         [-1.1608, -0.0661, -1.0239]
     ];
 
@@ -3115,14 +3154,15 @@ fn ethylene_tda() {
     let gamma: Array2<f64> = (&mol.calculator.g0).to_owned();
     let gamma_lr: Array2<f64> = (&mol.calculator.g0_lr).to_owned();
 
-    let (q_trans_ov, q_trans_oo, q_trans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) = trans_charges(
-        &mol.atomic_numbers,
-        &mol.calculator.valorbs,
-        orbs.view(),
-        s.view(),
-        &active_occ[..],
-        &active_virt[..],
-    );
+    let (q_trans_ov, q_trans_oo, q_trans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) =
+        trans_charges(
+            &mol.atomic_numbers,
+            &mol.calculator.valorbs,
+            orbs.view(),
+            s.view(),
+            &active_occ[..],
+            &active_virt[..],
+        );
 
     let omega_0: Array2<f64> = get_orbital_en_diff(
         orbe.view(),
@@ -3179,10 +3219,8 @@ fn ethylene_tda() {
     let (omega_magn, c_ij_magn, XmY_magn, XpY_magn) =
         get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, true, None);
 
-
     println!("omega: {}", &omega);
     println!("omega_magn: {}", &omega_magn);
 
     assert_eq!(1, 2);
-
 }

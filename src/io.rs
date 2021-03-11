@@ -9,11 +9,12 @@ use chemfiles::{Frame, Trajectory};
 use clap::App;
 use ndarray::*;
 use ndarray_linalg::*;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::ptr::eq;
-use serde::{Deserialize, Serialize};
+use log::{debug, error, info, trace, warn};
 
 fn default_charge() -> i8 {
     CHARGE
@@ -60,28 +61,31 @@ fn default_nr_active_virt() -> usize {
 fn default_rpa() -> bool {
     RPA
 }
+fn default_restricted_active_space() -> bool {
+    RESTRICTED_ACTIVE_SPACE
+}
 fn default_nstates() -> usize {
     EXCITED_STATES
 }
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
-    return mol_config
+    return mol_config;
 }
 fn default_scc_config() -> SccConfig {
     let scc_config: SccConfig = toml::from_str("").unwrap();
-    return scc_config
+    return scc_config;
 }
 fn default_opt_config() -> OptConfig {
     let opt_config: OptConfig = toml::from_str("").unwrap();
-    return opt_config
+    return opt_config;
 }
 fn default_lc_config() -> LCConfig {
     let lc_config: LCConfig = toml::from_str("").unwrap();
-    return lc_config
+    return lc_config;
 }
 fn default_excited_state_config() -> ExcitedStatesConfig {
     let excited_config: ExcitedStatesConfig = toml::from_str("").unwrap();
-    return excited_config
+    return excited_config;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -144,12 +148,12 @@ pub struct ExcitedStatesConfig {
     pub nstates: usize,
     #[serde(default = "default_rpa")]
     pub rpa: bool,
+    #[serde(default = "default_restricted_active_space")]
+    pub restricted_active_space: bool,
     #[serde(default = "default_nr_active_occ")]
     pub nr_active_occ: usize,
     #[serde(default = "default_nr_active_virt")]
     pub nr_active_virt: usize,
-
-
 }
 
 fn get_extension_from_filename(filename: &str) -> Option<&str> {
@@ -162,7 +166,6 @@ pub fn get_coordinates(filename: &str) -> (Vec<u8>, Array2<f64>) {
     let mut frame = Frame::new();
     // if multiple geometries are contained in the file, we will only use the first one
     trajectory.read(&mut frame).unwrap();
-    println!("There are {} atoms in the frame", frame.size());
     let mut positions: Array2<f64> = Array2::from_shape_vec(
         (frame.size() as usize, 3),
         frame
@@ -181,4 +184,17 @@ pub fn get_coordinates(filename: &str) -> (Vec<u8>, Array2<f64>) {
         .collect();
 
     return (atomic_numbers, positions);
+}
+
+pub fn write_header() {
+    info!("{: ^80}", "-----------------");
+    info!("{: ^80}", "TINCR");
+    info!("{: ^80}", "-----------------");
+    info!("{: ^80}", "");
+    info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
+    info!("{: ^80}", "::           Roland Mitric          ::");
+    info!("{: ^80}", "::  Chair of theoretical chemistry  ::");
+    info!("{: ^80}", "::      University of Wuerzburg     ::");
+    info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
+    info!("{: ^80}", "");
 }

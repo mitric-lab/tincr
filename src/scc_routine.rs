@@ -605,16 +605,9 @@ fn test_scc_routine_benzene() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions,
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let energy = run_scc(&mol, None, None, None);
 
-    assert!(1==2);
+    assert!(1 == 2);
 }
