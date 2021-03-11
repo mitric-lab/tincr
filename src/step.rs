@@ -532,7 +532,7 @@ pub fn get_delta_prime_trm(
     //         .unwrap()
     //         .into_dimensionality::<Ix2>()
     //         .unwrap();
-    let sol_part_1: Array2<f64> = 0.5 * into_col(dy.clone()).dot(&hessian_ic.dot(&dy));
+    let sol_part_1: Array2<f64> = 0.5 * into_col(dy.clone()).dot(&into_row(hessian_ic.clone().dot(&dy)));
     let sol: f64 = sol_part_1
         .clone()
         .into_shape((sol_part_1.dim().0 * sol_part_1.dim().1))
