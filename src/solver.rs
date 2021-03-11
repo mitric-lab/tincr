@@ -3200,6 +3200,7 @@ fn benzene_tda() {
     // transform coordinates in au
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
+    // let multiplicity: Option<u8> = Some(1);
     let multiplicity: Option<u8> = Some(3);
     let mut mol: Molecule = Molecule::new(
         atomic_numbers.clone(),
