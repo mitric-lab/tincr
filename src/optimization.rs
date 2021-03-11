@@ -1628,6 +1628,7 @@ fn test_opt_cyclohexene() {
     //positions = positions * 1.8897261278504418;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions.clone(),
@@ -1635,10 +1636,11 @@ fn test_opt_cyclohexene() {
         multiplicity,
         None,
         None,
+        config,
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol, None, None, None);
+        scc_routine::run_scc(&mol);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
