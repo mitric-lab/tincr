@@ -16,6 +16,7 @@ use ndarray_stats::QuantileExt;
 use std::cmp::max;
 use std::iter::FromIterator;
 use std::ops::Deref;
+use log::{error, warn, info, debug, trace, log_enabled, Level};
 
 // This routine is very messy und should be rewritten in a clean form
 pub fn run_scc(
@@ -68,6 +69,17 @@ pub fn run_scc(
 
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
+
+    info!("{:^80}", "");
+    info!("{: ^80}", "SCC-Routine");
+    info!("{:-^80}", "");
+    info!("{: <25} {}", "convergence criterium:", scf_conv);
+    info!("{: <25} {}", "max. iterations:", max_iter);
+    info!("{: <25} {} K", "electronic temperature:", temperature);
+    info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
+    info!("{:^80}", "");
+    info!("{: <45} ", "SCC Iterations: all energies are in Hartree");
+    info!("{:-^45}", "");
     'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(
             &molecule,
@@ -116,14 +128,26 @@ pub fn run_scc(
         // charge difference to previous iteration
         let dq_diff: Array1<f64> = &new_dq - &dq;
 
+        let charge_diff: f64 = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+        if i > 0 {
+            info!("{:^14} charge diff.: {:>18.14} ", "", charge_diff);
+        }
         // check if charge difference to the previous iteration is lower then 1e-5
-        if (dq_diff.map(|x| x.abs()).max().unwrap() < &scf_conv) {
+        if (&charge_diff < &scf_conv) {
             converged = true;
         }
         // Broyden mixing of partial charges
         dq = broyden_mixer.next(new_dq, dq_diff);
         q = new_q;
-
+        debug!("");
+        debug!("{: <35} ", "atomic charges and partial charges");
+        debug!("{:-^35}", "");
+        if log_enabled!(Level::Debug) {
+            for (idx, (qi, dqi)) in q.iter().zip(dq.iter()).enumerate() {
+                debug!("Atom {: >4} q: {:>18.14} dq: {:>18.14}", idx+1, qi, dqi);
+            }
+        }
+        debug!("{:-^55}", "");
         // compute electronic energy
         scf_energy = get_electronic_energy(
             &molecule,
@@ -135,20 +159,26 @@ pub fn run_scc(
             (&molecule.calculator.g0).deref().view(),
             &molecule.calculator.g0_lr_ao,
         );
+        if i == 0 {
+            info!("Iteration {: >4} total energy: {:.14} dE: {:>18.14} ", i+1, scf_energy + rep_energy, 0);
 
-        energy_old = scf_energy;
-        println!(
-            "Iteration {} => SCF-Energy = {:.8} hartree",
-            i,
-            scf_energy + rep_energy
-        );
+        } else {
+            info!("Iteration {: >4} total energy: {:.14} dE: {:>18.14} ", i+1, scf_energy + rep_energy, energy_old-scf_energy);
+
+        }
+       energy_old = scf_energy;
+
         assert_ne!(i + 1, max_iter, "SCF not converged");
 
         if converged {
             break 'scf_loop;
         }
     }
-    println!("SCF Converged!");
+    info!("{:^80} ", "------------------------");
+    info!("{: ^80}", "SCC converged");
+    info!("{:^80} ", "");
+    info!("final energy: {:18.14}", scf_energy + rep_energy);
+    info!("{:-<80} ", "");
     return (scf_energy + rep_energy, orbs, orbe, s, f);
 }
 

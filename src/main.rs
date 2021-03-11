@@ -39,28 +39,17 @@ extern crate clap;
 use crate::defaults::CONFIG_FILE_NAME;
 use crate::io::{get_coordinates, GeneralConfig, write_header};
 use clap::{App, Arg};
-use log::{debug, error, info, trace, warn};
+use log::{error, warn, info, debug, trace, Level};
 use std::path::Path;
 use std::process;
 use toml;
 use std::io::Write;
 use env_logger::Builder;
 use log::LevelFilter;
+use ron::error::ErrorCode::TrailingCharacters;
 
 
 fn main() {
-    Builder::new()
-        .format(|buf, record| {
-            writeln!(buf,
-                     "{}",
-                     record.args()
-            )
-        })
-        .filter(None, LevelFilter::Info)
-        .init();
-
-    write_header();
-
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .about("software package for tight-binding DFT calculations")
@@ -94,6 +83,26 @@ fn main() {
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
 
+    let log_level: LevelFilter = match config.verbose {
+        -2 => LevelFilter::Trace,
+        -1 => LevelFilter::Debug,
+         0 => LevelFilter::Info,
+         1 => LevelFilter::Warn,
+         2 => LevelFilter::Error,
+         _ => LevelFilter::Debug,
+    };
+
+    Builder::new()
+        .format(|buf, record| {
+            writeln!(buf,
+                     "{}",
+                     record.args()
+            )
+        })
+        .filter(None, log_level)
+        .init();
+
+    write_header();
     info!("{: ^80}", "Initializing Molecule");
     info!("{:-^80}", "");
     info!("{: <25} {}", "geometry filename:", geometry_file);
@@ -110,7 +119,7 @@ fn main() {
                 None,
             );
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-                scc_routine::run_scc(&mol, None, None, None);
+                scc_routine::run_scc(&mol, Some(config.scf.scf_max_cycles), None, None);
             0
         }
         "opt" => {

@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 #![allow(warnings)]
+#[macro_use]
 
+use clap::crate_version;
 use crate::constants::BOHR_TO_ANGS;
 use crate::defaults::*;
 use crate::gradients::*;
@@ -16,6 +18,7 @@ use std::path::Path;
 use std::ptr::eq;
 use log::{debug, error, info, trace, warn};
 
+
 fn default_charge() -> i8 {
     CHARGE
 }
@@ -30,6 +33,9 @@ fn default_long_range_correction() -> bool {
 }
 fn default_long_range_radius() -> f64 {
     LONG_RANGE_RADIUS
+}
+fn default_verbose() -> i8{
+    0
 }
 fn default_dispersion_correction() -> bool {
     DISPERSION_CORRECTION
@@ -94,6 +100,8 @@ pub struct GeneralConfig {
     pub jobtype: String,
     #[serde(default = "default_dispersion_correction")]
     pub dispersion_correction: bool,
+    #[serde(default = "default_verbose")]
+    pub verbose: i8,
     #[serde(default = "default_mol_config")]
     pub mol: MoleculeConfig,
     #[serde(default = "default_scc_config")]
@@ -190,6 +198,9 @@ pub fn write_header() {
     info!("{: ^80}", "-----------------");
     info!("{: ^80}", "TINCR");
     info!("{: ^80}", "-----------------");
+    let mut version_string: String = "version: ".to_owned();
+    version_string.push_str(crate_version!());
+    info!("{: ^80}", version_string);
     info!("{: ^80}", "");
     info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
     info!("{: ^80}", "::           Roland Mitric          ::");
