@@ -2212,11 +2212,12 @@ impl RotationA {
             let nxdum: f64 = xdum.norm();
             let dxdum: Array2<f64> = d_cross(&vx.to_vec(), &e0);
             let dnxdum: Array1<f64> = dn_cross(&vx.to_vec(), &e0);
-            let dexdum: Array2<f64> = (dxdum * nxdum
-                - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
-                    .unwrap()
-                    .into_dimensionality::<Ix2>()
-                    .unwrap());
+            // let dexdum: Array2<f64> = (dxdum * nxdum
+            //     - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
+            //         .unwrap()
+            //         .into_dimensionality::<Ix2>()
+            //         .unwrap());
+            let dexdum:Array2<f64> = (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
             let tmp_slice: Array2<f64> =
                 deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw
@@ -2484,11 +2485,12 @@ impl RotationB {
             let nxdum: f64 = xdum.norm();
             let dxdum: Array2<f64> = d_cross(&vx.to_vec(), &e0);
             let dnxdum: Array1<f64> = dn_cross(&vx.to_vec(), &e0);
-            let dexdum: Array2<f64> = (dxdum * nxdum
-                - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
-                    .unwrap()
-                    .into_dimensionality::<Ix2>()
-                    .unwrap());
+            // let dexdum: Array2<f64> = (dxdum * nxdum
+            //     - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
+            //         .unwrap()
+            //         .into_dimensionality::<Ix2>()
+            //         .unwrap());
+            let dexdum:Array2<f64> = (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
             let tmp_slice: Array2<f64> =
                 deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw
@@ -2755,11 +2757,12 @@ impl RotationC {
             let nxdum: f64 = xdum.norm();
             let dxdum: Array2<f64> = d_cross(&vx.to_vec(), &e0);
             let dnxdum: Array1<f64> = dn_cross(&vx.to_vec(), &e0);
-            let dexdum: Array2<f64> = (dxdum * nxdum
-                - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
-                    .unwrap()
-                    .into_dimensionality::<Ix2>()
-                    .unwrap());
+            // let dexdum: Array2<f64> = (dxdum * nxdum
+            //     - einsum("i,j->ij", &[&dnxdum, &Array::from(xdum)])
+            //         .unwrap()
+            //         .into_dimensionality::<Ix2>()
+            //         .unwrap());
+            let dexdum:Array2<f64> = (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
             let tmp_slice: Array2<f64> =
                 deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw
