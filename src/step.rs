@@ -2,10 +2,10 @@ use crate::defaults;
 use crate::gradients;
 use crate::gradients::get_gradients;
 use crate::internal_coordinates::*;
+use crate::optimization::*;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
 use crate::Molecule;
-use crate::optimization::*;
 use approx::AbsDiffEq;
 use itertools::any;
 use ndarray::prelude::*;
@@ -22,10 +22,10 @@ pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
 }
 impl<A, S, D> ToOwnedF<A, D> for ArrayBase<S, D>
-    where
-        A: Copy + Clone,
-        S: Data<Elem = A>,
-        D: Dimension,
+where
+    A: Copy + Clone,
+    S: Data<Elem = A>,
+    D: Dimension,
 {
     fn to_owned_f(&self) -> Array<A, D> {
         let mut tmp = unsafe { Array::uninitialized(self.dim().f()) };
@@ -45,7 +45,7 @@ pub fn find_root_brent(
     hessian_ic: Array2<f64>,
     internal_coords: &InternalCoordinates,
     dlc_mat: &Array2<f64>,
-    trust:f64
+    trust: f64,
 ) -> (f64, bool, Option<f64>, bool) {
     // Brent's method for finding the root of a function.
     // Parameters
@@ -101,8 +101,8 @@ pub fn find_root_brent(
     let mut f_b_new: f64 = f_b;
 
     if f_a * f_b > 0.0 {
-        println!("F(a) {}",f_a);
-        println!("F(b) {}",f_b);
+        println!("F(a) {}", f_a);
+        println!("F(b) {}", f_b);
         panic!("Error in find_root_brent: F(a) and F(b) have the same sign");
     }
     if f_a.abs() < f_b.abs() {
@@ -117,7 +117,7 @@ pub fn find_root_brent(
     let mut mflag: bool = true;
     let delta: f64 = 1e-6;
     let epsilon: f64 = 0.01_f64.min(1.0e-2 * (a_new - b_new).abs());
-    println!("Epsilon {}",epsilon);
+    println!("Epsilon {}", epsilon);
     let mut d: Option<f64> = None;
     let mut return_value: f64 = 0.0;
     let mut brent_failed: bool = false;
@@ -133,7 +133,10 @@ pub fn find_root_brent(
         } else {
             s = b_new - f_b_new * (b_new - a_new) / (f_b_new - f_a_new);
         }
-        println!("Find root Brent: A is {} and B is {}. F(a) is {} and F(b) is {}",a_new,b_new,f_a_new,f_b_new);
+        println!(
+            "Find root Brent: A is {} and B is {}. F(a) is {} and F(b) is {}",
+            a_new, b_new, f_a_new, f_b_new
+        );
         // evaluate conditions
         let condition_1: bool = between_floats(s, (3.0 * a_new + b_new) / 4.0, b_new).not();
         let condition_2: bool = mflag && ((s - b_new).abs() >= (b_new - c).abs() / 2.0);
@@ -170,7 +173,7 @@ pub fn find_root_brent(
         }
         bork = tmp_1.4;
         let f_s: f64 = tmp_1.0;
-        println!("F(s) {}",f_s);
+        println!("F(s) {}", f_s);
 
         if (f_s / rel).abs() <= conv {
             return_value = s;
@@ -178,7 +181,7 @@ pub fn find_root_brent(
             break;
         }
 
-        if (b_new-a_new).abs() < epsilon {
+        if (b_new - a_new).abs() < epsilon {
             return_value = s;
             brent_failed = true;
             println!("Brent failed");
@@ -221,7 +224,7 @@ pub fn between_floats(s: f64, a: f64, b: f64) -> bool {
         return_val_1 = s > b;
         return_val_2 = s < a;
     } else {
-        println!("A = {}, B = {}",a,b);
+        println!("A = {}, B = {}", a, b);
         println!("Error in between, a and b must be different");
     }
     let mut return_final: bool = false;
@@ -239,11 +242,11 @@ pub fn evaluate_find_root(
     hessian_ic: Array2<f64>,
     internal_coords: &InternalCoordinates,
     dlc_mat: &Array2<f64>,
-    trust:f64,
+    trust: f64,
     counter: Option<usize>,
     stored_val: Option<f64>,
 ) -> (f64, usize, Option<f64>, Option<f64>, bool) {
-    println!("Trial in evaluate find root: {}",trial);
+    println!("Trial in evaluate find root: {}", trial);
     let target: f64 = 0.1;
     let mut return_value: f64 = 0.0;
     let mut cnorm: f64 = 0.0;
@@ -267,8 +270,8 @@ pub fn evaluate_find_root(
         );
         let tmp: (f64, bool) =
             get_cartesian_norm(&cart_coords, dy.clone(), internal_coords, dlc_mat);
-        cnorm= tmp.0;
-        println!("cnorm from evaluate find root {}",cnorm);
+        cnorm = tmp.0;
+        println!("cnorm from evaluate find root {}", cnorm);
         bork = tmp.1;
         counter += 1;
     }
@@ -300,9 +303,9 @@ pub fn trust_step(
         internal_coords,
         false,
     );
-    let mut dy:Array1<f64> = tmp_dp.0;
-    let mut sol:f64 = tmp_dp.1;
-    let mut dy_prime:f64 = tmp_dp.2;
+    let mut dy: Array1<f64> = tmp_dp.0;
+    let mut sol: f64 = tmp_dp.1;
+    let mut dy_prime: f64 = tmp_dp.2;
 
     let mut ndy: f64 = dy.clone().to_vec().norm();
     let mut return_dy: Array1<f64> = Array::zeros((dy.dim()));
@@ -336,7 +339,7 @@ pub fn trust_step(
         dy_prime = tmp_dp_2.2;
 
         ndy = dy.clone().to_vec().norm();
-        println!("Ndy in trust step {}",ndy);
+        println!("Ndy in trust step {}", ndy);
 
         if ((ndy - target) / target).abs() < 0.001 {
             return_dy = dy.clone();
@@ -377,7 +380,7 @@ pub fn calc_drms_dmax(x_new: Array1<f64>, x_old: Array1<f64>) -> (f64, f64) {
     // Obtain the rotation
     let u: Array2<f64> = get_rot(coords_new.clone(), coords_old.clone());
     let x_rot: Array2<f64> = u.dot(&coords_new.t());
-    let x_rot_temp:Array2<f64> = x_rot.to_owned_f().t().to_owned();
+    let x_rot_temp: Array2<f64> = x_rot.to_owned_f().t().to_owned();
     let x_rot_new: Array1<f64> = x_rot_temp
         .clone()
         .into_shape((x_rot.dim().0 * x_rot.dim().1))
