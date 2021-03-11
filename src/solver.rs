@@ -307,8 +307,11 @@ pub fn build_a_matrix(
             .slice(s![0..n_occ * n_virt, 0..n_occ * n_virt])
             .to_owned()
     } else {
+        println!("Du doofe, keine Korrektur!");
         Array::zeros(k_coupling.raw_dim())
     };
+
+    println!("{}", k_m_coupling_red);
 
     k_coupling = k_coupling + k_m_coupling_red;
 
@@ -2529,15 +2532,17 @@ fn tda_routine() {
         q_trans_vv.view(),
         omega_0.view(),
         df.view(),
-        mol.multiplicity,
+        3,
         2,
         2,
         Some(m.view()),
     );
     println!("omega {}", omega);
-    println!("omega_spin {}", omega);
-    println!("c_ij {}", c_ij);
-    println!("c_ij_spin {}", c_ij_spin);
+    println!("omega_spin {}", omega_spin);
+    // println!("c_ij {}", c_ij);
+    // println!("c_ij_spin {}", c_ij_spin);
+
+    assert!(1 == 2);
 }
 
 #[test]

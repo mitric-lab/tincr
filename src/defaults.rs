@@ -47,7 +47,8 @@ pub const BROYDEN_OMEGA0: f64 = 0.01;
 pub const BROYDEN_MIN_WEIGHT: f64 = 1.0;
 pub const BROYDEN_MAX_WEIGHT: f64 = 1.0e5;
 pub const BROYDEN_WEIGHT_FACTOR: f64 = 1.0e-2;
-pub const BROYDEN_MIXING_PARAMETER: f64 = 0.4;
+pub const BROYDEN_MIXING_PARAMETER: f64 = 0.55;
+
 
 pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
 

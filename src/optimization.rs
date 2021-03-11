@@ -16,7 +16,7 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::Deref;
-
+use std::time::Instant;
 // Optimization using internal coordinates
 // from geomeTRIC
 
@@ -142,9 +142,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
             trust = new_trust;
 
             if converged {
-
-                println!("Final number of iterations : {}",iteration);
-
+                println!("Final number of iterations : {}", iteration);
                 println!("Optimization converged");
                 break;
             }
@@ -154,7 +152,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
                 break;
             }
         }
-        println!("Number of iterations : {}",iteration);
+        println!("Number of iterations : {}", iteration);
         iteration += 1;
     }
 
@@ -224,11 +222,11 @@ pub fn evaluate_step(
         step_state
     );
     // check convergence criteria
-    let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-6;
-    let converged_grms: bool = rms_gradient < 5.0e-4;
-    let converged_gmax: bool = max_gradient < 1.0e-3;
-    let converged_drms: bool = rmsd < 5.0e-4;
-    let converged_dmax: bool = maxd < 1.0e-3;
+    let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-5;
+    let converged_grms: bool = rms_gradient < 2.0e-3;
+    let converged_gmax: bool = max_gradient < 4.0e-3;
+    let converged_drms: bool = rmsd < 5.0e-3;
+    let converged_dmax: bool = maxd < 1.0e-2;
 
     // Check convergence criteria
     if converged_energy && converged_grms && converged_drms && converged_gmax && converged_dmax {
@@ -337,25 +335,36 @@ pub fn update_hessian(
         // stop procedure
         println!("UpdateHessian error dg norm to small");
     }
+    // let now = Instant::now();
+    // // BFGS Hessian update
+    // let mat_1: Array2<f64> = einsum("i,j->ij", &[&d_g, &d_g])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap()
+    //     / d_g.clone().dot(&d_y);
+    // let mut mat_2: Array2<f64> = einsum(
+    //     "i,j->ij",
+    //     &[
+    //         &old_hessian.clone().dot(&d_y),
+    //         &old_hessian.clone().dot(&d_y),
+    //     ],
+    // )
+    // .unwrap()
+    // .into_dimensionality::<Ix2>()
+    // .unwrap();
+    //
+    // let dividend: f64 = d_y.clone().dot(&old_hessian.dot(&d_y));
+    // mat_2 = mat_2 / dividend;
+    // println!("Einsum test {}", now.elapsed().as_micros());
 
-    // BFGS Hessian update
-    let mat_1: Array2<f64> = einsum("i,j->ij", &[&d_g, &d_g])
-        .unwrap()
-        .into_dimensionality::<Ix2>()
-        .unwrap()
-        / d_g.clone().dot(&d_y);
-    let mut mat_2: Array2<f64> = einsum(
-        "i,j->ij",
-        &[
-            &old_hessian.clone().dot(&d_y),
-            &old_hessian.clone().dot(&d_y),
-        ],
-    )
-    .unwrap()
-    .into_dimensionality::<Ix2>()
-    .unwrap();
-    let dividend: f64 = d_y.clone().dot(&old_hessian.dot(&d_y));
-    mat_2 = mat_2 / dividend;
+    //let now = Instant::now();
+    let mat_1: Array2<f64> =
+        into_col(d_g.clone()).dot(&into_row(d_g.clone())) / d_g.clone().dot(&d_y);
+    let mat_2: Array2<f64> = into_col(old_hessian.clone().dot(&d_y))
+        .dot(&into_row(old_hessian.clone().dot(&d_y)))
+        / d_y.clone().dot(&old_hessian.dot(&d_y));
+
+    //println!("Dot test {}", now.elapsed().as_micros());
 
     let eig: (Array1<f64>, Array2<f64>) = old_hessian.eigh(UPLO::Upper).unwrap();
     // sort the eigenvalues
@@ -1568,9 +1577,8 @@ fn test_optimization_geomeTRIC_step() {
     assert!(1 == 2);
 }
 
-
-//#[test]
-fn test_opt_benzene(){
+#[test]
+fn test_opt_benzene() {
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
         [1.2194, -0.1652, 2.1600],
@@ -1620,7 +1628,67 @@ fn test_opt_benzene(){
     assert!(1 == 2);
 }
 
-#[test]
+//#[test]
+fn test_opt_cyclohexene() {
+    let atomic_numbers: Vec<u8> = vec![6, 6, 6, 1, 6, 1, 6, 1, 6, 1, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [-12.609038540283596, 4.45885341756616, 0.32856443069563773],
+        [-10.109190924780702, 5.492990165698267, 0.6768275831285214],
+        [-7.660709978838828, 4.075724216111454, 0.28723213891548427],
+        [-9.929425592755052, 7.88366768829053, 1.0953906778743703],
+        [-12.87286753393491, 1.5236277020901674, 0.07278075058749803],
+        [-14.466607926123958, 5.960901540887009, -0.10502623419245735],
+        [
+            -10.602694484430021,
+            0.0811929006447699,
+            -0.46402794299847355
+        ],
+        [-14.921557334713528, 0.36982320463975926, 0.6777970949121042],
+        [-8.066984242470834, 1.4288703952354382, -0.23332820495579965],
+        [
+            -10.672388801831817,
+            -2.3547597989356914,
+            -1.3995642068590737
+        ],
+        [-6.288993606078426, 0.26191944983414484, -0.2546656202831121],
+        [-5.510171756669876, 4.9318942949704425, 0.20013576980510914]
+    ];
+
+    // transform coordinates in au
+    //positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+        scc_routine::run_scc(&mol, None, None, None);
+
+    mol.calculator.set_active_orbitals(f.to_vec());
+
+    let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol);
+    let new_energy: f64 = tmp.0;
+    let new_gradient: Array1<f64> = tmp.1;
+    let new_coords: Array1<f64> = tmp.2;
+
+    let coords_3d: Array2<f64> = new_coords
+        .clone()
+        .into_shape((new_coords.len() / 3, 3))
+        .unwrap();
+
+    println!("New Energy {}", new_energy);
+    println!("New coords {}", coords_3d);
+
+    assert!(1 == 2);
+}
+
+//#[test]
 fn test_opt_water_6() {
     let atomic_numbers: Vec<u8> = vec![8, 1, 1, 8, 1, 1, 8, 1, 1, 8, 1, 1, 8, 1, 1, 8, 1, 1];
     let mut positions: Array2<f64> = array![
