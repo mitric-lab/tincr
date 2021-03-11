@@ -16,7 +16,7 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::Deref;
-
+use std::time::Instant;
 // Optimization using internal coordinates
 // from geomeTRIC
 
@@ -335,25 +335,33 @@ pub fn update_hessian(
         // stop procedure
         println!("UpdateHessian error dg norm to small");
     }
+    // let now = Instant::now();
+    // // BFGS Hessian update
+    // let mat_1: Array2<f64> = einsum("i,j->ij", &[&d_g, &d_g])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap()
+    //     / d_g.clone().dot(&d_y);
+    // let mut mat_2: Array2<f64> = einsum(
+    //     "i,j->ij",
+    //     &[
+    //         &old_hessian.clone().dot(&d_y),
+    //         &old_hessian.clone().dot(&d_y),
+    //     ],
+    // )
+    // .unwrap()
+    // .into_dimensionality::<Ix2>()
+    // .unwrap();
+    //
+    // let dividend: f64 = d_y.clone().dot(&old_hessian.dot(&d_y));
+    // mat_2 = mat_2 / dividend;
+    // println!("Einsum test {}", now.elapsed().as_micros());
 
-    // BFGS Hessian update
-    let mat_1: Array2<f64> = einsum("i,j->ij", &[&d_g, &d_g])
-        .unwrap()
-        .into_dimensionality::<Ix2>()
-        .unwrap()
-        / d_g.clone().dot(&d_y);
-    let mut mat_2: Array2<f64> = einsum(
-        "i,j->ij",
-        &[
-            &old_hessian.clone().dot(&d_y),
-            &old_hessian.clone().dot(&d_y),
-        ],
-    )
-    .unwrap()
-    .into_dimensionality::<Ix2>()
-    .unwrap();
-    let dividend: f64 = d_y.clone().dot(&old_hessian.dot(&d_y));
-    mat_2 = mat_2 / dividend;
+    //let now = Instant::now();
+    let mat_1:Array2<f64> = into_col(d_g.clone()).dot(&into_row(d_g.clone()))/ d_g.clone().dot(&d_y);
+    let mat_2:Array2<f64> = into_col(old_hessian.clone().dot(&d_y)).dot(&into_row(old_hessian.clone().dot(&d_y)))/d_y.clone().dot(&old_hessian.dot(&d_y));
+
+    //println!("Dot test {}", now.elapsed().as_micros());
 
     let eig: (Array1<f64>, Array2<f64>) = old_hessian.eigh(UPLO::Upper).unwrap();
     // sort the eigenvalues
@@ -1569,7 +1577,7 @@ fn test_optimization_geomeTRIC_step() {
 }
 
 
-//#[test]
+#[test]
 fn test_opt_benzene(){
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
@@ -1620,7 +1628,7 @@ fn test_opt_benzene(){
     assert!(1 == 2);
 }
 
-#[test]
+//#[test]
 fn test_opt_cyclohexene(){
     let atomic_numbers: Vec<u8> = vec![6, 6, 6, 1, 6, 1, 6, 1, 6, 1, 1, 1];
     let mut positions: Array2<f64> = array![[-12.609038540283596, 4.45885341756616, 0.32856443069563773],

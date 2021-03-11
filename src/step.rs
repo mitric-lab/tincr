@@ -527,11 +527,12 @@ pub fn get_delta_prime_trm(
     let dy: Array1<f64> = -1.0 * h_i.dot(&gc);
     let d_prime: Array1<f64> = -1.0 * h_i.dot(&dy);
     let dy_prime: f64 = dy.dot(&d_prime) / dy.clone().to_vec().norm();
-    let sol_part_1: Array2<f64> = 0.5
-        * einsum("i,j->ij", &[&dy, &hessian_ic.dot(&dy)])
-            .unwrap()
-            .into_dimensionality::<Ix2>()
-            .unwrap();
+    // let sol_part_1: Array2<f64> = 0.5
+    //     * einsum("i,j->ij", &[&dy, &hessian_ic.dot(&dy)])
+    //         .unwrap()
+    //         .into_dimensionality::<Ix2>()
+    //         .unwrap();
+    let sol_part_1: Array2<f64> = 0.5 * into_col(dy.clone()).dot(&hessian_ic.dot(&dy));
     let sol: f64 = sol_part_1
         .clone()
         .into_shape((sol_part_1.dim().0 * sol_part_1.dim().1))
