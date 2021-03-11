@@ -57,6 +57,7 @@ pub const ACTIVE_ORBITALS: (usize, usize) = (1000, 1000);
 pub const EXCITED_STATES: usize = 1000;
 // DO RPA or Casida
 pub const RPA: bool = true;
+pub const RESTRICTED_ACTIVE_SPACE: bool = true;
 
 // Optimization
 pub const GEOM_OPT_MAX_CYCLES: usize = 500;

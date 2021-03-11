@@ -116,7 +116,7 @@ pub fn run_scc(
         // charge difference to previous iteration
         let dq_diff: Array1<f64> = &new_dq - &dq;
 
-        // check if charge difference to the previus iteration is lower then 1e-5
+        // check if charge difference to the previous iteration is lower then 1e-5
         if (dq_diff.map(|x| x.abs()).max().unwrap() < &scf_conv) {
             converged = true;
         }
@@ -605,16 +605,9 @@ fn test_scc_routine_benzene() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions,
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
 
     let energy = run_scc(&mol, None, None, None);
 
-    assert!(1==2);
+    assert!(1 == 2);
 }
