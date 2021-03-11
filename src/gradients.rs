@@ -18,6 +18,8 @@ use ndarray_linalg::*;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::AddAssign;
+use crate::test::get_water_molecule;
+use crate::io::GeneralConfig;
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -1525,18 +1527,7 @@ fn gradient_v_rep(
 
 #[test]
 fn get_gradients_gs_routine() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule = get_water_molecule();
 
     let S: Array2<f64> = array![
         [
@@ -1700,6 +1691,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
@@ -1707,6 +1699,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
         multiplicity,
         Some(0.0),
         Some((2, 2)),
+        config,
     );
 
     let S: Array2<f64> = array![
@@ -1936,6 +1929,7 @@ fn get_gradients_exc_no_lc_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
@@ -1943,6 +1937,7 @@ fn get_gradients_exc_no_lc_routine() {
         multiplicity,
         Some(0.0),
         None,
+        config,
     );
 
     let S: Array2<f64> = array![
@@ -2239,6 +2234,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
@@ -2246,7 +2242,9 @@ fn get_gradients_exc_lc_restricted_space_routine() {
         multiplicity,
         None,
         Some((2, 2)),
+        config,
     );
+
 
     let S: Array2<f64> = array![
         [
@@ -2465,18 +2463,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
 
 #[test]
 fn get_gradients_exc_routine() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule = get_water_molecule();
 
     let S: Array2<f64> = array![
         [
@@ -2785,17 +2772,7 @@ fn get_gradients_exc_routine() {
 
 #[test]
 fn gs_gradients_no_lc_routine() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mol: Molecule = get_water_molecule();
 
     let S: Array2<f64> = array![
         [
@@ -2935,17 +2912,7 @@ fn gs_gradients_no_lc_routine() {
 }
 #[test]
 fn gs_gradients_lc_routine() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mol: Molecule = get_water_molecule();
 
     let S: Array2<f64> = array![
         [

@@ -43,8 +43,14 @@ fn default_dispersion_correction() -> bool {
 fn default_scf_max_cycles() -> usize {
     MAX_ITER
 }
-fn default_scf_convergence() -> f64 {
-    SCF_CONV
+fn default_scf_charge_conv() -> f64 {
+    SCF_CHARGE_CONV
+}
+fn default_scf_energy_conv() -> f64 {
+    SCF_ENERGY_CONV
+}
+fn default_temperature() -> f64 {
+    TEMPERATURE
 }
 fn default_geom_opt_max_cycles() -> usize {
     GEOM_OPT_MAX_CYCLES
@@ -94,7 +100,7 @@ fn default_excited_state_config() -> ExcitedStatesConfig {
     return excited_config;
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct GeneralConfig {
     #[serde(default = "default_jobtype")]
     pub jobtype: String,
@@ -114,7 +120,7 @@ pub struct GeneralConfig {
     pub excited: ExcitedStatesConfig,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct MoleculeConfig {
     #[serde(default = "default_charge")]
     pub charge: i8,
@@ -122,15 +128,19 @@ pub struct MoleculeConfig {
     pub multiplicity: u8,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SccConfig {
     #[serde(default = "default_scf_max_cycles")]
     pub scf_max_cycles: usize,
-    #[serde(default = "default_scf_convergence")]
-    pub scf_convergence: f64,
+    #[serde(default = "default_scf_charge_conv")]
+    pub scf_charge_conv: f64,
+    #[serde(default = "default_scf_energy_conv")]
+    pub scf_energy_conv: f64,
+    #[serde(default = "default_temperature")]
+    pub electronic_temperature: f64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct OptConfig {
     #[serde(default = "default_geom_opt_max_cycles")]
     pub geom_opt_max_cycles: usize,
@@ -142,7 +152,7 @@ pub struct OptConfig {
     pub geom_opt_tol_energy: f64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct LCConfig {
     #[serde(default = "default_long_range_correction")]
     pub long_range_correction: bool,
@@ -150,7 +160,7 @@ pub struct LCConfig {
     pub long_range_radius: f64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ExcitedStatesConfig {
     #[serde(default = "default_nstates")]
     pub nstates: usize,

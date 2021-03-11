@@ -17,18 +17,17 @@ use std::cmp::max;
 use std::iter::FromIterator;
 use std::ops::Deref;
 use log::{error, warn, info, debug, trace, log_enabled, Level};
+use crate::io::*;
+use crate::test::{get_water_molecule, get_benzene_molecule};
 
 // This routine is very messy und should be rewritten in a clean form
 pub fn run_scc(
     molecule: &Molecule,
-    max_iter: Option<usize>,
-    scf_conv: Option<f64>,
-    temperature: Option<f64>,
 ) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
-    let max_iter: usize = max_iter.unwrap_or(defaults::MAX_ITER);
-    let scf_conv: f64 = scf_conv.unwrap_or(defaults::SCF_CONV);
-    let temperature: f64 = temperature.unwrap_or(defaults::TEMPERATURE);
-
+    let temperature: f64 = molecule.config.scf.electronic_temperature;
+    let max_iter: usize = molecule.config.scf.scf_max_cycles;
+    let scf_charge_conv: f64 = molecule.config.scf.scf_charge_conv;
+    let scf_energy_conv: f64 = molecule.config.scf.scf_energy_conv;
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
     let mut p: Array2<f64> = p0.clone();
@@ -73,7 +72,7 @@ pub fn run_scc(
     info!("{:^80}", "");
     info!("{: ^80}", "SCC-Routine");
     info!("{:-^80}", "");
-    info!("{: <25} {}", "convergence criterium:", scf_conv);
+    //info!("{: <25} {}", "convergence criterium:", scf_conv);
     info!("{: <25} {}", "max. iterations:", max_iter);
     info!("{: <25} {} K", "electronic temperature:", temperature);
     info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
@@ -133,7 +132,7 @@ pub fn run_scc(
             info!("{:^14} charge diff.: {:>18.14} ", "", charge_diff);
         }
         // check if charge difference to the previous iteration is lower then 1e-5
-        if (&charge_diff < &scf_conv) {
+        if (&charge_diff < &scf_charge_conv) && &(energy_old-scf_energy).abs() < &scf_energy_conv {
             converged = true;
         }
         // Broyden mixing of partial charges
@@ -345,18 +344,8 @@ fn construct_h1(mol: &Molecule, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> 
 
 #[test]
 fn h1_construction() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
+    let mol: Molecule = get_water_molecule();
 
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
         &mol.atomic_numbers,
         mol.n_atoms,
@@ -530,17 +519,7 @@ fn density_matrix_test() {
 
 #[test]
 fn reference_density_matrix() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mol: Molecule = get_water_molecule();
     let p0: Array2<f64> = density_matrix_ref(&mol);
     let p0_ref: Array2<f64> = array![
         [2., 0., 0., 0., 0., 0.],
@@ -555,26 +534,8 @@ fn reference_density_matrix() {
 
 #[test]
 fn self_consistent_charge_routine() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions,
-        charge,
-        multiplicity,
-        Some(0.0),
-        None,
-    );
-    let energy = run_scc(&mol, None, None, None);
+    let mol: Molecule = get_water_molecule();
+    let energy = run_scc(&mol);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
 }
@@ -601,6 +562,7 @@ fn self_consistent_charge_routine_near_coin() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
@@ -608,36 +570,15 @@ fn self_consistent_charge_routine_near_coin() {
         multiplicity,
         Some(0.0),
         None,
+        config,
     );
-    let energy = run_scc(&mol, None, None, None);
+    let energy = run_scc(&mol);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
 }
 
 #[test]
 fn test_scc_routine_benzene() {
-    let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
-    let mut positions: Array2<f64> = array![
-        [1.2194, -0.1652, 2.1600],
-        [0.6825, -0.0924, 1.2087],
-        [-0.7075, -0.0352, 1.1973],
-        [-1.2644, -0.0630, 2.1393],
-        [-1.3898, 0.0572, -0.0114],
-        [-2.4836, 0.1021, -0.0204],
-        [-0.6824, 0.0925, -1.2088],
-        [-1.2194, 0.1652, -2.1599],
-        [0.7075, 0.0352, -1.1973],
-        [1.2641, 0.0628, -2.1395],
-        [1.3899, -0.0572, 0.0114],
-        [2.4836, -0.1022, 0.0205]
-    ];
-
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
-
-    let energy = run_scc(&mol, None, None, None);
-
-    assert!(1 == 2);
+    let mol: Molecule = get_benzene_molecule();
+    let energy = run_scc(&mol);
 }

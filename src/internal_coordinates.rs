@@ -21,6 +21,7 @@ use petgraph::stable_graph::*;
 use std::cmp::Ordering;
 use std::f64::consts::PI;
 use std::ops::{AddAssign, Deref};
+use crate::test::get_ethene_molecule;
 
 pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
@@ -2857,28 +2858,14 @@ pub fn calc_rot_vec_diff(vec_1: Array1<f64>, vec_2: Array1<f64>) -> Array1<f64> 
 
 #[test]
 pub fn test_make_primitives() {
-    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [-0.7575800000, 0.0000000000, -0.0000000000],
-        [0.7575800000, 0.0000000000, 0.0000000000],
-        [-1.2809200000, 0.9785000000, -0.0000000000],
-        [-1.2809200000, -0.9785000000, 0.0000000000],
-        [1.2809200000, -0.9785000000, -0.0000000000],
-        [1.2809200000, 0.9785000000, 0.0000000000]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
-
+    let mut mol: Molecule = get_ethene_molecule();
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
 }
 
 #[test]
 pub fn test_build_gmatrix() {
-    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
+    let mut mol: Molecule = get_ethene_molecule();
+    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
     let mut positions: Array2<f64> = array![
         [-0.7575800000, 0.0000000000, -0.0000000000],
         [0.7575800000, 0.0000000000, 0.0000000000],
@@ -2887,21 +2874,6 @@ pub fn test_build_gmatrix() {
         [1.2809200000, -0.9785000000, -0.0000000000],
         [1.2809200000, 0.9785000000, 0.0000000000]
     ];
-    // transform coordinates in au
-    positions = positions * 1.8897261278504418;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions.clone(),
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
-
-    let internal_coordinates: InternalCoordinates = build_primitives(&mol);
-
     let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
 
     // let g_matrix:Array2<f64> = build_g_matrix(coordinates_1d.clone(),&internal_coordinates);
@@ -2924,28 +2896,7 @@ pub fn test_build_gmatrix() {
 
 #[test]
 pub fn test_internal_coordinate_gradient() {
-    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [-0.7575800000, 0.0000000000, -0.0000000000],
-        [0.7575800000, 0.0000000000, 0.0000000000],
-        [-1.2809200000, 0.9785000000, -0.0000000000],
-        [-1.2809200000, -0.9785000000, 0.0000000000],
-        [1.2809200000, -0.9785000000, -0.0000000000],
-        [1.2809200000, 0.9785000000, 0.0000000000]
-    ];
-    // transform coordinates in au
-    positions = positions * 1.8897261278504418;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions.clone(),
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
-
+    let mut mol: Molecule = get_ethene_molecule();
     let input_gradient: Array1<f64> = array![
         -0.2053378, 0., -0., 0.2053378, -0., 0., -0.0037439, 0.025855, -0., -0.0037439, -0.025855,
         0., 0.0037439, -0.025855, -0., 0.0037439, 0.025855, -0.
@@ -2971,7 +2922,14 @@ pub fn test_internal_coordinate_gradient() {
         -1.18933990e-01,
         -1.17062344e-17
     ];
-
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
     let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
 
@@ -3052,27 +3010,7 @@ pub fn test_svd() {
 
 #[test]
 pub fn test_initial_hessian() {
-    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [-0.7575800000, 0.0000000000, -0.0000000000],
-        [0.7575800000, 0.0000000000, 0.0000000000],
-        [-1.2809200000, 0.9785000000, -0.0000000000],
-        [-1.2809200000, -0.9785000000, 0.0000000000],
-        [1.2809200000, -0.9785000000, -0.0000000000],
-        [1.2809200000, 0.9785000000, 0.0000000000]
-    ];
-    // transform coordinates in au
-    positions = positions * 1.8897261278504418;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions.clone(),
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
+    let mut mol: Molecule = get_ethene_molecule();
 
     let internal_coords_vec_ref: Array1<f64> = array![
         -2.33146835e-15,
@@ -3115,7 +3053,14 @@ pub fn test_initial_hessian() {
         2.70616347e-02,
         0.00000000e+00
     ];
-
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
     let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
 

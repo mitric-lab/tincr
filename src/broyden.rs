@@ -87,7 +87,7 @@ impl BroydenMixer {
         q_inp_result: Array1<f64>,
         q_diff: Array1<f64>,
     ) -> (Array1<f64>) {
-        // In the first iteration the counter `self.iter` ist 1
+        // In the first iteration the counter `self.iter` is 1
         // Therefore the that corresponds to the iterations should be lower by 1
         let nn_1: usize = self.iter - 1;
         let mut q_inp_result: Array1<f64> = q_inp_result;
