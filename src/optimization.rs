@@ -219,11 +219,11 @@ pub fn evaluate_step(
     }
     println!("Step state = {}. The value 0 is the worst result, 3 the best. ",step_state);
     // check convergence criteria
-    let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-6;
-    let converged_grms: bool = rms_gradient < 5.0e-4;
-    let converged_gmax: bool = max_gradient < 1.0e-3;
-    let converged_drms: bool = rmsd < 5.0e-4;
-    let converged_dmax: bool = maxd < 1.0e-3;
+    let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-5;
+    let converged_grms: bool = rms_gradient < 2.0e-3;
+    let converged_gmax: bool = max_gradient < 4.0e-3;
+    let converged_drms: bool = rmsd < 5.0e-3;
+    let converged_dmax: bool = maxd < 1.0e-2;
 
     // Check convergence criteria
     if converged_energy && converged_grms && converged_drms && converged_gmax && converged_dmax {
@@ -1614,6 +1614,54 @@ fn test_opt_benzene(){
 }
 
 #[test]
+fn test_opt_cyclohexene(){
+    let atomic_numbers: Vec<u8> = vec![6, 6, 6, 1, 6, 1, 6, 1, 6, 1, 1, 1];
+    let mut positions: Array2<f64> = array![[-12.609038540283596, 4.45885341756616, 0.32856443069563773],
+ [-10.109190924780702, 5.492990165698267, 0.6768275831285214],
+ [-7.660709978838828, 4.075724216111454, 0.28723213891548427],
+ [-9.929425592755052, 7.88366768829053, 1.0953906778743703],
+ [-12.87286753393491, 1.5236277020901674, 0.07278075058749803],
+ [-14.466607926123958, 5.960901540887009, -0.10502623419245735],
+ [-10.602694484430021, 0.0811929006447699, -0.46402794299847355],
+ [-14.921557334713528, 0.36982320463975926, 0.6777970949121042],
+ [-8.066984242470834, 1.4288703952354382, -0.23332820495579965],
+ [-10.672388801831817, -2.3547597989356914, -1.3995642068590737],
+ [-6.288993606078426, 0.26191944983414484, -0.2546656202831121],
+ [-5.510171756669876, 4.9318942949704425, 0.20013576980510914]];
+
+
+    // transform coordinates in au
+    //positions = positions * 1.8897261278504418;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions.clone(),
+        charge,
+        multiplicity,
+        None,
+        None,
+    );
+
+    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+        scc_routine::run_scc(&mol, None, None, None);
+
+    mol.calculator.set_active_orbitals(f.to_vec());
+
+    let tmp:(f64,Array1<f64>,Array1<f64>) = optimize_geometry_ic(&mut mol);
+    let new_energy:f64 = tmp.0;
+    let new_gradient:Array1<f64> = tmp.1;
+    let new_coords:Array1<f64> = tmp.2;
+
+    let coords_3d:Array2<f64> = new_coords.clone().into_shape((new_coords.len()/3,3)).unwrap();
+
+    println!("New Energy {}",new_energy);
+    println!("New coords {}",coords_3d);
+
+    assert!(1==2);
+}
+
+//#[test]
 fn test_opt_water_6(){
     let atomic_numbers: Vec<u8> = vec![8,1,1,8,1,1,8,1,1,8,1,1,8,1,1,8,1,1];
     let mut positions: Array2<f64> = array![
