@@ -4,7 +4,7 @@ pub const CHARGE: i8 = 0;
 // spin multiplicity 2S + 1
 pub const MULTIPLICITY: u8 = 1;
 // jobtype
-pub const JOBTYPE: &str = "opt";
+pub const JOBTYPE: &str = "sp";
 // config file
 pub const CONFIG_FILE_NAME: &str = "tincr.toml";
 // occupation of orbitals is smeared out by Fermi
@@ -48,6 +48,7 @@ pub const BROYDEN_MIN_WEIGHT: f64 = 1.0;
 pub const BROYDEN_MAX_WEIGHT: f64 = 1.0e5;
 pub const BROYDEN_WEIGHT_FACTOR: f64 = 1.0e-2;
 pub const BROYDEN_MIXING_PARAMETER: f64 = 0.55;
+
 
 pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
 
