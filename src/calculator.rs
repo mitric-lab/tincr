@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::f64::consts::{E, PI};
 use std::hash::Hash;
 use std::ops::{Deref, Neg};
+use log::{debug, error, info, trace, warn};
 
 pub enum Calculator {
     DFTB(DFTBCalculator),
@@ -106,6 +107,12 @@ impl DFTBCalculator {
             g0_lr_a0 = tmp.1;
         }
 
+        let number_electrons_per_atom: Vec<usize> = atomic_numbers.iter().map(|x|ne_val[x] as usize).collect();
+        let number_electrons: usize = Array1::from(number_electrons_per_atom).sum();
+        info!("{: <25} {}", "number of orbitals:", n_orbs);
+        info!("{: <25} {}", "number of electrons", number_electrons);
+
+
         DFTBCalculator {
             valorbs: valorbs,
             hubbard_u: hubbard_u,
@@ -131,7 +138,7 @@ impl DFTBCalculator {
         }
     }
 
-    pub fn update_gamma_matrices(&mut self,distance_matrix:Array2<f64>,atomic_numbers: &[u8]){
+    pub fn update_gamma_matrices(&mut self, distance_matrix: Array2<f64>, atomic_numbers: &[u8]) {
         let mut n_orbs: usize = 0;
 
         for zi in atomic_numbers {
