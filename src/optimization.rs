@@ -142,7 +142,9 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
             trust = new_trust;
 
             if converged {
-                println!("Number of iterations : {}", iteration);
+
+                println!("Final number of iterations : {}",iteration);
+
                 println!("Optimization converged");
                 break;
             }
@@ -152,6 +154,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
                 break;
             }
         }
+        println!("Number of iterations : {}",iteration);
         iteration += 1;
     }
 
@@ -440,6 +443,7 @@ pub fn step(
     let i_norm: f64 = dy.clone().to_vec().norm();
     println!("inorm {}", i_norm);
     // Cartesian coordinate step size
+    println!("Before get cartesian norm");
     let tmp: (f64, bool) =
         get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
     let mut c_norm: f64 = tmp.0;
@@ -1366,7 +1370,7 @@ fn line_search_routine() {
     assert!(test.abs_diff_eq(&x_kp1, 1e-14));
 }
 
-#[test]
+//#[test]
 fn test_optimization_geomeTRIC_step() {
     let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
     let mut positions: Array2<f64> = array![
@@ -1564,8 +1568,9 @@ fn test_optimization_geomeTRIC_step() {
     assert!(1 == 2);
 }
 
-#[test]
-fn test_opt_benzene() {
+
+//#[test]
+fn test_opt_benzene(){
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
         [1.2194, -0.1652, 2.1600],
