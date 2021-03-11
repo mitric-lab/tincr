@@ -16,6 +16,8 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::Deref;
+use crate::io::GeneralConfig;
+use crate::test::{get_water_molecule, get_ethene_molecule};
 
 // Optimization using internal coordinates
 // from geomeTRIC
@@ -656,7 +658,7 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
     //let mut molecule: Molecule = mol.clone();
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol, None, None, None);
+        scc_routine::run_scc(&mol);
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
     println!("Enegies and gradient");
@@ -675,7 +677,7 @@ pub fn get_energies_and_gradient(
     //let mut molecule: Molecule = mol.clone();
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol, None, None, None);
+        scc_routine::run_scc(&mol);
     let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
         get_exc_energies(&f, &mol, None, &s, &orbe, &orbs, false, None);
     let omega: Array1<f64> = tmp.0.clone();
@@ -1109,20 +1111,10 @@ pub fn zoom(
 
 //#[test]
 fn test_optimization() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+   let mut mol: Molecule = get_water_molecule();
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol, None, None, None);
+        scc_routine::run_scc(&mol);
+
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
@@ -1345,21 +1337,9 @@ fn line_search_routine() {
         1.5336187563309098
     ];
 
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
-
+    let mut mol: Molecule = get_water_molecule();
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol, None, None, None);
+        scc_routine::run_scc(&mol);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
@@ -1372,27 +1352,7 @@ fn line_search_routine() {
 
 //#[test]
 fn test_optimization_geomeTRIC_step() {
-    let atomic_numbers: Vec<u8> = vec![6, 6, 1, 1, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [-0.7575800000, 0.0000000000, -0.0000000000],
-        [0.7575800000, 0.0000000000, 0.0000000000],
-        [-1.2809200000, 0.9785000000, -0.0000000000],
-        [-1.2809200000, -0.9785000000, 0.0000000000],
-        [1.2809200000, -0.9785000000, -0.0000000000],
-        [1.2809200000, 0.9785000000, 0.0000000000]
-    ];
-    // transform coordinates in au
-    positions = positions * 1.8897261278504418;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions.clone(),
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
+    let mut mol: Molecule = get_ethene_molecule();
 
     let cart_gradient_input: Array1<f64> = array![
         -1.22987162e-01,
@@ -1414,7 +1374,14 @@ fn test_optimization_geomeTRIC_step() {
         1.78966615e-02,
         0.00000000e+00
     ];
-
+    let mut positions: Array2<f64> = array![
+        [-0.7575800000, 0.0000000000, -0.0000000000],
+        [0.7575800000, 0.0000000000, 0.0000000000],
+        [-1.2809200000, 0.9785000000, -0.0000000000],
+        [-1.2809200000, -0.9785000000, 0.0000000000],
+        [1.2809200000, -0.9785000000, -0.0000000000],
+        [1.2809200000, 0.9785000000, 0.0000000000]
+    ];
     let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
     let energy_input: f64 = -78.54289384457864;
 
@@ -1590,6 +1557,7 @@ fn test_opt_benzene(){
     positions = positions * 1.8897261278504418;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions.clone(),
@@ -1597,10 +1565,11 @@ fn test_opt_benzene(){
         multiplicity,
         None,
         None,
+        config
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol, None, None, None);
+        scc_routine::run_scc(&mol);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
@@ -1647,6 +1616,7 @@ fn test_opt_water_6() {
     positions = positions * 1.8897261278504418;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions.clone(),
@@ -1654,10 +1624,11 @@ fn test_opt_water_6() {
         multiplicity,
         None,
         None,
+        config,
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol, None, None, None);
+        scc_routine::run_scc(&mol);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 

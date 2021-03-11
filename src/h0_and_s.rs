@@ -6,6 +6,7 @@ use crate::slako_transformations::*;
 use approx::AbsDiffEq;
 use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
 use std::collections::HashMap;
+use crate::test::get_water_molecule;
 
 ///
 /// compute Hamiltonian and overlap matrix elements between two sets of atoms. If the sets
@@ -269,25 +270,15 @@ pub fn h0_and_s_gradients(
 ///
 #[test]
 fn test_h0_and_s() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mol: Molecule = get_water_molecule();
     let mut positions: Array2<f64> = array![
         [0.34215, 1.17577, 0.00000],
         [1.31215, 1.17577, 0.00000],
         [0.01882, 1.65996, 0.77583]
     ];
-
     // transform coordinates in au
     positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(
-        atomic_numbers.clone(),
-        positions.clone(),
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
         &atomic_numbers,
         positions.view(),
@@ -403,25 +394,7 @@ fn test_h0_and_s() {
 
 #[test]
 fn test_grad_H0_andS() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let molecule: Molecule = Molecule::new(
-        atomic_numbers.clone(),
-        positions.clone(),
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
+    let molecule: Molecule = get_water_molecule();
 
     let gradS_ref: Array3<f64> = array![
         [

@@ -16,6 +16,8 @@ use petgraph::dot::{Config, Dot};
 use petgraph::graph::*;
 use petgraph::stable_graph::*;
 use std::collections::HashMap;
+use crate::io::GeneralConfig;
+use crate::test::get_water_molecule;
 
 pub fn build_connectivity_matrix(
     n_atoms: usize,
@@ -91,19 +93,7 @@ pub fn build_graph(
 
 #[test]
 fn connectivity_routine() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule = get_water_molecule();
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);
     let (graph, indexes, subgraphs): (
@@ -142,8 +132,9 @@ fn connectivity_dimer_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config);
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);
     let (graph, indexes, subgraphs): (
@@ -209,8 +200,9 @@ fn connectivity_benzene_dimer_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config);
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);
     let (graph, indexes, subgraphs): (
