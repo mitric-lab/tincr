@@ -331,7 +331,6 @@ pub fn gamma_gradients_ao_wise(
     return (g1, g1_a0);
 }
 
-
 pub fn m_atomwise(
     atomic_numbers: &[u8],
     n_atoms: usize,
@@ -343,7 +342,8 @@ pub fn m_atomwise(
             for sigma in 0..2 {
                 for tau in 0..2 {
                     m[[alpha, beta, sigma, tau]] += (((alpha == beta) as i32) as f64)
-                        * (2.0 * (((sigma == tau) as i32) as f64) - 1.0) * &spin_couplings[alpha];
+                        * (2.0 * (((sigma == tau) as i32) as f64) - 1.0)
+                        * &spin_couplings[alpha];
                 }
             }
         }

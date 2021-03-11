@@ -11,6 +11,7 @@ mod gradients;
 mod graph;
 mod h0_and_s;
 mod internal_coordinates;
+mod io;
 mod molecule;
 mod mulliken;
 mod optimization;
@@ -19,10 +20,9 @@ mod scc_routine;
 mod scc_routine_unrestricted;
 mod slako_transformations;
 mod solver;
-mod zbrent;
-mod transition_charges;
 mod step;
-mod io;
+mod transition_charges;
+mod zbrent;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
@@ -31,25 +31,34 @@ use crate::gradients::*;
 use crate::molecule::Molecule;
 use ndarray::*;
 use ndarray_linalg::*;
-use std::{env, fs};
 use std::ptr::eq;
 use std::time::{Duration, Instant};
+use std::{env, fs};
 #[macro_use]
 extern crate clap;
-use clap::{App, Arg};
-use crate::io::{get_coordinates, GeneralConfig};
-use toml;
-use std::path::Path;
 use crate::defaults::CONFIG_FILE_NAME;
+use crate::io::{get_coordinates, GeneralConfig, write_header};
+use clap::{App, Arg};
+use log::{error, warn, info, debug, trace, Level};
+use std::path::Path;
+use std::process;
+use toml;
+use std::io::Write;
+use env_logger::Builder;
+use log::LevelFilter;
+use ron::error::ErrorCode::TrailingCharacters;
+
 
 fn main() {
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .about("software package for tight-binding DFT calculations")
-        .arg(Arg::new("xyz-File")
-            .about("Sets the xyz file to use")
-            .required(true)
-            .index(1))
+        .arg(
+            Arg::new("xyz-File")
+                .about("Sets the xyz file to use")
+                .required(true)
+                .index(1),
+        )
         .get_matches();
 
     // the file containing the cartesian coordinates is the only mandatory file to
@@ -74,5 +83,55 @@ fn main() {
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
 
-}
+    let log_level: LevelFilter = match config.verbose {
+        -2 => LevelFilter::Trace,
+        -1 => LevelFilter::Debug,
+         0 => LevelFilter::Info,
+         1 => LevelFilter::Warn,
+         2 => LevelFilter::Error,
+         _ => LevelFilter::Debug,
+    };
 
+    Builder::new()
+        .format(|buf, record| {
+            writeln!(buf,
+                     "{}",
+                     record.args()
+            )
+        })
+        .filter(None, log_level)
+        .init();
+
+    write_header();
+    info!("{: ^80}", "Initializing Molecule");
+    info!("{:-^80}", "");
+    info!("{: <25} {}", "geometry filename:", geometry_file);
+    info!("{: <25} {}", "number of atoms:", atomic_numbers.len());
+
+    let exit_code: i32 = match &config.jobtype[..] {
+        "sp" => {
+            let mol: Molecule = Molecule::new(
+                atomic_numbers,
+                positions,
+                Some(config.mol.charge),
+                Some(config.mol.multiplicity),
+                None,
+                None,
+            );
+            let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+                scc_routine::run_scc(&mol, Some(config.scf.scf_max_cycles), None, None);
+            0
+        }
+        "opt" => {
+            0
+        }
+        _ => {
+            error!(
+                "ERROR: The specified jobtype {} is not implemented.",
+                config.jobtype
+            );
+            1
+        }
+    };
+    process::exit(exit_code);
+}

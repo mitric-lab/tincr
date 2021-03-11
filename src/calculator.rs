@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::f64::consts::{E, PI};
 use std::hash::Hash;
 use std::ops::{Deref, Neg};
+use log::{debug, error, info, trace, warn};
 
 pub enum Calculator {
     DFTB(DFTBCalculator),
@@ -100,11 +101,17 @@ impl DFTBCalculator {
                 distance_matrix.view(),
                 &hubbard_u,
                 &valorbs,
-                None,
+                r_lr,
             );
             g0_lr = tmp.0;
             g0_lr_a0 = tmp.1;
         }
+
+        let number_electrons_per_atom: Vec<usize> = atomic_numbers.iter().map(|x|ne_val[x] as usize).collect();
+        let number_electrons: usize = Array1::from(number_electrons_per_atom).sum();
+        info!("{: <25} {}", "number of orbitals:", n_orbs);
+        info!("{: <25} {}", "number of electrons", number_electrons);
+
 
         DFTBCalculator {
             valorbs: valorbs,
@@ -130,6 +137,46 @@ impl DFTBCalculator {
             full_virt: None,
         }
     }
+
+    pub fn update_gamma_matrices(&mut self, distance_matrix: Array2<f64>, atomic_numbers: &[u8]) {
+        let mut n_orbs: usize = 0;
+
+        for zi in atomic_numbers {
+            n_orbs = n_orbs + &self.valorbs[zi].len();
+        }
+        let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+            atomic_numbers,
+            atomic_numbers.len(),
+            n_orbs,
+            distance_matrix.view(),
+            &self.hubbard_u,
+            &self.valorbs,
+            Some(0.0),
+        );
+
+        self.g0 = g0.clone();
+        self.g0_ao = g0_a0.clone();
+
+        let mut g0_lr: Array2<f64> = Array::zeros((g0.dim().0, g0.dim().1));
+        let mut g0_lr_a0: Array2<f64> = Array::zeros((g0_a0.dim().0, g0_a0.dim().1));
+        if self.r_lr.is_none() || self.r_lr.unwrap() > 0.0 {
+            let tmp: (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+                atomic_numbers,
+                atomic_numbers.len(),
+                n_orbs,
+                distance_matrix.view(),
+                &self.hubbard_u,
+                &self.valorbs,
+                self.r_lr,
+            );
+            g0_lr = tmp.0;
+            g0_lr_a0 = tmp.1;
+        }
+
+        self.g0_lr = g0_lr;
+        self.g0_lr_ao = g0_lr_a0;
+    }
+
     pub fn set_active_orbitals(&mut self, f: Vec<f64>) {
         let tmp: (usize, usize) = self.active_orbitals.unwrap_or(defaults::ACTIVE_ORBITALS);
         let mut nr_active_occ: usize = tmp.0;

@@ -24,10 +24,13 @@ peroxide = {version = "0.27.0", features = ["serde"]}
 itertools = "0.9"
 libm = "0.2.1"
 bspline = "0.2.3"
-rusty-fitpack = { path = "/home/richard/software/Rusty-FITPACK" }
+rusty-fitpack = { path = "/Users/hochej/rusty_dierckx" }
 ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
 nalgebra = "0.24.1"
 clap = "3.0.0-beta.2"
 toml = "0.5"
 rand = "0.8.3"
+log = "0.4.0"
+env_logger = "0.8.3"
+pretty_env_logger = "0.4"

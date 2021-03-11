@@ -113,7 +113,6 @@ pub fn get_exc_energies(
         Array::zeros((molecule.n_atoms, molecule.n_atoms, 2, 2))
     };
 
-
     let mut omega_out: Array1<f64> = Array::zeros((n_occ * n_virt));
     let mut c_ij: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
     let mut XpY: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
@@ -442,7 +441,6 @@ pub fn build_a_matrix_magn(
 //
 //     return &df_half.dot(&omega) + &df_half.dot(&k_coupling.dot(&df_half));
 // }
-
 
 pub fn build_b_matrix(
     gamma: ArrayView2<f64>,
@@ -2007,7 +2005,7 @@ fn excited_energies_casida_routine() {
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
     let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies( &f_occ.to_vec(),&mol, None, &S, &orbe, &orbs, false, None);
+        get_exc_energies(&f_occ.to_vec(), &mol, None, &S, &orbe, &orbs, false, None);
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));
@@ -2216,8 +2214,16 @@ fn excited_energies_hermitian_davidson_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies(&f_occ.to_vec(), &mol, Some(4), &S, &orbe, &orbs, false,None);
+    let (omega_out, c_ij, XmY, XpY) = get_exc_energies(
+        &f_occ.to_vec(),
+        &mol,
+        Some(4),
+        &S,
+        &orbe,
+        &orbs,
+        false,
+        None,
+    );
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));
@@ -2420,8 +2426,16 @@ fn excited_energies_non_hermitian_davidson_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (omega_out, c_ij, XmY, XpY) =
-        get_exc_energies(&f_occ.to_vec(), &mol, Some(4), &S, &orbe, &orbs, false, None);
+    let (omega_out, c_ij, XmY, XpY) = get_exc_energies(
+        &f_occ.to_vec(),
+        &mol,
+        Some(4),
+        &S,
+        &orbe,
+        &orbs,
+        false,
+        None,
+    );
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));
@@ -2566,7 +2580,6 @@ fn tda_routine() {
     println!("omega_ref {}", omega_ref);
     assert!(omega.abs_diff_eq(&omega_ref, 1e-14));
     assert!(c_ij.abs_diff_eq(&c_ij_ref, 1e-14));
-
 
     let (omega_magn, c_ij_magn): (Array1<f64>, Array3<f64>) = tda_magn(
         gamma.view(),
@@ -3187,7 +3200,7 @@ fn benzene_tda() {
     // transform coordinates in au
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
+    let multiplicity: Option<u8> = Some(3);
     let mut mol: Molecule = Molecule::new(
         atomic_numbers.clone(),
         positions,
@@ -3210,14 +3223,15 @@ fn benzene_tda() {
     let gamma: Array2<f64> = (&mol.calculator.g0).to_owned();
     let gamma_lr: Array2<f64> = (&mol.calculator.g0_lr).to_owned();
 
-    let (q_trans_ov, q_trans_oo, q_trans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) = trans_charges(
-        &mol.atomic_numbers,
-        &mol.calculator.valorbs,
-        orbs.view(),
-        s.view(),
-        &active_occ[..],
-        &active_virt[..],
-    );
+    let (q_trans_ov, q_trans_oo, q_trans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) =
+        trans_charges(
+            &mol.atomic_numbers,
+            &mol.calculator.valorbs,
+            orbs.view(),
+            s.view(),
+            &active_occ[..],
+            &active_virt[..],
+        );
 
     let omega_0: Array2<f64> = get_orbital_en_diff(
         orbe.view(),
@@ -3274,10 +3288,8 @@ fn benzene_tda() {
     // let (omega_magn, c_ij_magn, XmY_magn, XpY_magn) =
     //     get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, true, None);
 
-
     println!("omega: {}", &omega);
     println!("omega_magn: {}", &omega_magn);
 
     assert_eq!(1, 2);
-
 }

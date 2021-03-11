@@ -16,6 +16,7 @@ use ndarray_stats::QuantileExt;
 use std::cmp::max;
 use std::iter::FromIterator;
 use std::ops::Deref;
+use log::{error, warn, info, debug, trace, log_enabled, Level};
 
 // This routine is very messy und should be rewritten in a clean form
 pub fn run_scc(
@@ -30,7 +31,7 @@ pub fn run_scc(
 
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
-    let mut p: Array2<f64> = Array2::zeros(p0.raw_dim());
+    let mut p: Array2<f64> = p0.clone();
     // charge guess
     let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
     let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
@@ -68,6 +69,17 @@ pub fn run_scc(
 
     // add nuclear energy to the total scf energy
     let rep_energy: f64 = get_repulsive_energy(&molecule);
+
+    info!("{:^80}", "");
+    info!("{: ^80}", "SCC-Routine");
+    info!("{:-^80}", "");
+    info!("{: <25} {}", "convergence criterium:", scf_conv);
+    info!("{: <25} {}", "max. iterations:", max_iter);
+    info!("{: <25} {} K", "electronic temperature:", temperature);
+    info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
+    info!("{:^80}", "");
+    info!("{: <45} ", "SCC Iterations: all energies are in Hartree");
+    info!("{:-^45}", "");
     'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(
             &molecule,
@@ -76,6 +88,7 @@ pub fn run_scc(
         );
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
+        //let mut prev_h_X:Array2<f64>
         if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
             let h_x: Array2<f64> =
                 lc_exact_exchange(&s, &molecule.calculator.g0_lr_ao, &p0, &p, h.dim().0);
@@ -115,14 +128,26 @@ pub fn run_scc(
         // charge difference to previous iteration
         let dq_diff: Array1<f64> = &new_dq - &dq;
 
+        let charge_diff: f64 = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+        if i > 0 {
+            info!("{:^14} charge diff.: {:>18.14} ", "", charge_diff);
+        }
         // check if charge difference to the previous iteration is lower then 1e-5
-        if (dq_diff.map(|x| x.abs()).max().unwrap() < &scf_conv) {
+        if (&charge_diff < &scf_conv) {
             converged = true;
         }
         // Broyden mixing of partial charges
         dq = broyden_mixer.next(new_dq, dq_diff);
         q = new_q;
-
+        debug!("");
+        debug!("{: <35} ", "atomic charges and partial charges");
+        debug!("{:-^35}", "");
+        if log_enabled!(Level::Debug) {
+            for (idx, (qi, dqi)) in q.iter().zip(dq.iter()).enumerate() {
+                debug!("Atom {: >4} q: {:>18.14} dq: {:>18.14}", idx+1, qi, dqi);
+            }
+        }
+        debug!("{:-^55}", "");
         // compute electronic energy
         scf_energy = get_electronic_energy(
             &molecule,
@@ -134,20 +159,26 @@ pub fn run_scc(
             (&molecule.calculator.g0).deref().view(),
             &molecule.calculator.g0_lr_ao,
         );
+        if i == 0 {
+            info!("Iteration {: >4} total energy: {:.14} dE: {:>18.14} ", i+1, scf_energy + rep_energy, 0);
 
-        energy_old = scf_energy;
-        println!(
-            "Iteration {} => SCF-Energy = {:.8} hartree",
-            i,
-            scf_energy + rep_energy
-        );
+        } else {
+            info!("Iteration {: >4} total energy: {:.14} dE: {:>18.14} ", i+1, scf_energy + rep_energy, energy_old-scf_energy);
+
+        }
+       energy_old = scf_energy;
+
         assert_ne!(i + 1, max_iter, "SCF not converged");
 
         if converged {
             break 'scf_loop;
         }
     }
-    println!("SCF Converged!");
+    info!("{:^80} ", "------------------------");
+    info!("{: ^80}", "SCC converged");
+    info!("{:^80} ", "");
+    info!("final energy: {:18.14}", scf_energy + rep_energy);
+    info!("{:-<80} ", "");
     return (scf_energy + rep_energy, orbs, orbe, s, f);
 }
 
@@ -581,4 +612,32 @@ fn self_consistent_charge_routine_near_coin() {
     let energy = run_scc(&mol, None, None, None);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
+}
+
+#[test]
+fn test_scc_routine_benzene() {
+    let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
+    let mut positions: Array2<f64> = array![
+        [1.2194, -0.1652, 2.1600],
+        [0.6825, -0.0924, 1.2087],
+        [-0.7075, -0.0352, 1.1973],
+        [-1.2644, -0.0630, 2.1393],
+        [-1.3898, 0.0572, -0.0114],
+        [-2.4836, 0.1021, -0.0204],
+        [-0.6824, 0.0925, -1.2088],
+        [-1.2194, 0.1652, -2.1599],
+        [0.7075, 0.0352, -1.1973],
+        [1.2641, 0.0628, -2.1395],
+        [1.3899, -0.0572, 0.0114],
+        [2.4836, -0.1022, 0.0205]
+    ];
+
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    let multiplicity: Option<u8> = Some(1);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+
+    let energy = run_scc(&mol, None, None, None);
+
+    assert!(1 == 2);
 }

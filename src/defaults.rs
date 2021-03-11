@@ -4,7 +4,7 @@ pub const CHARGE: i8 = 0;
 // spin multiplicity 2S + 1
 pub const MULTIPLICITY: u8 = 1;
 // jobtype
-pub const JOBTYPE: &str = "opt";
+pub const JOBTYPE: &str = "sp";
 // config file
 pub const CONFIG_FILE_NAME: &str = "tincr.toml";
 // occupation of orbitals is smeared out by Fermi
@@ -26,7 +26,7 @@ pub const REPPOT_SCALING: f64 = 1.0;
 // stop SCF calculation after maxiter iterations
 pub const MAX_ITER: usize = 250;
 // convergence threshold for relative change in SCF-calculation
-pub const SCF_CONV: f64 = 1.0e-8;
+pub const SCF_CONV: f64 = 1.0e-5;
 pub const DENSITY_CONV: f64 = 1.0e-3;
 // if the relative change drops below this value density mixing is used
 pub const MIXING_THRESHOLD: f64 = 1.0e-3;
@@ -47,7 +47,7 @@ pub const BROYDEN_OMEGA0: f64 = 0.01;
 pub const BROYDEN_MIN_WEIGHT: f64 = 1.0;
 pub const BROYDEN_MAX_WEIGHT: f64 = 1.0e5;
 pub const BROYDEN_WEIGHT_FACTOR: f64 = 1.0e-2;
-pub const BROYDEN_MIXING_PARAMETER: f64 = 0.2;
+pub const BROYDEN_MIXING_PARAMETER: f64 = 0.4;
 
 pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
 
@@ -57,6 +57,7 @@ pub const ACTIVE_ORBITALS: (usize, usize) = (1000, 1000);
 pub const EXCITED_STATES: usize = 1000;
 // DO RPA or Casida
 pub const RPA: bool = true;
+pub const RESTRICTED_ACTIVE_SPACE: bool = true;
 
 // Optimization
 pub const GEOM_OPT_MAX_CYCLES: usize = 500;
