@@ -5,10 +5,13 @@ use crate::defaults;
 use crate::diis::*;
 use crate::fermi_occupation;
 use crate::h0_and_s::h0_and_s;
+use crate::io::*;
 use crate::molecule::*;
 use crate::mulliken::*;
+use crate::test::{get_benzene_molecule, get_water_molecule};
 use approx::AbsDiffEq;
 use itertools::Itertools;
+use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
 use ndarray::*;
 use ndarray_linalg::*;
@@ -16,14 +19,11 @@ use ndarray_stats::QuantileExt;
 use std::cmp::max;
 use std::iter::FromIterator;
 use std::ops::Deref;
-use log::{error, warn, info, debug, trace, log_enabled, Level};
-use crate::io::*;
-use crate::test::{get_water_molecule, get_benzene_molecule};
+use std::time::Instant;
 
 // This routine is very messy und should be rewritten in a clean form
-pub fn run_scc(
-    molecule: &Molecule,
-) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
+pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
+    let scc_timer: Instant = Instant::now();
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     let max_iter: usize = molecule.config.scf.scf_max_cycles;
     let scf_charge_conv: f64 = molecule.config.scf.scf_charge_conv;
@@ -78,7 +78,7 @@ pub fn run_scc(
     info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
     info!("{:^80}", "");
     info!("{: <45} ", "SCC Iterations: all energies are in Hartree");
-    info!("{:-^45}", "");
+    info!("{:-^71} ", "");
     'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(
             &molecule,
@@ -132,7 +132,8 @@ pub fn run_scc(
             info!("{:^14} charge diff.: {:>18.14} ", "", charge_diff);
         }
         // check if charge difference to the previous iteration is lower then 1e-5
-        if (&charge_diff < &scf_charge_conv) && &(energy_old-scf_energy).abs() < &scf_energy_conv {
+        if (&charge_diff < &scf_charge_conv) && &(energy_old - scf_energy).abs() < &scf_energy_conv
+        {
             converged = true;
         }
         // Broyden mixing of partial charges
@@ -143,7 +144,7 @@ pub fn run_scc(
         debug!("{:-^35}", "");
         if log_enabled!(Level::Debug) {
             for (idx, (qi, dqi)) in q.iter().zip(dq.iter()).enumerate() {
-                debug!("Atom {: >4} q: {:>18.14} dq: {:>18.14}", idx+1, qi, dqi);
+                debug!("Atom {: >4} q: {:>18.14} dq: {:>18.14}", idx + 1, qi, dqi);
             }
         }
         debug!("{:-^55}", "");
@@ -159,13 +160,21 @@ pub fn run_scc(
             &molecule.calculator.g0_lr_ao,
         );
         if i == 0 {
-            info!("Iteration {: >4} total energy: {:.14} dE: {:>18.14} ", i+1, scf_energy + rep_energy, 0);
-
+            info!(
+                "Iteration {: >4} total energy: {:.14} dE: {:>18.14} ",
+                i + 1,
+                scf_energy + rep_energy,
+                0
+            );
         } else {
-            info!("Iteration {: >4} total energy: {:.14} dE: {:>18.14} ", i+1, scf_energy + rep_energy, energy_old-scf_energy);
-
+            info!(
+                "Iteration {: >4} total energy: {:.14} dE: {:>18.14} ",
+                i + 1,
+                scf_energy + rep_energy,
+                energy_old - scf_energy
+            );
         }
-       energy_old = scf_energy;
+        energy_old = scf_energy;
 
         assert_ne!(i + 1, max_iter, "SCF not converged");
 
@@ -173,12 +182,45 @@ pub fn run_scc(
             break 'scf_loop;
         }
     }
-    info!("{:^80} ", "------------------------");
-    info!("{: ^80}", "SCC converged");
+    info!("{:-^71} ", "");
+    info!("{: ^71}", "SCC converged");
     info!("{:^80} ", "");
-    info!("final energy: {:18.14}", scf_energy + rep_energy);
+    info!("final energy: {:18.14} Hartree", scf_energy + rep_energy);
     info!("{:-<80} ", "");
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time:",
+        scc_timer.elapsed().as_secs_f32()
+    );
+    drop(scc_timer);
+    print_orbital_information(orbe.view(), &f);
     return (scf_energy + rep_energy, orbs, orbe, s, f);
+}
+
+fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) -> () {
+    info!("{:^80} ", "");
+    info!(
+        "{:^8} {:^6} {:>18.14} | {:^8} {:^6} {:>18.14}",
+        "Orb.", "Occ.", "Energy/Hartree", "Orb.", "Occ.", "Energy/Hartree"
+    );
+    info!("{:-^71} ", "");
+    let n_orbs: usize = orbe.len();
+    for i in (0..n_orbs).step_by(2) {
+        if i + 1 < n_orbs {
+            info!(
+                "MO:{:>5} {:>6} {:>18.14} | MO:{:>5} {:>6} {:>18.14}",
+                i + 1,
+                f[i],
+                orbe[i],
+                i + 2,
+                f[i + 1],
+                orbe[i + 1]
+            );
+        } else {
+            info!("MO:{:>5} {:>6} {:>18.14} |", i + 1, f[i], orbe[i]);
+        }
+    }
+    info!("{:-^71} ", "");
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
