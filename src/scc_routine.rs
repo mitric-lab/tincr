@@ -131,6 +131,9 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
         if i > 0 {
             info!("{:^14} charge diff.: {:>18.14} ", "", charge_diff);
         }
+        if log_enabled!(Level::Trace) {
+            print_orbital_information(orbe.view(), &f);
+        }
         // check if charge difference to the previous iteration is lower then 1e-5
         if (&charge_diff < &scf_charge_conv) && &(energy_old - scf_energy).abs() < &scf_energy_conv
         {
