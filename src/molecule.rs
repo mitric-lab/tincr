@@ -83,7 +83,6 @@ impl Molecule {
         info!("{: <25} {}", "multiplicity:", multiplicity);
         info!("{: <25} {:.8} bohr", "long-range radius:", r_lr.unwrap_or(LONG_RANGE_RADIUS));
         info!("{:-^80}", "");
-        info!("{:^80}", "");
 
         let mol = Molecule {
             atomic_numbers: atomic_numbers,

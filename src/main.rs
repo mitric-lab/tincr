@@ -49,7 +49,6 @@ use env_logger::Builder;
 use log::LevelFilter;
 use ron::error::ErrorCode::TrailingCharacters;
 
-
 fn main() {
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -104,6 +103,7 @@ fn main() {
         .init();
 
     write_header();
+    let molecule_timer: Instant = Instant::now();
     info!("{: ^80}", "Initializing Molecule");
     info!("{:-^80}", "");
     info!("{: <25} {}", "geometry filename:", geometry_file);
@@ -120,6 +120,9 @@ fn main() {
                 None,
                 config,
             );
+            info!("{:>68} {:>8.2} s", "elapsed time:", molecule_timer.elapsed().as_secs_f32());
+            drop(molecule_timer);
+            info!("{:^80}", "");
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
                 scc_routine::run_scc(&mol);
             0
@@ -135,5 +138,10 @@ fn main() {
             1
         }
     };
+    info!("{: ^80}", "");
+    info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
+    info!("{: ^80}", "::    Thank you for using TINCR     ::");
+    info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
+    info!("{: ^80}", "");
     process::exit(exit_code);
 }
