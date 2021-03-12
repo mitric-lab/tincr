@@ -86,6 +86,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
             step_failed,
             expect,
             c_norm,
+            new_dlc_mat
         ): (
             Array1<f64>,
             Array1<f64>,
@@ -95,6 +96,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
             bool,
             f64,
             f64,
+            Option<Array2<f64>>
         ) = step(
             &internal_coords,
             &dlc_mat,
@@ -107,6 +109,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
         );
         if step_failed {
             internal_coords = new_graph.unwrap();
+            dlc_mat = new_dlc_mat.unwrap();
             continue;
         } else {
             // get energy and force
@@ -240,11 +243,14 @@ pub fn evaluate_step(
         }
     }
     info!("{: <35} {:>15.8}", "Step state:", step_state);
-    info!("{: <35} {:>15.8}", "Energy tolerance:", quality);
-    info!("{: <35} {:>15.8}", "Gradient rms tolerance:", rms_gradient);
-    info!("{: <35} {:>15.8}", "Max gradient tolerance:", max_gradient);
-    info!("{: <35} {:>15.8}", "Displacement rms tolerance:", rmsd);
-    info!("{: <35} {:>15.8}", "Max displacement tolerance:", maxd);
+    info!("{:-^70}", "");
+    info!("{: <35} {:<15} {:>15}", "Criteria","current values","tolerances");
+    info!("{:-^70}", "");
+    info!("{: <35} {:>15.8} {:>15.8}", "Energy tolerance:", quality,1.0e-6);
+    info!("{: <35} {:>15.8} {:>15.8}", "Gradient rms tolerance:", rms_gradient,2.0e-4);
+    info!("{: <35} {:>15.8} {:>15.8}", "Max gradient tolerance:", max_gradient,4.0e-4);
+    info!("{: <35} {:>15.8} {:>15.8}", "Displacement rms tolerance:", rmsd,5.0e-4);
+    info!("{: <35} {:>15.8} {:>15.8}", "Max displacement tolerance:", maxd,1.0e-3);
     info!("{:-^70}", "");
     // println!(
     //     "Step state = {}. The value 0 is the worst result, 3 the best. ",
@@ -440,12 +446,14 @@ pub fn step(
     bool,
     f64,
     f64,
+    Option<Array2<f64>>
 ) {
-    debug!("{:-^70}", "");
-    debug!("{: ^0} ", "Optimization step ");
-    debug!("{:-^70}", "");
+    info!("{:-^70}", "");
+    info!("{: ^0} ", "Optimization step ");
+    info!("{:-^70}", "");
     // variables in case the step fails
     let mut new_internal_coords: Option<InternalCoordinates> = None;
+    let mut new_dlc_mat: Option<Array2<f64>> = None;
     let mut step_failed: bool = false;
     // get eigenvalue of the hessian
     let eig: (Array1<f64>, Array2<f64>) = hessian.eigh(UPLO::Upper).unwrap();
@@ -483,7 +491,7 @@ pub fn step(
 
     // Internal coordinate step size
     let i_norm: f64 = dy.clone().to_vec().norm();
-    debug!("{:<25} {:0.12}", "Internal norm:", i_norm);
+    info!("{:<25} {:0.12}", "Internal norm:", i_norm);
     //println!("inorm {}", i_norm);
 
     // Cartesian coordinate step size
@@ -492,12 +500,12 @@ pub fn step(
     let mut c_norm: f64 = tmp.0;
     let mut bork: bool = tmp.1;
     //println!("cnorm {}", c_norm);
-    debug!("{:<25} {:0.12}", "Cartesian norm:", c_norm);
+    info!("{:<25} {:0.12}", "Cartesian norm:", c_norm);
 
     // If the step is above the trust radius in Cartesian coordinates, then
     // do the following to reduce the step length:
 
-    debug!("{:-^70}", "");
+    info!("{:-^70}", "");
     if c_norm > 0.11 {
         // This is the function f(inorm) = cnorm-target that we find a root
         // for obtaining a step with the desired Cartesian step size.
@@ -556,7 +564,10 @@ pub fn step(
         if bork {
             // Force a rebuild of the coordinate system and skip the energy / gradient and evaluation steps.
             new_internal_coords = Some(build_primitives(mol));
+            new_dlc_mat =
+                Some(build_delocalized_internal_coordinates(cart_coords.clone(), &new_internal_coords.clone().unwrap()));
             // skip energy and evaluation step
+            info!("{:<}","Brent failed. Rebuilding primitives and dlc matrix");
             step_failed = true;
         }
         let tmp_new: (Array1<f64>, f64) = trust_step(
@@ -573,8 +584,8 @@ pub fn step(
             get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
         c_norm = tmp.0;
 
-        debug!("{:<35} {:0.12}", "New cartesian norm:", c_norm);
-        debug!("{:-^70}", "");
+        info!("{:<35} {:0.12}", "New cartesian norm:", c_norm);
+        info!("{:-^70}", "");
     }
     // DONE OBTAINING THE STEP
 
@@ -601,12 +612,12 @@ pub fn step(
     let new_cart_coord_3d: Array2<f64> = x_new.clone().into_shape((x_new.dim() / 3, 3)).unwrap();
     //println!("new coordinates of the molecule {}", new_cart_coord_3d);
 
-    debug!("{:-^70}", "");
-    debug!("{: ^0} ", "New cartesian coordinates in [A]");
-    debug!("{:-^70}", "");
+    info!("{:-^70}", "");
+    info!("{: ^0} ", "New cartesian coordinates in [A]");
+    info!("{:-^70}", "");
     if log_enabled!(Level::Info) {
         for (idx, (coord, at)) in new_cart_coord_3d.outer_iter().zip(mol.atomic_numbers.iter()).enumerate(){
-            debug!("{:<5} {:>15.10} {:>15.10} {:>15.10}", ATOM_NAMES[*at as usize], coord[0]*BOHR_TO_ANGS, coord[1]*BOHR_TO_ANGS,coord[2]*BOHR_TO_ANGS)
+            info!("{:<5} {:>15.10} {:>15.10} {:>15.10}", ATOM_NAMES[*at as usize], coord[0]*BOHR_TO_ANGS, coord[1]*BOHR_TO_ANGS,coord[2]*BOHR_TO_ANGS)
         }
     }
     debug!("{:-^70}", "");
@@ -623,6 +634,7 @@ pub fn step(
         step_failed,
         expect,
         c_norm,
+        new_dlc_mat,
     );
 }
 
@@ -1463,6 +1475,7 @@ fn test_optimization_geomeTRIC_step() {
         step_failed,
         expect,
         c_norm,
+        new_dlc_mat
     ): (
         Array1<f64>,
         Array1<f64>,
@@ -1472,6 +1485,7 @@ fn test_optimization_geomeTRIC_step() {
         bool,
         f64,
         f64,
+        Option<Array2<f64>>
     ) = step(
         &internal_coordinates,
         &dlc_mat,
