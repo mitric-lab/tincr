@@ -1,19 +1,18 @@
 use crate::calculator::{get_gamma_gradient_matrix, lambda2_calc_oia};
-use crate::gamma_approximation::m_atomwise;
 use crate::defaults;
 use crate::gradients;
+use crate::scc_routine::*;
 use crate::transition_charges::trans_charges;
 use crate::Molecule;
-use approx::AbsDiffEq;
+use approx::{AbsDiffEq, RelativeEq};
 use ndarray::prelude::*;
 use ndarray::Data;
-use ndarray::{Array2, Array4, Array6, ArrayView1, ArrayView2, ArrayView3, stack};
+use ndarray::{stack, Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::cmp::Ordering;
 use std::ops::AddAssign;
-use crate::scc_routine::*;
 use std::time::Instant;
 use crate::io::GeneralConfig;
 use crate::test::get_water_molecule;
@@ -107,14 +106,6 @@ pub fn get_exc_energies(
         &active_virt[..],
     );
 
-    // Get M matrix if required
-    let m: Array4<f64> = if magnetic_correction {
-        m_atomwise(&molecule.atomic_numbers[..], molecule.n_atoms,
-                   molecule.calculator.spin_couplings.view())
-    } else {
-        Array::zeros((molecule.n_atoms, molecule.n_atoms, 2, 2))
-    };
-
     let mut omega_out: Array1<f64> = Array::zeros((n_occ * n_virt));
     let mut c_ij: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
     let mut XpY: Array3<f64> = Array::zeros((n_occ * n_virt, n_occ, n_virt));
@@ -132,10 +123,10 @@ pub fn get_exc_energies(
                 qtrans_vv.view(),
                 omega.view(),
                 df.view(),
-                molecule.multiplicity.clone(),
+                molecule.multiplicity,
                 n_occ,
                 n_virt,
-                Some(m.view()),
+                molecule.calculator.spin_couplings.view(),
             );
             omega_out = tmp.0;
             c_ij = tmp.1;
@@ -148,10 +139,10 @@ pub fn get_exc_energies(
                 qtrans_vv.view(),
                 omega.view(),
                 df.view(),
-                molecule.multiplicity.clone(),
+                molecule.multiplicity,
                 n_occ,
                 n_virt,
-                Some(m.view()),
+                molecule.calculator.spin_couplings.view(),
             );
             omega_out = tmp.0;
             c_ij = tmp.1;
@@ -180,7 +171,7 @@ pub fn get_exc_energies(
                 None,
                 None,
                 o_ia.view(),
-                molecule.multiplicity.clone() as usize,
+                molecule.multiplicity as usize,
                 Some(nstates),
                 None,
                 None,
@@ -227,6 +218,98 @@ pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
     idx
 }
 
+// pub fn build_a_matrix(
+//     gamma: ArrayView2<f64>,
+//     gamma_lr: ArrayView2<f64>,
+//     q_trans_ov: ArrayView3<f64>,
+//     q_trans_oo: ArrayView3<f64>,
+//     q_trans_vv: ArrayView3<f64>,
+//     omega: ArrayView2<f64>,
+//     df: ArrayView2<f64>,
+//     multiplicity: u8,
+//     m: Option<ArrayView4<f64>>,
+// ) -> (Array2<f64>) {
+//     let n_occ: usize = q_trans_oo.dim().1;
+//     let n_virt: usize = q_trans_vv.dim().1;
+//     let mut k_lr_a: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+//     let mut k_a: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+//     let mut k_singlet: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+//     // K_lr_A = np.tensordot(qtrans_oo, np.tensordot(gamma_lr, qtrans_vv, axes=(1,0)),axes=(0,0))
+//
+//     k_lr_a = tensordot(
+//         &q_trans_oo,
+//         &tensordot(&gamma_lr, &q_trans_vv, &[Axis(1)], &[Axis(0)]),
+//         &[Axis(0)],
+//         &[Axis(0)],
+//     )
+//     .into_dimensionality::<Ix4>()
+//     .unwrap();
+//
+//     // K_lr_A = np.swapaxes(K_lr_A, 1, 2)
+//     // swap axes still missing
+//     k_lr_a.swap_axes(1, 2);
+//     k_a.assign(&-k_lr_a);
+//
+//     if multiplicity == 1 {
+//         //K_singlet = 2.0*np.tensordot(qtrans_ov, np.tensordot(gamma, qtrans_ov, axes=(1,0)),axes=(0,0))
+//         //K_A += K_singlet
+//         k_singlet = 2.0
+//             * tensordot(
+//                 &q_trans_ov,
+//                 &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+//                 &[Axis(0)],
+//                 &[Axis(0)],
+//             )
+//             .into_dimensionality::<Ix4>()
+//             .unwrap();
+//         // println!("k_singlet_NO_M {}", k_singlet);
+//
+//         k_a = k_a + k_singlet;
+//     }
+//
+//     let mut k_coupling: Array2<f64> = k_a.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
+//
+//     // println!("k_coupling_no_M {}", k_coupling);
+//
+//     let k_m_coupling_red: Array2<f64> = if m.is_some() {
+//         // Manipulate q_trans_ov
+//         let mut q_trans_ovs: Array4<f64> = q_trans_ov.to_owned().insert_axis(Axis(3));
+//         q_trans_ovs = stack![Axis(3), q_trans_ovs, q_trans_ovs];
+//
+//         // Get the correction matrix K_m
+//         let delta_st: Array2<f64> = Array::eye(2);
+//         let k_m: Array6<f64> = 2.0
+//             * einsum(
+//                 "aijs,bklt,abst,st->sijtkl",
+//                 &[&q_trans_ovs, &q_trans_ovs, &m.unwrap(), &delta_st],
+//             )
+//             .unwrap()
+//             .into_dimensionality::<Ix6>()
+//             .unwrap()
+//             .as_standard_layout()
+//             .to_owned();
+//
+//         let k_m_coupling: Array2<f64> = k_m
+//             .into_shape((2 * n_occ * n_virt, 2 * n_occ * n_virt))
+//             .unwrap();
+//         // println!("K_m_coupling {}", k_m_coupling);
+//         // assert!(k_m_coupling.abs_diff_eq(&k_m_coupling_2, 1e-16));
+//
+//         k_m_coupling
+//             .slice(s![0..n_occ * n_virt, 0..n_occ * n_virt])
+//             .to_owned()
+//     } else {
+//         Array::zeros(k_coupling.raw_dim())
+//     };
+//
+//     k_coupling = k_coupling + k_m_coupling_red;
+//
+//     let mut df_half: Array2<f64> =
+//         Array2::from_diag(&df.map(|x| x / 2.0).into_shape((n_occ * n_virt)).unwrap());
+//     let omega: Array2<f64> = Array2::from_diag(&omega.into_shape((n_occ * n_virt)).unwrap());
+//     return df_half.dot(&omega) + &df_half.dot(&k_coupling.dot(&df_half));
+// }
+
 pub fn build_a_matrix(
     gamma: ArrayView2<f64>,
     gamma_lr: ArrayView2<f64>,
@@ -236,123 +319,67 @@ pub fn build_a_matrix(
     omega: ArrayView2<f64>,
     df: ArrayView2<f64>,
     multiplicity: u8,
-    m: Option<ArrayView4<f64>>,
+    spin_couplings: ArrayView1<f64>,
 ) -> (Array2<f64>) {
     let n_occ: usize = q_trans_oo.dim().1;
     let n_virt: usize = q_trans_vv.dim().1;
-    let mut k_lr_a: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
-    let mut k_a: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
-    let mut k_singlet: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
-    // K_lr_A = np.tensordot(qtrans_oo, np.tensordot(gamma_lr, qtrans_vv, axes=(1,0)),axes=(0,0))
-
-    k_lr_a = tensordot(
-        &q_trans_oo,
-        &tensordot(&gamma_lr, &q_trans_vv, &[Axis(1)], &[Axis(0)]),
-        &[Axis(0)],
-        &[Axis(0)],
-    )
-    .into_dimensionality::<Ix4>()
-    .unwrap();
-    
-    // K_lr_A = np.swapaxes(K_lr_A, 1, 2)
-    // swap axes still missing
-    k_lr_a.swap_axes(1, 2);
-    k_a.assign(&-k_lr_a);
-
-    if multiplicity == 1 {
-        //K_singlet = 2.0*np.tensordot(qtrans_ov, np.tensordot(gamma, qtrans_ov, axes=(1,0)),axes=(0,0))
-        //K_A += K_singlet
-        k_singlet = 2.0
-            * tensordot(
-                &q_trans_ov,
-                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
-                &[Axis(0)],
-                &[Axis(0)],
-            )
-            .into_dimensionality::<Ix4>()
-            .unwrap();
-        // println!("k_singlet_NO_M {}", k_singlet);
-
-        k_a = k_a + k_singlet;
-    }
-
-    let mut k_coupling: Array2<f64> = k_a.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
-
-    // println!("k_coupling_no_M {}", k_coupling);
-
-    let k_m_coupling_red: Array2<f64> = if m.is_some() {
-        // Manipulate q_trans_ov
-        let mut q_trans_ovs: Array4<f64> = q_trans_ov.to_owned().insert_axis(Axis(3));
-        q_trans_ovs = stack![Axis(3), q_trans_ovs, q_trans_ovs];
-
-        // Get the correction matrix K_m
-        let delta_st: Array2<f64> = Array::eye(2);
-        let k_m: Array6<f64> = 2.0 * einsum("aijs,bklt,abst,st->sijtkl", &[&q_trans_ovs, &q_trans_ovs, &m.unwrap(), &delta_st])
-            .unwrap().into_dimensionality::<Ix6>().unwrap().as_standard_layout().to_owned();
-
-        let k_m_coupling: Array2<f64> = k_m.into_shape((2 * n_occ * n_virt, 2 * n_occ * n_virt)).unwrap();
-        // println!("K_m_coupling {}", k_m_coupling);
-        // assert!(k_m_coupling.abs_diff_eq(&k_m_coupling_2, 1e-16));
-
-        k_m_coupling.slice(s![0..n_occ*n_virt, 0..n_occ*n_virt]).to_owned()
-    } else {
-        println!("Du doofe, keine Korrektur!");
-        Array::zeros(k_coupling.raw_dim())
-    };
-
-    println!("{}", k_m_coupling_red);
-
-    k_coupling = k_coupling + k_m_coupling_red;
-
-    let mut df_half: Array2<f64> =
-        Array2::from_diag(&df.map(|x| x / 2.0).into_shape((n_occ * n_virt)).unwrap());
-    let omega: Array2<f64> = Array2::from_diag(&omega.into_shape((n_occ * n_virt)).unwrap());
-    return df_half.dot(&omega) + &df_half.dot(&k_coupling.dot(&df_half));
-}
-
-pub fn build_a_matrix_magn(
-    gamma: ArrayView2<f64>,
-    gamma_lr: ArrayView2<f64>,
-    q_trans_ov: ArrayView3<f64>,
-    q_trans_oo: ArrayView3<f64>,
-    q_trans_vv: ArrayView3<f64>,
-    omega: ArrayView2<f64>,
-    df: ArrayView2<f64>,
-    multiplicity: u8,
-    spin_couplings: Option<ArrayView1<f64>>,
-) -> (Array2<f64>) {
-
-    let n_occ: usize = q_trans_oo.dim().1;
-    let n_virt: usize = q_trans_vv.dim().1;
-    let n_atoms: usize = q_trans_oo.dim().0;
-
-    let delta_ab: Array2<f64> = Array::eye(n_atoms);
 
     // Calculate k_a_lr
+    // K_A^{lr} = K_{ov,o'v'}°{lr} = - sum_{A,B} q_A^{oo'} \gamma_{AB}^{lr} q_B^{vv'}
+    //                             = - sum_{A,B} q_A^{ik} \gamma_{AB}^{lr} q_B^{jl}
+    // o = i, o' = k, v = j, v' = l
     // equivalent to einsum("aik,bjl,ab->ijkl", &[&q_trans_oo, &q_trans_vv, &gamma_lr])
-    let mut k_a: Array4<f64> = -1.0 * tensordot(&q_trans_oo,
-                                            &tensordot(&gamma_lr, &q_trans_vv, &[Axis(1)], &[Axis(0)]),
-                                                &[Axis(0)], &[Axis(0)])
-                                        .into_dimensionality::<Ix4>().unwrap();
-    k_a.swap_axes(1, 2);
+    let mut k_a: Array4<f64> = -1.0
+        * tensordot(
+            &q_trans_oo,
+            &tensordot(&gamma_lr, &q_trans_vv, &[Axis(1)], &[Axis(0)]), // ab,bjl->ajl
+            &[Axis(0)],
+            &[Axis(0)],
+        ) // aik,ajl->ikjl
+        .into_dimensionality::<Ix4>()
+        .unwrap();
+    k_a.swap_axes(1, 2); // ikjl->ijkl
     k_a = k_a.as_standard_layout().to_owned();
 
     if multiplicity == 1 {
         // calculate coulomb integrals for singlets
+        // 2 * K_A =  2 K_{ov,o'v'} = 2 sum_{A,B} q_A^{ov} \gamma_{AB} q_B^{o'v'}
+        //                          = 2 sum_{A,B} q_A^{ij} \gamma_{AB} q_B^{kl}
         // equivalent to einsum("aij,bkl,ab->ijkl", &[&q_trans_ov, &q_trans_ov, &gamma])
-        let k_singlet: Array4<f64> = 2.0 * tensordot(&q_trans_ov,
-                                                     &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
-                                            &[Axis(0)], &[Axis(0)])
-                                            .into_dimensionality::<Ix4>().unwrap();
+        let k_singlet: Array4<f64> = 2.0
+            * tensordot(
+                &q_trans_ov,
+                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkl->akl
+                &[Axis(0)],
+                &[Axis(0)],
+            ) // aij,akl->ijkl
+            .into_dimensionality::<Ix4>()
+            .unwrap();
         k_a = k_a + k_singlet;
-    } else if (multiplicity == 3) && (spin_couplings.is_some()) {
+    } else if multiplicity == 3 {
         // calculate magnetic corrections for triplets
-        let k_triplet: Array4<f64> = 2.0 * einsum("aij,bkl,ab,a->ijkl", &[&q_trans_ov, &q_trans_ov, &delta_ab, &spin_couplings.unwrap()])
-            .unwrap().into_dimensionality::<Ix4>().unwrap().as_standard_layout().to_owned();
+        // K_A^{magn} = 2 sum_{A,B} q_A^{ov} \delta_{AB} W_A q_B^{o'v'}
+        //            = 2 sum_{A,B} q_A^{ij} \delta_{AB} W_A q_B^{kl}
+        // equivalent to einsum("aij,bkl,ab,a->ijkl", &[&q_trans_ov, &q_trans_ov, &delta_ab, &spin_couplings])
+        let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings); // ab,a->ab
+        let k_triplet: Array4<f64> = 2.0
+            * tensordot(
+                &q_trans_ov,
+                &tensordot(&spin_couplings_diag, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkl->akl
+                &[Axis(0)],
+                &[Axis(0)],
+            ) // aij,akl->ijkl
+            .into_dimensionality::<Ix4>()
+            .unwrap();
+
         k_a = k_a + k_triplet;
+    } else {
+        panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
     }
 
     let k_coupling: Array2<f64> = k_a.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
+
+    // println!("{:?}", k_coupling);
 
     let mut df_half: Array2<f64> =
         Array2::from_diag(&df.mapv(|x| x / 2.0).into_shape((n_occ * n_virt)).unwrap());
@@ -360,91 +387,59 @@ pub fn build_a_matrix_magn(
     return df_half.dot(&omega) + &df_half.dot(&k_coupling.dot(&df_half));
 }
 
-// pub fn build_a_matrix_spin(
+// pub fn build_b_matrix(
 //     gamma: ArrayView2<f64>,
 //     gamma_lr: ArrayView2<f64>,
-//     m: ArrayView4<f64>,
 //     q_trans_ov: ArrayView3<f64>,
 //     q_trans_oo: ArrayView3<f64>,
 //     q_trans_vv: ArrayView3<f64>,
 //     omega: ArrayView2<f64>,
 //     df: ArrayView2<f64>,
 //     multiplicity: u8,
+//     spin_couplings: ArrayView1<f64>,
 // ) -> (Array2<f64>) {
 //     let n_occ: usize = q_trans_oo.dim().1;
 //     let n_virt: usize = q_trans_vv.dim().1;
-//     let n_atom: usize = q_trans_oo.dim().0;
 //
-//     let mut k_lr_a: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
-//     let mut k_a: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+//     let mut k_lr_b: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
+//     let mut k_b: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
 //     let mut k_singlet: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
-//     // K_lr_A = np.tensordot(qtrans_oo, np.tensordot(gamma_lr, qtrans_vv, axes=(1,0)),axes=(0,0))
-//     k_lr_a = tensordot(
-//         &q_trans_oo,
-//         &tensordot(&gamma_lr, &q_trans_vv, &[Axis(1)], &[Axis(0)]),
+//     //K_lr_B = np.tensordot(qtrans_ov, np.tensordot(gamma_lr, qtrans_ov, axes=(1,0)),axes=(0,0))
+//     k_lr_b = tensordot(
+//         &q_trans_ov,
+//         &tensordot(&gamma_lr, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
 //         &[Axis(0)],
 //         &[Axis(0)],
 //     )
-//         .into_dimensionality::<Ix4>()
-//         .unwrap();
-//
-//     // K_lr_A = np.swapaxes(K_lr_A, 1, 2)
-//     k_lr_a.swap_axes(1, 2);
-//     k_a.assign(&-k_lr_a);
+//     .into_dimensionality::<Ix4>()
+//     .unwrap();
+//     //# got K_ia_jb but we need K_ib_ja
+//     //K_lr_B = np.swapaxes(K_lr_B, 1, 3)
+//     k_lr_b.swap_axes(1, 3);
+//     k_b.assign(&(-1.0 * k_lr_b));
 //
 //     if multiplicity == 1 {
 //         //K_singlet = 2.0*np.tensordot(qtrans_ov, np.tensordot(gamma, qtrans_ov, axes=(1,0)),axes=(0,0))
 //         //K_A += K_singlet
 //         k_singlet = 2.0
 //             * tensordot(
-//             &q_trans_ov,
-//             &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
-//             &[Axis(0)],
-//             &[Axis(0)],
-//         )
+//                 &q_trans_ov,
+//                 &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+//                 &[Axis(0)],
+//                 &[Axis(0)],
+//             )
 //             .into_dimensionality::<Ix4>()
 //             .unwrap();
 //
-//         k_a = k_a + k_singlet;
+//         println!("k_singlet: {:?}", &k_singlet);
+//
+//         k_b = k_b + k_singlet;
 //     }
-//     let mut k_coupling: Array2<f64> = k_a.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
-//
-//     // Manipulate q_trans_ov
-//     let mut q_trans_ovs: Array4<f64> = q_trans_ov.to_owned().insert_axis(Axis(3));
-//     q_trans_ovs = stack![Axis(3), q_trans_ovs, q_trans_ovs];
-//
-//     // Get the correction matrix K_m
-//     let delta_st: Array2<f64> = Array::eye(2);
-//     let k_m: Array6<f64> = 2.0 * einsum("aijs,bklt,abst,st->sijtkl", &[&q_trans_ovs, &q_trans_ovs, &m, &delta_st])
-//         .unwrap().into_dimensionality::<Ix6>().unwrap().as_standard_layout().to_owned();
-//
-//     let k_m_coupling: Array2<f64> = k_m.into_shape((2 * n_occ * n_virt, 2 * n_occ * n_virt)).unwrap();
-//     // println!("K_m_coupling {}", k_m_coupling);
-//     // assert!(k_m_coupling.abs_diff_eq(&k_m_coupling_2, 1e-16));
-//
-//     let k_m_coupling_red: Array2<f64> = k_m_coupling.slice(s![0..n_occ*n_virt, 0..n_occ*n_virt]).to_owned();
-//
-//     // // Spin block k_coupling to match the shape of k_m
-//     // let null_mat: Array2<f64> = Array::zeros(k_coupling.raw_dim());
-//     // k_coupling = stack![Axis(0), stack![Axis(1), k_coupling, null_mat], stack![Axis(1), null_mat, k_coupling]];
-//     // // println!("K_spin {}", k_coupling);
-//
-//     k_coupling = k_coupling + k_m_coupling_red;
-//
-//     // // spin block df and omega
-//     // let mut df_block: Array1<f64> = df.map(|x| x / 2.0).into_shape((n_occ * n_virt)).unwrap();
-//     // df_block = stack![Axis(0), df_block, df_block];
-//     // let df_half: Array2<f64> = Array2::from_diag(&df_block);
-//     // let mut omega_block: Array1<f64> = omega.into_shape((n_occ * n_virt)).unwrap().to_owned();
-//     // omega_block = stack![Axis(0), omega_block, omega_block];
-//     // let omega: Array2<f64> = Array2::from_diag(&omega_block);
+//     let mut k_coupling: Array2<f64> = k_b.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
 //
 //     let mut df_half: Array2<f64> =
 //         Array2::from_diag(&df.map(|x| x / 2.0).into_shape((n_occ * n_virt)).unwrap());
-//     let omega: Array2<f64> = Array2::from_diag(&omega.into_shape((n_occ * n_virt)).unwrap());
-//     return df_half.dot(&omega) + &df_half.dot(&k_coupling.dot(&df_half));
-//
-//     return &df_half.dot(&omega) + &df_half.dot(&k_coupling.dot(&df_half));
+//     return df_half.dot(&k_coupling.dot(&df_half));
 // }
 
 pub fn build_b_matrix(
@@ -456,64 +451,66 @@ pub fn build_b_matrix(
     omega: ArrayView2<f64>,
     df: ArrayView2<f64>,
     multiplicity: u8,
-    m: Option<ArrayView4<f64>>,
+    spin_couplings: ArrayView1<f64>,
 ) -> (Array2<f64>) {
     let n_occ: usize = q_trans_oo.dim().1;
     let n_virt: usize = q_trans_vv.dim().1;
-    let mut k_lr_b: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
-    let mut k_b: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
-    let mut k_singlet: Array4<f64> = Array4::zeros([n_occ, n_virt, n_occ, n_virt]);
-    //K_lr_B = np.tensordot(qtrans_ov, np.tensordot(gamma_lr, qtrans_ov, axes=(1,0)),axes=(0,0))
-    k_lr_b = tensordot(
+
+    // Calculate k_b_lr
+    // K_B^{lr} = K_{ov,v'o'}°{lr} = - sum_{A,B} q_A^{ov'} \gamma_{AB}^{lr} q_B^{o'v}
+    //            K_{ijlk}^{lr}    = - sum_{A,B} q_A^{il} \gamma_{AB}^{lr} q_B^{kj}
+    // o = i, o' = k, v = j, v' = l
+    // equivalent to einsum("ail,bkj,ab->ijkl", &[&q_trans_ov, &q_trans_ov, &gamma_lr])
+    let mut k_b: Array4<f64> = -1.0
+        * tensordot(
         &q_trans_ov,
-        &tensordot(&gamma_lr, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
+        &tensordot(&gamma_lr, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkj->akj
         &[Axis(0)],
         &[Axis(0)],
-    )
-    .into_dimensionality::<Ix4>()
-    .unwrap();
-    //# got K_ia_jb but we need K_ib_ja
-    //K_lr_B = np.swapaxes(K_lr_B, 1, 3)
-    k_lr_b.swap_axes(1, 3);
-    k_b.assign(&(-1.0 * k_lr_b));
+    )  // ail,akj->ilkj
+        .into_dimensionality::<Ix4>()
+        .unwrap();
+    k_b.swap_axes(1, 3); // ilkj->ijkl, ijkl is the correct order for all matrices
+    k_b = k_b.as_standard_layout().to_owned();
 
     if multiplicity == 1 {
-        //K_singlet = 2.0*np.tensordot(qtrans_ov, np.tensordot(gamma, qtrans_ov, axes=(1,0)),axes=(0,0))
-        //K_A += K_singlet
-        k_singlet = 2.0
+        // calculate coulomb integrals for singlets
+        // 2 * K_B =  2 K_{ov,v'o'} = 2 sum_{A,B} q_A^{ov} \gamma_{AB} q_B^{o'v'} = 2 * K_A
+        //                          = 2 sum_{A,B} q_A^{ij} \gamma_{AB} q_B^{kl}
+        // equivalent to einsum("aij,bkl,ab->ijkl", &[&q_trans_ov, &q_trans_ov, &gamma])
+        let k_singlet: Array4<f64> = 2.0
             * tensordot(
-                &q_trans_ov,
-                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]),
-                &[Axis(0)],
-                &[Axis(0)],
-            )
+            &q_trans_ov,
+            &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkl->akl
+            &[Axis(0)],
+            &[Axis(0)],
+        ) // aij,akl->ijkl
             .into_dimensionality::<Ix4>()
             .unwrap();
+
         k_b = k_b + k_singlet;
-    }
-    let mut k_coupling: Array2<f64> = k_b.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
+    } else if multiplicity == 3 {
+        // calculate magnetic corrections for triplets
+        // K_B^{magn} = 2 sum_{A,B} q_A^{ov} \delta_{AB} W_A q_B^{o'v'} = K_A^{magn}
+        //            = 2 sum_{A,B} q_A^{ij} \delta_{AB} W_A q_B^{kl}
+        // equivalent to einsum("aij,bkl,ab,a->ijkl", &[&q_trans_ov, &q_trans_ov, &delta_ab, &spin_couplings])
+        let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings); // ab,a->ab
+        let k_triplet: Array4<f64> = 2.0
+            * tensordot(
+            &q_trans_ov,
+            &tensordot(&spin_couplings_diag, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkl->akl
+            &[Axis(0)],
+            &[Axis(0)],
+        ) // aij,akl->ijkl
+            .into_dimensionality::<Ix4>()
+            .unwrap();
 
-    // Build m matrix if neccesary
-    let k_m_coupling_red: Array2<f64> = if m.is_some() {
-        // Manipulate q_trans_ov
-        let mut q_trans_ovs: Array4<f64> = q_trans_ov.to_owned().insert_axis(Axis(3));
-        q_trans_ovs = stack![Axis(3), q_trans_ovs, q_trans_ovs];
-
-        // Get the correction matrix K_m
-        let delta_st: Array2<f64> = Array::eye(2);
-        let k_m: Array6<f64> = 2.0 * einsum("aijs,bklt,abst,st->sijtlk", &[&q_trans_ovs, &q_trans_ovs, &m.unwrap(), &delta_st])
-            .unwrap().into_dimensionality::<Ix6>().unwrap().as_standard_layout().to_owned();
-
-        let k_m_coupling: Array2<f64> = k_m.into_shape((2 * n_occ * n_virt, 2 * n_occ * n_virt)).unwrap();
-        // println!("K_m_coupling {}", k_m_coupling);
-        // assert!(k_m_coupling.abs_diff_eq(&k_m_coupling_2, 1e-16));
-
-        k_m_coupling.slice(s![0..n_occ*n_virt, 0..n_occ*n_virt]).to_owned()
+        k_b = k_b + k_triplet;
     } else {
-        Array::zeros(k_coupling.raw_dim())
-    };
+        panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
+    }
 
-    k_coupling = k_coupling + k_m_coupling_red;
+    let mut k_coupling: Array2<f64> = k_b.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
 
     let mut df_half: Array2<f64> =
         Array2::from_diag(&df.map(|x| x / 2.0).into_shape((n_occ * n_virt)).unwrap());
@@ -567,43 +564,9 @@ pub fn tda(
     multiplicity: u8,
     n_occ: usize,
     n_virt: usize,
-    m: Option<ArrayView4<f64>>,
+    spin_couplings: ArrayView1<f64>,
 ) -> (Array1<f64>, Array3<f64>) {
     let h_tda: Array2<f64> = build_a_matrix(
-        gamma,
-        gamma_lr,
-        q_trans_ov,
-        q_trans_oo,
-        q_trans_vv,
-        omega,
-        df,
-        multiplicity,
-        m,
-    );
-    // diagonalize TDA Hamiltonian
-    let (omega, x): (Array1<f64>, Array2<f64>) = h_tda.eigh(UPLO::Upper).unwrap();
-    let c_ij: Array3<f64> = x
-        .reversed_axes()
-        .into_shape((n_occ * n_virt, n_occ, n_virt))
-        .unwrap();
-    println!("{}", c_ij);
-    return (omega, c_ij);
-}
-
-pub fn tda_magn(
-    gamma: ArrayView2<f64>,
-    gamma_lr: ArrayView2<f64>,
-    q_trans_ov: ArrayView3<f64>,
-    q_trans_oo: ArrayView3<f64>,
-    q_trans_vv: ArrayView3<f64>,
-    omega: ArrayView2<f64>,
-    df: ArrayView2<f64>,
-    multiplicity: u8,
-    n_occ: usize,
-    n_virt: usize,
-    spin_couplings: Option<ArrayView1<f64>>,
-) -> (Array1<f64>, Array3<f64>) {
-    let h_tda: Array2<f64> = build_a_matrix_magn(
         gamma,
         gamma_lr,
         q_trans_ov,
@@ -620,7 +583,7 @@ pub fn tda_magn(
         .reversed_axes()
         .into_shape((n_occ * n_virt, n_occ, n_virt))
         .unwrap();
-    println!("{}", c_ij);
+    // println!("{}", c_ij);
     return (omega, c_ij);
 }
 
@@ -635,7 +598,7 @@ pub fn casida(
     multiplicity: u8,
     n_occ: usize,
     n_virt: usize,
-    m: Option<ArrayView4<f64>>,
+    spin_couplings: ArrayView1<f64>,
 ) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
     let A: Array2<f64> = build_a_matrix(
         gamma,
@@ -646,7 +609,7 @@ pub fn casida(
         omega,
         df,
         multiplicity,
-        m,
+        spin_couplings,
     );
     let B: Array2<f64> = build_b_matrix(
         gamma,
@@ -657,7 +620,7 @@ pub fn casida(
         omega,
         df,
         multiplicity,
-        m,
+        spin_couplings,
     );
     //check whether A - B is diagonal
     let AmB: Array2<f64> = &A - &B;
@@ -2536,12 +2499,11 @@ fn tda_routine() {
         ]
     ];
 
-    // test m matrix
+    // test W correction
     let mol: Molecule = get_water_molecule();
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let m: Array4<f64> = m_atomwise(&atomic_numbers[..], 3, mol.calculator.spin_couplings.view());
 
     let spin_couplings: ArrayView1<f64> = mol.calculator.spin_couplings.view();
+    let spin_couplings_null: ArrayView1<f64> = Array::zeros(mol.calculator.spin_couplings.raw_dim()).view();
 
     let (omega, c_ij): (Array1<f64>, Array3<f64>) = tda(
         gamma.view(),
@@ -2554,33 +2516,12 @@ fn tda_routine() {
         mol.multiplicity,
         2,
         2,
-        None,
+        spin_couplings,
     );
     println!("omega {}", omega);
     println!("omega_ref {}", omega_ref);
     assert!(omega.abs_diff_eq(&omega_ref, 1e-14));
     assert!(c_ij.abs_diff_eq(&c_ij_ref, 1e-14));
-
-    let (omega_magn, c_ij_magn): (Array1<f64>, Array3<f64>) = tda_magn(
-        gamma.view(),
-        gamma_lr.view(),
-        q_trans_ov.view(),
-        q_trans_oo.view(),
-        q_trans_vv.view(),
-        omega_0.view(),
-        df.view(),
-        3,
-        2,
-        2,
-        Some(spin_couplings),
-    );
-    println!("omega {}", omega);
-    println!("omega_magn {}", omega_magn);
-    println!("c_ij {}", c_ij);
-    println!("c_ij_magn {}", c_ij_magn);
-
-    assert_eq!(1, 2);
-
 }
 
 #[test]
@@ -2744,6 +2685,34 @@ fn casida_routine() {
         ]
     ];
 
+    // test W correction
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    // let multiplicity: Option<u8> = Some(1);
+    let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
+    let mol: Molecule = Molecule::new(
+        atomic_numbers.clone(),
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+        config,
+    );
+
+    // Only for testing purposes
+    let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
+    let spin_couplings_null: Array1<f64> = Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
+
     let (omega, c_ij, XmY, XpY): (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
         gamma.view(),
         gamma_lr.view(),
@@ -2752,10 +2721,10 @@ fn casida_routine() {
         q_trans_vv.view(),
         omega_0.view(),
         df.view(),
-        1,
+        mol.multiplicity,
         2,
         2,
-        None,
+        spin_couplings_null.view(),
     );
 
     assert!(omega.abs_diff_eq(&omega_ref, 1e-14));
@@ -3158,9 +3127,8 @@ fn non_hermitian_davidson_routine() {
     assert!((&XpY * &XpY).abs_diff_eq(&(&XpY_ref * &XpY_ref), 1e-14));
 }
 
-
 #[test]
-fn benzene_tda() {
+fn benzene_excitations() {
     // Define benzene
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
@@ -3217,6 +3185,10 @@ fn benzene_tda() {
             &active_virt[..],
         );
 
+    // println!("q_trans_oo {}", q_trans_oo);
+    // println!("q_trans_ov {}", q_trans_ov);
+    // println!("q_trans_vv {}", q_trans_vv);
+
     let omega_0: Array2<f64> = get_orbital_en_diff(
         orbe.view(),
         n_occ,
@@ -3233,11 +3205,38 @@ fn benzene_tda() {
         &active_virt[..],
     );
 
-    let m: Array4<f64> = m_atomwise(&atomic_numbers[..], mol.n_atoms,
-                                    mol.calculator.spin_couplings.view());
-    let spin_coupling: ArrayView1<f64> = mol.calculator.spin_couplings.view();
+    let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
+    let spin_couplings_null: Array1<f64> = Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
 
-    let (omega, c_ij): (Array1<f64>, Array3<f64>) = tda(
+    // let (omega, c_ij): (Array1<f64>, Array3<f64>) = tda(
+    //     gamma.view(),
+    //     gamma_lr.view(),
+    //     q_trans_ov.view(),
+    //     q_trans_oo.view(),
+    //     q_trans_vv.view(),
+    //     omega_0.view(),
+    //     df.view(),
+    //     mol.multiplicity,
+    //     n_occ,
+    //     n_virt,
+    //     spin_couplings_null.view(),
+    // );
+    //
+    // let (omega_magn, c_ij_magn): (Array1<f64>, Array3<f64>) = tda(
+    //     gamma.view(),
+    //     gamma_lr.view(),
+    //     q_trans_ov.view(),
+    //     q_trans_oo.view(),
+    //     q_trans_vv.view(),
+    //     omega_0.view(),
+    //     df.view(),
+    //     mol.multiplicity,
+    //     n_occ,
+    //     n_virt,
+    //     spin_couplings.view(),
+    // );
+
+    let (omega, c_ij, XmY, XpY): (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
         gamma.view(),
         gamma_lr.view(),
         q_trans_ov.view(),
@@ -3245,14 +3244,13 @@ fn benzene_tda() {
         q_trans_vv.view(),
         omega_0.view(),
         df.view(),
-        mol.multiplicity,
-        n_occ,
-        n_virt,
-        None,
+         mol.multiplicity,
+         n_occ,
+         n_virt,
+        spin_couplings_null.view(),
     );
 
-
-    let (omega_magn, c_ij_magn): (Array1<f64>, Array3<f64>) = tda_magn(
+    let (omega_magn, c_ij_magn, XmY_magn, XpY_magn): (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
         gamma.view(),
         gamma_lr.view(),
         q_trans_ov.view(),
@@ -3260,10 +3258,10 @@ fn benzene_tda() {
         q_trans_vv.view(),
         omega_0.view(),
         df.view(),
-        mol.multiplicity,
-        n_occ,
-        n_virt,
-        Some(spin_coupling),
+         mol.multiplicity,
+         n_occ,
+         n_virt,
+        spin_couplings.view(),
     );
 
     // let (omega, c_ij, XmY, XpY) =
@@ -3273,7 +3271,9 @@ fn benzene_tda() {
     //     get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, true, None);
 
     println!("omega: {}", &omega);
+    println!("c_ij: {}", &c_ij);
     println!("omega_magn: {}", &omega_magn);
+    println!("c_ij_magn: {}", &c_ij_magn);
 
     assert_eq!(1, 2);
 }
