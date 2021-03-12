@@ -23,6 +23,7 @@ mod solver;
 mod step;
 mod transition_charges;
 mod zbrent;
+mod test;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
@@ -117,9 +118,10 @@ fn main() {
                 Some(config.mol.multiplicity),
                 None,
                 None,
+                config,
             );
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-                scc_routine::run_scc(&mol, Some(config.scf.scf_max_cycles), None, None);
+                scc_routine::run_scc(&mol);
             0
         }
         "opt" => {

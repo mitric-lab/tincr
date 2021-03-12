@@ -14,6 +14,8 @@ use peroxide::prelude::*;
 use std::cmp::Ordering;
 use std::ops::AddAssign;
 use std::time::Instant;
+use crate::io::GeneralConfig;
+use crate::test::get_water_molecule;
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -1570,8 +1572,9 @@ fn excited_energies_tda_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config);
 
     let S: Array2<f64> = array![
         [
@@ -1729,6 +1732,7 @@ fn excited_energies_casida_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
@@ -1736,6 +1740,7 @@ fn excited_energies_casida_routine() {
         multiplicity,
         Some(0.0),
         None,
+        config,
     );
 
     let S: Array2<f64> = array![
@@ -1991,6 +1996,7 @@ fn excited_energies_hermitian_davidson_routine() {
     positions = positions / 0.529177249;
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
@@ -1998,6 +2004,7 @@ fn excited_energies_hermitian_davidson_routine() {
         multiplicity,
         Some(0.0),
         None,
+        config,
     );
 
     let S: Array2<f64> = array![
@@ -2199,18 +2206,7 @@ fn excited_energies_hermitian_davidson_routine() {
 
 #[test]
 fn excited_energies_non_hermitian_davidson_routine() {
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None);
+    let mut mol: Molecule = get_water_molecule();
 
     let S: Array2<f64> = array![
         [
@@ -2504,26 +2500,7 @@ fn tda_routine() {
     ];
 
     // test W correction
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    // let multiplicity: Option<u8> = Some(1);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(
-        atomic_numbers.clone(),
-        positions,
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
+    let mol: Molecule = get_water_molecule();
 
     let spin_couplings: ArrayView1<f64> = mol.calculator.spin_couplings.view();
     let spin_couplings_null: ArrayView1<f64> = Array::zeros(mol.calculator.spin_couplings.raw_dim()).view();
@@ -3153,18 +3130,18 @@ fn benzene_excitations() {
     // Define benzene
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
-        [1.2194, -0.1652, 2.1600],
-        [0.6825, -0.0924, 1.2087],
-        [-0.7075, -0.0352, 1.1973],
-        [-1.2644, -0.0630, 2.1393],
-        [-1.3898, 0.0572, -0.0114],
-        [-2.4836, 0.1021, -0.0204],
-        [-0.6824, 0.0925, -1.2088],
-        [-1.2194, 0.1652, -2.1599],
-        [0.7075, 0.0352, -1.1973],
-        [1.2641, 0.0628, -2.1395],
-        [1.3899, -0.0572, 0.0114],
-        [2.4836, -0.1022, 0.0205]
+    [  1.2194,     -0.1652,      2.1600 ],
+    [  0.6825,     -0.0924,      1.2087 ],
+    [ -0.7075,     -0.0352,      1.1973 ],
+    [ -1.2644,     -0.0630,      2.1393 ],
+    [ -1.3898,      0.0572,     -0.0114 ],
+    [ -2.4836,      0.1021,     -0.0204 ],
+    [ -0.6824,      0.0925,     -1.2088 ],
+    [ -1.2194,      0.1652,     -2.1599 ],
+    [  0.7075,      0.0352,     -1.1973 ],
+    [  1.2641,      0.0628,     -2.1395 ],
+    [  1.3899,     -0.0572,      0.0114 ],
+    [  2.4836,     -0.1022,      0.0205 ]
     ];
 
     // transform coordinates in au
@@ -3172,6 +3149,7 @@ fn benzene_excitations() {
     let charge: Option<i8> = Some(0);
     // let multiplicity: Option<u8> = Some(1);
     let multiplicity: Option<u8> = Some(3);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule = Molecule::new(
         atomic_numbers.clone(),
         positions,
@@ -3179,10 +3157,11 @@ fn benzene_excitations() {
         multiplicity,
         None,
         Some((2, 2)),
+        config,
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        run_scc(&mol, None, None, None);
+        run_scc(&mol);
 
     mol.calculator.set_active_orbitals(f.clone());
 
@@ -3282,7 +3261,6 @@ fn benzene_excitations() {
          n_virt,
         spin_couplings.view(),
     );
-
 
     // let (omega, c_ij, XmY, XpY) =
     //     get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, None);

@@ -5,6 +5,7 @@ use ndarray::prelude::*;
 use ndarray::{array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
+use crate::test::get_water_molecule;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -382,25 +383,7 @@ fn test_gamma_gaussian() {
 #[test]
 fn gamma_ao_matrix() {
     // test gamma matrix with and without long range correction
-    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
-    let mut positions: Array2<f64> = array![
-        [0.34215, 1.17577, 0.00000],
-        [1.31215, 1.17577, 0.00000],
-        [0.01882, 1.65996, 0.77583]
-    ];
-
-    // transform coordinates in au
-    positions = positions / 0.529177249;
-    let charge: Option<i8> = Some(0);
-    let multiplicity: Option<u8> = Some(1);
-    let mol: Molecule = Molecule::new(
-        atomic_numbers.clone(),
-        positions,
-        charge,
-        multiplicity,
-        None,
-        None,
-    );
+    let mol: Molecule = get_water_molecule();
     // get gamma matrix without LRC
     let hubbard_u: HashMap<u8, f64>;
     let mut sigma: HashMap<u8, f64> = HashMap::new();
@@ -410,6 +393,7 @@ fn gamma_ao_matrix() {
     let r_lr: f64 = 0.0;
     let mut gf = GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let (gm, gm_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
         gf,
         &atomic_numbers,
@@ -434,6 +418,7 @@ fn gamma_ao_matrix() {
     let r_lr: f64 = 3.03;
     let mut gf = GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
     let (gm_lrc, gm_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
         gf,
         &atomic_numbers,

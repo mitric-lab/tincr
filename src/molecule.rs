@@ -20,6 +20,7 @@ use std::hash::Hash;
 use std::ops::{Deref, Neg};
 use log::{debug, error, info, trace, warn};
 use crate::defaults::LONG_RANGE_RADIUS;
+use crate::io::GeneralConfig;
 
 
 #[derive(Clone)]
@@ -38,6 +39,7 @@ pub struct Molecule {
     pub full_graph: StableUnGraph<u8, f64>,
     pub full_graph_indices: Vec<NodeIndex>,
     pub sub_graphs: Vec<StableUnGraph<u8, f64>>,
+    pub config: GeneralConfig,
 }
 
 impl Molecule {
@@ -48,6 +50,7 @@ impl Molecule {
         multiplicity: Option<u8>,
         r_lr: Option<f64>,
         active_orbitals: Option<(usize, usize)>,
+        config: GeneralConfig,
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
@@ -97,6 +100,7 @@ impl Molecule {
             full_graph: graph,
             full_graph_indices: graph_indexes,
             sub_graphs: subgraphs,
+            config: config,
         };
 
         return mol;

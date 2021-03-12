@@ -24,7 +24,7 @@ pub fn run_unrestricted_scc(
     temperature: Option<f64>,
 ) -> f64 {
     let max_iter: usize = max_iter.unwrap_or(defaults::MAX_ITER);
-    let scf_conv: f64 = scf_conv.unwrap_or(defaults::SCF_CONV);
+    let scf_conv: f64 = 0.0;
     let temperature: f64 = temperature.unwrap_or(defaults::TEMPERATURE);
 
     // construct reference density matrix
