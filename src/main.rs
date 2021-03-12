@@ -84,12 +84,12 @@ fn main() {
     }
 
     let log_level: LevelFilter = match config.verbose {
-        -2 => LevelFilter::Trace,
-        -1 => LevelFilter::Debug,
+         2 => LevelFilter::Trace,
+         1 => LevelFilter::Debug,
          0 => LevelFilter::Info,
-         1 => LevelFilter::Warn,
-         2 => LevelFilter::Error,
-         _ => LevelFilter::Debug,
+        -1 => LevelFilter::Warn,
+        -2 => LevelFilter::Error,
+         _ => LevelFilter::Info,
     };
 
     Builder::new()
