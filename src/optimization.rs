@@ -1159,7 +1159,7 @@ fn test_optimization() {
     assert!(1 == 2);
 }
 
-#[test]
+//#[test]
 fn try_bfgs_update() {
     let invHk: Array2<f64> = Array::eye(9);
     let sk: Array1<f64> = array![
@@ -1296,7 +1296,7 @@ fn try_bfgs_update() {
     assert!(test.abs_diff_eq(&result, 1e-14));
 }
 
-#[test]
+//#[test]
 fn line_search_routine() {
     let xk: Array1<f64> = array![
         0.5842289299151177,
@@ -1545,7 +1545,7 @@ fn test_optimization_geomeTRIC_step() {
     assert!(1 == 2);
 }
 
-#[test]
+//#[test]
 fn test_opt_benzene() {
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
