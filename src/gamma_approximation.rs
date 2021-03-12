@@ -331,26 +331,6 @@ pub fn gamma_gradients_ao_wise(
     return (g1, g1_a0);
 }
 
-pub fn m_atomwise(
-    atomic_numbers: &[u8],
-    n_atoms: usize,
-    spin_couplings: ArrayView1<f64>,
-) -> (Array4<f64>) {
-    let mut m: Array4<f64> = Array4::zeros((n_atoms, n_atoms, 2, 2));
-    for alpha in 0..n_atoms {
-        for beta in 0..n_atoms {
-            for sigma in 0..2 {
-                for tau in 0..2 {
-                    m[[alpha, beta, sigma, tau]] += (((alpha == beta) as i32) as f64)
-                        * (2.0 * (((sigma == tau) as i32) as f64) - 1.0)
-                        * &spin_couplings[alpha];
-                }
-            }
-        }
-    }
-    return m;
-}
-
 /// Test of Gaussian decay function on a water molecule. The xyz geometry of the
 /// water molecule is
 /// ```no_run
