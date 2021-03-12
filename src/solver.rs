@@ -2698,6 +2698,7 @@ fn casida_routine() {
     let charge: Option<i8> = Some(0);
     // let multiplicity: Option<u8> = Some(1);
     let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
     let mol: Molecule = Molecule::new(
         atomic_numbers.clone(),
         positions,
@@ -2705,6 +2706,7 @@ fn casida_routine() {
         multiplicity,
         None,
         None,
+        config,
     );
 
     // Only for testing purposes
