@@ -107,7 +107,7 @@ fn connectivity_routine() {
     );
     println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
 
-    assert!(1 == 2);
+    // assert!(1 == 2);
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn connectivity_dimer_routine() {
         Dot::with_config(&subgraphs[1], &[Config::EdgeNoLabel])
     );
 
-    assert!(1 == 2);
+    // assert!(1 == 2);
 }
 
 #[test]
@@ -232,5 +232,5 @@ fn connectivity_benzene_dimer_routine() {
     println!("tree");
     println!("{:?}", Dot::with_config(&tree, &[Config::EdgeNoLabel]));
 
-    assert!(1 == 2);
+    // assert!(1 == 2);
 }

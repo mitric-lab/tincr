@@ -2891,7 +2891,7 @@ pub fn test_build_gmatrix() {
 
     println!("q_internal: {:?}", q_internal);
 
-    assert!(1 == 2);
+    // assert!(1 == 2);
 }
 
 #[test]
@@ -2973,7 +2973,7 @@ pub fn test_internal_coordinate_gradient() {
         .mapv(|val| val.abs())
         .abs_diff_eq(&gradient_ref.mapv(|val| val.abs()), 1e-7));
 
-    assert!(1 == 2);
+    // assert!(1 == 2);
 }
 
 #[test]
@@ -3005,7 +3005,7 @@ pub fn test_svd() {
     let inv: Array2<f64> = v.dot(&s_diag.dot(&ut));
 
     println!("inv matrix {}", inv);
-    assert!(1 == 2);
+    // assert!(1 == 2);
 }
 
 #[test]
@@ -3108,5 +3108,5 @@ pub fn test_initial_hessian() {
         create_initial_hessian(coordinates_1d.clone(), &mol, &internal_coordinates, q_mat);
     //println!("hessian {:?}", hessian_guess);
 
-    assert!(1 == 2);
+    // assert!(1 == 2);
 }

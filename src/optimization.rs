@@ -1598,7 +1598,7 @@ fn test_opt_benzene() {
     assert!(1 == 2);
 }
 
-//#[test]
+#[test]
 fn test_opt_cyclohexene() {
     let atomic_numbers: Vec<u8> = vec![6, 6, 6, 1, 6, 1, 6, 1, 6, 1, 1, 1];
     let mut positions: Array2<f64> = array![
