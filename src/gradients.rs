@@ -20,6 +20,8 @@ use std::collections::HashMap;
 use std::ops::AddAssign;
 use crate::test::get_water_molecule;
 use crate::io::GeneralConfig;
+use std::time::Instant;
+use log::{debug, error, info, log_enabled, trace, warn, Level};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -210,7 +212,7 @@ pub fn get_gradients(
             }
         }
     } else {
-        println!("Full active space");
+        //println!("Full active space");
         // no active space, use full range of orbitals
 
         let orbe_occ: Array1<f64> = full_occ.iter().map(|&full_occ| orbe[full_occ]).collect();
@@ -655,17 +657,19 @@ pub fn gradients_nolc_ex(
     let r_ia: Array2<f64> = &q_ai.t() - &q_ia;
     // solve z-vector equation
     // build omega
-    //let omega_input: Array2<f64> =
+    // let omega_input: Array2<f64> =
     //    get_outer_product(&Array::ones(orbe_occ.len()).view(), &orbe_virt.view())
     //        - get_outer_product(&orbe_occ.view(), &Array::ones(orbe_virt.len()).view());
-    let omega_input: Array2<f64> = einsum("i,j->ij", &[&Array::ones(orbe_occ.len()), &orbe_virt])
-        .unwrap()
-        .into_dimensionality::<Ix2>()
-        .unwrap()
-        - einsum("i,j->ij", &[&orbe_occ, &Array::ones(orbe_virt.len())])
-            .unwrap()
-            .into_dimensionality::<Ix2>()
-            .unwrap();
+    // let omega_input: Array2<f64> = einsum("i,j->ij", &[&Array::ones(orbe_occ.len()), &orbe_virt])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap()
+    //     - einsum("i,j->ij", &[&orbe_occ, &Array::ones(orbe_virt.len())])
+    //         .unwrap()
+    //         .into_dimensionality::<Ix2>()
+    //         .unwrap();
+    let omega_input: Array2<f64> = into_col(Array::ones(orbe_occ.len())).dot(&into_row(orbe_virt.clone())) -
+        into_col(orbe_occ.clone()).dot(&into_row(Array::ones(orbe_virt.len())));
     let b_matrix_input: Array3<f64> = r_ia.clone().into_shape((n_occ, n_virt, 1)).unwrap();
     let z_ia: Array3<f64> = krylov_solver_zvector(
         omega_input.view(),
@@ -1027,14 +1031,16 @@ pub fn gradients_lc_ex(
     //let omega_input: Array2<f64> =
     //    get_outer_product(&Array::ones(orbe_occ.len()).view(), &orbe_virt.view())
     //        - get_outer_product(&orbe_occ.view(), &Array::ones(orbe_virt.len()).view());
-    let omega_input: Array2<f64> = einsum("i,j->ij", &[&Array::ones(orbe_occ.len()), &orbe_virt])
-        .unwrap()
-        .into_dimensionality::<Ix2>()
-        .unwrap()
-        - einsum("i,j->ij", &[&orbe_occ, &Array::ones(orbe_virt.len())])
-            .unwrap()
-            .into_dimensionality::<Ix2>()
-            .unwrap();
+    // let omega_input: Array2<f64> = einsum("i,j->ij", &[&Array::ones(orbe_occ.len()), &orbe_virt])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap()
+    //     - einsum("i,j->ij", &[&orbe_occ, &Array::ones(orbe_virt.len())])
+    //         .unwrap()
+    //         .into_dimensionality::<Ix2>()
+    //         .unwrap();
+    let omega_input: Array2<f64> = into_col(Array::ones(orbe_occ.len())).dot(&into_row(orbe_virt.clone())) -
+        into_col(orbe_occ.clone()).dot(&into_row(Array::ones(orbe_virt.len())));
     let b_matrix_input: Array3<f64> = r_ia.clone().into_shape((n_occ, n_virt, 1)).unwrap();
     let z_ia: Array3<f64> = krylov_solver_zvector(
         omega_input.view(),
@@ -1278,41 +1284,46 @@ fn f_lr(
     let mut tmp10: Array3<f64> = Array::zeros((3 * n_atoms, n_orb, n_orb));
     let mut tmp11: Array3<f64> = Array::zeros((3 * n_atoms, n_orb, n_orb));
 
-    //for nc in 0..(3*n_atoms){
-    //    dgv.slice_mut(s![nc,..,..]).assign(&(g1_lr_ao.slice(s![nc,..,..]).to_owned()*&v));
-    //    flr.slice_mut(s![nc,..,..]).add_assign(&(&g0_lr_a0*&tmp1.slice(s![nc,..,..])));
-    //    tmp2.slice_mut(s![nc,..,..]).assign(&(&dsv24.slice(s![nc,..,..])*&g0_lr_a0));
-    //    tmp7.slice_mut(s![nc,..,..]).assign(&(&dsv23.slice(s![nc,..,..])*&g0_lr_a0));
-    //    tmp10.slice_mut(s![nc,..,..]).assign(&(&svt*&g1_lr_ao.slice(s![nc,..,..])));
-    //    tmp11.slice_mut(s![nc,..,..]).assign(&(&sv*&g1_lr_ao.slice(s![nc,..,..])));
-    //}
+    //let now = Instant::now();
+    for nc in 0..(3*n_atoms){
+       dgv.slice_mut(s![nc,..,..]).assign(&(g1_lr_ao.slice(s![nc,..,..]).to_owned()*&v));
+       flr.slice_mut(s![nc,..,..]).add_assign(&(&g0_lr_a0*&tmp1.slice(s![nc,..,..])));
+       tmp2.slice_mut(s![nc,..,..]).assign(&(&dsv24.slice(s![nc,..,..])*&g0_lr_a0));
+       tmp7.slice_mut(s![nc,..,..]).assign(&(&dsv23.slice(s![nc,..,..])*&g0_lr_a0));
+       tmp10.slice_mut(s![nc,..,..]).assign(&(&svt*&g1_lr_ao.slice(s![nc,..,..])));
+       tmp11.slice_mut(s![nc,..,..]).assign(&(&sv*&g1_lr_ao.slice(s![nc,..,..])));
+    }
+    //println!("Loop test. Time elapsed in micro sec: {}", now.elapsed().as_micros());
 
-    // replace loop with einsums
-    dgv = einsum("ijk,jk->ijk", &[&g1_lr_ao, &v])
-        .unwrap()
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    flr = flr
-        + einsum("jk,ijk->ijk", &[&g0_lr_a0, &tmp1])
-            .unwrap()
-            .into_dimensionality::<Ix3>()
-            .unwrap();
-    tmp2 = einsum("ijk,jk->ijk", &[&dsv24, &g0_lr_a0])
-        .unwrap()
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    tmp7 = einsum("ijk,jk->ijk", &[&dsv23, &g0_lr_a0])
-        .unwrap()
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    tmp10 = einsum("jk,ijk->ijk", &[&svt, &g1_lr_ao])
-        .unwrap()
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    tmp11 = einsum("jk,ijk->ijk", &[&sv, &g1_lr_ao])
-        .unwrap()
-        .into_dimensionality::<Ix3>()
-        .unwrap();
+    // let now = Instant::now();
+    // // replace loop with einsums
+    // dgv = einsum("ijk,jk->ijk", &[&g1_lr_ao, &v])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    // flr = flr
+    //     + einsum("jk,ijk->ijk", &[&g0_lr_a0, &tmp1])
+    //         .unwrap()
+    //         .into_dimensionality::<Ix3>()
+    //         .unwrap();
+    // tmp2 = einsum("ijk,jk->ijk", &[&dsv24, &g0_lr_a0])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    // tmp7 = einsum("ijk,jk->ijk", &[&dsv23, &g0_lr_a0])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    // tmp10 = einsum("jk,ijk->ijk", &[&svt, &g1_lr_ao])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    // tmp11 = einsum("jk,ijk->ijk", &[&sv, &g1_lr_ao])
+    //     .unwrap()
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    //
+    // println!("Einsum test. Time elapsed in micro sec: {}", now.elapsed().as_micros());
 
     flr = flr
         + tensordot(&tmp2, &s, &[Axis(2)], &[Axis(1)])

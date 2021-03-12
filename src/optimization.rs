@@ -19,11 +19,26 @@ use std::ops::Deref;
 use crate::io::GeneralConfig;
 use crate::test::{get_water_molecule, get_ethene_molecule};
 use std::time::Instant;
+use log::{debug, error, info, log_enabled, trace, warn, Level};
+use crate::constants::{BOHR_TO_ANGS, ATOM_NAMES};
 
 // Optimization using internal coordinates
 // from geomeTRIC
 
 pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64>) {
+    info!("{:^80}", "");
+    info!("{: ^80}", "Geometry optimization");
+    info!("{:-^80}", "");
+    info!("{: ^0}", "Convergence criteria");
+    info!("{:-^80}", "");
+    info!("{: <35} {}", "Max iter:", 500);
+    info!("{: <35} {}", "Energy tolerance:", 1.0e-6);
+    info!("{: <35} {}", "Gradient rms tolerance:", 2.0e-4);
+    info!("{: <35} {}", "Max gradient tolerance:", 4.0e-4);
+    info!("{: <35} {}", "Displacement rms tolerance:", 5.0e-4);
+    info!("{: <35} {}", "Max displacement tolerance:", 1.0e-3);
+    info!("{:-^80}", "");
+
     let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
     let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
 
@@ -59,7 +74,9 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
     let mut dlc_mat: Array2<f64> = dlc_mat;
 
     while true {
-        let mut energy_prev: f64 = energy;
+        info!("{:-^70}", "");
+        info!("{: ^0} {:^15}", "Geometry iteration:", iteration);
+        info!("{:-^70}", "");
         let (
             new_cart_coords,
             old_cart_coords,
@@ -155,7 +172,6 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
                 break;
             }
         }
-        println!("Number of iterations : {}", iteration);
         iteration += 1;
     }
 
@@ -191,13 +207,16 @@ pub fn evaluate_step(
     bool,
     bool,
 ) {
+    debug!("{:-^70}", "");
+    debug!("{: ^0} ", "Evaluate step ");
+    debug!("{:-^70}", "");
     let (rms_gradient, max_gradient): (f64, f64) =
         calculate_internal_gradient_norm(new_cart_gradient.clone());
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(cart_coords.clone(), old_cart_coords.clone());
     // The ratio of the actual energy change to the expected change
     let quality: f64 = (energy - energy_prev) / expect;
-    println!("Quality of the step {}", quality);
-    println!("Expect {}", expect);
+    //println!("Quality of the step {}", quality);
+    //println!("Expect {}", expect);
     let mut step_state: usize = 0;
     let mut converged: bool = false;
     let mut opt_failed: bool = false;
@@ -220,16 +239,23 @@ pub fn evaluate_step(
             step_state = 0;
         }
     }
-    println!(
-        "Step state = {}. The value 0 is the worst result, 3 the best. ",
-        step_state
-    );
+    info!("{: <35} {:>15.8}", "Step state:", step_state);
+    info!("{: <35} {:>15.8}", "Energy tolerance:", quality);
+    info!("{: <35} {:>15.8}", "Gradient rms tolerance:", rms_gradient);
+    info!("{: <35} {:>15.8}", "Max gradient tolerance:", max_gradient);
+    info!("{: <35} {:>15.8}", "Displacement rms tolerance:", rmsd);
+    info!("{: <35} {:>15.8}", "Max displacement tolerance:", maxd);
+    info!("{:-^70}", "");
+    // println!(
+    //     "Step state = {}. The value 0 is the worst result, 3 the best. ",
+    //     step_state
+    // );
     // check convergence criteria
-    let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-5;
-    let converged_grms: bool = rms_gradient < 2.0e-3;
-    let converged_gmax: bool = max_gradient < 4.0e-3;
-    let converged_drms: bool = rmsd < 5.0e-3;
-    let converged_dmax: bool = maxd < 1.0e-2;
+    let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-6;
+    let converged_grms: bool = rms_gradient < 2.0e-4;
+    let converged_gmax: bool = max_gradient < 4.0e-4;
+    let converged_drms: bool = rmsd < 5.0e-4;
+    let converged_dmax: bool = maxd < 1.0e-3;
 
     // Check convergence criteria
     if converged_energy && converged_grms && converged_drms && converged_gmax && converged_dmax {
@@ -415,6 +441,9 @@ pub fn step(
     f64,
     f64,
 ) {
+    debug!("{:-^70}", "");
+    debug!("{: ^0} ", "Optimization step ");
+    debug!("{:-^70}", "");
     // variables in case the step fails
     let mut new_internal_coords: Option<InternalCoordinates> = None;
     let mut step_failed: bool = false;
@@ -451,19 +480,24 @@ pub fn step(
     let mut sol: f64 = tmp_0.1;
 
     let dy_prime: f64 = tmp_0.2;
+
     // Internal coordinate step size
     let i_norm: f64 = dy.clone().to_vec().norm();
-    println!("inorm {}", i_norm);
+    debug!("{:<25} {:0.12}", "Internal norm:", i_norm);
+    //println!("inorm {}", i_norm);
+
     // Cartesian coordinate step size
-    println!("Before get cartesian norm");
     let tmp: (f64, bool) =
         get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
     let mut c_norm: f64 = tmp.0;
     let mut bork: bool = tmp.1;
-    println!("cnorm {}", c_norm);
+    //println!("cnorm {}", c_norm);
+    debug!("{:<25} {:0.12}", "Cartesian norm:", c_norm);
 
     // If the step is above the trust radius in Cartesian coordinates, then
     // do the following to reduce the step length:
+
+    debug!("{:-^70}", "");
     if c_norm > 0.11 {
         // This is the function f(inorm) = cnorm-target that we find a root
         // for obtaining a step with the desired Cartesian step size.
@@ -484,10 +518,13 @@ pub fn step(
         let brent_failed: bool = tmp.1;
         let mut stored_arg: Option<f64> = None;
         bork = tmp.3;
-        println!("Bork {}", bork);
+        //println!("Bork {}", bork);
         if tmp.2.is_some() {
             stored_arg = tmp.2;
         }
+
+        debug!("{:<35} {}", "Brent failed:", brent_failed);
+        debug!("{:<35} {}", "Cartesian transform failed:", bork);
         // If Brent fails but we obtained an IC step that is smaller than the Cartesian trust radius, use it
         if brent_failed == true && stored_arg.is_some() {
             iopt = stored_arg.unwrap();
@@ -535,8 +572,12 @@ pub fn step(
         let tmp: (f64, bool) =
             get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
         c_norm = tmp.0;
+
+        debug!("{:<35} {:0.12}", "New cartesian norm:", c_norm);
+        debug!("{:-^70}", "");
     }
     // DONE OBTAINING THE STEP
+
     // Before updating any of our variables, copy current variables to "previous"
     let internal_coords_prev: Array1<f64> = internal_coord_vec.clone();
     let x_old: Array1<f64> = cart_coords.clone();
@@ -558,7 +599,17 @@ pub fn step(
     let internal_coords_new: Array1<f64> = internal_coord_vec + &real_dy;
 
     let new_cart_coord_3d: Array2<f64> = x_new.clone().into_shape((x_new.dim() / 3, 3)).unwrap();
-    println!("new coordinates of the molecule {}", new_cart_coord_3d);
+    //println!("new coordinates of the molecule {}", new_cart_coord_3d);
+
+    debug!("{:-^70}", "");
+    debug!("{: ^0} ", "New cartesian coordinates in [A]");
+    debug!("{:-^70}", "");
+    if log_enabled!(Level::Info) {
+        for (idx, (coord, at)) in new_cart_coord_3d.outer_iter().zip(mol.atomic_numbers.iter()).enumerate(){
+            debug!("{:<5} {:>15.10} {:>15.10} {:>15.10}", ATOM_NAMES[*at as usize], coord[0]*BOHR_TO_ANGS, coord[1]*BOHR_TO_ANGS,coord[2]*BOHR_TO_ANGS)
+        }
+    }
+    debug!("{:-^70}", "");
 
     let expect_part_1: f64 = 0.5 * real_dy.clone().dot(&hessian.dot(&real_dy));
     let expect: f64 = expect_part_1 + real_dy.clone().dot(internal_coord_grad);
@@ -671,10 +722,10 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
         scc_routine::run_scc(&mol);
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
-    println!("Enegies and gradient");
-    println!("Energy: {}", &energy);
-    println!("Gradient E0 {}", &grad_e0);
-    println!("Grad vrep {}", grad_vrep);
+    // println!("Enegies and gradient");
+    // println!("Energy: {}", &energy);
+    // println!("Gradient E0 {}", &grad_e0);
+    // println!("Grad vrep {}", grad_vrep);
     return (energy, grad_e0 + grad_vrep);
 }
 
@@ -1159,7 +1210,7 @@ fn test_optimization() {
     assert!(1 == 2);
 }
 
-#[test]
+//#[test]
 fn try_bfgs_update() {
     let invHk: Array2<f64> = Array::eye(9);
     let sk: Array1<f64> = array![
@@ -1296,7 +1347,7 @@ fn try_bfgs_update() {
     assert!(test.abs_diff_eq(&result, 1e-14));
 }
 
-#[test]
+//#[test]
 fn line_search_routine() {
     let xk: Array1<f64> = array![
         0.5842289299151177,
@@ -1545,7 +1596,7 @@ fn test_optimization_geomeTRIC_step() {
     assert!(1 == 2);
 }
 
-#[test]
+//#[test]
 fn test_opt_benzene() {
     let atomic_numbers: Vec<u8> = vec![1, 6, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1];
     let mut positions: Array2<f64> = array![
@@ -1598,7 +1649,7 @@ fn test_opt_benzene() {
     assert!(1 == 2);
 }
 
-//#[test]
+#[test]
 fn test_opt_cyclohexene() {
     let atomic_numbers: Vec<u8> = vec![6, 6, 6, 1, 6, 1, 6, 1, 6, 1, 1, 1];
     let mut positions: Array2<f64> = array![
