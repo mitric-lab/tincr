@@ -567,6 +567,7 @@ pub fn step(
             new_dlc_mat =
                 Some(build_delocalized_internal_coordinates(cart_coords.clone(), &new_internal_coords.clone().unwrap()));
             // skip energy and evaluation step
+            info!("{:<}","Brent failed. Rebuilding primitives and dlc matrix");
             step_failed = true;
         }
         let tmp_new: (Array1<f64>, f64) = trust_step(
@@ -583,8 +584,8 @@ pub fn step(
             get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
         c_norm = tmp.0;
 
-        debug!("{:<35} {:0.12}", "New cartesian norm:", c_norm);
-        debug!("{:-^70}", "");
+        info!("{:<35} {:0.12}", "New cartesian norm:", c_norm);
+        info!("{:-^70}", "");
     }
     // DONE OBTAINING THE STEP
 
