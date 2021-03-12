@@ -47,6 +47,7 @@ use toml;
 use std::io::Write;
 use env_logger::Builder;
 use log::LevelFilter;
+use crate::optimization::optimize_geometry_ic;
 use ron::error::ErrorCode::TrailingCharacters;
 
 fn main() {
@@ -128,6 +129,29 @@ fn main() {
             0
         }
         "opt" => {
+            let mut mol: Molecule = Molecule::new(
+                atomic_numbers,
+                positions,
+                Some(config.mol.charge),
+                Some(config.mol.multiplicity),
+                None,
+                None,
+                config,
+            );
+
+            let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+                scc_routine::run_scc(&mol);
+            mol.calculator.set_active_orbitals(f.to_vec());
+
+            let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol);
+            let new_energy: f64 = tmp.0;
+            let new_gradient: Array1<f64> = tmp.1;
+            let new_coords: Array1<f64> = tmp.2;
+
+            let coords_3d: Array2<f64> = new_coords
+                .clone()
+                .into_shape((new_coords.len() / 3, 3))
+                .unwrap();
             0
         }
         _ => {

@@ -21,6 +21,7 @@ use std::ops::AddAssign;
 use crate::test::get_water_molecule;
 use crate::io::GeneralConfig;
 use std::time::Instant;
+use log::{debug, error, info, log_enabled, trace, warn, Level};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -211,7 +212,7 @@ pub fn get_gradients(
             }
         }
     } else {
-        println!("Full active space");
+        //println!("Full active space");
         // no active space, use full range of orbitals
 
         let orbe_occ: Array1<f64> = full_occ.iter().map(|&full_occ| orbe[full_occ]).collect();

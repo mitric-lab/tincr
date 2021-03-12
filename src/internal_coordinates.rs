@@ -138,14 +138,14 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 if a.index() < c.index() {
                     let angl: Angle = Angle::new(a.index(), b.index(), c.index());
                     // nnc part doesnt work
-                    println!("Angle for indices");
-                    print!("Index 1: {:?}", a);
-                    print!("  Index 2: {:?}", b);
-                    println!("  Index 3: {:?}", c);
-                    println!(
-                        "value of angle: {:?}",
-                        angl.clone().value(&coordinate_vector)
-                    );
+                    // println!("Angle for indices");
+                    // print!("Index 1: {:?}", a);
+                    // print!("  Index 2: {:?}", b);
+                    // println!("  Index 3: {:?}", c);
+                    // println!(
+                    //     "value of angle: {:?}",
+                    //     angl.clone().value(&coordinate_vector)
+                    // );
                     if angl.clone().value(&coordinate_vector).cos().abs() < linthre {
                         //let angl_ic = IC::angle(angl);
                         //internal_coords.push(angl_ic);
@@ -160,7 +160,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
         index += index_inner;
         index_inner = 0;
     }
-    println!("Index vec {:?}", index_vec);
+    //println!("Index vec {:?}", index_vec);
     //out of planes
     for b in mol.full_graph.node_indices() {
         for a in mol.full_graph.neighbors(b) {
@@ -176,15 +176,15 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                             let j = index[1];
                             let k = index[2];
 
-                            println!("Indices Angle 1:");
-                            print!("{:?}", b.index());
-                            print!("{:?}", i);
-                            println!("{:?}", j);
-
-                            println!("Indices Angle 2:");
-                            print!("{:?}", i);
-                            print!("{:?}", j);
-                            println!("{:?}", k);
+                            // println!("Indices Angle 1:");
+                            // print!("{:?}", b.index());
+                            // print!("{:?}", i);
+                            // println!("{:?}", j);
+                            //
+                            // println!("Indices Angle 2:");
+                            // print!("{:?}", i);
+                            // print!("{:?}", j);
+                            // println!("{:?}", k);
 
                             let angl1: Angle = Angle::new(b.index(), i, j);
                             let angl2: Angle = Angle::new(i, j, k);
@@ -214,7 +214,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                                 // out of plane bijk
                                 let out_of_pl1: Out_of_plane =
                                     Out_of_plane::new(b.index(), i, j, k);
-                                println!("New out of plane {} {} {} {}", b.index(), i, j, k);
+                                // println!("New out of plane {} {} {} {}", b.index(), i, j, k);
                                 // let out_of_pl_ic = IC::out_of_plane(out_of_pl1);
                                 // internal_coords.push(out_of_pl_ic);
                                 outofplane_vec.push(out_of_pl1);
@@ -329,18 +329,18 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
                 b = c_new;
                 c = b_new;
             }
-            println!("Combinations");
-            print!("{}", b.index());
-            println!("{}", c.index());
+            // println!("Combinations");
+            // print!("{}", b.index());
+            // println!("{}", c.index());
             let index: usize = index_inner;
             for a in mol.full_graph.neighbors(b) {
                 for d in mol.full_graph.neighbors(c) {
                     if aline.contains(&a) == false && aline.contains(&d) == false && a != d {
-                        println!("Indices Dihedral");
-                        print!("{}", a.index());
-                        print!("{}", b.index());
-                        print!("{}", c.index());
-                        println!("{}", d.index());
+                        // println!("Indices Dihedral");
+                        // print!("{}", a.index());
+                        // print!("{}", b.index());
+                        // print!("{}", c.index());
+                        // println!("{}", d.index());
 
                         let angl1: Angle = Angle::new(a.index(), b.index(), c.index());
                         let angl2: Angle = Angle::new(b.index(), c.index(), d.index());
@@ -363,8 +363,8 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
         }
     }
 
-    println!("Indices Dihedrals");
-    println!("{:?}", index_vec);
+    // println!("Indices Dihedrals");
+    // println!("{:?}", index_vec);
 
     let internal_coordinates: InternalCoordinates = InternalCoordinates::new(
         distances_vec,
@@ -1044,7 +1044,6 @@ pub fn cartesian_from_step(
     } else {
         return_val = xyz_save;
     }
-    println!("microiter cartesian from step {}", microiter);
 
     return (return_val, bork);
 }

@@ -17,6 +17,7 @@ use peroxide::prelude::*;
 use rand::Rng;
 use std::ops::Deref;
 use std::ops::Not;
+use log::{debug, error, info, log_enabled, trace, warn, Level};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -58,6 +59,11 @@ pub fn find_root_brent(
     // The denominator used to calculate the fractional error (in our case, the trust radius)
     // conv : float
     // The convergence threshold for the relative error
+
+    debug!("{:-^70}", "");
+    debug!("{: ^0} ", "Brent algorithm");
+    debug!("{:-^70}", "");
+
     let tmp_1: (f64, usize, Option<f64>, Option<f64>, bool) = evaluate_find_root(
         a,
         v0,
@@ -101,8 +107,8 @@ pub fn find_root_brent(
     let mut f_b_new: f64 = f_b;
 
     if f_a * f_b > 0.0 {
-        println!("F(a) {}", f_a);
-        println!("F(b) {}", f_b);
+        debug!("{: ^0} {:^15}", "F(a)", f_a_new);
+        debug!("{: ^0} {:^15}", "F(b)", f_b_new);
         panic!("Error in find_root_brent: F(a) and F(b) have the same sign");
     }
     if f_a.abs() < f_b.abs() {
@@ -117,7 +123,6 @@ pub fn find_root_brent(
     let mut mflag: bool = true;
     let delta: f64 = 1e-6;
     let epsilon: f64 = 0.01_f64.min(1.0e-2 * (a_new - b_new).abs());
-    println!("Epsilon {}", epsilon);
     let mut d: Option<f64> = None;
     let mut return_value: f64 = 0.0;
     let mut brent_failed: bool = false;
@@ -133,10 +138,14 @@ pub fn find_root_brent(
         } else {
             s = b_new - f_b_new * (b_new - a_new) / (f_b_new - f_a_new);
         }
-        println!(
-            "Find root Brent: A is {} and B is {}. F(a) is {} and F(b) is {}",
-            a_new, b_new, f_a_new, f_b_new
-        );
+        // println!(
+        //     "Find root Brent: A is {} and B is {}. F(a) is {} and F(b) is {}",
+        //     a_new, b_new, f_a_new, f_b_new
+        // );
+
+        debug!("{:<5} {:<20.12} {:<8} {:>15.12}","a", a_new,"F(a)", f_a_new);
+        debug!("{:<5} {:<20.12} {:<8} {:>15.12}","b", b_new, "F(b)", f_b_new);
+
         // evaluate conditions
         let condition_1: bool = between_floats(s, (3.0 * a_new + b_new) / 4.0, b_new).not();
         let condition_2: bool = mflag && ((s - b_new).abs() >= (b_new - c).abs() / 2.0);
@@ -173,18 +182,25 @@ pub fn find_root_brent(
         }
         bork = tmp_1.4;
         let f_s: f64 = tmp_1.0;
-        println!("F(s) {}", f_s);
+
+        debug!("{:<5} {:<20.12} {:<8} {:>15.12}","s", s, "F(s)", f_s);
+        //println!("F(s) {}", f_s);
 
         if (f_s / rel).abs() <= conv {
             return_value = s;
-            println!("Brent converged");
+            debug!("{:-^70}", "");
+            debug!("{: ^0}","Brent converged");
+            debug!("{:-^70}", "");
+            //println!("Brent converged");
             break;
         }
 
         if (b_new - a_new).abs() < epsilon {
             return_value = s;
             brent_failed = true;
-            println!("Brent failed");
+            debug!("{:-^70}", "");
+            debug!("{: ^0}","Brent failed");
+            debug!("{:-^70}", "");
             break;
         }
         d = Some(c);
@@ -246,7 +262,7 @@ pub fn evaluate_find_root(
     counter: Option<usize>,
     stored_val: Option<f64>,
 ) -> (f64, usize, Option<f64>, Option<f64>, bool) {
-    println!("Trial in evaluate find root: {}", trial);
+    //println!("Trial in evaluate find root: {}", trial);
     let target: f64 = 0.1;
     let mut return_value: f64 = 0.0;
     let mut cnorm: f64 = 0.0;
@@ -256,10 +272,10 @@ pub fn evaluate_find_root(
     let mut bork: bool = false;
 
     if trial == 0.0 {
-        println!("return -1.0 * trust");
+        //println!("return -1.0 * trust");
         return_value = -1.0 * trust;
     } else {
-        println!("Calc trust step in evaluate find root");
+        //println!("Calc trust step in evaluate find root");
         let (dy, sol): (Array1<f64>, f64) = trust_step(
             trial,
             v0,
@@ -271,12 +287,12 @@ pub fn evaluate_find_root(
         let tmp: (f64, bool) =
             get_cartesian_norm(&cart_coords, dy.clone(), internal_coords, dlc_mat);
         cnorm = tmp.0;
-        println!("cnorm from evaluate find root {}", cnorm);
+        //println!("cnorm from evaluate find root {}", cnorm);
         bork = tmp.1;
         counter += 1;
     }
     if cnorm - target < 0.0 {
-        println!("Cnorm is smaller than 0.1");
+        //println!("Cnorm is smaller than 0.1");
         if stored_val.is_none() || cnorm > stored_val.unwrap() {
             stored_val = Some(cnorm);
             stored_arg = Some(trial);
@@ -339,7 +355,7 @@ pub fn trust_step(
         dy_prime = tmp_dp_2.2;
 
         ndy = dy.clone().to_vec().norm();
-        println!("Ndy in trust step {}", ndy);
+        //println!("Ndy in trust step {}", ndy);
 
         if ((ndy - target) / target).abs() < 0.001 {
             return_dy = dy.clone();
@@ -411,11 +427,9 @@ pub fn get_cartesian_norm(
     dlc_mat: &Array2<f64>,
 ) -> (f64, bool) {
     // Get the norm of the optimization step in Cartesian coordinates.
-    println!("Before cartesian from step");
     let tmp: (Array1<f64>, bool) =
         cartesian_from_step(coords.clone(), dy, internal_coordinates, dlc_mat.clone());
     let x_new: Array1<f64> = tmp.0;
-    println!("After cartesian from step");
     //println!("New cartesian coordinates {}",x_new);
     let bork: bool = tmp.1;
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(x_new, coords.clone());
