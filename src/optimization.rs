@@ -210,9 +210,9 @@ pub fn evaluate_step(
     bool,
     bool,
 ) {
-    debug!("{:-^70}", "");
-    debug!("{: ^0} ", "Evaluate step ");
-    debug!("{:-^70}", "");
+    info!("{:-^70}", "");
+    info!("{: ^0} ", "Evaluate step ");
+    info!("{:-^70}", "");
     let (rms_gradient, max_gradient): (f64, f64) =
         calculate_internal_gradient_norm(new_cart_gradient.clone());
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(cart_coords.clone(), old_cart_coords.clone());
