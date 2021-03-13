@@ -210,9 +210,9 @@ pub fn evaluate_step(
     bool,
     bool,
 ) {
-    debug!("{:-^70}", "");
-    debug!("{: ^0} ", "Evaluate step ");
-    debug!("{:-^70}", "");
+    info!("{:-^70}", "");
+    info!("{: ^0} ", "Evaluate step ");
+    info!("{:-^70}", "");
     let (rms_gradient, max_gradient): (f64, f64) =
         calculate_internal_gradient_norm(new_cart_gradient.clone());
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(cart_coords.clone(), old_cart_coords.clone());
@@ -246,7 +246,7 @@ pub fn evaluate_step(
     info!("{:-^70}", "");
     info!("{: <35} {:<15} {:>15}", "Criteria","current values","tolerances");
     info!("{:-^70}", "");
-    info!("{: <35} {:>15.8} {:>15.8}", "Energy tolerance:", quality,1.0e-6);
+    info!("{: <35} {:>15.8} {:>15.8}", "Energy tolerance:", (energy - energy_prev).abs(),1.0e-6);
     info!("{: <35} {:>15.8} {:>15.8}", "Gradient rms tolerance:", rms_gradient,2.0e-4);
     info!("{: <35} {:>15.8} {:>15.8}", "Max gradient tolerance:", max_gradient,4.0e-4);
     info!("{: <35} {:>15.8} {:>15.8}", "Displacement rms tolerance:", rmsd,5.0e-4);
@@ -732,8 +732,18 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol);
+    info!("{:-^70}", "");
+    info!("{: ^0} ", "Calculate gradients ");
+    info!("{:-^70}", "");
+    let grad_timer = Instant::now();
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
     // println!("Enegies and gradient");
     // println!("Energy: {}", &energy);
     // println!("Gradient E0 {}", &grad_e0);

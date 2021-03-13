@@ -56,11 +56,11 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
 
     //  compute A = S^(-1/2)
     // 1. diagonalize S
-    let (w, v): (Array1<f64>, Array2<f64>) = s.eigh(UPLO::Upper).unwrap();
+    //let (w, v): (Array1<f64>, Array2<f64>) = s.eigh(UPLO::Upper).unwrap();
     // 2. compute inverse square root of the eigenvalues
-    let w12: Array2<f64> = Array2::from_diag(&w.map(|x| x.pow(-0.5)));
+    //let w12: Array2<f64> = Array2::from_diag(&w.map(|x| x.pow(-0.5)));
     // 3. and transform back
-    let a: Array2<f64> = v.dot(&w12.dot(&v.t()));
+    //let a: Array2<f64> = v.dot(&w12.dot(&v.t()));
 
     // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
     // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
@@ -196,7 +196,9 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
         scc_timer.elapsed().as_secs_f32()
     );
     drop(scc_timer);
-    print_orbital_information(orbe.view(), &f);
+    if molecule.config.jobtype == "sp"{
+        print_orbital_information(orbe.view(), &f);
+    }
     return (scf_energy + rep_energy, orbs, orbe, s, f);
 }
 
