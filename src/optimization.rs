@@ -246,7 +246,7 @@ pub fn evaluate_step(
     info!("{:-^70}", "");
     info!("{: <35} {:<15} {:>15}", "Criteria","current values","tolerances");
     info!("{:-^70}", "");
-    info!("{: <35} {:>15.8} {:>15.8}", "Energy tolerance:", quality,1.0e-6);
+    info!("{: <35} {:>15.8} {:>15.8}", "Energy tolerance:", (energy - energy_prev).abs(),1.0e-6);
     info!("{: <35} {:>15.8} {:>15.8}", "Gradient rms tolerance:", rms_gradient,2.0e-4);
     info!("{: <35} {:>15.8} {:>15.8}", "Max gradient tolerance:", max_gradient,4.0e-4);
     info!("{: <35} {:>15.8} {:>15.8}", "Displacement rms tolerance:", rmsd,5.0e-4);
