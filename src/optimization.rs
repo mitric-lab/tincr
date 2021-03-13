@@ -77,6 +77,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
         info!("{:-^70}", "");
         info!("{: ^0} {:^15}", "Geometry iteration:", iteration);
         info!("{:-^70}", "");
+        let iteration_timer = Instant::now();
         let (
             new_cart_coords,
             old_cart_coords,
@@ -176,6 +177,12 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
             }
         }
         iteration += 1;
+        info!(
+            "{:>65} {:>8.3} s",
+            "elapsed time for the iteration:",
+            iteration_timer.elapsed().as_secs_f32()
+        );
+        drop(iteration_timer);
     }
 
     return (old_energy, old_gradient, prev_cart_coords);
