@@ -77,8 +77,11 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
     info!("{: <25} {} K", "electronic temperature:", temperature);
     info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
     info!("{:^80}", "");
-    info!("{: <45} ", "SCC Iterations: all energies are in Hartree");
-    info!("{:-^71} ", "");
+    info!("{: <45} ", "SCC Iterations: all quantities are in atomic units");
+    info!("{:-^62} ", "");
+    info!("{: <5} {: >18} {: >18} {: >18}", "Iter.", "SCC Energy", "Energy diff.", "dq diff.");
+    info!("{:-^62} ", "");
+
     'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(
             &molecule,
@@ -128,9 +131,7 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
         let dq_diff: Array1<f64> = &new_dq - &dq;
 
         let charge_diff: f64 = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
-        if i > 0 {
-            info!("{:^14} charge diff.: {:>18.14} ", "", charge_diff);
-        }
+
         if log_enabled!(Level::Trace) {
             print_orbital_information(orbe.view(), &f);
         }
@@ -164,17 +165,17 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
         );
         if i == 0 {
             info!(
-                "Iteration {: >4} total energy: {:.14} dE: {:>18.14} ",
+                "{: >5} {:>18.10e} {:>18.13} {:>18.10e}",
                 i + 1,
                 scf_energy + rep_energy,
-                0
+                0.0, charge_diff
             );
         } else {
             info!(
-                "Iteration {: >4} total energy: {:.14} dE: {:>18.14} ",
+                "{: >5} {:>18.10e} {:>18.10e} {:>18.10e}",
                 i + 1,
                 scf_energy + rep_energy,
-                energy_old - scf_energy
+                energy_old - scf_energy, charge_diff
             );
         }
         energy_old = scf_energy;
@@ -185,8 +186,8 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
             break 'scf_loop;
         }
     }
-    info!("{:-^71} ", "");
-    info!("{: ^71}", "SCC converged");
+    info!("{:-^62} ", "");
+    info!("{: ^62}", "SCC converged");
     info!("{:^80} ", "");
     info!("final energy: {:18.14} Hartree", scf_energy + rep_energy);
     info!("{:-<80} ", "");
