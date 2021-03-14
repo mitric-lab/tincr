@@ -24,6 +24,7 @@ mod step;
 mod transition_charges;
 mod zbrent;
 mod test;
+mod fmo;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
