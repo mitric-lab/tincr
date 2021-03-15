@@ -115,6 +115,7 @@ pub fn get_exc_energies(
     if complete_states {
         // check if Tamm-Dancoff is demanded
         if response_method.is_some() && response_method.unwrap() == "TDA" {
+            println!("TDA routine called!");
             let tmp: (Array1<f64>, Array3<f64>) = tda(
                 (&molecule.calculator.g0).view(),
                 gamma0_lr.view(),
@@ -131,6 +132,7 @@ pub fn get_exc_energies(
             omega_out = tmp.0;
             c_ij = tmp.1;
         } else {
+            println!("casida routine called!");
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
                 (&molecule.calculator.g0).view(),
                 gamma0_lr.view(),
@@ -171,7 +173,7 @@ pub fn get_exc_energies(
                 None,
                 None,
                 o_ia.view(),
-                molecule.multiplicity as usize,
+                molecule.multiplicity,
                 Some(nstates),
                 None,
                 None,
@@ -183,6 +185,7 @@ pub fn get_exc_energies(
             XmY = tmp.2;
             XpY = tmp.3;
         } else {
+            println!("non-Hermitian Davidson");
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = non_hermitian_davidson(
                 (&molecule.calculator.g0).view(),
                 (&molecule.calculator.g0_lr).view(),
@@ -195,7 +198,8 @@ pub fn get_exc_energies(
                 None,
                 None,
                 None,
-                molecule.multiplicity.clone() as usize,
+                molecule.multiplicity,
+                molecule.calculator.spin_couplings.view(),
                 Some(nstates),
                 None,
                 None,
@@ -706,7 +710,7 @@ pub fn hermitian_davidson(
     XmYguess: Option<ArrayView3<f64>>,
     XpYguess: Option<ArrayView3<f64>>,
     Oia: ArrayView2<f64>,
-    multiplicity: usize,
+    multiplicity: u8,
     nstates: Option<usize>,
     ifact: Option<usize>,
     maxiter: Option<usize>,
@@ -897,7 +901,8 @@ pub fn non_hermitian_davidson(
     XmYguess: Option<ArrayView3<f64>>,
     XpYguess: Option<ArrayView3<f64>>,
     w_guess: Option<ArrayView1<f64>>,
-    multiplicity: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
     nstates: Option<usize>,
     ifact: Option<usize>,
     maxiter: Option<usize>,
@@ -972,6 +977,8 @@ pub fn non_hermitian_davidson(
                 &omega,
                 &bs,
                 lc,
+                multiplicity,
+                spin_couplings,
             );
             let bm: Array3<f64> = get_ambv(
                 &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
@@ -1051,6 +1058,8 @@ pub fn non_hermitian_davidson(
             &omega,
             &r_canon,
             lc,
+            multiplicity,
+            spin_couplings,
         ) - &l_canon * &w;
         let wr = get_ambv(
             &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &l_canon, lc,
@@ -1180,6 +1189,8 @@ pub fn get_apbv(
     omega: &ArrayView2<f64>,
     vs: &Array3<f64>,
     lc: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
 ) -> (Array3<f64>) {
     let lmax: usize = vs.dim().2;
     let mut us: Array3<f64> = Array::zeros((vs.shape())).into_dimensionality().unwrap();
@@ -1187,17 +1198,30 @@ pub fn get_apbv(
     for i in 0..lmax {
         let v: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
         // # matrix product u_ia = sum_jb (A+B)_(ia,jb) v_jb
-        // # 1st term in (A+B).v  - KS orbital energy differences
+        // # 1st term in (A+B).v: KS orbital energy differences
         let mut u: Array2<f64> = omega * &v;
+
         // 2nd term Coulomb
         let tmp: Array1<f64> = tensordot(&qtrans_ov, &v, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
             .into_dimensionality::<Ix1>()
             .unwrap();
-        let tmp_2: Array1<f64> = gamma.dot(&tmp);
-        u = u + 4.0
-            * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+
+        if multiplicity == 1 {
+            let tmp_2: Array1<f64> = gamma.dot(&tmp);
+            let u_singlet: Array2<f64> = 4.0 * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
                 .into_dimensionality::<Ix2>()
                 .unwrap();
+            u = u + u_singlet;
+        } else if multiplicity == 3 {
+            let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings);
+            let tmp_2: Array1<f64> = spin_couplings_diag.dot(&tmp);
+            let u_triplet: Array2<f64> = 4.0 * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+                .into_dimensionality::<Ix2>()
+                .unwrap();
+            u = u + u_triplet;
+        } else {
+            panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
+        }
 
         if lc == 1 {
             // 3rd term - Exchange
@@ -1253,7 +1277,7 @@ pub fn get_ambv(
         let mut u: Array2<f64> = omega * &v;
 
         if lc == 1 {
-            // 2nd term - Coulomb
+            // 2nd term - Exchange
             let tmp: Array3<f64> = tensordot(&qtrans_ov, &v, &[Axis(1)], &[Axis(0)])
                 .into_dimensionality::<Ix3>()
                 .unwrap();
@@ -1436,6 +1460,8 @@ pub fn krylov_solver_zvector(
     qtrans_vv: Option<ArrayView3<f64>>,
     qtrans_ov: ArrayView3<f64>,
     lc: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
 ) -> (Array3<f64>) {
     // Parameters:
     // ===========
@@ -1474,7 +1500,7 @@ pub fn krylov_solver_zvector(
         let a_b: Array2<f64> = tensordot(
             &bs,
             &get_apbv(
-                &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &bs, lc,
+                &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &bs, lc, multiplicity, spin_couplings,
             ),
             &[Axis(0), Axis(1)],
             &[Axis(0), Axis(1)],
@@ -1498,7 +1524,7 @@ pub fn krylov_solver_zvector(
             .unwrap();
         // residual vectors
         let w_res: Array3<f64> = &get_apbv(
-            &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &x_matrix, lc,
+            &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &x_matrix, lc, multiplicity, spin_couplings,
         ) - &b_matrix;
         let mut norms: Array1<f64> = Array::zeros(k);
         for i in 0..k {
@@ -2931,6 +2957,34 @@ fn hermitian_davidson_routine() {
         ]
     ];
 
+    // test W correction
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    // let multiplicity: Option<u8> = Some(1);
+    let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
+    let mol: Molecule = Molecule::new(
+        atomic_numbers.clone(),
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+        config,
+    );
+
+    // Only for testing purposes
+    let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
+    let spin_couplings_null: Array1<f64> = Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
+
     let n_occ: usize = qtrans_oo.dim().1;
     let n_virt: usize = qtrans_vv.dim().1;
 
@@ -3094,6 +3148,34 @@ fn non_hermitian_davidson_routine() {
         ]
     ];
 
+    // test W correction
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    // let multiplicity: Option<u8> = Some(1);
+    let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
+    let mol: Molecule = Molecule::new(
+        atomic_numbers.clone(),
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+        config,
+    );
+
+    // Only for testing purposes
+    let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
+    let spin_couplings_null: Array1<f64> = Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
+
     let n_occ: usize = qtrans_oo.dim().1;
     let n_virt: usize = qtrans_vv.dim().1;
 
@@ -3111,6 +3193,7 @@ fn non_hermitian_davidson_routine() {
             None,
             None,
             1,
+            spin_couplings.view(),
             None,
             None,
             None,
@@ -3125,6 +3208,8 @@ fn non_hermitian_davidson_routine() {
     assert!((&c_ij * &c_ij).abs_diff_eq(&(&c_ij_ref * &c_ij_ref), 1e-14));
     assert!((&XmY * &XmY).abs_diff_eq(&(&XmY_ref * &XmY_ref), 1e-14));
     assert!((&XpY * &XpY).abs_diff_eq(&(&XpY_ref * &XpY_ref), 1e-14));
+
+    assert_eq!(1, 2);
 }
 
 #[test]
@@ -3158,7 +3243,7 @@ fn benzene_excitations() {
         charge,
         multiplicity,
         None,
-        Some((2, 2)),
+        Some((3, 3)),
         config,
     );
 
@@ -3208,6 +3293,8 @@ fn benzene_excitations() {
     let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
     let spin_couplings_null: Array1<f64> = Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
 
+    let nstates: Option<usize> = Some(4);
+
     // let (omega, c_ij): (Array1<f64>, Array3<f64>) = tda(
     //     gamma.view(),
     //     gamma_lr.view(),
@@ -3236,44 +3323,48 @@ fn benzene_excitations() {
     //     spin_couplings.view(),
     // );
 
-    let (omega, c_ij, XmY, XpY): (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
-        gamma.view(),
-        gamma_lr.view(),
-        q_trans_ov.view(),
-        q_trans_oo.view(),
-        q_trans_vv.view(),
-        omega_0.view(),
-        df.view(),
-         mol.multiplicity,
-         n_occ,
-         n_virt,
-        spin_couplings_null.view(),
-    );
-
-    let (omega_magn, c_ij_magn, XmY_magn, XpY_magn): (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
-        gamma.view(),
-        gamma_lr.view(),
-        q_trans_ov.view(),
-        q_trans_oo.view(),
-        q_trans_vv.view(),
-        omega_0.view(),
-        df.view(),
-         mol.multiplicity,
-         n_occ,
-         n_virt,
-        spin_couplings.view(),
-    );
-
-    // let (omega, c_ij, XmY, XpY) =
-    //     get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, None);
+    // let (omega, c_ij, XmY, XpY): (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
+    //     gamma.view(),
+    //     gamma_lr.view(),
+    //     q_trans_ov.view(),
+    //     q_trans_oo.view(),
+    //     q_trans_vv.view(),
+    //     omega_0.view(),
+    //     df.view(),
+    //      mol.multiplicity,
+    //      n_occ,
+    //      n_virt,
+    //     spin_couplings_null.view(),
+    // );
     //
-    // let (omega_magn, c_ij_magn, XmY_magn, XpY_magn) =
-    //     get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, true, None);
+    // let (omega_magn, c_ij_magn, XmY_magn, XpY_magn): (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
+    //     gamma.view(),
+    //     gamma_lr.view(),
+    //     q_trans_ov.view(),
+    //     q_trans_oo.view(),
+    //     q_trans_vv.view(),
+    //     omega_0.view(),
+    //     df.view(),
+    //      mol.multiplicity,
+    //      n_occ,
+    //      n_virt,
+    //     spin_couplings.view(),
+    // );
 
-    println!("omega: {}", &omega);
-    println!("c_ij: {}", &c_ij);
-    println!("omega_magn: {}", &omega_magn);
-    println!("c_ij_magn: {}", &c_ij_magn);
+    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) =
+        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("TDA")));
+
+    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) =
+        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("casida")));
+
+    let (omega_davidson, c_ij_davidson, XmY_davidson, XpY_davidson) =
+        get_exc_energies(&f.to_vec(), &mol, nstates, &s, &orbe, &orbs, false, None);
+
+    println!("omega_TDA: {}", &omega_tda);
+    // println!("c_ij: {}", &c_ij);
+    println!("omega_casida: {}", &omega_casida);
+    // println!("c_ij_magn: {}", &c_ij_magn);
+    println!("omega_davidson: {}", &omega_davidson);
 
     assert_eq!(1, 2);
 }
