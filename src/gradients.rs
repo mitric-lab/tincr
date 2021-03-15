@@ -1321,20 +1321,22 @@ fn f_lr_new(v: ArrayView2<f64>,
     let sv_t: Array2<f64> = s.dot(&v_t);
     let gv: Array2<f64> = &g0_lr_a0 * &v;
 
-    let sv_t:Array2<f64> = sv.t().to_owned();
+    let t_sv:Array2<f64> = sv.t().to_owned();
     let svg_t:Array2<f64> =(&sv * &g0_lr_a0).t().to_owned();
     let sgv_t:Array2<f64> = s.dot(&gv).t().to_owned();
 
     let mut f_return:Array3<f64> = Array3::zeros((3*n_atoms,n_orb,n_orb));
 
     for nc in 0..3*n_atoms{
-        let mut d_s:Array2<f64> = Array2::zeros((n_orb,n_orb));
-        let mut d_g:Array2<f64> = Array2::zeros((n_orb,n_orb));
+        // let mut d_s:Array2<f64> = Array2::zeros((n_orb,n_orb));
+        // let mut d_g:Array2<f64> = Array2::zeros((n_orb,n_orb));
+        let d_s:Array2<f64> = grad_s.slice(s![nc,..,..]).to_owned();
+        let d_g:Array2<f64> = g1_lr_ao.slice(s![nc,..,..]).to_owned();
+
         // d_s.slice_mut(s![..,..]).assign(&grad_s.slice(s![..,..,nc]));
         // d_g.slice_mut(s![..,..]).assign(&g1_lr_ao.slice(s![..,..,nc]));
-
-        d_s.slice_mut(s![..,..]).assign(&grad_s.slice(s![nc,..,..]));
-        d_g.slice_mut(s![..,..]).assign(&g1_lr_ao.slice(s![nc,..,..]));
+        // d_s.slice_mut(s![..,..]).assign(&grad_s.slice(s![nc,..,..]));
+        // d_g.slice_mut(s![..,..]).assign(&g1_lr_ao.slice(s![nc,..,..]));
 
         let d_sv_t:Array2<f64> = d_s.dot(&v_t);
         let d_sv:Array2<f64> = d_s.dot(&v);
@@ -1342,7 +1344,7 @@ fn f_lr_new(v: ArrayView2<f64>,
 
         let mut d_f:Array2<f64> = Array2::zeros((n_orb,n_orb));
         // 1st term
-        d_f = d_f + g0_lr_a0.to_owned()*d_s.dot(&sv_t);
+        d_f = d_f + g0_lr_a0.to_owned()*d_s.dot(&t_sv);
         // 2nd term
         d_f = d_f + (&d_sv_t*&g0_lr_a0).dot(&s);
         // 3rd term
@@ -1350,21 +1352,21 @@ fn f_lr_new(v: ArrayView2<f64>,
         // 4th term
         d_f = d_f + d_s.dot(&sgv_t);
         // 5th term
-        d_f = d_f + g0_lr_a0.to_owned() * s.dot(&d_sv);
+        d_f = d_f + g0_lr_a0.to_owned() * s.dot(&d_sv.t());
         // 6th term
         d_f = d_f + (sv_t.clone()*g0_lr_a0).dot(&d_s.t());
         // 7th term
         d_f = d_f + s.dot(&(&d_sv*&g0_lr_a0).t());
         // 8th term
-        d_f = d_f + s.dot(&d_s.dot(&gv).t());
+        d_f = d_f + s.dot(&(d_s.dot(&gv)).t());
         // 9th term
-        d_f = d_f + d_g.clone()*s.dot(&sv_t);
+        d_f = d_f + d_g.clone()*s.dot(&t_sv);
         // 10th term
         d_f = d_f + (sv_t.clone()*d_g.clone()).dot(&s);
         // 11th term
-        d_f = d_f + s.dot(&(&sv*&d_g));
+        d_f = d_f + s.dot(&(&sv*&d_g).t());
         // 12th term
-        d_f = d_f + s.dot(&s.dot(&d_gv).t());
+        d_f = d_f + s.dot(&(s.dot(&d_gv)).t());
         d_f = d_f * 0.25;
 
         //f_return.slice_mut(s![..,..,nc]).assign(&d_f);
@@ -11215,56 +11217,14 @@ fn exc_gradient_lc_routine() {
 }
 #[test]
 pub fn test_new_flr(){
-    let S: Array2<f64> = array![
-        [
-            1.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            0.3074918525690681,
-            0.3074937992389065
-        ],
-        [
-            0.0000000000000000,
-            1.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            -0.1987769748092704
-        ],
-        [
-            0.0000000000000000,
-            0.0000000000000000,
-            1.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            -0.3185054221819456
-        ],
-        [
-            0.0000000000000000,
-            0.0000000000000000,
-            0.0000000000000000,
-            1.0000000000000000,
-            -0.3982160222204482,
-            0.1327383036929333
-        ],
-        [
-            0.3074918525690681,
-            0.0000000000000000,
-            0.0000000000000000,
-            -0.3982160222204482,
-            1.0000000000000000,
-            0.0268024699984349
-        ],
-        [
-            0.3074937992389065,
-            -0.1987769748092704,
-            -0.3185054221819456,
-            0.1327383036929333,
-            0.0268024699984349,
-            1.0000000000000000
-        ]
-    ];
+    let SMatrix:Array2<f64> = array! [
+    [ 1.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   3.0749185256906808e-001 , 3.0749379923890652e-001],
+    [ 0.0000000000000000e+000 , 1.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 ,-0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  1.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 ,-1.9762625833649862e-323],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 1.0000000000000000e+000 ,  -2.4703282292062327e-323 , 9.8813129168249309e-324],
+    [ 3.0749185256906808e-001 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 ,-2.4703282292062327e-323 ,   1.0000000000000000e+000 , 2.6802469998434889e-002],
+    [ 3.0749379923890652e-001 ,-0.0000000000000000e+000  , -1.9762625833649862e-323 , 9.8813129168249309e-324 ,   2.6802469998434889e-002 , 1.0000000000000000e+000]];
+
     let GradS:Array3<f64> = array![[
     [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 3.5903993049384009e-001 ,-1.1967953580003202e-001],
     [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 ,-1.1541613756544200e-310],
@@ -11430,7 +11390,7 @@ pub fn test_new_flr(){
     let n_at:usize = 3;
     let n_orb:usize = 6;
 
-    let f_return:Array3<f64> = f_lr_new(input_matrix.view(),S.view(),GradS.view(),G0lr.view(),G1lr.view(),n_at,n_orb);
+    let f_return:Array3<f64> = f_lr_new(input_matrix.view(),SMatrix.view(),GradS.view(),G0lr.view(),G1lr.view(),n_at,n_orb);
     println!("F_lr result {}",f_return);
 
     assert!(1==2);
