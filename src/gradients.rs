@@ -421,13 +421,11 @@ pub fn gradient_lc_gs(
 
     let mut flr_dmd0: Array3<f64> = Array::zeros((3 * n_at, n_orb, n_orb));
     if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS) > 0.0 {
-        flr_dmd0 = f_lr(
+        flr_dmd0 = f_lr_new(
             diff_d.view(),
             s.view(),
             grad_s.view(),
-            (&molecule.calculator.g0_ao).view(),
             (&molecule.calculator.g0_lr_ao).view(),
-            g1_ao.view(),
             g1lr_ao.view(),
             n_at,
             n_orb,
@@ -1233,24 +1231,20 @@ pub fn gradients_lc_ex(
     let mut gradExc: Array1<f64> = Array::zeros(3 * n_at);
     let f: Array3<f64> = f_v(XpY_ao.view(), s, grad_s, g0_ao, g1_ao, n_at, n_orb);
 
-    let flr_p = f_lr(
+    let flr_p = f_lr_new(
         (&XpY_ao + &XpY_ao.t()).view(),
         s,
         grad_s,
-        g0_ao,
         g0lr_ao,
-        g1_ao,
         g1lr_ao,
         n_at,
         n_orb,
     );
-    let flr_m = -f_lr(
+    let flr_m = -f_lr_new(
         (&XmY_ao - &XmY_ao.t()).view(),
         s,
         grad_s,
-        g0_ao,
         g0lr_ao,
-        g1_ao,
         g1lr_ao,
         n_at,
         n_orb,
