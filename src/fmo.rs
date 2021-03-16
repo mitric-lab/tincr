@@ -16,6 +16,30 @@ use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::time::Instant;
 
+pub fn fmo_construct_mos(
+    n_mo: Vec<usize>,
+    h_0_complete: &Array2<f64>,
+    n_frags:usize,
+    homo_orbs: Vec<Array1<f64>>,
+    lumo_orbs: Vec<Array1<f64>>,
+)->Array2<f64>{
+    let (e_vals,e_vecs):(Array1<f64>,Array2<f64>) = h_0_complete.eigh(UPLO::Upper).unwrap();
+    let n_aos:usize = n_mo.iter().cloned().max().unwrap();
+    let mut orbs:Array2<f64> = Array2::zeros((n_frags*2,n_frags*n_aos));
+
+    for idx in (0..n_frags).into_iter(){
+        let i:usize = 2 * idx;
+        let j_1:usize = n_aos * idx;
+        let j_2:usize = n_aos * (idx + 1);
+
+        orbs.slice_mut(s![i,j_1..j_2]).assign(&homo_orbs[idx]);
+        orbs.slice_mut(s![i+1,j_1..j_2]).assing(&lumo_orbs[idx]);
+    }
+    let orbs_final:Array2<f64> = e_vecs.t().to_owned().dot(&orbs).t().to_owned();
+
+    return (orbs_final);
+}
+
 pub fn fmo_calculate_pairwise(
     mol: &Molecule,
     fragments: &Vec<Molecule>,
@@ -100,7 +124,7 @@ pub fn fmo_calculate_pairwise(
 pub fn fmo_calculate_fragments(
     mol: &Molecule,
     fragments: &Vec<Molecule>,
-) -> (Array2<f64>, Vec<usize>, Vec<Array1<f64>>, Vec<Array1<f64>>) {
+) -> (Array2<f64>, Vec<usize>, Vec<Array1<f64>>, Vec<Array1<f64>>,Vec<usize>,Vec<usize>) {
     let norb_frag: usize = 2;
     let size: usize = norb_frag * fragments.len();
 
@@ -108,6 +132,8 @@ pub fn fmo_calculate_fragments(
     let mut h_diag: Vec<f64> = Vec::new();
     let mut homo_orbs: Vec<Array1<f64>> = Vec::new();
     let mut lumo_orbs: Vec<Array1<f64>> = Vec::new();
+    let mut ind_homo:Vec<usize>= Vec::new();
+    let mut ind_lumo:Vec<usize> = Vec::new();
 
     for (ind, frag) in fragments.iter().enumerate() {
         let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
@@ -123,6 +149,8 @@ pub fn fmo_calculate_fragments(
             .collect();
         let homo_ind: usize = occ_indices[occ_indices.len() - 1];
         let lumo_ind: usize = virt_indices[0];
+        ind_homo.push(homo_ind);
+        ind_lumo.push(lumo_ind);
         let e_homo: f64 = orbe[homo_ind];
         let e_lumo: f64 = orbe[lumo_ind];
         let frag_homo_orbs: Array1<f64> = orbs.slice(s![.., homo_ind]).to_owned();
@@ -136,7 +164,7 @@ pub fn fmo_calculate_fragments(
     }
     let h_0: Array2<f64> = Array::from_diag(&Array::from(h_diag));
 
-    return (h_0, n_mo, homo_orbs, lumo_orbs);
+    return (h_0, n_mo, homo_orbs, lumo_orbs,ind_homo,ind_homo);
 }
 
 pub fn create_fragment_molecules(mol: &Molecule, config: GeneralConfig) -> Vec<Molecule> {
