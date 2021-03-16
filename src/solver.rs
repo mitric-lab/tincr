@@ -3048,8 +3048,6 @@ fn hermitian_davidson_routine() {
     assert!((&c_ij * &c_ij).abs_diff_eq(&(&c_ij_ref * &c_ij_ref), 1e-14));
     assert!((&XmY * &XmY).abs_diff_eq(&(&XmY_ref * &XmY_ref), 1e-14));
     assert!((&XpY * &XpY).abs_diff_eq(&(&XpY_ref * &XpY_ref), 1e-14));
-
-    assert_eq!(1, 2);
 }
 
 #[test]
@@ -3369,8 +3367,6 @@ fn benzene_excitations() {
     // println!("c_ij_davidson (hermitian): {:?}", &c_ij_davidson);
 
     assert!(omega_casida.slice(s![0..nstates.unwrap()]).abs_diff_eq(&omega_davidson, 1e-12));
-
-    assert_eq!(1, 2);
 
     // let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
     //     run_scc(&mol);
