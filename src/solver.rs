@@ -1640,11 +1640,45 @@ pub fn krylov_solver_zvector(
     let mut temp_old:Array3<f64> = bs.clone();
 
     for it in 0..maxiter {
+        println!("Iteration {}",it);
         let krylov_timer = Instant::now();
         // representation of A in the basis of expansion vectors
-        // let mut temp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
-        // if it == 0{
-        //     temp = get_apbv(
+        let mut temp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
+        if it == 0{
+            temp = get_apbv(
+                &g0,
+                &g0_lr,
+                &qtrans_oo,
+                &qtrans_vv,
+                &qtrans_ov,
+                &a_diag,
+                &bs,
+                lc,
+                multiplicity,
+                spin_couplings,
+            );
+        }
+        else{
+            println!("Shape slice {:?}",bs.slice(s![..,..,l-2..l]).to_owned().shape());
+            let temp_new_vec:Array3<f64> = get_apbv(
+                &g0,
+                &g0_lr,
+                &qtrans_oo,
+                &qtrans_vv,
+                &qtrans_ov,
+                &a_diag,
+                &bs.slice(s![..,..,l-2..l]).to_owned(),
+                lc,
+                multiplicity,
+                spin_couplings,
+            );
+            println!("Shape slice new vec {:?}",temp_new_vec.shape());
+            println!("Shape temp slice 1 {:?}",temp.slice(s![..,..,..l-1]).to_owned().shape());
+            println!("Shape temp slice 1 {:?}",temp.slice(s![..,..,l-2..l]).to_owned().shape());
+            temp.slice_mut(s![..,..,..l-1]).assign(&temp_old);
+            temp.slice_mut(s![..,..,l-2..l]).assign(&temp_new_vec);
+        }
+        // let temp:Array3<f64> = get_apbv(
         //         &g0,
         //         &g0_lr,
         //         &qtrans_oo,
@@ -1656,83 +1690,40 @@ pub fn krylov_solver_zvector(
         //         multiplicity,
         //         spin_couplings,
         //     );
-        // }
-        // else if l == kmax {
-        //     temp = get_apbv(
-        //             &g0,
-        //             &g0_lr,
-        //             &qtrans_oo,
-        //             &qtrans_vv,
-        //             &qtrans_ov,
-        //             &a_diag,
-        //             &bs,
-        //             lc,
-        //             multiplicity,
-        //             spin_couplings,
-        //         );
-        // }
-        // else{
-        //     let temp_new_vec:Array2<f64> = get_apbv_single_vector(
+
+        temp_old = temp.clone();
+
+        // println!("Temp {}",temp);
+        // println!("Bs {}",bs);
+
+        let a_b: Array2<f64> = tensordot(
+            &bs,
+            &temp,
+            &[Axis(0), Axis(1)],
+            &[Axis(0), Axis(1)],
+        )
+        .into_dimensionality::<Ix2>()
+        .unwrap();
+
+        // let a_b: Array2<f64> = tensordot(
+        //     &bs,
+        //     &get_apbv(
         //         &g0,
         //         &g0_lr,
         //         &qtrans_oo,
         //         &qtrans_vv,
         //         &qtrans_ov,
         //         &a_diag,
-        //         &bs.slice(s![..,..,l-1]).to_owned(),
+        //         &bs,
         //         lc,
         //         multiplicity,
         //         spin_couplings,
-        //     );
-        //     temp.slice_mut(s![..,..,..l-1]).assign(&temp_old);
-        //     temp.slice_mut(s![..,..,l-1]).assign(&temp_new_vec);
-        // }
-        // // let temp:Array3<f64> = get_apbv(
-        // //         &g0,
-        // //         &g0_lr,
-        // //         &qtrans_oo,
-        // //         &qtrans_vv,
-        // //         &qtrans_ov,
-        // //         &a_diag,
-        // //         &bs,
-        // //         lc,
-        // //         multiplicity,
-        // //         spin_couplings,
-        // //     );
-        //
-        // temp_old = temp.clone();
-        //
-        // // println!("Temp {}",temp);
-        // // println!("Bs {}",bs);
-        //
-        // let a_b: Array2<f64> = tensordot(
-        //     &bs,
-        //     &temp,
+        //     ),
         //     &[Axis(0), Axis(1)],
         //     &[Axis(0), Axis(1)],
         // )
         // .into_dimensionality::<Ix2>()
         // .unwrap();
-
-        let a_b: Array2<f64> = tensordot(
-            &bs,
-            &get_apbv(
-                &g0,
-                &g0_lr,
-                &qtrans_oo,
-                &qtrans_vv,
-                &qtrans_ov,
-                &a_diag,
-                &bs,
-                lc,
-                multiplicity,
-                spin_couplings,
-            ),
-            &[Axis(0), Axis(1)],
-            &[Axis(0), Axis(1)],
-        )
-        .into_dimensionality::<Ix2>()
-        .unwrap();
         // RHS in basis of expansion vectors
         let b_b: Array2<f64> = tensordot(&bs, &b_matrix, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
             .into_dimensionality::<Ix2>()
