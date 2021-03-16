@@ -890,6 +890,8 @@ pub fn gradients_lc_ex(
     f_lrdmd0: ArrayView3<f64>,
     check_z_vec: Option<usize>,
 ) -> (Array1<f64>) {
+    let grad_timer = Instant::now();
+
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
     let n_occ: usize = orbe_occ.len();
@@ -1069,6 +1071,14 @@ pub fn gradients_lc_ex(
     //q_ab
     let q_ab: Array2<f64> = omega_state * u_ab + v_ab;
 
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time for tensor dots in excited gradients:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
     // right hand side
     let r_ia: Array2<f64> = &q_ai.t() - &q_ia;
     // solve z-vector equation
@@ -1101,6 +1111,13 @@ pub fn gradients_lc_ex(
         1,
     );
     let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time for krylov z vector:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
 
     if check_z_vec.is_some() && check_z_vec.unwrap() == 1 {
         // compare with full solution
@@ -1162,6 +1179,8 @@ pub fn gradients_lc_ex(
         let err: f64 = z_diff.mapv(|z_diff| z_diff.abs()).sum();
         assert!(err < 1e-10);
     }
+    let grad_timer = Instant::now();
+
     // build w
     let mut w_ij: Array2<f64> = q_ij
         + h_plus_lr(
@@ -1205,6 +1224,15 @@ pub fn gradients_lc_ex(
             .assign(&w_ab.slice(s![i, ..]));
     }
     // assemble gradient
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time build w matric:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
     //dh/dr
     let grad_h: Array3<f64> = &grad_h0 + &f_dmd0 - 0.5 * &f_lrdmd0;
 
@@ -1278,6 +1306,13 @@ pub fn gradients_lc_ex(
             * tensordot(&XmY_ao, &flr_m, &[Axis(0), Axis(1)], &[Axis(1), Axis(2)])
                 .into_dimensionality::<Ix1>()
                 .unwrap();
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time assemble gradient:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
 
     return gradExc;
 }
@@ -11485,7 +11520,7 @@ pub fn test_new_flr(){
     let n_orb:usize = 6;
 
     let flr_return:Array3<f64> = f_lr_new(input_matrix.view(),SMatrix.view(),GradS.view(),G0lr.view(),G1lr.view(),n_at,n_orb);
-    println!("F_lr result {}",flr_return);
+    //println!("F_lr result {}",flr_return);
 
     let  G0_AO: Array2<f64> = array![
        [0.4467609798860577, 0.4467609798860577, 0.4467609798860577,
@@ -11622,7 +11657,7 @@ pub fn test_new_flr(){
 
 
     let fv_return:Array3<f64> = f_v_new(input_matrix.view(),SMatrix.view(),GradS.view(),G0_AO.view(),G1_AO.view(),n_at,n_orb);
-    println!("F_v result {}",fv_return);
+    //println!("F_v result {}",fv_return);
 
     assert!(1==2);
 
