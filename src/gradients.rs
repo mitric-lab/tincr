@@ -186,6 +186,8 @@ pub fn get_gradients(
                     orbs_virt.view(),
                     fdmdO.view(),
                     flrdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
                 );
             } else {
@@ -213,6 +215,8 @@ pub fn get_gradients(
                     orbs_occ.view(),
                     orbs_virt.view(),
                     fdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
                 );
             }
@@ -290,6 +294,8 @@ pub fn get_gradients(
                     orbs_virt.view(),
                     fdmdO.view(),
                     flrdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
                 );
             } else {
@@ -317,6 +323,8 @@ pub fn get_gradients(
                     orbs_occ.view(),
                     orbs_virt.view(),
                     fdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
                 );
             }
@@ -539,6 +547,8 @@ pub fn gradients_nolc_ex(
     orbs_occ: ArrayView2<f64>,
     orbs_virt: ArrayView2<f64>,
     f_dmd0: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
     check_z_vec: Option<usize>,
 ) -> (Array1<f64>) {
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
@@ -714,6 +724,8 @@ pub fn gradients_nolc_ex(
         None,
         qtrans_ov,
         0,
+        multiplicity,
+        spin_couplings,
     );
     let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
 
@@ -874,6 +886,8 @@ pub fn gradients_lc_ex(
     orbs_virt: ArrayView2<f64>,
     f_dmd0: ArrayView3<f64>,
     f_lrdmd0: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
     check_z_vec: Option<usize>,
 ) -> (Array1<f64>) {
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
@@ -1085,6 +1099,8 @@ pub fn gradients_lc_ex(
         Some(qtrans_vv),
         qtrans_ov,
         1,
+        multiplicity,
+        spin_couplings,
     );
     let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
 
@@ -3102,6 +3118,8 @@ fn gs_gradients_lc_routine() {
 
 #[test]
 fn exc_gradient_no_lc_routine() {
+    let mol: Molecule = get_water_molecule();
+
     let orbs: Array2<f64> = array![
         [
             -8.6192475509337374e-01,
@@ -7226,6 +7244,8 @@ fn exc_gradient_no_lc_routine() {
         orbs_occ.view(),
         orbs_virt.view(),
         FDmD0.view(),
+         mol.multiplicity,
+        mol.calculator.spin_couplings.view(),
         Some(1),
     );
 
@@ -7236,6 +7256,8 @@ fn exc_gradient_no_lc_routine() {
 
 #[test]
 fn exc_gradient_lc_routine() {
+    let mol: Molecule = get_water_molecule();
+
     let orbs: Array2<f64> = array![
         [
             8.7633793350448586e-01,
@@ -11062,6 +11084,8 @@ fn exc_gradient_lc_routine() {
         orbs_virt.view(),
         FDmD0.view(),
         FlrDmD0.view(),
+        mol.multiplicity,
+        mol.calculator.spin_couplings.view(),
         Some(1),
     );
 
