@@ -1236,7 +1236,7 @@ pub fn get_apbv(
     spin_couplings: ArrayView1<f64>,
 ) -> (Array3<f64>) {
     let lmax: usize = vs.dim().2;
-    let mut us: Array3<f64> = Array::zeros((vs.shape())).into_dimensionality().unwrap();
+    let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 
     for i in 0..lmax {
         let v: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
@@ -1640,8 +1640,6 @@ pub fn krylov_solver_zvector(
     let mut temp_old:Array3<f64> = bs.clone();
 
     for it in 0..maxiter {
-        println!("Iteration {}",it);
-        let krylov_timer = Instant::now();
         // representation of A in the basis of expansion vectors
         let mut temp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
         if it == 0{
@@ -1659,7 +1657,6 @@ pub fn krylov_solver_zvector(
             );
         }
         else{
-            println!("Shape slice {:?}",bs.slice(s![..,..,l-2..l]).to_owned().shape());
             let temp_new_vec:Array3<f64> = get_apbv(
                 &g0,
                 &g0_lr,
@@ -1672,9 +1669,6 @@ pub fn krylov_solver_zvector(
                 multiplicity,
                 spin_couplings,
             );
-            println!("Shape slice new vec {:?}",temp_new_vec.shape());
-            println!("Shape temp slice 1 {:?}",temp.slice(s![..,..,..l-1]).to_owned().shape());
-            println!("Shape temp slice 1 {:?}",temp.slice(s![..,..,l-2..l]).to_owned().shape());
             temp.slice_mut(s![..,..,..l-1]).assign(&temp_old);
             temp.slice_mut(s![..,..,l-2..l]).assign(&temp_new_vec);
         }
@@ -1760,7 +1754,6 @@ pub fn krylov_solver_zvector(
         for i in 0..k {
             norms[i] = norm_special(&w_res.slice(s![.., .., i]).to_owned());
         }
-        println!("Norms value {}",norms);
         // check if all values of the norms are under the convergence criteria
         let indices_norms: Array1<usize> = norms
             .indexed_iter()
@@ -1817,13 +1810,6 @@ pub fn krylov_solver_zvector(
         let (Q, R): (Array2<f64>, Array2<f64>) = bs_flat.qr().unwrap();
         bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
         l = bs.dim().2;
-
-        info!(
-            "{:>68} {:>10.8} s",
-            "elapsed time krylov iteration:",
-            krylov_timer.elapsed().as_secs_f32()
-        );
-        drop(krylov_timer);
     }
     return x_matrix;
 }

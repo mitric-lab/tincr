@@ -800,9 +800,6 @@ pub fn get_energies_and_gradient(
     );
     drop(exc_timer);
 
-    info!("{:-^70}", "");
-    info!("{: ^0} ", "Calculate gradients ");
-    info!("{:-^70}", "");
     let grad_timer = Instant::now();
     let (grad_e0, grad_vrep, grad_exc,old_z_vector): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
@@ -815,12 +812,6 @@ pub fn get_energies_and_gradient(
         &Some(tmp.0),
         old_z_vec
     );
-    info!(
-        "{:>68} {:>8.2} s",
-        "elapsed time:",
-        grad_timer.elapsed().as_secs_f32()
-    );
-    drop(grad_timer);
 
     let grad_tot: Array1<f64> = grad_e0 + grad_vrep + grad_exc;
     let energy_tot: Array1<f64> = omega + energy;
