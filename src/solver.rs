@@ -1485,7 +1485,7 @@ pub fn matrix_v_product(
 pub fn krylov_solver_zvector(
     a_diag: ArrayView2<f64>,
     b_matrix: ArrayView3<f64>,
-    x_0: Option<ArrayView3<f64>>,
+    x_0: Option<Array3<f64>>,
     maxiter: Option<usize>,
     conv: Option<f64>,
     g0: ArrayView2<f64>,
@@ -1524,7 +1524,7 @@ pub fn krylov_solver_zvector(
                 .assign(&(&a_inv * &b_matrix.slice(s![.., .., i])));
         }
     } else {
-        bs = x_0.unwrap().to_owned();
+        bs = x_0.unwrap();
     }
 
     let mut x_matrix: Array3<f64> = Array::zeros((n_occ, n_virt, k));
