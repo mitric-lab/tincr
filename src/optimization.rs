@@ -45,15 +45,17 @@ pub fn optimize_geometry_ic(mol: &mut Molecule,state:Option<usize>) -> (f64, Arr
     // let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
     let mut energy: f64 = 0.0;
     let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+    let mut old_z_vec:Array3<f64> = Array::zeros((mol.calculator.active_occ.clone().unwrap().len(),mol.calculator.active_virt.clone().unwrap().len(),1));
 
     if state == 0 {
        let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
        energy = en;
        gradient = grad;
     } else {
-       let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(&coords, mol, state - 1);
-       energy = en[state - 1];
-       gradient = grad;
+        let (en, grad,z_vec): (Array1<f64>, Array1<f64>,Array3<f64>) = get_energies_and_gradient(&coords, mol, state - 1,None);
+        energy = en[state - 1];
+        gradient = grad;
+        old_z_vec = z_vec;
     }
 
     let mut old_gradient: Array1<f64> = gradient.clone();
@@ -125,9 +127,10 @@ pub fn optimize_geometry_ic(mol: &mut Molecule,state:Option<usize>) -> (f64, Arr
                 energy_new = en;
                 gradient_new = grad;
             } else {
-                let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(&new_cart_coords, mol, state - 1);
+                let (en, grad,z_vec): (Array1<f64>, Array1<f64>,Array3<f64>) = get_energies_and_gradient(&new_cart_coords, mol, state - 1,Some(old_z_vec));
                 energy_new = en[state - 1];
                 gradient_new = grad;
+                old_z_vec = z_vec;
             }
             // let (energy_new, gradient_new): (f64, Array1<f64>) =
             //     get_energy_and_gradient_s0(&new_cart_coords, mol);
@@ -758,8 +761,8 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
     info!("{: ^0} ", "Calculate gradients ");
     info!("{:-^70}", "");
     let grad_timer = Instant::now();
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
-        get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
+    let (grad_e0, grad_vrep, grad_exc,empty_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) =
+        get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None,None);
     info!(
         "{:>68} {:>8.2} s",
         "elapsed time:",
@@ -777,7 +780,8 @@ pub fn get_energies_and_gradient(
     x: &Array1<f64>,
     mol: &mut Molecule,
     ex_state: usize,
-) -> (Array1<f64>, Array1<f64>) {
+    old_z_vec:Option<Array3<f64>>
+) -> (Array1<f64>, Array1<f64>,Array3<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
     mol.update_geometry(coords);
@@ -802,7 +806,7 @@ pub fn get_energies_and_gradient(
     info!("{: ^0} ", "Calculate gradients ");
     info!("{:-^70}", "");
     let grad_timer = Instant::now();
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vector): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &s,
@@ -811,6 +815,7 @@ pub fn get_energies_and_gradient(
         &Some(tmp.3),
         Some(ex_state),
         &Some(tmp.0),
+        old_z_vec
     );
     info!(
         "{:>68} {:>8.2} s",
@@ -821,7 +826,7 @@ pub fn get_energies_and_gradient(
 
     let grad_tot: Array1<f64> = grad_e0 + grad_vrep + grad_exc;
     let energy_tot: Array1<f64> = omega + energy;
-    return (energy_tot, grad_tot);
+    return (energy_tot, grad_tot,old_z_vector);
 }
 
 pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
@@ -833,7 +838,7 @@ pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64
         energy = en;
         gradient = grad;
     } else {
-        let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(x, mol, state - 1);
+        let (en, grad,old_z_vec): (Array1<f64>, Array1<f64>,Array3<f64>) = get_energies_and_gradient(x, mol, state - 1,None);
         energy = en[state - 1];
         gradient = grad;
     }

@@ -49,7 +49,8 @@ pub fn get_gradients(
     XpY: &Option<Array3<f64>>,
     exc_state: Option<usize>,
     omega: &Option<Array1<f64>>,
-) -> (Array1<f64>, Array1<f64>, Array1<f64>) {
+    old_z_vec:Option<Array3<f64>>
+) -> (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) {
     let n_at: usize = molecule.n_atoms;
     let active_occ: Vec<usize> = molecule.calculator.active_occ.clone().unwrap();
     let active_virt: Vec<usize> = molecule.calculator.active_virt.clone().unwrap();
@@ -70,6 +71,7 @@ pub fn get_gradients(
     let mut grad_e0: Array1<f64> = Array::zeros((3 * n_at));
     let mut grad_ex: Array1<f64> = Array::zeros((3 * n_at));
     let mut grad_vrep: Array1<f64> = Array::zeros((3 * n_at));
+    let mut new_z_vec:Array3<f64> = Array3::zeros((n_occ,n_virt,1));
 
     // check if active space is smaller than full space
     // otherwise this part is unnecessary
@@ -156,7 +158,7 @@ pub fn get_gradients(
             }
             //check for lc correction
             if r_lr > 0.0 {
-                grad_ex = gradients_lc_ex(
+                 let tmp:(Array1<f64>,Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
                     g1.view(),
@@ -182,9 +184,12 @@ pub fn get_gradients(
                     fdmdO.view(),
                     flrdmdO.view(),
                     None,
+                     old_z_vec
                 );
+                grad_ex = tmp.0;
+                new_z_vec = tmp.1;
             } else {
-                grad_ex = gradients_nolc_ex(
+                let tmp:(Array1<f64>,Array3<f64>) = gradients_nolc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
                     g1.view(),
@@ -209,7 +214,10 @@ pub fn get_gradients(
                     orbs_virt.view(),
                     fdmdO.view(),
                     None,
+                    old_z_vec
                 );
+                grad_ex = tmp.0;
+                new_z_vec = tmp.1;
             }
         }
     } else {
@@ -260,7 +268,7 @@ pub fn get_gradients(
                 );
 
             if r_lr > 0.0 {
-                grad_ex = gradients_lc_ex(
+                let tmp:(Array1<f64>,Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
                     g1.view(),
@@ -286,9 +294,12 @@ pub fn get_gradients(
                     fdmdO.view(),
                     flrdmdO.view(),
                     None,
+                    old_z_vec
                 );
+                grad_ex = tmp.0;
+                new_z_vec = tmp.1;
             } else {
-                grad_ex = gradients_nolc_ex(
+                let tmp:(Array1<f64>,Array3<f64>) = gradients_nolc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
                     g1.view(),
@@ -313,12 +324,15 @@ pub fn get_gradients(
                     orbs_virt.view(),
                     fdmdO.view(),
                     None,
+                    old_z_vec
                 );
+                grad_ex = tmp.0;
+                new_z_vec = tmp.1;
             }
         }
     }
 
-    return (grad_e0, grad_vrep, grad_ex);
+    return (grad_e0, grad_vrep, grad_ex,new_z_vec);
 }
 
 // only ground state
@@ -554,7 +568,8 @@ pub fn gradients_nolc_ex(
     orbs_virt: ArrayView2<f64>,
     f_dmd0: ArrayView3<f64>,
     check_z_vec: Option<usize>,
-) -> (Array1<f64>) {
+    old_z_vec:Option<Array3<f64>>
+) -> (Array1<f64>,Array3<f64>) {
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
     let n_occ: usize = orbe_occ.len();
@@ -716,10 +731,11 @@ pub fn gradients_nolc_ex(
     let omega_input: Array2<f64> = into_col(Array::ones(orbe_occ.len())).dot(&into_row(orbe_virt.clone())) -
         into_col(orbe_occ.clone()).dot(&into_row(Array::ones(orbe_virt.len())));
     let b_matrix_input: Array3<f64> = r_ia.clone().into_shape((n_occ, n_virt, 1)).unwrap();
+
     let z_ia: Array3<f64> = krylov_solver_zvector(
         omega_input.view(),
         b_matrix_input.view(),
-        None,
+        old_z_vec,
         None,
         None,
         g0,
@@ -729,7 +745,7 @@ pub fn gradients_nolc_ex(
         qtrans_ov,
         0,
     );
-    let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
+    let z_ia_transformed: Array2<f64> = z_ia.clone().into_shape((n_occ, n_virt)).unwrap();
 
     if check_z_vec.is_some() && check_z_vec.unwrap() == 1 {
         // compare with full solution
@@ -860,7 +876,7 @@ pub fn gradients_nolc_ex(
                 .into_dimensionality::<Ix1>()
                 .unwrap();
 
-    return gradExc;
+    return (gradExc,z_ia);
 }
 
 pub fn gradients_lc_ex(
@@ -889,7 +905,8 @@ pub fn gradients_lc_ex(
     f_dmd0: ArrayView3<f64>,
     f_lrdmd0: ArrayView3<f64>,
     check_z_vec: Option<usize>,
-) -> (Array1<f64>) {
+    old_z_vec:Option<Array3<f64>>
+) -> (Array1<f64>,Array3<f64>) {
     let grad_timer = Instant::now();
 
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
@@ -1097,10 +1114,11 @@ pub fn gradients_lc_ex(
     let omega_input: Array2<f64> = into_col(Array::ones(orbe_occ.len())).dot(&into_row(orbe_virt.clone())) -
         into_col(orbe_occ.clone()).dot(&into_row(Array::ones(orbe_virt.len())));
     let b_matrix_input: Array3<f64> = r_ia.clone().into_shape((n_occ, n_virt, 1)).unwrap();
+
     let z_ia: Array3<f64> = krylov_solver_zvector(
         omega_input.view(),
         b_matrix_input.view(),
-        None,
+        old_z_vec,
         None,
         None,
         g0,
@@ -1110,7 +1128,7 @@ pub fn gradients_lc_ex(
         qtrans_ov,
         1,
     );
-    let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
+    let z_ia_transformed: Array2<f64> = z_ia.clone().into_shape((n_occ, n_virt)).unwrap();
 
     info!(
         "{:>68} {:>8.2} s",
@@ -1314,7 +1332,7 @@ pub fn gradients_lc_ex(
     );
     drop(grad_timer);
 
-    return gradExc;
+    return (gradExc,z_ia);
 }
 
 fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>) {
