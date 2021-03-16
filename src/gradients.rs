@@ -2053,8 +2053,8 @@ fn get_gradients_gs_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
-        get_gradients(&orbe, &orbs, &S, &mol, &None, &None, None, &None);
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) =
+        get_gradients(&orbe, &orbs, &S, &mol, &None, &None, None, &None,None);
 
     println!("grad_e0 {}", grad_e0);
     assert!(grad_e0.abs_diff_eq(&gradE0_ref, 1e-12));
@@ -2279,7 +2279,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &S,
@@ -2288,6 +2288,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
         &Some(XpY),
         Some(0),
         &Some(omega),
+        None
     );
 
     println!("grad_e0 {}", &grad_e0);
@@ -2585,7 +2586,7 @@ fn get_gradients_exc_no_lc_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &S,
@@ -2594,6 +2595,7 @@ fn get_gradients_exc_no_lc_routine() {
         &Some(XpY),
         Some(0),
         &Some(omega),
+        None
     );
 
     println!("grad_e0 {}", &grad_e0);
@@ -2823,7 +2825,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &S,
@@ -2832,6 +2834,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
         &Some(XpY),
         Some(0),
         &Some(omega),
+        None
     );
 
     println!("grad_e0 {}", &grad_e0);
@@ -3133,7 +3136,7 @@ fn get_gradients_exc_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &S,
@@ -3142,6 +3145,7 @@ fn get_gradients_exc_routine() {
         &Some(XpY),
         Some(0),
         &Some(omega),
+        None
     );
 
     println!("grad_e0 {}", &grad_e0);
@@ -7544,7 +7548,7 @@ fn exc_gradient_no_lc_routine() {
         ]
     ];
 
-    let gradEx_test: Array1<f64> = gradients_nolc_ex(
+    let (gradEx_test,old_z_vec):(Array1<f64>,Array3<f64>) = gradients_nolc_ex(
         1,
         gamma0.view(),
         gamma1.view(),
@@ -7571,6 +7575,7 @@ fn exc_gradient_no_lc_routine() {
          mol.multiplicity,
         mol.calculator.spin_couplings.view(),
         Some(1),
+        None
     );
 
     println!("gradEx_result {}", gradEx_test);
@@ -11383,7 +11388,7 @@ fn exc_gradient_lc_routine() {
         ]
     ];
 
-    let (gradEx_test) = gradients_lc_ex(
+    let (gradEx_test,old_z_vec):(Array1<f64>,Array3<f64>) = gradients_lc_ex(
         1,
         gamma0.view(),
         gamma1.view(),
@@ -11408,12 +11413,17 @@ fn exc_gradient_lc_routine() {
         orbs_virt.view(),
         FDmD0.view(),
         FlrDmD0.view(),
+        mol.multiplicity,
+        mol.calculator.spin_couplings.view(),
         Some(1),
+        None
     );
 
     println!("gradEx_result {}", gradEx_test);
     println!("gradEx_ref {}", gradExc);
     assert!(gradEx_test.abs_diff_eq(&gradExc, 1e-14));
+
+    assert!(1 == 2);
 }
 #[test]
 pub fn test_new_flr(){

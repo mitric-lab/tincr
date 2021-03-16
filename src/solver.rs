@@ -1,7 +1,9 @@
 use crate::calculator::{get_gamma_gradient_matrix, lambda2_calc_oia};
 use crate::defaults;
 use crate::gradients;
+use crate::io::GeneralConfig;
 use crate::scc_routine::*;
+use crate::test::{get_benzene_molecule, get_water_molecule};
 use crate::transition_charges::trans_charges;
 use crate::Molecule;
 use approx::{AbsDiffEq, RelativeEq};
@@ -11,11 +13,11 @@ use ndarray::{stack, Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
+use rayon::prelude::*;
 use std::cmp::Ordering;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, DivAssign};
+use log::{debug, error, info, log_enabled, trace, warn, Level};
 use std::time::Instant;
-use crate::io::GeneralConfig;
-use crate::test::{get_water_molecule, get_benzene_molecule};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -379,7 +381,10 @@ pub fn build_a_matrix(
 
         k_a = k_a + k_triplet;
     } else {
-        panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
+        panic!(
+            "Currently only singlets and triplets are supported, you wished a multiplicity of {}!",
+            multiplicity
+        );
     }
 
     let k_coupling: Array2<f64> = k_a.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
@@ -468,11 +473,11 @@ pub fn build_b_matrix(
     // equivalent to einsum("ail,bkj,ab->ijkl", &[&q_trans_ov, &q_trans_ov, &gamma_lr])
     let mut k_b: Array4<f64> = -1.0
         * tensordot(
-        &q_trans_ov,
-        &tensordot(&gamma_lr, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkj->akj
-        &[Axis(0)],
-        &[Axis(0)],
-    )  // ail,akj->ilkj
+            &q_trans_ov,
+            &tensordot(&gamma_lr, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkj->akj
+            &[Axis(0)],
+            &[Axis(0)],
+        ) // ail,akj->ilkj
         .into_dimensionality::<Ix4>()
         .unwrap();
     k_b.swap_axes(1, 3); // ilkj->ijkl, ijkl is the correct order for all matrices
@@ -485,11 +490,11 @@ pub fn build_b_matrix(
         // equivalent to einsum("aij,bkl,ab->ijkl", &[&q_trans_ov, &q_trans_ov, &gamma])
         let k_singlet: Array4<f64> = 2.0
             * tensordot(
-            &q_trans_ov,
-            &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkl->akl
-            &[Axis(0)],
-            &[Axis(0)],
-        ) // aij,akl->ijkl
+                &q_trans_ov,
+                &tensordot(&gamma, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkl->akl
+                &[Axis(0)],
+                &[Axis(0)],
+            ) // aij,akl->ijkl
             .into_dimensionality::<Ix4>()
             .unwrap();
 
@@ -502,17 +507,20 @@ pub fn build_b_matrix(
         let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings); // ab,a->ab
         let k_triplet: Array4<f64> = 2.0
             * tensordot(
-            &q_trans_ov,
-            &tensordot(&spin_couplings_diag, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkl->akl
-            &[Axis(0)],
-            &[Axis(0)],
-        ) // aij,akl->ijkl
+                &q_trans_ov,
+                &tensordot(&spin_couplings_diag, &q_trans_ov, &[Axis(1)], &[Axis(0)]), // ab,bkl->akl
+                &[Axis(0)],
+                &[Axis(0)],
+            ) // aij,akl->ijkl
             .into_dimensionality::<Ix4>()
             .unwrap();
 
         k_b = k_b + k_triplet;
     } else {
-        panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
+        panic!(
+            "Currently only singlets and triplets are supported, you wished a multiplicity of {}!",
+            multiplicity
+        );
     }
 
     let mut k_coupling: Array2<f64> = k_b.into_shape((n_occ * n_virt, n_occ * n_virt)).unwrap();
@@ -763,7 +771,17 @@ pub fn hermitian_davidson(
 
     for it in 0..maxiter {
         let lmax: usize = bs.dim().2;
-        let r_bs: Array3<f64> = matrix_v_product(&bs, lmax, n_occ, n_virt, &om, &wq_ov, &gamma, multiplicity, spin_couplings);
+        let r_bs: Array3<f64> = matrix_v_product(
+            &bs,
+            lmax,
+            n_occ,
+            n_virt,
+            &om,
+            &wq_ov,
+            &gamma,
+            multiplicity,
+            spin_couplings,
+        );
         r_bs_first = r_bs.clone();
         // shape of Hb: (lmax, lmax)
 
@@ -790,7 +808,17 @@ pub fn hermitian_davidson(
         w = w2_new.mapv(f64::sqrt);
         //residual vectors
 
-        let W_res: Array3<f64> = matrix_v_product(&T, lmax, n_occ, n_virt, &om, &wq_ov, &gamma, multiplicity, spin_couplings) -  &T*&w2_new;
+        let W_res: Array3<f64> = matrix_v_product(
+            &T,
+            lmax,
+            n_occ,
+            n_virt,
+            &om,
+            &wq_ov,
+            &gamma,
+            multiplicity,
+            spin_couplings,
+        ) - &T * &w2_new;
 
         // let W_res: Array3<f64> = matrix_v_product(&T, lmax, n_occ, n_virt, &om, &wq_ov, &gamma, multiplicity, spin_couplings)
         //     - einsum("k,ijk->ijk", &[&w2_new, &T])
@@ -1011,9 +1039,12 @@ pub fn non_hermitian_davidson(
             let err: f64 = subst.sum();
 
             if err > 1.0e-10 {
-                panic!("Hmm... It seems that Mh is not hermitian. The currect error is {:e}\n\
+                panic!(
+                    "Hmm... It seems that Mh is not hermitian. The currect error is {:e}\n\
                         and should be lower than 1.0e-10. If you know what you are doing, try\n\
-                        lowering the tolerance. Otherwise check you input!", err);
+                        lowering the tolerance. Otherwise check you input!",
+                    err
+                );
             }
 
             let tmp: (Array1<f64>, Array2<f64>) = mh.eigh(UPLO::Upper).unwrap();
@@ -1220,16 +1251,18 @@ pub fn get_apbv(
 
         if multiplicity == 1 {
             let tmp_2: Array1<f64> = gamma.dot(&tmp);
-            let u_singlet: Array2<f64> = 4.0 * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            let u_singlet: Array2<f64> = 4.0
+                * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+                    .into_dimensionality::<Ix2>()
+                    .unwrap();
             u = u + u_singlet;
         } else if multiplicity == 3 {
             let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings);
             let tmp_2: Array1<f64> = spin_couplings_diag.dot(&tmp);
-            let u_triplet: Array2<f64> = 4.0 * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            let u_triplet: Array2<f64> = 4.0
+                * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+                    .into_dimensionality::<Ix2>()
+                    .unwrap();
             u = u + u_triplet;
         } else {
             panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
@@ -1267,6 +1300,80 @@ pub fn get_apbv(
         us.slice_mut(s![.., .., i]).assign(&u);
     }
     return us;
+}
+
+pub fn get_apbv_single_vector(
+    gamma: &ArrayView2<f64>,
+    gamma_lr: &Option<ArrayView2<f64>>,
+    qtrans_oo: &Option<ArrayView3<f64>>,
+    qtrans_vv: &Option<ArrayView3<f64>>,
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
+    vs: &Array2<f64>,
+    lc: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array2<f64>) {
+
+    let v: Array2<f64> = vs.clone();
+    // # matrix product u_ia = sum_jb (A+B)_(ia,jb) v_jb
+    // # 1st term in (A+B).v: KS orbital energy differences
+    let mut u: Array2<f64> = omega * &v;
+
+    // 2nd term Coulomb
+    let tmp: Array1<f64> = tensordot(&qtrans_ov, &v, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
+        .into_dimensionality::<Ix1>()
+        .unwrap();
+
+    if multiplicity == 1 {
+        let tmp_2: Array1<f64> = gamma.dot(&tmp);
+        let u_singlet: Array2<f64> = 4.0
+            * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+        u = u + u_singlet;
+    } else if multiplicity == 3 {
+        let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings);
+        let tmp_2: Array1<f64> = spin_couplings_diag.dot(&tmp);
+        let u_triplet: Array2<f64> = 4.0
+            * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+        u = u + u_triplet;
+    } else {
+        panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
+    }
+
+    if lc == 1 {
+        // 3rd term - Exchange
+        let tmp: Array3<f64> = tensordot(&qtrans_vv.unwrap(), &v, &[Axis(2)], &[Axis(1)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+        let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+        u = u - tensordot(
+            &qtrans_oo.unwrap(),
+            &tmp_2,
+            &[Axis(0), Axis(2)],
+            &[Axis(0), Axis(2)],
+        )
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+
+        //4th term - Exchange
+        let tmp: Array3<f64> = tensordot(&qtrans_ov, &v, &[Axis(1)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+        let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
+            .into_dimensionality::<Ix3>()
+            .unwrap();
+        u = u - tensordot(&qtrans_ov, &tmp_2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+    }
+
+    return u;
 }
 
 pub fn get_ambv(
@@ -1456,16 +1563,18 @@ pub fn matrix_v_product(
 
         if multiplicity == 1 {
             let tmp_2: Array1<f64> = gamma.dot(&tmp);
-            let u_singlet: Array2<f64> = 4.0 * tensordot(&wq_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            let u_singlet: Array2<f64> = 4.0
+                * tensordot(&wq_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+                    .into_dimensionality::<Ix2>()
+                    .unwrap();
             u = u + u_singlet;
         } else if multiplicity == 3 {
             let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings);
             let tmp_2: Array1<f64> = spin_couplings_diag.dot(&tmp);
-            let u_triplet: Array2<f64> = 4.0 * tensordot(&wq_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            let u_triplet: Array2<f64> = 4.0
+                * tensordot(&wq_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+                    .into_dimensionality::<Ix2>()
+                    .unwrap();
             u = u + u_triplet;
         } else {
             panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
@@ -1528,13 +1637,96 @@ pub fn krylov_solver_zvector(
     }
 
     let mut x_matrix: Array3<f64> = Array::zeros((n_occ, n_virt, k));
+    let mut temp_old:Array3<f64> = bs.clone();
 
     for it in 0..maxiter {
+        let krylov_timer = Instant::now();
         // representation of A in the basis of expansion vectors
+        // let mut temp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
+        // if it == 0{
+        //     temp = get_apbv(
+        //         &g0,
+        //         &g0_lr,
+        //         &qtrans_oo,
+        //         &qtrans_vv,
+        //         &qtrans_ov,
+        //         &a_diag,
+        //         &bs,
+        //         lc,
+        //         multiplicity,
+        //         spin_couplings,
+        //     );
+        // }
+        // else if l == kmax {
+        //     temp = get_apbv(
+        //             &g0,
+        //             &g0_lr,
+        //             &qtrans_oo,
+        //             &qtrans_vv,
+        //             &qtrans_ov,
+        //             &a_diag,
+        //             &bs,
+        //             lc,
+        //             multiplicity,
+        //             spin_couplings,
+        //         );
+        // }
+        // else{
+        //     let temp_new_vec:Array2<f64> = get_apbv_single_vector(
+        //         &g0,
+        //         &g0_lr,
+        //         &qtrans_oo,
+        //         &qtrans_vv,
+        //         &qtrans_ov,
+        //         &a_diag,
+        //         &bs.slice(s![..,..,l-1]).to_owned(),
+        //         lc,
+        //         multiplicity,
+        //         spin_couplings,
+        //     );
+        //     temp.slice_mut(s![..,..,..l-1]).assign(&temp_old);
+        //     temp.slice_mut(s![..,..,l-1]).assign(&temp_new_vec);
+        // }
+        // // let temp:Array3<f64> = get_apbv(
+        // //         &g0,
+        // //         &g0_lr,
+        // //         &qtrans_oo,
+        // //         &qtrans_vv,
+        // //         &qtrans_ov,
+        // //         &a_diag,
+        // //         &bs,
+        // //         lc,
+        // //         multiplicity,
+        // //         spin_couplings,
+        // //     );
+        //
+        // temp_old = temp.clone();
+        //
+        // // println!("Temp {}",temp);
+        // // println!("Bs {}",bs);
+        //
+        // let a_b: Array2<f64> = tensordot(
+        //     &bs,
+        //     &temp,
+        //     &[Axis(0), Axis(1)],
+        //     &[Axis(0), Axis(1)],
+        // )
+        // .into_dimensionality::<Ix2>()
+        // .unwrap();
+
         let a_b: Array2<f64> = tensordot(
             &bs,
             &get_apbv(
-                &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &bs, lc, multiplicity, spin_couplings,
+                &g0,
+                &g0_lr,
+                &qtrans_oo,
+                &qtrans_vv,
+                &qtrans_ov,
+                &a_diag,
+                &bs,
+                lc,
+                multiplicity,
+                spin_couplings,
             ),
             &[Axis(0), Axis(1)],
             &[Axis(0), Axis(1)],
@@ -1545,6 +1737,7 @@ pub fn krylov_solver_zvector(
         let b_b: Array2<f64> = tensordot(&bs, &b_matrix, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
             .into_dimensionality::<Ix2>()
             .unwrap();
+
         // solve
         let mut x_b: Array2<f64> = Array2::zeros((k, l));
         for i in 0..k {
@@ -1552,18 +1745,31 @@ pub fn krylov_solver_zvector(
                 .assign((&a_b.solve(&b_b.slice(s![.., i])).unwrap()));
         }
         x_b = x_b.reversed_axes();
+
         // transform solution vector back into canonical basis
         x_matrix = tensordot(&bs, &x_b, &[Axis(2)], &[Axis(0)])
             .into_dimensionality::<Ix3>()
             .unwrap();
         // residual vectors
+        let krylov_timer = Instant::now();
         let w_res: Array3<f64> = &get_apbv(
-            &g0, &g0_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &a_diag, &x_matrix, lc, multiplicity, spin_couplings,
+            &g0,
+            &g0_lr,
+            &qtrans_oo,
+            &qtrans_vv,
+            &qtrans_ov,
+            &a_diag,
+            &x_matrix,
+            lc,
+            multiplicity,
+            spin_couplings,
         ) - &b_matrix;
+
         let mut norms: Array1<f64> = Array::zeros(k);
         for i in 0..k {
             norms[i] = norm_special(&w_res.slice(s![.., .., i]).to_owned());
         }
+        println!("Norms value {}",norms);
         // check if all values of the norms are under the convergence criteria
         let indices_norms: Array1<usize> = norms
             .indexed_iter()
@@ -1572,6 +1778,7 @@ pub fn krylov_solver_zvector(
         if indices_norms.len() == norms.len() {
             break;
         }
+
         // # enlarge dimension of subspace by dk vectors
         // # At most k new expansion vectors are added
         let dkmax = (kmax - l).min(k);
@@ -1584,12 +1791,14 @@ pub fn krylov_solver_zvector(
             .indexed_iter()
             .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
             .collect();
-        let mut norms_over_eps: Array1<f64> = Array::zeros(indices_norm_over_eps.len());
-        for i in 0..indices_norm_over_eps.len() {
-            norms_over_eps[i] = norms[indices_norm_over_eps[i]];
-        }
-        let nc: f64 = norms_over_eps.sum();
-        let dk: usize = dkmax.min((1.0 + nc) as usize);
+        // let mut norms_over_eps: Array1<f64> = Array::zeros(indices_norm_over_eps.len());
+        // for i in 0..indices_norm_over_eps.len() {
+        //     norms_over_eps[i] = norms[indices_norm_over_eps[i]];
+        // }
+        //let nc: f64 = norms_over_eps.sum();
+        let nc: usize = indices_norm_over_eps.len();
+        let dk: usize = dkmax.min(nc);
+
         let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
         let mut nb: i32 = 0;
 
@@ -1600,6 +1809,7 @@ pub fn krylov_solver_zvector(
                 nb += 1;
             }
         }
+
         assert!(nb as usize == dk);
         // new expansion vectors are bs + Qs
         let mut bs_new: Array3<f64> = Array::zeros((n_occ, n_virt, l + dk));
@@ -1616,6 +1826,13 @@ pub fn krylov_solver_zvector(
         let (Q, R): (Array2<f64>, Array2<f64>) = bs_flat.qr().unwrap();
         bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
         l = bs.dim().2;
+
+        info!(
+            "{:>68} {:>10.8} s",
+            "elapsed time krylov iteration:",
+            krylov_timer.elapsed().as_secs_f32()
+        );
+        drop(krylov_timer);
     }
     return x_matrix;
 }
@@ -1633,8 +1850,15 @@ fn excited_energies_tda_routine() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+        config,
+    );
 
     let S: Array2<f64> = array![
         [
@@ -2563,7 +2787,8 @@ fn tda_routine() {
     let mol: Molecule = get_water_molecule();
 
     let spin_couplings: ArrayView1<f64> = mol.calculator.spin_couplings.view();
-    let spin_couplings_null: ArrayView1<f64> = Array::zeros(mol.calculator.spin_couplings.raw_dim()).view();
+    let spin_couplings_null: ArrayView1<f64> =
+        Array::zeros(mol.calculator.spin_couplings.raw_dim()).view();
 
     let (omega, c_ij): (Array1<f64>, Array3<f64>) = tda(
         gamma.view(),
@@ -2771,7 +2996,8 @@ fn casida_routine() {
 
     // Only for testing purposes
     let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
-    let spin_couplings_null: Array1<f64> = Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
+    let spin_couplings_null: Array1<f64> =
+        Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
 
     let (omega, c_ij, XmY, XpY): (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
         gamma.view(),
@@ -3017,7 +3243,8 @@ fn hermitian_davidson_routine() {
 
     // Only for testing purposes
     let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
-    let spin_couplings_null: Array1<f64> = Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
+    let spin_couplings_null: Array1<f64> =
+        Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
 
     let n_occ: usize = qtrans_oo.dim().1;
     let n_virt: usize = qtrans_vv.dim().1;
@@ -3209,7 +3436,8 @@ fn non_hermitian_davidson_routine() {
 
     // Only for testing purposes
     let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
-    let spin_couplings_null: Array1<f64> = Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
+    let spin_couplings_null: Array1<f64> =
+        Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
 
     let n_occ: usize = qtrans_oo.dim().1;
     let n_virt: usize = qtrans_vv.dim().1;
@@ -3245,7 +3473,6 @@ fn non_hermitian_davidson_routine() {
     assert!((&XpY * &XpY).abs_diff_eq(&(&XpY_ref * &XpY_ref), 1e-14));
 }
 
-
 #[test]
 fn benzene_excitations() {
     let nstates: Option<usize> = Some(4);
@@ -3254,7 +3481,10 @@ fn benzene_excitations() {
     let mut mol: Molecule = get_benzene_molecule();
     mol.calculator.r_lr = Some(0.0);
     mol.calculator.active_orbitals = Some((4, 4));
-    println!("r_lr = {}\n", mol.calculator.r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS));
+    println!(
+        "r_lr = {}\n",
+        mol.calculator.r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS)
+    );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         run_scc(&mol);
@@ -3265,14 +3495,30 @@ fn benzene_excitations() {
     println!("multiplicity = {}", mol.multiplicity);
 
     // should call tda
-    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) =
-        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("TDA")));
+    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) = get_exc_energies(
+        &f.to_vec(),
+        &mol,
+        None,
+        &s,
+        &orbe,
+        &orbs,
+        false,
+        Some(String::from("TDA")),
+    );
     println!("omega_TDA: {}", &omega_tda);
     // println!("c_ij_TDA: {:?}", &c_ij_tda);
 
     // should call cadisa
-    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) =
-        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("casida")));
+    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) = get_exc_energies(
+        &f.to_vec(),
+        &mol,
+        None,
+        &s,
+        &orbe,
+        &orbs,
+        false,
+        Some(String::from("casida")),
+    );
     println!("omega_casida: {}", &omega_casida);
     // println!("c_ij_casida: {:?}", &c_ij_casida);
 
@@ -3282,21 +3528,39 @@ fn benzene_excitations() {
     println!("omega_davidson (hermitian): {}\n", &omega_davidson);
     // println!("c_ij_davidson (hermitian): {:?}", &c_ij_davidson);
 
-    assert!(omega_casida.slice(s![0..nstates.unwrap()]).abs_diff_eq(&omega_davidson, 1e-12));
+    assert!(omega_casida
+        .slice(s![0..nstates.unwrap()])
+        .abs_diff_eq(&omega_davidson, 1e-12));
 
     // triplets
     mol.multiplicity = 3;
     println!("multiplicity = {}", mol.multiplicity);
 
     // should call tda
-    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) =
-        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("TDA")));
+    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) = get_exc_energies(
+        &f.to_vec(),
+        &mol,
+        None,
+        &s,
+        &orbe,
+        &orbs,
+        false,
+        Some(String::from("TDA")),
+    );
     println!("omega_TDA: {}", &omega_tda);
     // println!("c_ij_TDA: {:?}", &c_ij_tda);
 
     // should call cadisa
-    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) =
-        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("casida")));
+    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) = get_exc_energies(
+        &f.to_vec(),
+        &mol,
+        None,
+        &s,
+        &orbe,
+        &orbs,
+        false,
+        Some(String::from("casida")),
+    );
     println!("omega_casida: {}", &omega_casida);
     // println!("c_ij_casida: {:?}", &c_ij_casida);
 
@@ -3306,7 +3570,9 @@ fn benzene_excitations() {
     println!("omega_davidson (hermitian): {}\n", &omega_davidson);
     // println!("c_ij_davidson (hermitian): {:?}", &c_ij_davidson);
 
-    assert!(omega_casida.slice(s![0..nstates.unwrap()]).abs_diff_eq(&omega_davidson, 1e-12));
+    assert!(omega_casida
+        .slice(s![0..nstates.unwrap()])
+        .abs_diff_eq(&omega_davidson, 1e-12));
 
     println!("------------------------------------------------");
 
@@ -3314,7 +3580,10 @@ fn benzene_excitations() {
     let mut mol: Molecule = get_benzene_molecule();
     mol.calculator.r_lr = None;
     mol.calculator.active_orbitals = Some((3, 3));
-    println!("r_lr = {}\n", mol.calculator.r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS));
+    println!(
+        "r_lr = {}\n",
+        mol.calculator.r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS)
+    );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         run_scc(&mol);
@@ -3325,14 +3594,30 @@ fn benzene_excitations() {
     println!("multiplicity = {}", mol.multiplicity);
 
     // should call tda
-    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) =
-        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("TDA")));
+    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) = get_exc_energies(
+        &f.to_vec(),
+        &mol,
+        None,
+        &s,
+        &orbe,
+        &orbs,
+        false,
+        Some(String::from("TDA")),
+    );
     println!("omega_TDA: {}", &omega_tda);
     // println!("c_ij_TDA: {:?}", &c_ij_tda);
 
     // should call cadisa
-    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) =
-        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("casida")));
+    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) = get_exc_energies(
+        &f.to_vec(),
+        &mol,
+        None,
+        &s,
+        &orbe,
+        &orbs,
+        false,
+        Some(String::from("casida")),
+    );
     println!("omega_casida: {}", &omega_casida);
     // println!("c_ij_casida: {:?}", &c_ij_casida);
 
@@ -3342,21 +3627,39 @@ fn benzene_excitations() {
     println!("omega_davidson (non-hermitian): {}\n", &omega_davidson);
     // println!("c_ij_davidson (non-hermitian): {:?}", &c_ij_davidson);
 
-    assert!(omega_casida.slice(s![0..nstates.unwrap()]).abs_diff_eq(&omega_davidson, 1e-12));
+    assert!(omega_casida
+        .slice(s![0..nstates.unwrap()])
+        .abs_diff_eq(&omega_davidson, 1e-12));
 
     // triplets
     mol.multiplicity = 3;
     println!("multiplicity = {}", mol.multiplicity);
 
     // should call tda
-    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) =
-        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("TDA")));
+    let (omega_tda, c_ij_tda, XmY_tda, XpY_tda) = get_exc_energies(
+        &f.to_vec(),
+        &mol,
+        None,
+        &s,
+        &orbe,
+        &orbs,
+        false,
+        Some(String::from("TDA")),
+    );
     println!("omega_TDA: {}", &omega_tda);
     // println!("c_ij_TDA: {:?}", &c_ij_tda);
 
     // should call cadisa
-    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) =
-        get_exc_energies(&f.to_vec(), &mol, None, &s, &orbe, &orbs, false, Some(String::from("casida")));
+    let (omega_casida, c_ij_casida, XmY_casida, XpY_casida) = get_exc_energies(
+        &f.to_vec(),
+        &mol,
+        None,
+        &s,
+        &orbe,
+        &orbs,
+        false,
+        Some(String::from("casida")),
+    );
     println!("omega_casida: {}", &omega_casida);
     // println!("c_ij_casida: {:?}", &c_ij_casida);
 
@@ -3366,7 +3669,9 @@ fn benzene_excitations() {
     println!("omega_davidson (non-hermitian): {}\n", &omega_davidson);
     // println!("c_ij_davidson (hermitian): {:?}", &c_ij_davidson);
 
-    assert!(omega_casida.slice(s![0..nstates.unwrap()]).abs_diff_eq(&omega_davidson, 1e-12));
+    assert!(omega_casida
+        .slice(s![0..nstates.unwrap()])
+        .abs_diff_eq(&omega_davidson, 1e-12));
 
     // let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
     //     run_scc(&mol);
