@@ -28,16 +28,16 @@ use crate::constants::{BOHR_TO_ANGS, ATOM_NAMES};
 pub fn optimize_geometry_ic(mol: &mut Molecule,state:Option<usize>) -> (f64, Array1<f64>, Array1<f64>) {
     info!("{:^80}", "");
     info!("{: ^80}", "Geometry optimization");
-    info!("{:-^80}", "");
-    info!("{: ^0}", "Convergence criteria");
-    info!("{:-^80}", "");
-    info!("{: <35} {}", "Max iter:", 500);
-    info!("{: <35} {}", "Energy tolerance:", 1.0e-6);
-    info!("{: <35} {}", "Gradient rms tolerance:", 2.0e-4);
-    info!("{: <35} {}", "Max gradient tolerance:", 4.0e-4);
-    info!("{: <35} {}", "Displacement rms tolerance:", 5.0e-4);
-    info!("{: <35} {}", "Max displacement tolerance:", 1.0e-3);
-    info!("{:-^80}", "");
+    // info!("{:-^80}", "");
+    // info!("{: ^0}", "Convergence criteria");
+    // info!("{:-^80}", "");
+    // info!("{: <35} {}", "Max iter:", 500);
+    // info!("{: <35} {}", "Energy tolerance:", 1.0e-6);
+    // info!("{: <35} {}", "Gradient rms tolerance:", 2.0e-4);
+    // info!("{: <35} {}", "Max gradient tolerance:", 4.0e-4);
+    // info!("{: <35} {}", "Displacement rms tolerance:", 5.0e-4);
+    // info!("{: <35} {}", "Max displacement tolerance:", 1.0e-3);
+    // info!("{:-^80}", "");
 
     let state:usize = state.unwrap_or(0);
 
@@ -264,26 +264,26 @@ pub fn evaluate_step(
             step_state = 0;
         }
     }
-    info!("{: <35} {:>15.8}", "Step state:", step_state);
-    info!("{:-^70}", "");
-    info!("{: <35} {:<15} {:>15}", "Criteria","current values","tolerances");
-    info!("{:-^70}", "");
-    info!("{: <35} {:>15.8} {:>15.8}", "Energy tolerance:", (energy - energy_prev).abs(),1.0e-6);
-    info!("{: <35} {:>15.8} {:>15.8}", "Gradient rms tolerance:", rms_gradient,2.0e-4);
-    info!("{: <35} {:>15.8} {:>15.8}", "Max gradient tolerance:", max_gradient,4.0e-4);
-    info!("{: <35} {:>15.8} {:>15.8}", "Displacement rms tolerance:", rmsd,5.0e-4);
-    info!("{: <35} {:>15.8} {:>15.8}", "Max displacement tolerance:", maxd,1.0e-3);
-    info!("{:-^70}", "");
-    // println!(
-    //     "Step state = {}. The value 0 is the worst result, 3 the best. ",
-    //     step_state
-    // );
     // check convergence criteria
     let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-6;
     let converged_grms: bool = rms_gradient < 2.0e-4;
     let converged_gmax: bool = max_gradient < 4.0e-4;
     let converged_drms: bool = rmsd < 5.0e-4;
     let converged_dmax: bool = maxd < 1.0e-3;
+
+    info!("{: <35} {:>15.8}", "Step state:", step_state);
+    info!("{: <28} {:>15} {:>15} {:>9}", "Criterium", "Value"," Tolerance","Cnvgd?");
+    info!("{:-^70}", "");
+    info!("{: <28} {:>15.8} {:>15.8} {:>9}", "Energy change:", (energy - energy_prev).abs(),1.0e-6, if converged_energy {"Yes"} else {"No"});
+    info!("{: <28} {:>15.8} {:>15.8} {:>9}", "RMS gradient:", rms_gradient,2.0e-4, if converged_grms {"Yes"} else {"No"});
+    info!("{: <28} {:>15.8} {:>15.8} {:>9}", "Max gradient component:", max_gradient,4.0e-4, if converged_gmax {"Yes"} else {"No"});
+    info!("{: <28} {:>15.8} {:>15.8} {:>9}", "RMS displacement:", rmsd,5.0e-4, if converged_drms {"Yes"} else {"No"});
+    info!("{: <28} {:>15.8} {:>15.8} {:>9}", "Max displacement component:", maxd,1.0e-3, if converged_dmax {"Yes"} else {"No"});
+    info!("{:-^70}", "");
+    // println!(
+    //     "Step state = {}. The value 0 is the worst result, 3 the best. ",
+    //     step_state
+    // );
 
     // Check convergence criteria
     if converged_energy && converged_grms && converged_drms && converged_gmax && converged_dmax {
@@ -754,18 +754,8 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol);
-    info!("{:-^70}", "");
-    info!("{: ^0} ", "Calculate gradients ");
-    info!("{:-^70}", "");
-    let grad_timer = Instant::now();
     let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
-    info!(
-        "{:>68} {:>8.2} s",
-        "elapsed time:",
-        grad_timer.elapsed().as_secs_f32()
-    );
-    drop(grad_timer);
     // println!("Enegies and gradient");
     // println!("Energy: {}", &energy);
     // println!("Gradient E0 {}", &grad_e0);
@@ -1718,7 +1708,7 @@ fn test_opt_benzene() {
     assert!(1 == 2);
 }
 
-//#[test]
+// #[test]
 fn test_opt_cyclohexene() {
     let atomic_numbers: Vec<u8> = vec![6, 6, 6, 1, 6, 1, 6, 1, 6, 1, 1, 1];
     let mut positions: Array2<f64> = array![
