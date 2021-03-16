@@ -23,6 +23,8 @@ use crate::io::GeneralConfig;
 use std::time::Instant;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 use rayon::prelude::*;
+use crate::constants::ATOM_NAMES;
+use ndarray_stats::{QuantileExt, DeviationExt};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -51,6 +53,10 @@ pub fn get_gradients(
     omega: &Option<Array1<f64>>,
     old_z_vec:Option<Array3<f64>>
 ) -> (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) {
+    info!("{:^80}", "");
+    info!("{:^80}", "Calculating analytic gradient");
+    info!("{:-^80}", "");
+    let grad_timer = Instant::now();
     let n_at: usize = molecule.n_atoms;
     let active_occ: Vec<usize> = molecule.calculator.active_occ.clone().unwrap();
     let active_virt: Vec<usize> = molecule.calculator.active_virt.clone().unwrap();
@@ -183,6 +189,8 @@ pub fn get_gradients(
                     orbs_virt.view(),
                     fdmdO.view(),
                     flrdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
                      old_z_vec
                 );
@@ -213,6 +221,8 @@ pub fn get_gradients(
                     orbs_occ.view(),
                     orbs_virt.view(),
                     fdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
                     old_z_vec
                 );
@@ -293,6 +303,8 @@ pub fn get_gradients(
                     orbs_virt.view(),
                     fdmdO.view(),
                     flrdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
                     old_z_vec
                 );
@@ -323,6 +335,8 @@ pub fn get_gradients(
                     orbs_occ.view(),
                     orbs_virt.view(),
                     fdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
                     old_z_vec
                 );
@@ -331,7 +345,32 @@ pub fn get_gradients(
             }
         }
     }
-
+    let total_grad: Array2<f64> = (&grad_e0 + &grad_vrep + &grad_ex).into_shape([molecule.n_atoms, 3]).unwrap();
+    if log_enabled!(Level::Debug) || molecule.config.jobtype == "force" {
+        info!("{: <45} ", "Gradient in atomic units");
+        info!("{: <4} {: >18} {: >18} {: >18}", "Atom", "dE/dx", "dE/dy", "dE/dz");
+        info!("{:-^61} ", "");
+        for (grad_xyz, at) in total_grad.outer_iter().zip(molecule.atomic_numbers.iter()) {
+            info!(
+                "{: <4} {:>18.10e} {:>18.10e} {:>18.10e}",
+                ATOM_NAMES[*at as usize],
+                grad_xyz[0],
+                grad_xyz[1],
+                grad_xyz[2]
+            );
+        }
+        info!("{:-^61} ", "");
+    }
+    info!("{:<25} {:>18.10e}", "Max gradient component:", total_grad.max().unwrap());
+    info!("{:<25} {:>18.10e}", "RMS gradient:", total_grad.root_mean_sq_err(&(&total_grad*0.0)).unwrap());
+    info!("{:-^80} ", "");
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    info!("{:^80} ", "");
+    drop(grad_timer);
     return (grad_e0, grad_vrep, grad_ex,new_z_vec);
 }
 
@@ -567,6 +606,8 @@ pub fn gradients_nolc_ex(
     orbs_occ: ArrayView2<f64>,
     orbs_virt: ArrayView2<f64>,
     f_dmd0: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
     check_z_vec: Option<usize>,
     old_z_vec:Option<Array3<f64>>
 ) -> (Array1<f64>,Array3<f64>) {
@@ -744,6 +785,8 @@ pub fn gradients_nolc_ex(
         None,
         qtrans_ov,
         0,
+        multiplicity,
+        spin_couplings,
     );
     let z_ia_transformed: Array2<f64> = z_ia.clone().into_shape((n_occ, n_virt)).unwrap();
 
@@ -904,6 +947,8 @@ pub fn gradients_lc_ex(
     orbs_virt: ArrayView2<f64>,
     f_dmd0: ArrayView3<f64>,
     f_lrdmd0: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
     check_z_vec: Option<usize>,
     old_z_vec:Option<Array3<f64>>
 ) -> (Array1<f64>,Array3<f64>) {
@@ -1127,6 +1172,8 @@ pub fn gradients_lc_ex(
         Some(qtrans_vv),
         qtrans_ov,
         1,
+        multiplicity,
+        spin_couplings,
     );
     let z_ia_transformed: Array2<f64> = z_ia.clone().into_shape((n_occ, n_virt)).unwrap();
 
@@ -3395,6 +3442,8 @@ fn gs_gradients_lc_routine() {
 
 #[test]
 fn exc_gradient_no_lc_routine() {
+    let mol: Molecule = get_water_molecule();
+
     let orbs: Array2<f64> = array![
         [
             -8.6192475509337374e-01,
@@ -7519,6 +7568,8 @@ fn exc_gradient_no_lc_routine() {
         orbs_occ.view(),
         orbs_virt.view(),
         FDmD0.view(),
+         mol.multiplicity,
+        mol.calculator.spin_couplings.view(),
         Some(1),
     );
 
@@ -7529,6 +7580,8 @@ fn exc_gradient_no_lc_routine() {
 
 #[test]
 fn exc_gradient_lc_routine() {
+    let mol: Molecule = get_water_molecule();
+
     let orbs: Array2<f64> = array![
         [
             8.7633793350448586e-01,
