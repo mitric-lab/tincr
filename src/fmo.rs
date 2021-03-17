@@ -33,7 +33,7 @@ pub fn fmo_construct_mos(
         let j_2:usize = n_aos * (idx + 1);
 
         orbs.slice_mut(s![i,j_1..j_2]).assign(&homo_orbs[idx]);
-        orbs.slice_mut(s![i+1,j_1..j_2]).assing(&lumo_orbs[idx]);
+        orbs.slice_mut(s![i+1,j_1..j_2]).assign(&lumo_orbs[idx]);
     }
     let orbs_final:Array2<f64> = e_vecs.t().to_owned().dot(&orbs).t().to_owned();
 
@@ -164,7 +164,7 @@ pub fn fmo_calculate_fragments(
     }
     let h_0: Array2<f64> = Array::from_diag(&Array::from(h_diag));
 
-    return (h_0, n_mo, homo_orbs, lumo_orbs,ind_homo,ind_homo);
+    return (h_0, n_mo, homo_orbs, lumo_orbs,ind_homo,ind_lumo);
 }
 
 pub fn create_fragment_molecules(mol: &Molecule, config: GeneralConfig) -> Vec<Molecule> {
