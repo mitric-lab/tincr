@@ -998,44 +998,107 @@ pub fn non_hermitian_davidson(
     let mut l_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     let mut r_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
 
+    let mut bp_old:Array3<f64> = bs.clone();
+    let mut bm_old:Array3<f64> = bs.clone();
+    let mut l_prev:usize = l;
+
     for it in 0..maxiter {
         let lmax: usize = bs.dim().2;
         println!("Iteration {}", it);
         // println!("BS {}",bs.slice(s![0,5,..]));
 
         if XpYguess.is_none() || it > 0 {
-            // let mut bp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
-            // let bm: Array3<f64> = Array3::zeros((n_occ,n_virt,l));
-            // if it == 0{
-            //     let bp: Array3<f64> = get_apbv(
-            //                 &gamma,
-            //                 &Some(gamma_lr),
-            //                 &Some(qtrans_oo),
-            //                 &Some(qtrans_vv),
-            //                 &qtrans_ov,
-            //                 &omega,
-            //                 &bs,
-            //                 lc,
-            //                 multiplicity,
-            //                 spin_couplings,
-            //             );
-            // }
-            // else{
-            //     let temp_new_vec:Array3<f64> = get_apbv(
-            //         &g0,
-            //         &g0_lr,
-            //         &qtrans_oo,
-            //         &qtrans_vv,
-            //         &qtrans_ov,
-            //         &a_diag,
-            //         &bs.slice(s![..,..,l-2..l]).to_owned(),
-            //         lc,
-            //         multiplicity,
-            //         spin_couplings,
-            //     );
-            //     temp.slice_mut(s![..,..,..l-1]).assign(&temp_old);
-            //     temp.slice_mut(s![..,..,l-2..l]).assign(&temp_new_vec);
-            // }
+            let mut bp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
+            let mut bm: Array3<f64> = Array3::zeros((n_occ,n_virt,l));
+
+            //if it == 0{
+            //    bp = get_apbv_fortran(
+            //        &gamma,
+            //        &gamma_lr,
+            //        &qtrans_oo,
+            //        &qtrans_vv,
+            //        &qtrans_ov,
+            //        &omega,
+            //        &bs,
+            //        qtrans_ov.dim().0,
+            //        n_occ,
+            //        n_virt,
+            //        l
+            //    );
+            //    bm = get_ambv_fortran(
+            //        &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
+            //    );
+            //}
+            //else if it == 1{
+            //    bp = get_apbv_fortran(
+            //        &gamma,
+            //        &gamma_lr,
+            //        &qtrans_oo,
+            //        &qtrans_vv,
+            //        &qtrans_ov,
+            //        &omega,
+            //        &bs,
+            //        qtrans_ov.dim().0,
+            //        n_occ,
+            //        n_virt,
+            //        l
+            //    );
+            //    bm = get_ambv_fortran(
+            //        &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
+            //    );
+            //}
+            //else{
+            //    let delta_l:usize = l - l_prev;
+            //    println!("l actual {}",l);
+            //    println!("Delta l {}",delta_l);
+            //    println!("Shape of bs {:?}",bs.shape());
+            //    let bp_new_vec:Array3<f64> = get_apbv_fortran(
+            //        &gamma,
+            //        &gamma_lr,
+            //        &qtrans_oo,
+            //        &qtrans_vv,
+            //        &qtrans_ov,
+            //        &omega,
+            //        &bs.slice(s![..,..,l-(3*nstates)..l]).to_owned(),
+            //        qtrans_ov.dim().0,
+            //        n_occ,
+            //        n_virt,
+            //        (3*nstates)
+            //    );
+            //    println!("Shape of new vec {:?}",bp_new_vec.shape());
+            //    bp.slice_mut(s![..,..,..l-(3*nstates)]).assign(&bp_old.slice(s![..,..,..l-(3*nstates)]));
+            //    bp.slice_mut(s![..,..,l-(3*nstates)..l]).assign(&bp_new_vec);
+            //    println!("Test123");
+            //    let bm_new_vec: Array3<f64> = get_ambv_fortran(
+            //        &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs.slice(s![..,..,l-(3*nstates)..l]).to_owned(), qtrans_ov.dim().0,n_occ,n_virt,(3*nstates)
+            //    );
+            //    bm.slice_mut(s![..,..,..l-(3*nstates)]).assign(&bm_old.slice(s![..,..,..l-(3*nstates)]));
+            //    bm.slice_mut(s![..,..,l-(3*nstates)..l]).assign(&bm_new_vec);
+            //}
+            ////&bs.slice(s![.., .., l - 2..l]).to_owned(),
+            ////
+            ////temp.slice_mut(s![.., .., ..l - 1]).assign(&temp_old);
+            ////temp.slice_mut(s![.., .., l - 2..l]).assign(&temp_new_vec);
+//
+            //bp_old = bp.clone();
+            //bm_old = bm.clone();
+
+            let bp: Array3<f64> = get_apbv_fortran(
+                &gamma,
+                &gamma_lr,
+                &qtrans_oo,
+                &qtrans_vv,
+                &qtrans_ov,
+                &omega,
+                &bs,
+                qtrans_ov.dim().0,
+                n_occ,
+                n_virt,
+                l
+            );
+            let bm: Array3<f64> = get_ambv_fortran(
+                &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
+            );
 
             // # evaluate (A+B).b and (A-B).b
             //let bp: Array3<f64> = get_apbv(
@@ -1053,25 +1116,6 @@ pub fn non_hermitian_davidson(
             //let bm: Array3<f64> = get_ambv(
             //    &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
             //);
-
-            let bp: Array3<f64> = get_apbv_fortran(
-                &gamma,
-                &gamma_lr,
-                &qtrans_oo,
-                &qtrans_vv,
-                &qtrans_ov,
-                &omega,
-                &bs,
-                qtrans_ov.dim().0,
-                n_occ,
-                n_virt,
-                l
-            );
-            //println!("Shape of bp {:?}",bp);
-            let bm: Array3<f64> = get_ambv_fortran(
-                &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
-            );
-            //println!("shape of bm {:?}",bm.shape());
 
             // # M^+ = (b_i, (A+B).b_j)
             let mp: Array2<f64> = tensordot(&bs, &bp, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
@@ -1188,10 +1232,10 @@ pub fn non_hermitian_davidson(
             .indexed_iter()
             .filter_map(|(index, &item)| if item < conv { Some(index) } else { None })
             .collect();
+        println!("Norms davidson {}",norms);
         if indices_norms.len() == norms.len() && it > 0 {
             break;
         }
-        // println!("Norms davidson {}",norms);
 
         //  enlarge dimension of subspace by dk vectors
         //  At most 2*k new expansion vectors are added
@@ -1261,7 +1305,7 @@ pub fn non_hermitian_davidson(
         //         nb += 1;
         //     }
         // }
-
+        l_prev = l;
         // new expansion vectors are bs + Qs
         let mut bs_new: Array3<f64> = Array::zeros((n_occ, n_virt, l + dk));
         bs_new.slice_mut(s![.., .., ..l]).assign(&bs);
@@ -1416,17 +1460,22 @@ pub fn get_apbv_fortran(
 
         // 2nd term - Coulomb
         let mut tmp21: Array1<f64> = Array1::zeros(n_at);
-        for at in (0..n_at) {
+
+        //for at in (0..n_at) {
+        //    let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
+        //    tmp21[at] = tmp.sum();
+        //}
+        let tmp21:Vec<f64> =(0..n_at).into_par_iter().map(|at|{
             let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
-            tmp21[at] = tmp.sum();
-        }
+            tmp.sum()
+        }).collect();
+        let tmp21:Array1<f64> = Array::from(tmp21);
+
         let tmp22: Array1<f64> = 4.0 * gamma.clone().dot(&tmp21);
 
-        for at in (0..n_at) {
+        for at in (0..n_at).into_iter() {
             u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
         }
-        //println!("Iteration {} for the fortran routine",i);
-        //println!("Value of u after 2nd term {}",u_l);
 
         // 3rd term - Exchange
         let tmp31: Array3<f64> = tmp_q_vv
