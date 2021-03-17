@@ -953,9 +953,6 @@ pub fn non_hermitian_davidson(
     let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
     let lc: usize = lc.unwrap_or(1);
 
-    println!("Nocc {}", n_occ);
-    println!("Nvirt {}", n_virt);
-
     // at most there are nocc*nvirt excited states
     let kmax = n_occ * n_virt;
     // To achieve fast convergence the solution vectors from a nearby geometry
@@ -965,7 +962,6 @@ pub fn non_hermitian_davidson(
     let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
 
     if XpYguess.is_none() {
-        println!("Initial expansion vectors");
         bs = initial_expansion_vectors(omega.to_owned(), lmax);
     } else {
         // For the expansion vectors we use X+Y
@@ -1001,7 +997,6 @@ pub fn non_hermitian_davidson(
 
     let mut l_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     let mut r_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
-    println!("Test123");
 
     for it in 0..maxiter {
         let lmax: usize = bs.dim().2;
@@ -1072,9 +1067,11 @@ pub fn non_hermitian_davidson(
                 n_virt,
                 l
             );
+            println!("Shape of bp {:?}",bp.shape());
             let bm: Array3<f64> = get_ambv_fortran(
                 &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
             );
+            println!("shape of bm {:?}",bm.shape());
 
             // # M^+ = (b_i, (A+B).b_j)
             let mp: Array2<f64> = tensordot(&bs, &bp, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
@@ -1378,18 +1375,26 @@ pub fn get_apbv_fortran(
         .clone().to_owned()
         .into_shape((n_virt * n_at, n_virt))
         .unwrap();
+    println!("Test1");
     let tmp_q_oo: Array2<f64> = qtrans_oo.clone().to_owned().into_shape((n_at * n_occ, n_occ)).unwrap();
+    println!("Test12");
     let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped.swap_axes(1, 2);
+    println!("after swap: {:?}",tmp_q_ov_swapped);
+    println!("Test123");
     let tmp_q_ov_shape_1: Array2<f64> =
         tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
+    println!("Test1234");
     let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped_2.swap_axes(0, 1);
+    println!("Test12345");
     let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
         .into_shape((n_occ, n_at * n_virt))
         .unwrap();
 
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
+
+    println!("Test before loop apbv fortran");
 
     for i in (0..n_vec) {
         let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
@@ -1651,13 +1656,11 @@ pub fn get_ambv(
 pub fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Array3<f64>) {
     //     The initial guess vectors are the lmax lowest energy
     //     single excitations
-    println!("Lmax {}", lmax);
     let n_occ: usize = omega_guess.dim().0;
     let n_virt: usize = omega_guess.dim().1;
     let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     // flatten omega, python: numpy.ravel(omega)
     let omega_length: usize = omega_guess.iter().len();
-    println!("Omega length {}", omega_length);
     let omega_flat = omega_guess.into_shape(omega_length).unwrap();
     // sort omega, only possible for vectors
     //let mut omega_vec = omega_flat.to_vec();
@@ -1683,8 +1686,6 @@ pub fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Arra
         let i: usize = (idx / n_virt) as usize;
         // col - virtual index
         let a: usize = idx % n_virt;
-        println!("Idx {}", idx);
-        println!("A {}", a);
 
         bs[[i, a, j]] = 1.0;
     }
