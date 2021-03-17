@@ -1038,7 +1038,7 @@ pub fn non_hermitian_davidson(
             // }
 
             // # evaluate (A+B).b and (A-B).b
-            // let bp: Array3<f64> = get_apbv(
+            //let bp: Array3<f64> = get_apbv(
             //     &gamma,
             //     &Some(gamma_lr),
             //     &Some(qtrans_oo),
@@ -1050,9 +1050,9 @@ pub fn non_hermitian_davidson(
             //     multiplicity,
             //     spin_couplings,
             // );
-            // let bm: Array3<f64> = get_ambv(
-            //     &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
-            // );
+            //let bm: Array3<f64> = get_ambv(
+            //    &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
+            //);
 
             let bp: Array3<f64> = get_apbv_fortran(
                 &gamma,
@@ -1067,11 +1067,11 @@ pub fn non_hermitian_davidson(
                 n_virt,
                 l
             );
-            println!("Shape of bp {:?}",bp.shape());
+            //println!("Shape of bp {:?}",bp);
             let bm: Array3<f64> = get_ambv_fortran(
                 &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
             );
-            println!("shape of bm {:?}",bm.shape());
+            //println!("shape of bm {:?}",bm.shape());
 
             // # M^+ = (b_i, (A+B).b_j)
             let mp: Array2<f64> = tensordot(&bs, &bp, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
@@ -1143,20 +1143,36 @@ pub fn non_hermitian_davidson(
             w = w_guess.unwrap().to_owned();
         }
         // residual vectors
-        let wl = get_apbv(
+        //let wl = get_apbv(
+        //    &gamma,
+        //    &Some(gamma_lr),
+        //    &Some(qtrans_oo),
+        //    &Some(qtrans_vv),
+        //    &qtrans_ov,
+        //    &omega,
+        //    &r_canon,
+        //    lc,
+        //    multiplicity,
+        //    spin_couplings,
+        //) - &l_canon * &w;
+        let wl = get_apbv_fortran(
             &gamma,
-            &Some(gamma_lr),
-            &Some(qtrans_oo),
-            &Some(qtrans_vv),
+            &gamma_lr,
+            &qtrans_oo,
+            &qtrans_vv,
             &qtrans_ov,
             &omega,
             &r_canon,
-            lc,
-            multiplicity,
-            spin_couplings,
+            qtrans_ov.dim().0,
+            n_occ,
+            n_virt,
+            l
         ) - &l_canon * &w;
-        let wr = get_ambv(
-            &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &l_canon, lc,
+        //let wr = get_ambv(
+        //    &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &l_canon, lc,
+        //) - &r_canon * &w;
+        let wr = get_ambv_fortran(
+            &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &l_canon, qtrans_ov.dim().0,n_occ,n_virt,l
         ) - &r_canon * &w;
         //norms
         let mut norms: Array1<f64> = Array::zeros(k);
@@ -1312,6 +1328,9 @@ pub fn get_apbv(
                     .into_dimensionality::<Ix2>()
                     .unwrap();
             u = u + u_singlet;
+            //println!("Iteration {} for the tensordot routine",i);
+            //println!("Value of u after 2nd term {}",u);
+
         } else if multiplicity == 3 {
             let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings);
             let tmp_2: Array1<f64> = spin_couplings_diag.dot(&tmp);
@@ -1375,42 +1394,40 @@ pub fn get_apbv_fortran(
         .clone().to_owned()
         .into_shape((n_virt * n_at, n_virt))
         .unwrap();
-    println!("Test1");
     let tmp_q_oo: Array2<f64> = qtrans_oo.clone().to_owned().into_shape((n_at * n_occ, n_occ)).unwrap();
-    println!("Test12");
     let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped.swap_axes(1, 2);
-    println!("after swap: {:?}",tmp_q_ov_swapped);
-    println!("Test123");
+    tmp_q_ov_swapped = tmp_q_ov_swapped.as_standard_layout().to_owned();
     let tmp_q_ov_shape_1: Array2<f64> =
         tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
-    println!("Test1234");
     let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped_2.swap_axes(0, 1);
-    println!("Test12345");
+    tmp_q_ov_swapped_2 = tmp_q_ov_swapped_2.as_standard_layout().to_owned();
     let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
         .into_shape((n_occ, n_at * n_virt))
         .unwrap();
 
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 
-    println!("Test before loop apbv fortran");
-
     for i in (0..n_vec) {
         let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
         // 1st term - KS orbital energy differences
         let mut u_l: Array2<f64> = omega * &vl;
-        // 2nd term - Coulomb
 
+        // 2nd term - Coulomb
         let mut tmp21: Array1<f64> = Array1::zeros(n_at);
         for at in (0..n_at) {
-            tmp21[at] = (&qtrans_ov.slice(s![at, .., ..]).to_owned() * &vl).sum();
+            let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
+            tmp21[at] = tmp.sum();
         }
         let tmp22: Array1<f64> = 4.0 * gamma.clone().dot(&tmp21);
 
-        for at in (1..n_at) {
+        for at in (0..n_at) {
             u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
         }
+        //println!("Iteration {} for the fortran routine",i);
+        //println!("Value of u after 2nd term {}",u_l);
+
         // 3rd term - Exchange
         let tmp31: Array3<f64> = tmp_q_vv
             .clone()
@@ -1425,6 +1442,7 @@ pub fn get_apbv_fortran(
             .into_shape((n_at, n_virt, n_occ))
             .unwrap();
         tmp32.swap_axes(1, 2);
+        tmp32 = tmp32.as_standard_layout().to_owned();
 
         let tmp33: Array2<f64> = tmp_q_oo
             .clone()
@@ -1444,7 +1462,8 @@ pub fn get_apbv_fortran(
             .dot(&tmp41_reshaped)
             .into_shape((n_at, n_virt, n_virt))
             .unwrap();
-        tmp42.swap_axes(0, 1);
+        tmp42.swap_axes(1, 2);
+        tmp42 = tmp42.as_standard_layout().to_owned();
 
         let tmp43: Array2<f64> =
             tmp_q_ov_shape_2.dot(&tmp42.into_shape((n_at * n_virt, n_virt)).unwrap());
@@ -1474,13 +1493,16 @@ pub fn get_ambv_fortran(
         .unwrap();
     let mut tmp_q_oo_swapped: Array3<f64> = qtrans_oo.clone().to_owned();
     tmp_q_oo_swapped.swap_axes(0, 1);
+    tmp_q_oo_swapped = tmp_q_oo_swapped.as_standard_layout().to_owned();
     let tmp_q_oo: Array2<f64> = tmp_q_oo_swapped.into_shape((n_occ, n_at * n_occ)).unwrap();
     let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped.swap_axes(1, 2);
+    tmp_q_ov_swapped = tmp_q_ov_swapped.as_standard_layout().to_owned();
     let tmp_q_ov_shape_1: Array2<f64> =
         tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
     let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped_2.swap_axes(0, 1);
+    tmp_q_ov_swapped_2 = tmp_q_ov_swapped_2.as_standard_layout().to_owned();
     let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
         .into_shape((n_occ, n_at * n_virt))
         .unwrap();
@@ -1504,6 +1526,8 @@ pub fn get_ambv_fortran(
             .into_shape((n_at, n_virt, n_virt))
             .unwrap();
         tmp22.swap_axes(1, 2);
+        tmp22 = tmp22.as_standard_layout().to_owned();
+
         let tmp23: Array2<f64> = tmp_q_ov_shape_2
             .clone()
             .dot(&tmp22.into_shape((n_at * n_virt, n_virt)).unwrap());
@@ -1512,7 +1536,7 @@ pub fn get_ambv_fortran(
         // 3rd term - Exchange
         let tmp31: Array3<f64> = tmp_q_vv
             .clone()
-            .dot(&vl)
+            .dot(&vl.t())
             .into_shape((n_at, n_virt, n_occ))
             .unwrap();
         let mut tmp32: Array3<f64> = gamma_lr
@@ -1521,6 +1545,7 @@ pub fn get_ambv_fortran(
             .into_shape((n_at, n_virt, n_occ))
             .unwrap();
         tmp32.swap_axes(1, 2);
+        tmp32 = tmp32.as_standard_layout().to_owned();
 
         let tmp33: Array2<f64> = tmp_q_oo.dot(&tmp32.into_shape((n_at * n_occ, n_virt)).unwrap());
 
@@ -3478,6 +3503,114 @@ fn hermitian_davidson_routine() {
 }
 
 #[test]
+fn test_apbv_fortran(){
+    let bs:Array3<f64> = array![[[0., 0., 1., 0.],
+        [0., 0., 0., 1.]],
+        [[1., 0., 0., 0.],
+            [0., 1., 0., 0.]]];
+
+    let bp_ref:Array3<f64>= array![[[-0.0000000000000000015255571718482793, 0.000000000000000009672565771884146, 0.49449894023814805, 0.00000007705985670975216],
+        [0.000000000000000016762517988397043, -0.000000000000000004135597331086377, 0.0000000770598567199761, 0.5449686680522884]],
+
+        [[0.3837835356347358, 0.0000001353041309525262, -0.000000000000000001525557171848286, 0.000000000000000016762517988397055],
+            [0.0000001353041309525262, 0.43762532914260255, 0.000000000000000009672565771884152, -0.000000000000000004135597331086383]]];
+
+    let qtrans_ov: Array3<f64> = array![
+        [
+            [2.6230102760982366e-05, 3.7065690068980978e-01],
+            [1.9991274594610739e-16, 1.5626227190095965e-16]
+        ],
+        [
+            [-1.7348148585808104e-01, -1.8531670208019754e-01],
+            [-1.2772046586865093e-16, -1.3655275046819219e-16]
+        ],
+        [
+            [1.7345525575532011e-01, -1.8534019860961229e-01],
+            [3.1533607568650388e-17, -3.3646128491374340e-17]
+        ]
+    ];
+    let qtrans_oo: Array3<f64> = array![
+        [
+            [8.3509736370957066e-01, -1.0278107627479084e-17],
+            [-1.0278107627479084e-17, 1.0000000000000000e+00]
+        ],
+        [
+            [8.2451688036773829e-02, 6.5469849226515001e-17],
+            [6.5469849226515001e-17, 5.0578106550731340e-32]
+        ],
+        [
+            [8.2450948253655273e-02, 1.3061299549224103e-17],
+            [1.3061299549224103e-17, 1.8388700816055480e-33]
+        ]
+    ];
+    let qtrans_vv: Array3<f64> = array![
+        [
+            [4.1303024748498973e-01, -5.9780479099574846e-06],
+            [-5.9780479099574846e-06, 3.2642073579136843e-01]
+        ],
+        [
+            [2.9352849855153762e-01, 3.1440135449565670e-01],
+            [3.1440135449565670e-01, 3.3674597810671958e-01]
+        ],
+        [
+            [2.9344125396347337e-01, -3.1439537644774673e-01],
+            [-3.1439537644774673e-01, 3.3683328610190999e-01]
+        ]
+    ];
+    let gamma: Array2<f64> = array![
+        [0.4467609798860577, 0.3863557889890281, 0.3863561531176491],
+        [0.3863557889890281, 0.4720158398964135, 0.3084885848056254],
+        [0.3863561531176491, 0.3084885848056254, 0.4720158398964135]
+    ];
+    let gamma_lr: Array2<f64> = array![
+        [0.2860554418243039, 0.2692279296946004, 0.2692280400920803],
+        [0.2692279296946004, 0.2923649998054588, 0.2429686492032624],
+        [0.2692280400920803, 0.2429686492032624, 0.2923649998054588]
+    ];
+    let omega0: Array2<f64> = array![
+        [0.7329867988448483, 0.7853711745345131],
+        [0.6599617692239994, 0.7123461449136643]
+    ];
+
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    // let multiplicity: Option<u8> = Some(1);
+    let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
+    let mol: Molecule = Molecule::new(
+        atomic_numbers.clone(),
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+        config,
+    );
+
+    // Only for testing purposes
+    let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
+    let spin_couplings_null: Array1<f64> =
+        Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
+
+    let n_occ: usize = qtrans_oo.dim().1;
+    let n_virt: usize = qtrans_vv.dim().1;
+
+    let bp:Array3<f64> = get_apbv_fortran(&gamma.view(),&gamma_lr.view(),&qtrans_oo.view(),&qtrans_vv.view(),&qtrans_ov.view(),&omega0.view(),&bs,3,2,2,4);
+    let bp_ref:Array3<f64> = get_apbv(&gamma.view(),&Some(gamma_lr.view()),&Some(qtrans_oo.view()),&Some(qtrans_vv.view()),&qtrans_ov.view(),&omega0.view(),&bs,1,1,spin_couplings_null.view());
+
+    println!("BP diff {}",&bp - &bp_ref);
+    assert!(bp.abs_diff_eq(&bp_ref,1e-8));
+}
+
+#[test]
 fn non_hermitian_davidson_routine() {
     let active_occupied_orbs: Vec<usize> = vec![2, 3];
     let active_virtual_orbs: Vec<usize> = vec![4, 5];
@@ -3672,7 +3805,6 @@ fn non_hermitian_davidson_routine() {
     assert!((&XmY * &XmY).abs_diff_eq(&(&XmY_ref * &XmY_ref), 1e-14));
     assert!((&XpY * &XpY).abs_diff_eq(&(&XpY_ref * &XpY_ref), 1e-14));
 
-    assert!(1 == 2);
 }
 
 #[test]
