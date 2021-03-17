@@ -1356,7 +1356,7 @@ pub fn get_apbv_fortran(
     n_occ: usize,
     n_virt: usize,
     n_vec: usize,
-) {
+)-> (Array3<f64>)  {
     let tmp_q_vv: Array2<f64> = qtrans_vv
         .clone()
         .into_shape((n_virt * n_at, n_virt))
@@ -1430,6 +1430,7 @@ pub fn get_apbv_fortran(
 
         us.slice_mut(s![.., .., i]).assign(&u_l);
     }
+    return us;
 }
 
 pub fn get_ambv_fortran(
@@ -1444,7 +1445,7 @@ pub fn get_ambv_fortran(
     n_occ: usize,
     n_virt: usize,
     n_vec: usize,
-) {
+)-> (Array3<f64>)  {
     let tmp_q_vv: Array2<f64> = qtrans_vv
         .clone()
         .into_shape((n_virt * n_at, n_virt))
@@ -1505,6 +1506,7 @@ pub fn get_ambv_fortran(
 
         us.slice_mut(s![.., .., i]).assign(&u_l);
     }
+    return us;
 }
 
 // pub fn get_apbv_single_vector(
