@@ -1043,20 +1043,37 @@ pub fn non_hermitian_davidson(
             // }
 
             // # evaluate (A+B).b and (A-B).b
-            let bp: Array3<f64> = get_apbv(
+            // let bp: Array3<f64> = get_apbv(
+            //     &gamma,
+            //     &Some(gamma_lr),
+            //     &Some(qtrans_oo),
+            //     &Some(qtrans_vv),
+            //     &qtrans_ov,
+            //     &omega,
+            //     &bs,
+            //     lc,
+            //     multiplicity,
+            //     spin_couplings,
+            // );
+            // let bm: Array3<f64> = get_ambv(
+            //     &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
+            // );
+
+            let bp: Array3<f64> = get_apbv_fortran(
                 &gamma,
-                &Some(gamma_lr),
-                &Some(qtrans_oo),
-                &Some(qtrans_vv),
+                &gamma_lr,
+                &qtrans_oo,
+                &qtrans_vv,
                 &qtrans_ov,
                 &omega,
                 &bs,
-                lc,
-                multiplicity,
-                spin_couplings,
+                qtrans_ov.dim().0,
+                n_occ,
+                n_virt,
+                l
             );
-            let bm: Array3<f64> = get_ambv(
-                &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, lc,
+            let bm: Array3<f64> = get_ambv_fortran(
+                &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
             );
 
             // # M^+ = (b_i, (A+B).b_j)
@@ -1345,12 +1362,12 @@ pub fn get_apbv(
 }
 
 pub fn get_apbv_fortran(
-    gamma: &Array2<f64>,
-    gamma_lr: &Array2<f64>,
-    qtrans_oo: &Array3<f64>,
-    qtrans_vv: &Array3<f64>,
-    qtrans_ov: &Array3<f64>,
-    omega: &Array2<f64>,
+    gamma: &ArrayView2<f64>,
+    gamma_lr: &ArrayView2<f64>,
+    qtrans_oo: &ArrayView3<f64>,
+    qtrans_vv: &ArrayView3<f64>,
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
     vs: &Array3<f64>,
     n_at: usize,
     n_occ: usize,
@@ -1358,15 +1375,15 @@ pub fn get_apbv_fortran(
     n_vec: usize,
 )-> (Array3<f64>)  {
     let tmp_q_vv: Array2<f64> = qtrans_vv
-        .clone()
+        .clone().to_owned()
         .into_shape((n_virt * n_at, n_virt))
         .unwrap();
-    let tmp_q_oo: Array2<f64> = qtrans_oo.clone().into_shape((n_at * n_occ, n_occ)).unwrap();
-    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone();
+    let tmp_q_oo: Array2<f64> = qtrans_oo.clone().to_owned().into_shape((n_at * n_occ, n_occ)).unwrap();
+    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped.swap_axes(1, 2);
     let tmp_q_ov_shape_1: Array2<f64> =
         tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
-    let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone();
+    let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped_2.swap_axes(0, 1);
     let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
         .into_shape((n_occ, n_at * n_virt))
@@ -1434,12 +1451,12 @@ pub fn get_apbv_fortran(
 }
 
 pub fn get_ambv_fortran(
-    gamma: &Array2<f64>,
-    gamma_lr: &Array2<f64>,
-    qtrans_oo: &Array3<f64>,
-    qtrans_vv: &Array3<f64>,
-    qtrans_ov: &Array3<f64>,
-    omega: &Array2<f64>,
+    gamma: &ArrayView2<f64>,
+    gamma_lr: &ArrayView2<f64>,
+    qtrans_oo: &ArrayView3<f64>,
+    qtrans_vv: &ArrayView3<f64>,
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
     vs: &Array3<f64>,
     n_at: usize,
     n_occ: usize,
@@ -1447,17 +1464,17 @@ pub fn get_ambv_fortran(
     n_vec: usize,
 )-> (Array3<f64>)  {
     let tmp_q_vv: Array2<f64> = qtrans_vv
-        .clone()
+        .clone().to_owned()
         .into_shape((n_virt * n_at, n_virt))
         .unwrap();
-    let mut tmp_q_oo_swapped: Array3<f64> = qtrans_oo.clone();
+    let mut tmp_q_oo_swapped: Array3<f64> = qtrans_oo.clone().to_owned();
     tmp_q_oo_swapped.swap_axes(0, 1);
     let tmp_q_oo: Array2<f64> = tmp_q_oo_swapped.into_shape((n_occ, n_at * n_occ)).unwrap();
-    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone();
+    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped.swap_axes(1, 2);
     let tmp_q_ov_shape_1: Array2<f64> =
         tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
-    let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone();
+    let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone().to_owned();
     tmp_q_ov_swapped_2.swap_axes(0, 1);
     let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
         .into_shape((n_occ, n_at * n_virt))
