@@ -137,7 +137,7 @@ fn main() {
                 positions,
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
-                Some(0.0),
+                None,
                 None,
                 config,
             );

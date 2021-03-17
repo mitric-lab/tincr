@@ -7,6 +7,7 @@ use crate::test::{get_benzene_molecule, get_water_molecule};
 use crate::transition_charges::trans_charges;
 use crate::Molecule;
 use approx::{AbsDiffEq, RelativeEq};
+use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
 use ndarray::Data;
 use ndarray::{stack, Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
@@ -16,7 +17,6 @@ use peroxide::prelude::*;
 use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::ops::{AddAssign, DivAssign};
-use log::{debug, error, info, log_enabled, trace, warn, Level};
 use std::time::Instant;
 
 pub trait ToOwnedF<A, D> {
@@ -734,7 +734,7 @@ pub fn hermitian_davidson(
     let nstates: usize = nstates.unwrap_or(4);
     let ifact: usize = ifact.unwrap_or(1);
     let maxiter: usize = maxiter.unwrap_or(10);
-    let conv: f64 = conv.unwrap_or(1.0e-14);
+    let conv: f64 = conv.unwrap_or(1.0e-8);
     let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
 
     let omega2: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::powi(omega, 2));
@@ -948,10 +948,13 @@ pub fn non_hermitian_davidson(
     // set values or defaults
     let nstates: usize = nstates.unwrap_or(4);
     let ifact: usize = ifact.unwrap_or(1);
-    let maxiter: usize = maxiter.unwrap_or(10);
-    let conv: f64 = conv.unwrap_or(1.0e-14);
+    let maxiter: usize = maxiter.unwrap_or(100);
+    let conv: f64 = conv.unwrap_or(1.0e-8);
     let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
     let lc: usize = lc.unwrap_or(1);
+
+    println!("Nocc {}", n_occ);
+    println!("Nvirt {}", n_virt);
 
     // at most there are nocc*nvirt excited states
     let kmax = n_occ * n_virt;
@@ -962,6 +965,7 @@ pub fn non_hermitian_davidson(
     let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
 
     if XpYguess.is_none() {
+        println!("Initial expansion vectors");
         bs = initial_expansion_vectors(omega.to_owned(), lmax);
     } else {
         // For the expansion vectors we use X+Y
@@ -997,11 +1001,47 @@ pub fn non_hermitian_davidson(
 
     let mut l_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     let mut r_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+    println!("Test123");
 
     for it in 0..maxiter {
         let lmax: usize = bs.dim().2;
+        println!("Iteration {}", it);
+        // println!("BS {}",bs.slice(s![0,5,..]));
 
         if XpYguess.is_none() || it > 0 {
+            // let mut bp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
+            // let bm: Array3<f64> = Array3::zeros((n_occ,n_virt,l));
+            // if it == 0{
+            //     let bp: Array3<f64> = get_apbv(
+            //                 &gamma,
+            //                 &Some(gamma_lr),
+            //                 &Some(qtrans_oo),
+            //                 &Some(qtrans_vv),
+            //                 &qtrans_ov,
+            //                 &omega,
+            //                 &bs,
+            //                 lc,
+            //                 multiplicity,
+            //                 spin_couplings,
+            //             );
+            // }
+            // else{
+            //     let temp_new_vec:Array3<f64> = get_apbv(
+            //         &g0,
+            //         &g0_lr,
+            //         &qtrans_oo,
+            //         &qtrans_vv,
+            //         &qtrans_ov,
+            //         &a_diag,
+            //         &bs.slice(s![..,..,l-2..l]).to_owned(),
+            //         lc,
+            //         multiplicity,
+            //         spin_couplings,
+            //     );
+            //     temp.slice_mut(s![..,..,..l-1]).assign(&temp_old);
+            //     temp.slice_mut(s![..,..,l-2..l]).assign(&temp_new_vec);
+            // }
+
             // # evaluate (A+B).b and (A-B).b
             let bp: Array3<f64> = get_apbv(
                 &gamma,
@@ -1121,6 +1161,8 @@ pub fn non_hermitian_davidson(
         if indices_norms.len() == norms.len() && it > 0 {
             break;
         }
+        // println!("Norms davidson {}",norms);
+
         //  enlarge dimension of subspace by dk vectors
         //  At most 2*k new expansion vectors are added
         let dkmax = (kmax - l).min(2 * k);
@@ -1302,79 +1344,242 @@ pub fn get_apbv(
     return us;
 }
 
-pub fn get_apbv_single_vector(
-    gamma: &ArrayView2<f64>,
-    gamma_lr: &Option<ArrayView2<f64>>,
-    qtrans_oo: &Option<ArrayView3<f64>>,
-    qtrans_vv: &Option<ArrayView3<f64>>,
-    qtrans_ov: &ArrayView3<f64>,
-    omega: &ArrayView2<f64>,
-    vs: &Array2<f64>,
-    lc: usize,
-    multiplicity: u8,
-    spin_couplings: ArrayView1<f64>,
-) -> (Array2<f64>) {
-
-    let v: Array2<f64> = vs.clone();
-    // # matrix product u_ia = sum_jb (A+B)_(ia,jb) v_jb
-    // # 1st term in (A+B).v: KS orbital energy differences
-    let mut u: Array2<f64> = omega * &v;
-
-    // 2nd term Coulomb
-    let tmp: Array1<f64> = tensordot(&qtrans_ov, &v, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
-        .into_dimensionality::<Ix1>()
+pub fn get_apbv_fortran(
+    gamma: &Array2<f64>,
+    gamma_lr: &Array2<f64>,
+    qtrans_oo: &Array3<f64>,
+    qtrans_vv: &Array3<f64>,
+    qtrans_ov: &Array3<f64>,
+    omega: &Array2<f64>,
+    vs: &Array3<f64>,
+    n_at: usize,
+    n_occ: usize,
+    n_virt: usize,
+    n_vec: usize,
+) {
+    let tmp_q_vv: Array2<f64> = qtrans_vv
+        .clone()
+        .into_shape((n_virt * n_at, n_virt))
+        .unwrap();
+    let tmp_q_oo: Array2<f64> = qtrans_oo.clone().into_shape((n_at * n_occ, n_occ)).unwrap();
+    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone();
+    tmp_q_ov_swapped.swap_axes(1, 2);
+    let tmp_q_ov_shape_1: Array2<f64> =
+        tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
+    let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone();
+    tmp_q_ov_swapped_2.swap_axes(0, 1);
+    let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
+        .into_shape((n_occ, n_at * n_virt))
         .unwrap();
 
-    if multiplicity == 1 {
-        let tmp_2: Array1<f64> = gamma.dot(&tmp);
-        let u_singlet: Array2<f64> = 4.0
-            * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
-            .into_dimensionality::<Ix2>()
-            .unwrap();
-        u = u + u_singlet;
-    } else if multiplicity == 3 {
-        let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings);
-        let tmp_2: Array1<f64> = spin_couplings_diag.dot(&tmp);
-        let u_triplet: Array2<f64> = 4.0
-            * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
-            .into_dimensionality::<Ix2>()
-            .unwrap();
-        u = u + u_triplet;
-    } else {
-        panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
-    }
+    let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 
-    if lc == 1 {
+    for i in (0..n_vec) {
+        let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
+        // 1st term - KS orbital energy differences
+        let mut u_l: Array2<f64> = omega * &vl;
+        // 2nd term - Coulomb
+
+        let mut tmp21: Array1<f64> = Array1::zeros(n_at);
+        for at in (0..n_at) {
+            tmp21[at] = (&qtrans_ov.slice(s![at, .., ..]).to_owned() * &vl).sum();
+        }
+        let tmp22: Array1<f64> = 4.0 * gamma.clone().dot(&tmp21);
+
+        for at in (1..n_at) {
+            u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
+        }
         // 3rd term - Exchange
-        let tmp: Array3<f64> = tensordot(&qtrans_vv.unwrap(), &v, &[Axis(2)], &[Axis(1)])
-            .into_dimensionality::<Ix3>()
-            .unwrap();
-        let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
-            .into_dimensionality::<Ix3>()
-            .unwrap();
-        u = u - tensordot(
-            &qtrans_oo.unwrap(),
-            &tmp_2,
-            &[Axis(0), Axis(2)],
-            &[Axis(0), Axis(2)],
-        )
-            .into_dimensionality::<Ix2>()
+        let tmp31: Array3<f64> = tmp_q_vv
+            .clone()
+            .dot(&vl.t())
+            .into_shape((n_at, n_virt, n_occ))
             .unwrap();
 
-        //4th term - Exchange
-        let tmp: Array3<f64> = tensordot(&qtrans_ov, &v, &[Axis(1)], &[Axis(0)])
-            .into_dimensionality::<Ix3>()
+        let tmp31_reshaped: Array2<f64> = tmp31.into_shape((n_at, n_virt * n_occ)).unwrap();
+        let mut tmp32: Array3<f64> = gamma_lr
+            .clone()
+            .dot(&tmp31_reshaped)
+            .into_shape((n_at, n_virt, n_occ))
             .unwrap();
-        let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
-            .into_dimensionality::<Ix3>()
+        tmp32.swap_axes(1, 2);
+
+        let tmp33: Array2<f64> = tmp_q_oo
+            .clone()
+            .t()
+            .dot(&tmp32.into_shape((n_at * n_occ, n_virt)).unwrap());
+        u_l = u_l - tmp33;
+
+        // 4th term - Exchange
+        let tmp41: Array3<f64> = tmp_q_ov_shape_1
+            .clone()
+            .dot(&vl)
+            .into_shape((n_at, n_virt, n_virt))
             .unwrap();
-        u = u - tensordot(&qtrans_ov, &tmp_2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
-            .into_dimensionality::<Ix2>()
+        let tmp41_reshaped: Array2<f64> = tmp41.into_shape((n_at, n_virt * n_virt)).unwrap();
+        let mut tmp42: Array3<f64> = gamma_lr
+            .clone()
+            .dot(&tmp41_reshaped)
+            .into_shape((n_at, n_virt, n_virt))
             .unwrap();
+        tmp42.swap_axes(0, 1);
+
+        let tmp43: Array2<f64> =
+            tmp_q_ov_shape_2.dot(&tmp42.into_shape((n_at * n_virt, n_virt)).unwrap());
+        u_l = u_l - tmp43;
+
+        us.slice_mut(s![.., .., i]).assign(&u_l);
     }
-
-    return u;
 }
+
+pub fn get_ambv_fortran(
+    gamma: &Array2<f64>,
+    gamma_lr: &Array2<f64>,
+    qtrans_oo: &Array3<f64>,
+    qtrans_vv: &Array3<f64>,
+    qtrans_ov: &Array3<f64>,
+    omega: &Array2<f64>,
+    vs: &Array3<f64>,
+    n_at: usize,
+    n_occ: usize,
+    n_virt: usize,
+    n_vec: usize,
+) {
+    let tmp_q_vv: Array2<f64> = qtrans_vv
+        .clone()
+        .into_shape((n_virt * n_at, n_virt))
+        .unwrap();
+    let mut tmp_q_oo_swapped: Array3<f64> = qtrans_oo.clone();
+    tmp_q_oo_swapped.swap_axes(0, 1);
+    let tmp_q_oo: Array2<f64> = tmp_q_oo_swapped.into_shape((n_occ, n_at * n_occ)).unwrap();
+    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.clone();
+    tmp_q_ov_swapped.swap_axes(1, 2);
+    let tmp_q_ov_shape_1: Array2<f64> =
+        tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
+    let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.clone();
+    tmp_q_ov_swapped_2.swap_axes(0, 1);
+    let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
+        .into_shape((n_occ, n_at * n_virt))
+        .unwrap();
+
+    let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
+
+    for i in (0..n_vec) {
+        let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
+        // 1st term - KS orbital energy differences
+        let mut u_l: Array2<f64> = omega * &vl;
+        // 2nd term - Coulomb
+        let tmp21: Array3<f64> = tmp_q_ov_shape_1
+            .clone()
+            .dot(&vl)
+            .into_shape((n_at, n_virt, n_virt))
+            .unwrap();
+
+        let mut tmp22: Array3<f64> = gamma_lr
+            .clone()
+            .dot(&tmp21.into_shape((n_at, n_virt * n_virt)).unwrap())
+            .into_shape((n_at, n_virt, n_virt))
+            .unwrap();
+        tmp22.swap_axes(1, 2);
+        let tmp23: Array2<f64> = tmp_q_ov_shape_2
+            .clone()
+            .dot(&tmp22.into_shape((n_at * n_virt, n_virt)).unwrap());
+        u_l = u_l + tmp23;
+
+        // 3rd term - Exchange
+        let tmp31: Array3<f64> = tmp_q_vv
+            .clone()
+            .dot(&vl)
+            .into_shape((n_at, n_virt, n_occ))
+            .unwrap();
+        let mut tmp32: Array3<f64> = gamma_lr
+            .clone()
+            .dot(&tmp31.into_shape((n_at, n_virt * n_occ)).unwrap())
+            .into_shape((n_at, n_virt, n_occ))
+            .unwrap();
+        tmp32.swap_axes(1, 2);
+
+        let tmp33: Array2<f64> = tmp_q_oo.dot(&tmp32.into_shape((n_at * n_occ, n_virt)).unwrap());
+
+        u_l = u_l - tmp33;
+
+        us.slice_mut(s![.., .., i]).assign(&u_l);
+    }
+}
+
+// pub fn get_apbv_single_vector(
+//     gamma: &ArrayView2<f64>,
+//     gamma_lr: &Option<ArrayView2<f64>>,
+//     qtrans_oo: &Option<ArrayView3<f64>>,
+//     qtrans_vv: &Option<ArrayView3<f64>>,
+//     qtrans_ov: &ArrayView3<f64>,
+//     omega: &ArrayView2<f64>,
+//     vs: &Array2<f64>,
+//     lc: usize,
+//     multiplicity: u8,
+//     spin_couplings: ArrayView1<f64>,
+// ) -> (Array2<f64>) {
+//
+//     let v: Array2<f64> = vs.clone();
+//     // # matrix product u_ia = sum_jb (A+B)_(ia,jb) v_jb
+//     // # 1st term in (A+B).v: KS orbital energy differences
+//     let mut u: Array2<f64> = omega * &v;
+//
+//     // 2nd term Coulomb
+//     let tmp: Array1<f64> = tensordot(&qtrans_ov, &v, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
+//         .into_dimensionality::<Ix1>()
+//         .unwrap();
+//
+//     if multiplicity == 1 {
+//         let tmp_2: Array1<f64> = gamma.dot(&tmp);
+//         let u_singlet: Array2<f64> = 4.0
+//             * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+//             .into_dimensionality::<Ix2>()
+//             .unwrap();
+//         u = u + u_singlet;
+//     } else if multiplicity == 3 {
+//         let spin_couplings_diag: Array2<f64> = Array2::from_diag(&spin_couplings);
+//         let tmp_2: Array1<f64> = spin_couplings_diag.dot(&tmp);
+//         let u_triplet: Array2<f64> = 4.0
+//             * tensordot(&qtrans_ov, &tmp_2, &[Axis(0)], &[Axis(0)])
+//             .into_dimensionality::<Ix2>()
+//             .unwrap();
+//         u = u + u_triplet;
+//     } else {
+//         panic!("Currently only singlets and triplets are supported, you wished a multiplicity of {}!", multiplicity);
+//     }
+//
+//     if lc == 1 {
+//         // 3rd term - Exchange
+//         let tmp: Array3<f64> = tensordot(&qtrans_vv.unwrap(), &v, &[Axis(2)], &[Axis(1)])
+//             .into_dimensionality::<Ix3>()
+//             .unwrap();
+//         let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
+//             .into_dimensionality::<Ix3>()
+//             .unwrap();
+//         u = u - tensordot(
+//             &qtrans_oo.unwrap(),
+//             &tmp_2,
+//             &[Axis(0), Axis(2)],
+//             &[Axis(0), Axis(2)],
+//         )
+//             .into_dimensionality::<Ix2>()
+//             .unwrap();
+//
+//         //4th term - Exchange
+//         let tmp: Array3<f64> = tensordot(&qtrans_ov, &v, &[Axis(1)], &[Axis(0)])
+//             .into_dimensionality::<Ix3>()
+//             .unwrap();
+//         let tmp_2: Array3<f64> = tensordot(&gamma_lr.unwrap(), &tmp, &[Axis(1)], &[Axis(0)])
+//             .into_dimensionality::<Ix3>()
+//             .unwrap();
+//         u = u - tensordot(&qtrans_ov, &tmp_2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+//             .into_dimensionality::<Ix2>()
+//             .unwrap();
+//     }
+//
+//     return u;
+// }
 
 pub fn get_ambv(
     gamma: &ArrayView2<f64>,
@@ -1427,11 +1632,13 @@ pub fn get_ambv(
 pub fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Array3<f64>) {
     //     The initial guess vectors are the lmax lowest energy
     //     single excitations
+    println!("Lmax {}", lmax);
     let n_occ: usize = omega_guess.dim().0;
     let n_virt: usize = omega_guess.dim().1;
     let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     // flatten omega, python: numpy.ravel(omega)
     let omega_length: usize = omega_guess.iter().len();
+    println!("Omega length {}", omega_length);
     let omega_flat = omega_guess.into_shape(omega_length).unwrap();
     // sort omega, only possible for vectors
     //let mut omega_vec = omega_flat.to_vec();
@@ -1457,6 +1664,8 @@ pub fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Arra
         let i: usize = (idx / n_virt) as usize;
         // col - virtual index
         let a: usize = idx % n_virt;
+        println!("Idx {}", idx);
+        println!("A {}", a);
 
         bs[[i, a, j]] = 1.0;
     }
@@ -1637,12 +1846,12 @@ pub fn krylov_solver_zvector(
     }
 
     let mut x_matrix: Array3<f64> = Array::zeros((n_occ, n_virt, k));
-    let mut temp_old:Array3<f64> = bs.clone();
+    let mut temp_old: Array3<f64> = bs.clone();
 
     for it in 0..maxiter {
         // representation of A in the basis of expansion vectors
-        let mut temp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
-        if it == 0{
+        let mut temp: Array3<f64> = Array3::zeros((n_occ, n_virt, l));
+        if it == 0 {
             temp = get_apbv(
                 &g0,
                 &g0_lr,
@@ -1655,22 +1864,21 @@ pub fn krylov_solver_zvector(
                 multiplicity,
                 spin_couplings,
             );
-        }
-        else{
-            let temp_new_vec:Array3<f64> = get_apbv(
+        } else {
+            let temp_new_vec: Array3<f64> = get_apbv(
                 &g0,
                 &g0_lr,
                 &qtrans_oo,
                 &qtrans_vv,
                 &qtrans_ov,
                 &a_diag,
-                &bs.slice(s![..,..,l-2..l]).to_owned(),
+                &bs.slice(s![.., .., l - 2..l]).to_owned(),
                 lc,
                 multiplicity,
                 spin_couplings,
             );
-            temp.slice_mut(s![..,..,..l-1]).assign(&temp_old);
-            temp.slice_mut(s![..,..,l-2..l]).assign(&temp_new_vec);
+            temp.slice_mut(s![.., .., ..l - 1]).assign(&temp_old);
+            temp.slice_mut(s![.., .., l - 2..l]).assign(&temp_new_vec);
         }
         // let temp:Array3<f64> = get_apbv(
         //         &g0,
@@ -1690,14 +1898,9 @@ pub fn krylov_solver_zvector(
         // println!("Temp {}",temp);
         // println!("Bs {}",bs);
 
-        let a_b: Array2<f64> = tensordot(
-            &bs,
-            &temp,
-            &[Axis(0), Axis(1)],
-            &[Axis(0), Axis(1)],
-        )
-        .into_dimensionality::<Ix2>()
-        .unwrap();
+        let a_b: Array2<f64> = tensordot(&bs, &temp, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+            .into_dimensionality::<Ix2>()
+            .unwrap();
 
         // let a_b: Array2<f64> = tensordot(
         //     &bs,
@@ -3448,6 +3651,8 @@ fn non_hermitian_davidson_routine() {
     assert!((&c_ij * &c_ij).abs_diff_eq(&(&c_ij_ref * &c_ij_ref), 1e-14));
     assert!((&XmY * &XmY).abs_diff_eq(&(&XmY_ref * &XmY_ref), 1e-14));
     assert!((&XpY * &XpY).abs_diff_eq(&(&XpY_ref * &XpY_ref), 1e-14));
+
+    assert!(1 == 2);
 }
 
 #[test]
