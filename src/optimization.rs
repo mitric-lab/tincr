@@ -72,11 +72,9 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
     let mut prev_hessian: Array2<f64> = initial_hessian.clone();
     let mut prev_cart_coords: Array1<f64> = coords;
     let mut dlc_mat: Array2<f64> = dlc_mat;
+    let mut opt_timer: Instant = Instant::now();
 
     while true {
-        info!("{:-^70}", "");
-        info!("{: ^0} {:^15}", "Geometry iteration:", iteration);
-        info!("{:-^70}", "");
         let (
             new_cart_coords,
             old_cart_coords,
@@ -107,14 +105,27 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
             &mol,
             trust,
         );
+
+        info!("{:-^80} ", "");
+        info!(
+            "{:>68} {:>8.2} s",
+            "elapsed time:",
+            opt_timer.elapsed().as_secs_f32()
+        );
+
         if step_failed {
             internal_coords = new_graph.unwrap();
             dlc_mat = new_dlc_mat.unwrap();
+
             continue;
         } else {
             // get energy and force
             let (energy_new, gradient_new): (f64, Array1<f64>) =
                 get_energy_and_gradient_s0(&new_cart_coords, mol);
+            info!("{:^70}", "");
+            info!("{: ^80}", format!("Optimization step: {:>5}", iteration+1));
+            info!("{:-^80}", "");
+            opt_timer = Instant::now();
             // evalutate step
             let (
                 return_energy,
@@ -175,6 +186,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
                 break;
             }
         }
+
         iteration += 1;
     }
 
@@ -210,9 +222,9 @@ pub fn evaluate_step(
     bool,
     bool,
 ) {
-    info!("{:-^70}", "");
-    info!("{: ^0} ", "Evaluate step ");
-    info!("{:-^70}", "");
+    // info!("{:-^70}", "");
+    // info!("{: ^0} ", "Evaluate step ");
+    // info!("{:-^70}", "");
     let (rms_gradient, max_gradient): (f64, f64) =
         calculate_internal_gradient_norm(new_cart_gradient.clone());
     let (rmsd, maxd): (f64, f64) = calc_drms_dmax(cart_coords.clone(), old_cart_coords.clone());
@@ -448,9 +460,6 @@ pub fn step(
     f64,
     Option<Array2<f64>>
 ) {
-    info!("{:-^70}", "");
-    info!("{: ^0} ", "Optimization step ");
-    info!("{:-^70}", "");
     // variables in case the step fails
     let mut new_internal_coords: Option<InternalCoordinates> = None;
     let mut new_dlc_mat: Option<Array2<f64>> = None;
@@ -504,8 +513,6 @@ pub fn step(
 
     // If the step is above the trust radius in Cartesian coordinates, then
     // do the following to reduce the step length:
-
-    info!("{:-^70}", "");
     if c_norm > 0.11 {
         // This is the function f(inorm) = cnorm-target that we find a root
         // for obtaining a step with the desired Cartesian step size.
@@ -584,8 +591,8 @@ pub fn step(
             get_cartesian_norm(cart_coords, dy.clone(), internal_coordinates, dlc_mat);
         c_norm = tmp.0;
 
-        info!("{:<35} {:0.12}", "New cartesian norm:", c_norm);
-        info!("{:-^70}", "");
+        info!("{:<25} {:0.12}", "New cartesian norm:", c_norm);
+        info!("{:^1}", "");
     }
     // DONE OBTAINING THE STEP
 
@@ -612,15 +619,16 @@ pub fn step(
     let new_cart_coord_3d: Array2<f64> = x_new.clone().into_shape((x_new.dim() / 3, 3)).unwrap();
     //println!("new coordinates of the molecule {}", new_cart_coord_3d);
 
-    info!("{:-^70}", "");
-    info!("{: ^0} ", "New cartesian coordinates in [A]");
-    info!("{:-^70}", "");
+    info!("{: ^70}", "");
+    info!("{: ^0} ", "New cartesian coordinates in \u{212B}ngström");
+    info!("{:-^60}", "");
     if log_enabled!(Level::Info) {
         for (idx, (coord, at)) in new_cart_coord_3d.outer_iter().zip(mol.atomic_numbers.iter()).enumerate(){
-            info!("{:<5} {:>15.10} {:>15.10} {:>15.10}", ATOM_NAMES[*at as usize], coord[0]*BOHR_TO_ANGS, coord[1]*BOHR_TO_ANGS,coord[2]*BOHR_TO_ANGS)
+            info!("{:<3} {:>18.14} {:>18.14} {:>18.14}", ATOM_NAMES[*at as usize], coord[0]*BOHR_TO_ANGS, coord[1]*BOHR_TO_ANGS,coord[2]*BOHR_TO_ANGS)
         }
     }
-    debug!("{:-^70}", "");
+    info!("{:-^60}", "");
+    info!("{:^60}", "");
 
     let expect_part_1: f64 = 0.5 * real_dy.clone().dot(&hessian.dot(&real_dy));
     let expect: f64 = expect_part_1 + real_dy.clone().dot(internal_coord_grad);
