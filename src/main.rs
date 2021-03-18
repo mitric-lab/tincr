@@ -31,6 +31,7 @@ mod fmo;
 
 use crate::gradients::*;
 use crate::molecule::Molecule;
+use crate::solver::get_exc_energies;
 use ndarray::*;
 use ndarray_linalg::*;
 use std::ptr::eq;
@@ -52,7 +53,7 @@ use crate::optimization::optimize_geometry_ic;
 use ron::error::ErrorCode::TrailingCharacters;
 
 fn main() {
-    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new().num_threads(12).build_global().unwrap();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -115,7 +116,7 @@ fn main() {
 
     let exit_code: i32 = match &config.jobtype[..] {
         "sp" => {
-            let mol: Molecule = Molecule::new(
+            let mut mol: Molecule = Molecule::new(
                 atomic_numbers,
                 positions,
                 Some(config.mol.charge),
@@ -129,6 +130,11 @@ fn main() {
             info!("{:^80}", "");
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
                 scc_routine::run_scc(&mol);
+
+            mol.calculator.set_active_orbitals(f.to_vec());
+            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
+                get_exc_energies(&f, &mol, Some(4), &s, &orbe, &orbs, false, None);
+
             0
         }
         "opt" => {
