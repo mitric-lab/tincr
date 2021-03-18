@@ -790,7 +790,7 @@ pub fn get_energies_and_gradient(
     info!("{:-^70}", "");
     let exc_timer = Instant::now();
     let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
-        get_exc_energies(&f, &mol, None, &s, &orbe, &orbs, false, None);
+        get_exc_energies(&f, &mol, Some(5), &s, &orbe, &orbs, false, None);
     let omega: Array1<f64> = tmp.0.clone();
 
     info!(
