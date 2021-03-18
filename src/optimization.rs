@@ -48,9 +48,9 @@ pub fn optimize_geometry_ic(mol: &mut Molecule,state:Option<usize>) -> (f64, Arr
     let mut old_z_vec:Array3<f64> = Array::zeros((mol.calculator.active_occ.clone().unwrap().len(),mol.calculator.active_virt.clone().unwrap().len(),1));
 
     if state == 0 {
-       let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
-       energy = en;
-       gradient = grad;
+        let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
+        energy = en;
+        gradient = grad;
     } else {
         let (en, grad,z_vec): (Array1<f64>, Array1<f64>,Array3<f64>) = get_energies_and_gradient(&coords, mol, state - 1,None);
         energy = en[state - 1];
@@ -800,9 +800,6 @@ pub fn get_energies_and_gradient(
     );
     drop(exc_timer);
 
-    info!("{:-^70}", "");
-    info!("{: ^0} ", "Calculate gradients ");
-    info!("{:-^70}", "");
     let grad_timer = Instant::now();
     let (grad_e0, grad_vrep, grad_exc,old_z_vector): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
@@ -815,12 +812,6 @@ pub fn get_energies_and_gradient(
         &Some(tmp.0),
         old_z_vec
     );
-    info!(
-        "{:>68} {:>8.2} s",
-        "elapsed time:",
-        grad_timer.elapsed().as_secs_f32()
-    );
-    drop(grad_timer);
 
     let grad_tot: Array1<f64> = grad_e0 + grad_vrep + grad_exc;
     let energy_tot: Array1<f64> = omega + energy;
@@ -999,19 +990,19 @@ pub fn bfgs_update(
         let rk: f64 = 1.0 / yk.dot(sk);
         let u: Array2<f64> = &id
             - &einsum("i,j->ij", &[sk, yk])
-                .unwrap()
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
         let v: Array2<f64> = &id
             - &einsum("i,j->ij", &[yk, sk])
-                .unwrap()
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
         let w: Array2<f64> = rk
             * einsum("i,j->ij", &[sk, sk])
-                .unwrap()
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
         inv_hkp1 = u.dot(&inv_hk.dot(&v)) + w;
     }
     return inv_hkp1;
@@ -1242,7 +1233,7 @@ pub fn zoom(
 
 //#[test]
 fn test_optimization() {
-   let mut mol: Molecule = get_water_molecule();
+    let mut mol: Molecule = get_water_molecule();
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol);
 
