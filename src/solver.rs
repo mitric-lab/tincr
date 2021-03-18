@@ -949,7 +949,7 @@ pub fn non_hermitian_davidson(
     let nstates: usize = nstates.unwrap_or(4);
     let ifact: usize = ifact.unwrap_or(1);
     let maxiter: usize = maxiter.unwrap_or(100);
-    let conv: f64 = conv.unwrap_or(1.0e-8);
+    let conv: f64 = conv.unwrap_or(1.0e-5);
     let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
     let lc: usize = lc.unwrap_or(1);
 
@@ -1011,71 +1011,71 @@ pub fn non_hermitian_davidson(
             let mut bp:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
             let mut bm:Array3<f64> = Array3::zeros((n_occ,n_virt,l));
 
-            if it == 0{
-                bp = get_apbv_fortran(
-                    &gamma,
-                    &gamma_lr,
-                    &qtrans_oo,
-                    &qtrans_vv,
-                    &qtrans_ov,
-                    &omega,
-                    &bs,
-                    qtrans_ov.dim().0,
-                    n_occ,
-                    n_virt,
-                    l
-                );
-                bm = get_ambv_fortran(
-                    &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
-                );
-            }
-            else if it == 1{
-                bp = get_apbv_fortran(
-                    &gamma,
-                    &gamma_lr,
-                    &qtrans_oo,
-                    &qtrans_vv,
-                    &qtrans_ov,
-                    &omega,
-                    &bs,
-                    qtrans_ov.dim().0,
-                    n_occ,
-                    n_virt,
-                    l
-                );
-                bm = get_ambv_fortran(
-                    &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
-                );
-            }
-            else{
-                let bp_new_vec:Array3<f64> = get_apbv_fortran(
-                    &gamma,
-                    &gamma_lr,
-                    &qtrans_oo,
-                    &qtrans_vv,
-                    &qtrans_ov,
-                    &omega,
-                    &bs.slice(s![..,..,l-(3*nstates)..l]).to_owned(),
-                    qtrans_ov.dim().0,
-                    n_occ,
-                    n_virt,
-                    (3*nstates)
-                );
-                bp.slice_mut(s![..,..,..l-(3*nstates)]).assign(&bp_old.slice(s![..,..,..l-(3*nstates)]));
-                bp.slice_mut(s![..,..,l-(3*nstates)..l]).assign(&bp_new_vec);
-                bp.slice_mut(s![..,..,0..nstates]).assign(&(bp_old.slice(s![..,..,0..nstates]).to_owned()*(-1.0)));
-                let bm_new_vec: Array3<f64> = get_ambv_fortran(
-                    &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs.slice(s![..,..,l-(3*nstates)..l]).to_owned(), qtrans_ov.dim().0,n_occ,n_virt,(3*nstates)
-                );
-                bm.slice_mut(s![..,..,..l-(3*nstates)]).assign(&bm_old.slice(s![..,..,..l-(3*nstates)]));
-                bm.slice_mut(s![..,..,l-(3*nstates)..l]).assign(&bm_new_vec);
-                bm.slice_mut(s![..,..,0..nstates]).assign(&(bm_old.slice(s![..,..,0..nstates]).to_owned()*(-1.0)));
-            }
+            // if it == 0{
+            //     bp = get_apbv_fortran(
+            //         &gamma,
+            //         &gamma_lr,
+            //         &qtrans_oo,
+            //         &qtrans_vv,
+            //         &qtrans_ov,
+            //         &omega,
+            //         &bs,
+            //         qtrans_ov.dim().0,
+            //         n_occ,
+            //         n_virt,
+            //         l
+            //     );
+            //     bm = get_ambv_fortran(
+            //         &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
+            //     );
+            // }
+            // else if it == 1{
+            //     bp = get_apbv_fortran(
+            //         &gamma,
+            //         &gamma_lr,
+            //         &qtrans_oo,
+            //         &qtrans_vv,
+            //         &qtrans_ov,
+            //         &omega,
+            //         &bs,
+            //         qtrans_ov.dim().0,
+            //         n_occ,
+            //         n_virt,
+            //         l
+            //     );
+            //     bm = get_ambv_fortran(
+            //         &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
+            //     );
+            // }
+            // else{
+            //     let bp_new_vec:Array3<f64> = get_apbv_fortran(
+            //         &gamma,
+            //         &gamma_lr,
+            //         &qtrans_oo,
+            //         &qtrans_vv,
+            //         &qtrans_ov,
+            //         &omega,
+            //         &bs.slice(s![..,..,l-(3*nstates)..l]).to_owned(),
+            //         qtrans_ov.dim().0,
+            //         n_occ,
+            //         n_virt,
+            //         (3*nstates)
+            //     );
+            //     bp.slice_mut(s![..,..,..l-(3*nstates)]).assign(&bp_old.slice(s![..,..,..l-(3*nstates)]));
+            //     bp.slice_mut(s![..,..,l-(3*nstates)..l]).assign(&bp_new_vec);
+            //     bp.slice_mut(s![..,..,0..nstates]).assign(&(bp_old.slice(s![..,..,0..nstates]).to_owned()*(-1.0)));
+            //     let bm_new_vec: Array3<f64> = get_ambv_fortran(
+            //         &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs.slice(s![..,..,l-(3*nstates)..l]).to_owned(), qtrans_ov.dim().0,n_occ,n_virt,(3*nstates)
+            //     );
+            //     bm.slice_mut(s![..,..,..l-(3*nstates)]).assign(&bm_old.slice(s![..,..,..l-(3*nstates)]));
+            //     bm.slice_mut(s![..,..,l-(3*nstates)..l]).assign(&bm_new_vec);
+            //     bm.slice_mut(s![..,..,0..nstates]).assign(&(bm_old.slice(s![..,..,0..nstates]).to_owned()*(-1.0)));
+            // }
             ////&bs.slice(s![.., .., l - 2..l]).to_owned(),
             ////
             ////temp.slice_mut(s![.., .., ..l - 1]).assign(&temp_old);
             ////temp.slice_mut(s![.., .., l - 2..l]).assign(&temp_new_vec);
-//
+            //
             bp_old = bp.clone();
             bm_old = bm.clone();
 
@@ -1092,10 +1092,11 @@ pub fn non_hermitian_davidson(
                 n_virt,
                 l
             );
-            //println!("bp slice {}",bp.slice(s![0,1,..]));
-            if bp.slice(s![0,1,..]).to_owned().abs_diff_eq(&bp_alt.slice(s![0,1,..]).to_owned(),1e-8) == false{
-                println!("bp_alt slice {}",bp.slice(s![0,1,..]).to_owned()-bp_alt.slice(s![0,1,..]).to_owned());
-            }
+            //println!("bp_alt slice {}",bp.slice(s![0,1,..]).to_owned()-bp_alt.slice(s![0,1,..]).to_owned());
+            ////println!("bp slice {}",bp.slice(s![0,1,..]));
+            //if bp.slice(s![0,1,..]).to_owned().abs_diff_eq(&bp_alt.slice(s![0,1,..]).to_owned(),1e-8) == false{
+            //    println!("bp_alt slice {}",bp.slice(s![0,1,..]).to_owned()-bp_alt.slice(s![0,1,..]).to_owned());
+            //}
             let bm_alt: Array3<f64> = get_ambv_fortran(
                 &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
             );
@@ -1118,11 +1119,11 @@ pub fn non_hermitian_davidson(
             //);
 
             // # M^+ = (b_i, (A+B).b_j)
-            let mp: Array2<f64> = tensordot(&bs, &bp, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+            let mp: Array2<f64> = tensordot(&bs, &bp_alt, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
                 .into_dimensionality::<Ix2>()
                 .unwrap();
             // # M^- = (b_i, (A-B).b_j)
-            let mm: Array2<f64> = tensordot(&bs, &bm, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+            let mm: Array2<f64> = tensordot(&bs, &bm_alt, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
                 .into_dimensionality::<Ix2>()
                 .unwrap();
             let mmsq: Array2<f64> = mm.ssqrt(UPLO::Upper).unwrap();
@@ -1473,9 +1474,16 @@ pub fn get_apbv_fortran(
 
         let tmp22: Array1<f64> = 4.0 * gamma.clone().dot(&tmp21);
 
-        for at in (0..n_at).into_iter() {
-            u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
+        // for at in (0..n_at).into_iter() {
+        //     u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
+        // }
+         let mut tmp:Vec<Array2<f64>> = (0..n_at).into_par_iter().map(|at|{
+            qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at]
+        }).collect();
+        for i in tmp.iter(){
+            u_l = u_l + i;
         }
+        //u_l = u_l + tmp;
 
         // 3rd term - Exchange
         let tmp31: Array3<f64> = tmp_q_vv
@@ -1517,6 +1525,55 @@ pub fn get_apbv_fortran(
         let tmp43: Array2<f64> =
             tmp_q_ov_shape_2.dot(&tmp42.into_shape((n_at * n_virt, n_virt)).unwrap());
         u_l = u_l - tmp43;
+
+        us.slice_mut(s![.., .., i]).assign(&u_l);
+    }
+    return us;
+}
+
+pub fn get_apbv_fortran_no_lc(
+    gamma: &ArrayView2<f64>,
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
+    vs: &Array3<f64>,
+    n_at: usize,
+    n_occ: usize,
+    n_virt: usize,
+    n_vec: usize,
+)-> (Array3<f64>)  {
+
+    let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
+
+    for i in (0..n_vec) {
+        let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
+        // 1st term - KS orbital energy differences
+        let mut u_l: Array2<f64> = omega * &vl;
+
+        // 2nd term - Coulomb
+        let mut tmp21: Array1<f64> = Array1::zeros(n_at);
+
+        //for at in (0..n_at) {
+        //    let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
+        //    tmp21[at] = tmp.sum();
+        //}
+        let tmp21:Vec<f64> =(0..n_at).into_par_iter().map(|at|{
+            let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
+            tmp.sum()
+        }).collect();
+        let tmp21:Array1<f64> = Array::from(tmp21);
+
+        let tmp22: Array1<f64> = 4.0 * gamma.clone().dot(&tmp21);
+
+        // for at in (0..n_at).into_iter() {
+        //     u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
+        // }
+        let mut tmp:Vec<Array2<f64>> = (0..n_at).into_par_iter().map(|at|{
+            qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at]
+        }).collect();
+        for i in tmp.iter(){
+            u_l = u_l + i;
+        }
+        //u_l = u_l + tmp;
 
         us.slice_mut(s![.., .., i]).assign(&u_l);
     }
@@ -1946,31 +2003,89 @@ pub fn krylov_solver_zvector(
         // representation of A in the basis of expansion vectors
         let mut temp: Array3<f64> = Array3::zeros((n_occ, n_virt, l));
         if it == 0 {
-            temp = get_apbv(
-                &g0,
-                &g0_lr,
-                &qtrans_oo,
-                &qtrans_vv,
-                &qtrans_ov,
-                &a_diag,
-                &bs,
-                lc,
-                multiplicity,
-                spin_couplings,
-            );
+            // temp = get_apbv(
+            //     &g0,
+            //     &g0_lr,
+            //     &qtrans_oo,
+            //     &qtrans_vv,
+            //     &qtrans_ov,
+            //     &a_diag,
+            //     &bs,
+            //     lc,
+            //     multiplicity,
+            //     spin_couplings,
+            // );
+            if lc == 1{
+                temp = get_apbv_fortran(
+                    &g0,
+                    &g0_lr.clone().unwrap(),
+                    &qtrans_oo.clone().unwrap(),
+                    &qtrans_vv.clone().unwrap(),
+                    &qtrans_ov,
+                    &a_diag,
+                    &bs,
+                    qtrans_ov.dim().0,
+                    n_occ,
+                    n_virt,
+                    l
+                );
+            }
+            else{
+                temp = get_apbv_fortran_no_lc(
+                    &g0,
+                    &qtrans_ov,
+                    &a_diag,
+                    &bs,
+                    qtrans_ov.dim().0,
+                    n_occ,
+                    n_virt,
+                    l
+                );
+            }
+
         } else {
-            let temp_new_vec: Array3<f64> = get_apbv(
-                &g0,
-                &g0_lr,
-                &qtrans_oo,
-                &qtrans_vv,
-                &qtrans_ov,
-                &a_diag,
-                &bs.slice(s![.., .., l - 2..l]).to_owned(),
-                lc,
-                multiplicity,
-                spin_couplings,
-            );
+            //let temp_new_vec_alt: Array3<f64> = get_apbv(
+            //    &g0,
+            //    &g0_lr,
+            //    &qtrans_oo,
+            //    &qtrans_vv,
+            //    &qtrans_ov,
+            //    &a_diag,
+            //    &bs.slice(s![.., .., l - 2..l]).to_owned(),
+            //    lc,
+            //    multiplicity,
+            //    spin_couplings,
+            //);
+            let mut temp_new_vec:Array3<f64> = Array3::zeros((n_occ,n_virt,(l-2..l).len()));
+            if lc == 1{
+                temp_new_vec = get_apbv_fortran(
+                    &g0,
+                    &g0_lr.clone().unwrap(),
+                    &qtrans_oo.clone().unwrap(),
+                    &qtrans_vv.clone().unwrap(),
+                    &qtrans_ov,
+                    &a_diag,
+                    &bs.slice(s![.., .., l - 2..l]).to_owned(),
+                    qtrans_ov.dim().0,
+                    n_occ,
+                    n_virt,
+                    (l-2..l).len()
+                );
+            }
+            else{
+                temp_new_vec = get_apbv_fortran_no_lc(
+                    &g0,
+                    &qtrans_ov,
+                    &a_diag,
+                    &bs.slice(s![.., .., l - 2..l]).to_owned(),
+                    qtrans_ov.dim().0,
+                    n_occ,
+                    n_virt,
+                    (l-2..l).len()
+                );
+            }
+            // println!("Temp new alt {}",temp_new_vec_alt);
+            // println!("Temp vec new {}",temp_new_vec)
             temp.slice_mut(s![.., .., ..l - 1]).assign(&temp_old);
             temp.slice_mut(s![.., .., l - 2..l]).assign(&temp_new_vec);
         }
@@ -2033,19 +2148,47 @@ pub fn krylov_solver_zvector(
             .into_dimensionality::<Ix3>()
             .unwrap();
         // residual vectors
-        let krylov_timer = Instant::now();
-        let w_res: Array3<f64> = &get_apbv(
-            &g0,
-            &g0_lr,
-            &qtrans_oo,
-            &qtrans_vv,
-            &qtrans_ov,
-            &a_diag,
-            &x_matrix,
-            lc,
-            multiplicity,
-            spin_couplings,
-        ) - &b_matrix;
+        let mut w_res:Array3<f64> = Array3::zeros((x_matrix.raw_dim()));
+        if lc == 1{
+            w_res = get_apbv_fortran(
+                &g0,
+                &g0_lr.clone().unwrap(),
+                &qtrans_oo.clone().unwrap(),
+                &qtrans_vv.clone().unwrap(),
+                &qtrans_ov,
+                &a_diag,
+                &x_matrix,
+                qtrans_ov.dim().0,
+                n_occ,
+                n_virt,
+                x_matrix.dim().2
+            );
+        }
+        else{
+            w_res = get_apbv_fortran_no_lc(
+                &g0,
+                &qtrans_ov,
+                &a_diag,
+                &x_matrix,
+                qtrans_ov.dim().0,
+                n_occ,
+                n_virt,
+                x_matrix.dim().2
+            );
+        }
+        w_res = &w_res - &b_matrix;
+        // let w_res: Array3<f64> = &get_apbv(
+        //     &g0,
+        //     &g0_lr,
+        //     &qtrans_oo,
+        //     &qtrans_vv,
+        //     &qtrans_ov,
+        //     &a_diag,
+        //     &x_matrix,
+        //     lc,
+        //     multiplicity,
+        //     spin_couplings,
+        // ) - &b_matrix;
 
         let mut norms: Array1<f64> = Array::zeros(k);
         for i in 0..k {
@@ -3658,6 +3801,109 @@ fn test_apbv_fortran(){
     println!("BP diff {}",&bp - &bp_ref);
     assert!(bp.abs_diff_eq(&bp_ref,1e-8));
 }
+
+#[test]
+fn test_apbv_fortran_no_lc(){
+    let bs:Array3<f64> = array![[[0., 0., 1., 0.],
+        [0., 0., 0., 1.]],
+        [[1., 0., 0., 0.],
+            [0., 1., 0., 0.]]];
+
+    let qtrans_ov: Array3<f64> = array![
+        [
+            [2.6230102760982366e-05, 3.7065690068980978e-01],
+            [1.9991274594610739e-16, 1.5626227190095965e-16]
+        ],
+        [
+            [-1.7348148585808104e-01, -1.8531670208019754e-01],
+            [-1.2772046586865093e-16, -1.3655275046819219e-16]
+        ],
+        [
+            [1.7345525575532011e-01, -1.8534019860961229e-01],
+            [3.1533607568650388e-17, -3.3646128491374340e-17]
+        ]
+    ];
+    let qtrans_oo: Array3<f64> = array![
+        [
+            [8.3509736370957066e-01, -1.0278107627479084e-17],
+            [-1.0278107627479084e-17, 1.0000000000000000e+00]
+        ],
+        [
+            [8.2451688036773829e-02, 6.5469849226515001e-17],
+            [6.5469849226515001e-17, 5.0578106550731340e-32]
+        ],
+        [
+            [8.2450948253655273e-02, 1.3061299549224103e-17],
+            [1.3061299549224103e-17, 1.8388700816055480e-33]
+        ]
+    ];
+    let qtrans_vv: Array3<f64> = array![
+        [
+            [4.1303024748498973e-01, -5.9780479099574846e-06],
+            [-5.9780479099574846e-06, 3.2642073579136843e-01]
+        ],
+        [
+            [2.9352849855153762e-01, 3.1440135449565670e-01],
+            [3.1440135449565670e-01, 3.3674597810671958e-01]
+        ],
+        [
+            [2.9344125396347337e-01, -3.1439537644774673e-01],
+            [-3.1439537644774673e-01, 3.3683328610190999e-01]
+        ]
+    ];
+    let gamma: Array2<f64> = array![
+        [0.4467609798860577, 0.3863557889890281, 0.3863561531176491],
+        [0.3863557889890281, 0.4720158398964135, 0.3084885848056254],
+        [0.3863561531176491, 0.3084885848056254, 0.4720158398964135]
+    ];
+    let gamma_lr: Array2<f64> = array![
+        [0.2860554418243039, 0.2692279296946004, 0.2692280400920803],
+        [0.2692279296946004, 0.2923649998054588, 0.2429686492032624],
+        [0.2692280400920803, 0.2429686492032624, 0.2923649998054588]
+    ];
+    let omega0: Array2<f64> = array![
+        [0.7329867988448483, 0.7853711745345131],
+        [0.6599617692239994, 0.7123461449136643]
+    ];
+
+    let atomic_numbers: Vec<u8> = vec![8, 1, 1];
+    let mut positions: Array2<f64> = array![
+        [0.34215, 1.17577, 0.00000],
+        [1.31215, 1.17577, 0.00000],
+        [0.01882, 1.65996, 0.77583]
+    ];
+
+    // transform coordinates in au
+    positions = positions / 0.529177249;
+    let charge: Option<i8> = Some(0);
+    // let multiplicity: Option<u8> = Some(1);
+    let multiplicity: Option<u8> = Some(1);
+    let config: GeneralConfig = toml::from_str("").unwrap();
+    let mol: Molecule = Molecule::new(
+        atomic_numbers.clone(),
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+        config,
+    );
+
+    // Only for testing purposes
+    let spin_couplings: Array1<f64> = mol.calculator.spin_couplings.clone();
+    let spin_couplings_null: Array1<f64> =
+        Array::zeros(mol.calculator.spin_couplings.clone().raw_dim());
+
+    let n_occ: usize = qtrans_oo.dim().1;
+    let n_virt: usize = qtrans_vv.dim().1;
+
+    let bp:Array3<f64> = get_apbv_fortran_no_lc(&gamma.view(),&qtrans_ov.view(),&omega0.view(),&bs,3,2,2,4);
+    let bp_ref:Array3<f64> = get_apbv(&gamma.view(),&Some(gamma_lr.view()),&Some(qtrans_oo.view()),&Some(qtrans_vv.view()),&qtrans_ov.view(),&omega0.view(),&bs,0,1,spin_couplings_null.view());
+
+    println!("BP diff {}",&bp - &bp_ref);
+    assert!(bp.abs_diff_eq(&bp_ref,1e-12));
+}
+
 
 #[test]
 fn non_hermitian_davidson_routine() {
