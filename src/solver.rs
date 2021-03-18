@@ -1485,7 +1485,7 @@ pub fn get_apbv_fortran(
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 
     let gamma_equiv: Array2<f64> = if multiplicity == 1 {
-        gamma.to_owned().clone()
+        gamma.to_owned()
     } else if multiplicity == 3 {
         Array2::from_diag(&spin_couplings)
     } else {
@@ -1587,8 +1587,22 @@ pub fn get_apbv_fortran_no_lc(
     n_occ: usize,
     n_virt: usize,
     n_vec: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
 ) -> (Array3<f64>) {
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
+
+    let gamma_equiv: Array2<f64> = if multiplicity == 1 {
+        gamma.to_owned()
+    } else if multiplicity == 3 {
+        Array2::from_diag(&spin_couplings)
+    } else {
+        panic!(
+            "Currently only singlets and triplets are supported, you wished a multiplicity of {}!",
+            multiplicity
+        );
+        Array::zeros(gamma.raw_dim())
+    };
 
     for i in (0..n_vec) {
         let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
@@ -1612,7 +1626,7 @@ pub fn get_apbv_fortran_no_lc(
             .collect();
         let tmp21: Array1<f64> = Array::from(tmp21);
 
-        let tmp22: Array1<f64> = 4.0 * gamma.clone().dot(&tmp21);
+        let tmp22: Array1<f64> = 4.0 * gamma_equiv.dot(&tmp21);
 
         // for at in (0..n_at).into_iter() {
         //     u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
@@ -2093,6 +2107,8 @@ pub fn krylov_solver_zvector(
                     n_occ,
                     n_virt,
                     l,
+                    multiplicity,
+                    spin_couplings,
                 );
             }
         } else {
@@ -2135,6 +2151,8 @@ pub fn krylov_solver_zvector(
                     n_occ,
                     n_virt,
                     (l - 2..l).len(),
+                    multiplicity,
+                    spin_couplings,
                 );
             }
             // println!("Temp new alt {}",temp_new_vec_alt);
@@ -2228,6 +2246,8 @@ pub fn krylov_solver_zvector(
                 n_occ,
                 n_virt,
                 x_matrix.dim().2,
+                multiplicity,
+                spin_couplings,
             );
         }
         w_res = &w_res - &b_matrix;
@@ -4010,6 +4030,8 @@ fn test_apbv_fortran_no_lc() {
         2,
         2,
         4,
+        multiplicity.unwrap(),
+        spin_couplings.view(),
     );
     let bp_ref: Array3<f64> = get_apbv(
         &gamma.view(),
