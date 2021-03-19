@@ -120,7 +120,7 @@ fn main() {
                 positions,
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
-                None,
+                Some(0.0),
                 None,
                 config,
             );
@@ -138,7 +138,7 @@ fn main() {
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
                 None,
-                Some((2,2)),
+                None,
                 config,
             );
 

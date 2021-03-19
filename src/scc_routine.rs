@@ -28,6 +28,8 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
     let max_iter: usize = molecule.config.scf.scf_max_cycles;
     let scf_charge_conv: f64 = molecule.config.scf.scf_charge_conv;
     let scf_energy_conv: f64 = molecule.config.scf.scf_energy_conv;
+    let mut level_shift_flag: bool = false;
+    let mut level_shifter: LevelShifter = LevelShifter::empty();
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
     let mut p: Array2<f64> = p0.clone();
@@ -36,6 +38,7 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
     let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
+    let mut charge_diff: f64 = 0.0;
     let mut orbs: Array2<f64> =
         Array2::zeros([molecule.calculator.n_orbs, molecule.calculator.n_orbs]);
     let mut orbe: Array1<f64> = Array1::zeros([molecule.calculator.n_orbs]);
@@ -77,33 +80,51 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
     info!("{: <25} {} K", "electronic temperature:", temperature);
     info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
     info!("{:^80}", "");
-    info!("{: <45} ", "SCC Iterations: all quantities are in atomic units");
-    info!("{:-^62} ", "");
-    info!("{: <5} {: >18} {: >18} {: >18}", "Iter.", "SCC Energy", "Energy diff.", "dq diff.");
-    info!("{:-^62} ", "");
+    info!(
+        "{: <45} ",
+        "SCC Iterations: all quantities are in atomic units"
+    );
+    info!("{:-^75} ", "");
+    info!(
+        "{: <5} {: >18} {: >18} {: >18} {: >12}",
+        "Iter.", "SCC Energy", "Energy diff.", "dq diff.", "Lvl. shift"
+    );
+    info!("{:-^75} ", "");
 
     'scf_loop: for i in 0..max_iter {
-        let h1: Array2<f64> = construct_h1(
-            &molecule,
-            (&molecule.calculator.g0).deref().view(),
-            dq.view(),
-        );
+        let h1: Array2<f64> = construct_h1(&molecule, molecule.calculator.g0.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
+
         //let mut prev_h_X:Array2<f64>
         if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
             let h_x: Array2<f64> =
                 lc_exact_exchange(&s, &molecule.calculator.g0_lr_ao, &p0, &p, h.dim().0);
             h = h + h_x;
         }
-        // H' = X^t.H.X
-        let hp: Array2<f64> = x.t().dot(&h).dot(&x);
 
-        let tmp: (Array1<f64>, Array2<f64>) = hp.eigh(UPLO::Upper).unwrap();
-        let cp: Array2<f64> = tmp.1;
+        if level_shift_flag {
+            if level_shifter.is_empty() {
+                level_shifter =
+                    LevelShifter::new(molecule.calculator.n_orbs, get_frontier_orbitals(molecule.calculator.n_elec).1);
+            } else {
+                if charge_diff < (1.0e5 * scf_charge_conv) {
+                    level_shifter.reduce_weight();
+                }
+                if charge_diff < (1.0e3 * scf_charge_conv) {
+                    level_shift_flag == false;
+                    level_shifter.turn_off();
+                }
+            }
+            let shift: Array2<f64> = level_shifter.shift(orbs.view());
+            h = h + shift;
+        }
+
+        // H' = X^t.H.X
+        h = x.t().dot(&h).dot(&x);
+        let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
         orbe = tmp.0;
-        // C = X.C'
-        orbs = x.dot(&cp);
+        orbs = x.dot(&tmp.1);
 
         // construct density matrix
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
@@ -115,9 +136,14 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
         let mu: f64 = tmp.0;
         f = tmp.1;
 
+        if level_shift_flag == false {
+            level_shift_flag = enable_level_shifting(orbe.view(), molecule.calculator.n_elec);
+        }
+
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
-
+        //println!("P {}", p);
+        //println!("F {:?}", f);
         // update partial charges using Mulliken analysis
         let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
             p.view(),
@@ -126,11 +152,10 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
             &molecule.calculator.orbs_per_atom,
             molecule.n_atoms,
         );
-
         // charge difference to previous iteration
         let dq_diff: Array1<f64> = &new_dq - &dq;
 
-        let charge_diff: f64 = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+        charge_diff = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
 
         if log_enabled!(Level::Trace) {
             print_orbital_information(orbe.view(), &f);
@@ -140,8 +165,8 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
         {
             converged = true;
         }
-        // Broyden mixing of partial charges
-        dq = broyden_mixer.next(new_dq, dq_diff);
+        // Broyden mixing of partial charges # changed new_dq to dq
+        dq = broyden_mixer.next(dq, dq_diff);
         q = new_q;
         debug!("");
         debug!("{: <35} ", "atomic charges and partial charges");
@@ -165,17 +190,21 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
         );
         if i == 0 {
             info!(
-                "{: >5} {:>18.10e} {:>18.13} {:>18.10e}",
+                "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>12.2e}",
                 i + 1,
                 scf_energy + rep_energy,
-                0.0, charge_diff
+                0.0,
+                charge_diff,
+                level_shifter.weight
             );
         } else {
             info!(
-                "{: >5} {:>18.10e} {:>18.10e} {:>18.10e}",
+                "{: >5} {:>18.10e} {:>18.10e} {:>18.10e} {:>12.4}",
                 i + 1,
                 scf_energy + rep_energy,
-                energy_old - scf_energy, charge_diff
+                energy_old - scf_energy,
+                charge_diff,
+                level_shifter.weight
             );
         }
         energy_old = scf_energy;
@@ -186,8 +215,8 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
             break 'scf_loop;
         }
     }
-    info!("{:-^62} ", "");
-    info!("{: ^62}", "SCC converged");
+    info!("{:-^75} ", "");
+    info!("{: ^75}", "SCC converged");
     info!("{:^80} ", "");
     info!("final energy: {:18.14} Hartree", scf_energy + rep_energy);
     info!("{:-<80} ", "");
@@ -197,7 +226,7 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
         scc_timer.elapsed().as_secs_f32()
     );
     drop(scc_timer);
-    if molecule.config.jobtype == "sp"{
+    if molecule.config.jobtype == "sp" {
         print_orbital_information(orbe.view(), &f);
     }
     return (scf_energy + rep_energy, orbs, orbe, s, f);
@@ -227,6 +256,89 @@ fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) -> () {
         }
     }
     info!("{:-^71} ", "");
+}
+
+fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> bool {
+    let hl_idxs: (usize, usize) = get_frontier_orbitals(n_elec);
+    let gap: f64 = get_homo_lumo_gap(orbe.view(), hl_idxs);
+    debug!("HOMO - LUMO gap:          {:>18.14}", gap);
+    gap < defaults::HOMO_LUMO_TOL
+}
+
+struct LevelShifter {
+    shift_value: f64,
+    weight: f64,
+    vv_block: Array2<f64>,
+    activated: bool,
+}
+
+impl LevelShifter {
+    pub fn empty() -> LevelShifter {
+        let empty_2d_array: Array2<f64> = Array2::zeros([1, 1]);
+        LevelShifter {
+            shift_value: 0.0,
+            weight: 0.0,
+            vv_block: empty_2d_array,
+            activated: false,
+        }
+    }
+
+    pub fn new(n_orb: usize, lumo_idx: usize) -> LevelShifter {
+        let mut vv_block: Array2<f64> = Array2::zeros([n_orb, n_orb]);
+        let n_virts = n_orb - lumo_idx;
+        let v_ones: Array2<f64> = Array2::eye(n_virts);
+        vv_block
+            .slice_mut(s![lumo_idx.., lumo_idx..])
+            .assign(&v_ones);
+        LevelShifter {
+            shift_value: defaults::HOMO_LUMO_SHIFT,
+            weight: 1.0,
+            vv_block: vv_block,
+            activated: true,
+        }
+    }
+
+    fn shift(&mut self, orbs: ArrayView2<f64>) -> Array2<f64> {
+        orbs.dot(&(self.weight * self.shift_value * &self.vv_block).dot(&orbs.t()))
+    }
+
+    fn reduce_weight(&mut self) {
+        self.weight *= 0.5;
+    }
+
+    fn turn_off(&mut self) {
+        self.weight = 0.0;
+        self.activated = false;
+    }
+
+    fn is_empty(&self) -> bool {
+        self.shift_value == 0.0
+    }
+}
+
+// find indeces of HOMO and LUMO orbitals (starting from 0)
+fn get_frontier_orbitals(n_elec: usize) -> (usize, usize) {
+    let homo: usize = (n_elec / 2) - 1;
+    let lumo: usize = homo + 1;
+    return (homo, lumo);
+}
+
+// find indeces of HOMO and LUMO orbitals (starting from 0)
+fn get_frontier_orbitals_from_occ(f: &[f64]) -> (usize, usize) {
+    let n_occ: usize = f
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, val)| if *val > 0.5 { Some(idx) } else { None })
+        .collect::<Vec<usize>>()
+        .len();
+    let homo: usize = n_occ - 1;
+    let lumo: usize = homo + 1;
+    return (homo, lumo);
+}
+
+// compute HOMO-LUMO gap in Hartree
+fn get_homo_lumo_gap(orbe: ArrayView1<f64>, homo_lumo_idx: (usize, usize)) -> f64 {
+    orbe[homo_lumo_idx.1] - orbe[homo_lumo_idx.0]
 }
 
 /// Compute energy due to core electrons and nuclear repulsion

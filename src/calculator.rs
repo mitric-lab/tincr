@@ -40,6 +40,7 @@ pub struct DFTBCalculator {
     pub active_virt: Option<Vec<usize>>,
     pub full_occ: Option<Vec<usize>>,
     pub full_virt: Option<Vec<usize>>,
+    pub n_elec: usize,
 }
 
 impl DFTBCalculator {
@@ -135,6 +136,7 @@ impl DFTBCalculator {
             active_virt: None,
             full_occ: None,
             full_virt: None,
+            n_elec: number_electrons,
         }
     }
 

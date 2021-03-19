@@ -13,7 +13,7 @@ pub const SPEED_OF_LIGHT: f64 = 137.035999139; // speed of light in atomic units
                                                // c = 1/alpha
 
 pub const ATOM_NAMES: [&str; 87] = [
-    "dummy", "h", "he", "li", "be", "b", "c", "n", "o", "f", "ne", "na", "mg", "al", "si", "p",
+    "dummy", "H", "he", "li", "be", "b", "C", "N", "O", "f", "ne", "na", "mg", "al", "si", "p",
     "s", "cl", "ar", "k", "ca", "sc", "ti", "v", "cr", "mn", "fe", "co", "ni", "cu", "zn", "ga",
     "ge", "as", "se", "br", "kr", "rb", "sr", "y", "zr", "nb", "mo", "tc", "ru", "rh", "pd", "ag",
     "cd", "in", "sn", "sb", "te", "i", "xe", "cs", "ba", "la", "ce", "pr", "nd", "pm", "sm", "eu",
@@ -23,10 +23,10 @@ pub const ATOM_NAMES: [&str; 87] = [
 
 // I believe these masses are averaged over isotopes weighted with their abundances
 pub static ATOMIC_MASSES_OLD: phf::Map<&'static str, f64> = phf_map! {
-    "h"  => 1.837362128065067E+03, "he" => 7.296296732461748E+03,
+    "H"  => 1.837362128065067E+03, "he" => 7.296296732461748E+03,
     "li" => 1.265266834424631E+04, "be" => 1.642820197435333E+04,
-    "b"  => 1.970724642985837E+04, "c"  => 2.189416563639810E+04,
-    "n"  => 2.553265087125124E+04, "o"  => 2.916512057440347E+04,
+    "b"  => 1.970724642985837E+04, "C"  => 2.189416563639810E+04,
+    "N"  => 2.553265087125124E+04, "O"  => 2.916512057440347E+04,
     "f"  => 3.463378575704848E+04, "ne" => 3.678534092874044E+04,
     "na" => 4.190778360619254E+04, "mg" => 4.430530242139558E+04,
     "al" => 4.918433357200404E+04, "si" => 5.119673199572539E+04,
