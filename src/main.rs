@@ -53,7 +53,7 @@ use crate::optimization::optimize_geometry_ic;
 use ron::error::ErrorCode::TrailingCharacters;
 
 fn main() {
-    rayon::ThreadPoolBuilder::new().num_threads(12).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())

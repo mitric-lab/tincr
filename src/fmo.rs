@@ -47,9 +47,10 @@ pub fn fmo_calculate_pairwise(
     h_0_complete: &Array2<f64>,
     homo_orbs: Vec<Array1<f64>>,
     lumo_orbs: Vec<Array1<f64>>,
-) -> Array2<f64> {
+) -> (Array2<f64>,Vec<Molecule>){
     let mut s_complete: Array2<f64> = Array2::zeros(h_0_complete.raw_dim());
     let mut h_0_complete_mut: Array2<f64> = h_0_complete.clone();
+    let mut pair_vec:Vec<Molecule> = Vec::new();
 
     for (ind1, molecule_a) in fragments.iter().enumerate() {
         for (ind2, molecule_b) in fragments.iter().enumerate() {
@@ -82,6 +83,8 @@ pub fn fmo_calculate_pairwise(
                 mol.calculator.active_orbitals,
                 mol.config.clone(),
             );
+            pair_vec.push(pair);
+
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
             let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
                 &pair.atomic_numbers,
@@ -118,7 +121,7 @@ pub fn fmo_calculate_pairwise(
     h_0_complete_mut = h_0_complete_mut.clone()
         + (h_0_complete_mut.clone() - Array::from_diag(&h_0_complete_mut.diag())).reversed_axes();
 
-    return h_0_complete_mut;
+    return (h_0_complete_mut, pair_vec);
 }
 
 pub fn fmo_calculate_fragments(

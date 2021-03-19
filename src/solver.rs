@@ -1180,6 +1180,7 @@ pub fn non_hermitian_davidson(
             r_canon = tensordot(&bs, &rb, &[Axis(2)], &[Axis(0)])
                 .into_dimensionality::<Ix3>()
                 .unwrap();
+
         } else {
             // bring axis with state indeces to the back
             let mut XmY_temp: Array3<f64> = XmYguess.unwrap().to_owned();
@@ -1471,7 +1472,7 @@ pub fn get_apbv_fortran(
         let mut tmp21: Array1<f64> = Array1::zeros(n_at);
 
         //for at in (0..n_at) {
-        //    let tmp:Array2<f64> = qtrans_ov.slice(s![at, .., ..]).to_owned() * vl;
+        //    let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
         //    tmp21[at] = tmp.sum();
         //}
         let tmp21:Vec<f64> =(0..n_at).into_par_iter().map(|at|{
@@ -1556,7 +1557,7 @@ pub fn get_apbv_fortran_no_lc(
         let mut tmp21: Array1<f64> = Array1::zeros(n_at);
 
         //for at in (0..n_at) {
-        //    let tmp:Array2<f64> = qtrans_ov.slice(s![at, .., ..]).to_owned() * vl;
+        //    let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
         //    tmp21[at] = tmp.sum();
         //}
         let tmp21:Vec<f64> =(0..n_at).into_par_iter().map(|at|{
@@ -1610,17 +1611,19 @@ pub fn get_ambv_fortran(
     let tmp_q_ov_shape_1: Array2<f64> =
         tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
     let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.to_owned();
+    //println!("Before swap {}",tmp_q_ov_swapped_2.clone().into_shape((n_occ,n_at,n_virt)).unwrap());
     tmp_q_ov_swapped_2.swap_axes(0, 1);
-    let mut tmp_q_ov_swapped_3:Array3<f64> = tmp_q_ov_swapped_2.to_owned();
-    let tmp_q_ov_shape_3: Array3<f64> = ArrayView::from_shape((n_occ,n_at,n_virt),&tmp_q_ov_swapped_3.clone().as_slice_memory_order().unwrap()).unwrap().to_owned();//.into_shape((n_occ, n_at * n_virt)).unwrap().to_owned();
-    tmp_q_ov_swapped_2 = tmp_q_ov_swapped_3.as_standard_layout().to_owned();
+    //let mut tmp_q_ov_swapped_3:Array3<f64> = tmp_q_ov_swapped_2.to_owned();
+    //let tmp_q_ov_shape_3: Array3<f64> = ArrayView::from_shape((n_occ,n_at,n_virt),&tmp_q_ov_swapped_3.clone().as_slice_memory_order().unwrap()).unwrap().to_owned();//.into_shape((n_occ, n_at * n_virt)).unwrap().to_owned();
+    //tmp_q_ov_swapped_2 = tmp_q_ov_swapped_3.as_standard_layout().to_owned();
+    tmp_q_ov_swapped_2 =tmp_q_ov_swapped_2.as_standard_layout().to_owned();
     let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2.clone()
         .into_shape((n_occ, n_at * n_virt))
         .unwrap();
 
-    println!("shape 1 {}",tmp_q_ov_swapped_3);
-    println!("shape 1 {}",tmp_q_ov_swapped_2);
-    println!("shape 2 {}",tmp_q_ov_shape_3);
+    // println!("shape after swap {}",tmp_q_ov_swapped_3);
+    // println!("shape after standard layout {}",tmp_q_ov_swapped_2);
+    // println!("shape Array::from_shape() {}",tmp_q_ov_shape_3);
 
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 
@@ -1642,7 +1645,6 @@ pub fn get_ambv_fortran(
         tmp22 = tmp22.as_standard_layout().to_owned();
 
         let tmp23: Array2<f64> = tmp_q_ov_shape_2
-
             .dot(&tmp22.into_shape((n_at * n_virt, n_virt)).unwrap());
         u_l = u_l + tmp23;
 
@@ -9438,6 +9440,4 @@ fn test_get_apbv(){
 
     println!("bp fortran {}",bp_fortran.clone());
     assert!(bp_fortran.abs_diff_eq(&bp,1e-12));
-    assert!(1 == 2);
-
 }
