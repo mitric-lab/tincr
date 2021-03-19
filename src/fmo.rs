@@ -83,8 +83,6 @@ pub fn fmo_calculate_pairwise(
                 mol.calculator.active_orbitals,
                 mol.config.clone(),
             );
-            pair_vec.push(pair);
-
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
             let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
                 &pair.atomic_numbers,
@@ -95,6 +93,7 @@ pub fn fmo_calculate_pairwise(
                 &pair.calculator.skt,
                 &pair.calculator.orbital_energies,
             );
+            pair_vec.push(pair);
             // Now select off-diagonal couplings. The block `H0_AB` contains matrix elements
             // between atomic orbitals on fragments A and B:
             //
