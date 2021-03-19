@@ -24,6 +24,7 @@ mod step;
 mod transition_charges;
 mod zbrent;
 mod test;
+mod fmo;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
@@ -51,6 +52,8 @@ use crate::optimization::optimize_geometry_ic;
 use ron::error::ErrorCode::TrailingCharacters;
 
 fn main() {
+    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
+
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .about("software package for tight-binding DFT calculations")
@@ -134,7 +137,7 @@ fn main() {
                 positions,
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
-                Some(0.0),
+                None,
                 None,
                 config,
             );
@@ -143,7 +146,7 @@ fn main() {
                 scc_routine::run_scc(&mol);
             mol.calculator.set_active_orbitals(f.to_vec());
 
-            let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol);
+            let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol,Some(1));
             let new_energy: f64 = tmp.0;
             let new_gradient: Array1<f64> = tmp.1;
             let new_coords: Array1<f64> = tmp.2;

@@ -25,7 +25,7 @@ use crate::constants::{BOHR_TO_ANGS, ATOM_NAMES};
 // Optimization using internal coordinates
 // from geomeTRIC
 
-pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64>) {
+pub fn optimize_geometry_ic(mol: &mut Molecule,state:Option<usize>) -> (f64, Array1<f64>, Array1<f64>) {
     info!("{:^80}", "");
     info!("{: ^80}", "Geometry optimization");
     // info!("{:-^80}", "");
@@ -39,22 +39,28 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
     // info!("{: <35} {}", "Max displacement tolerance:", 1.0e-3);
     // info!("{:-^80}", "");
 
+    let state:usize = state.unwrap_or(0);
+
     let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
-    let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
+    // let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
+    let mut energy: f64 = 0.0;
+    let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+    let mut old_z_vec:Array3<f64> = Array::zeros((mol.calculator.active_occ.clone().unwrap().len(),mol.calculator.active_virt.clone().unwrap().len(),1));
+
+    if state == 0 {
+        let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
+        energy = en;
+        gradient = grad;
+    } else {
+        let (en, grad,z_vec): (Array1<f64>, Array1<f64>,Array3<f64>) = get_energies_and_gradient(&coords, mol, state - 1,None);
+        energy = en[state - 1];
+        gradient = grad;
+        old_z_vec = z_vec;
+    }
 
     let mut old_gradient: Array1<f64> = gradient.clone();
     let mut old_energy: f64 = energy;
     let mut optimization_failed: bool = false;
-
-    //if state == 0 {
-    //    let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
-    //    energy = en;
-    //    gradient = grad;
-    //} else {
-    //    let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(x, mol, state - 1);
-    //    energy = en[state - 1];
-    //    gradient = grad;
-    //}
 
     let (internal_coordinates, dlc_mat, internal_coord_vec, internal_coord_grad, initial_hessian): (
         InternalCoordinates,
@@ -75,6 +81,7 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
     let mut opt_timer: Instant = Instant::now();
 
     while true {
+        let iteration_timer = Instant::now();
         let (
             new_cart_coords,
             old_cart_coords,
@@ -120,12 +127,22 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
             continue;
         } else {
             // get energy and force
-            let (energy_new, gradient_new): (f64, Array1<f64>) =
-                get_energy_and_gradient_s0(&new_cart_coords, mol);
             info!("{:^70}", "");
             info!("{: ^80}", format!("Optimization step: {:>5}", iteration+1));
             info!("{:-^80}", "");
             opt_timer = Instant::now();
+            let mut energy_new: f64 = 0.0;
+            let mut gradient_new: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+            if state == 0 {
+                let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(&new_cart_coords, mol);
+                energy_new = en;
+                gradient_new = grad;
+            } else {
+                let (en, grad,z_vec): (Array1<f64>, Array1<f64>,Array3<f64>) = get_energies_and_gradient(&new_cart_coords, mol, state - 1,Some(old_z_vec));
+                energy_new = en[state - 1];
+                gradient_new = grad;
+                old_z_vec = z_vec;
+            }
             // evalutate step
             let (
                 return_energy,
@@ -188,6 +205,12 @@ pub fn optimize_geometry_ic(mol: &mut Molecule) -> (f64, Array1<f64>, Array1<f64
         }
 
         iteration += 1;
+        info!(
+            "{:>65} {:>8.3} s",
+            "elapsed time for the iteration:",
+            iteration_timer.elapsed().as_secs_f32()
+        );
+        drop(iteration_timer);
     }
 
     return (old_energy, old_gradient, prev_cart_coords);
@@ -274,6 +297,12 @@ pub fn evaluate_step(
     //     "Step state = {}. The value 0 is the worst result, 3 the best. ",
     //     step_state
     // );
+    // check convergence criteria
+    let converged_energy: bool = (energy - energy_prev).abs() < 1.0e-6;
+    let converged_grms: bool = rms_gradient < 2.0e-4;
+    let converged_gmax: bool = max_gradient < 4.0e-4;
+    let converged_drms: bool = rmsd < 5.0e-4;
+    let converged_dmax: bool = maxd < 1.0e-3;
 
     // Check convergence criteria
     if converged_energy && converged_grms && converged_drms && converged_gmax && converged_dmax {
@@ -740,8 +769,10 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol);
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
-        get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None);
+
+    let (grad_e0, grad_vrep, grad_exc,empty_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) =
+        get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None,None);
+
     // println!("Enegies and gradient");
     // println!("Energy: {}", &energy);
     // println!("Gradient E0 {}", &grad_e0);
@@ -753,16 +784,30 @@ pub fn get_energies_and_gradient(
     x: &Array1<f64>,
     mol: &mut Molecule,
     ex_state: usize,
-) -> (Array1<f64>, Array1<f64>) {
+    old_z_vec:Option<Array3<f64>>
+) -> (Array1<f64>, Array1<f64>,Array3<f64>) {
     let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol);
+    info!("{:-^70}", "");
+    info!("{: ^0} ", "Calculate excited states ");
+    info!("{:-^70}", "");
+    let exc_timer = Instant::now();
     let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
         get_exc_energies(&f, &mol, None, &s, &orbe, &orbs, false, None);
     let omega: Array1<f64> = tmp.0.clone();
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time:",
+        exc_timer.elapsed().as_secs_f32()
+    );
+    drop(exc_timer);
+
+    let grad_timer = Instant::now();
+    let (grad_e0, grad_vrep, grad_exc,old_z_vector): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &s,
@@ -771,10 +816,12 @@ pub fn get_energies_and_gradient(
         &Some(tmp.3),
         Some(ex_state),
         &Some(tmp.0),
+        old_z_vec
     );
+
     let grad_tot: Array1<f64> = grad_e0 + grad_vrep + grad_exc;
     let energy_tot: Array1<f64> = omega + energy;
-    return (energy_tot, grad_tot);
+    return (energy_tot, grad_tot,old_z_vector);
 }
 
 pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
@@ -786,7 +833,7 @@ pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64
         energy = en;
         gradient = grad;
     } else {
-        let (en, grad): (Array1<f64>, Array1<f64>) = get_energies_and_gradient(x, mol, state - 1);
+        let (en, grad,old_z_vec): (Array1<f64>, Array1<f64>,Array3<f64>) = get_energies_and_gradient(x, mol, state - 1,None);
         energy = en[state - 1];
         gradient = grad;
     }
@@ -949,19 +996,19 @@ pub fn bfgs_update(
         let rk: f64 = 1.0 / yk.dot(sk);
         let u: Array2<f64> = &id
             - &einsum("i,j->ij", &[sk, yk])
-                .unwrap()
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
         let v: Array2<f64> = &id
             - &einsum("i,j->ij", &[yk, sk])
-                .unwrap()
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
         let w: Array2<f64> = rk
             * einsum("i,j->ij", &[sk, sk])
-                .unwrap()
-                .into_dimensionality::<Ix2>()
-                .unwrap();
+            .unwrap()
+            .into_dimensionality::<Ix2>()
+            .unwrap();
         inv_hkp1 = u.dot(&inv_hk.dot(&v)) + w;
     }
     return inv_hkp1;
@@ -1192,7 +1239,7 @@ pub fn zoom(
 
 //#[test]
 fn test_optimization() {
-   let mut mol: Molecule = get_water_molecule();
+    let mut mol: Molecule = get_water_molecule();
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
         scc_routine::run_scc(&mol);
 
@@ -1655,7 +1702,7 @@ fn test_opt_benzene() {
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
-    let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol);
+    let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol,None);
     let new_energy: f64 = tmp.0;
     let new_gradient: Array1<f64> = tmp.1;
     let new_coords: Array1<f64> = tmp.2;
@@ -1671,7 +1718,7 @@ fn test_opt_benzene() {
     assert!(1 == 2);
 }
 
-#[test]
+//#[test]
 fn test_opt_cyclohexene() {
     let atomic_numbers: Vec<u8> = vec![6, 6, 6, 1, 6, 1, 6, 1, 6, 1, 1, 1];
     let mut positions: Array2<f64> = array![
@@ -1717,7 +1764,7 @@ fn test_opt_cyclohexene() {
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
-    let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol);
+    let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol,None);
     let new_energy: f64 = tmp.0;
     let new_gradient: Array1<f64> = tmp.1;
     let new_coords: Array1<f64> = tmp.2;
@@ -1776,7 +1823,7 @@ fn test_opt_water_6() {
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
-    let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol);
+    let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol,None);
     let new_energy: f64 = tmp.0;
     let new_gradient: Array1<f64> = tmp.1;
     let new_coords: Array1<f64> = tmp.2;

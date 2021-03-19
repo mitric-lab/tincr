@@ -22,6 +22,7 @@ use crate::test::get_water_molecule;
 use crate::io::GeneralConfig;
 use std::time::Instant;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
+use rayon::prelude::*;
 use crate::constants::ATOM_NAMES;
 use ndarray_stats::{QuantileExt, DeviationExt};
 
@@ -50,7 +51,8 @@ pub fn get_gradients(
     XpY: &Option<Array3<f64>>,
     exc_state: Option<usize>,
     omega: &Option<Array1<f64>>,
-) -> (Array1<f64>, Array1<f64>, Array1<f64>) {
+    old_z_vec:Option<Array3<f64>>
+) -> (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) {
     info!("{:^80}", "");
     info!("{:^80}", "Calculating analytic gradient");
     info!("{:-^80}", "");
@@ -75,6 +77,7 @@ pub fn get_gradients(
     let mut grad_e0: Array1<f64> = Array::zeros((3 * n_at));
     let mut grad_ex: Array1<f64> = Array::zeros((3 * n_at));
     let mut grad_vrep: Array1<f64> = Array::zeros((3 * n_at));
+    let mut new_z_vec:Array3<f64> = Array3::zeros((n_occ,n_virt,1));
 
     // check if active space is smaller than full space
     // otherwise this part is unnecessary
@@ -161,7 +164,7 @@ pub fn get_gradients(
             }
             //check for lc correction
             if r_lr > 0.0 {
-                grad_ex = gradients_lc_ex(
+                 let tmp:(Array1<f64>,Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
                     g1.view(),
@@ -186,10 +189,15 @@ pub fn get_gradients(
                     orbs_virt.view(),
                     fdmdO.view(),
                     flrdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
+                     old_z_vec
                 );
+                grad_ex = tmp.0;
+                new_z_vec = tmp.1;
             } else {
-                grad_ex = gradients_nolc_ex(
+                let tmp:(Array1<f64>,Array3<f64>) = gradients_nolc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
                     g1.view(),
@@ -213,8 +221,13 @@ pub fn get_gradients(
                     orbs_occ.view(),
                     orbs_virt.view(),
                     fdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
+                    old_z_vec
                 );
+                grad_ex = tmp.0;
+                new_z_vec = tmp.1;
             }
         }
     } else {
@@ -265,7 +278,7 @@ pub fn get_gradients(
                 );
 
             if r_lr > 0.0 {
-                grad_ex = gradients_lc_ex(
+                let tmp:(Array1<f64>,Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
                     g1.view(),
@@ -290,10 +303,15 @@ pub fn get_gradients(
                     orbs_virt.view(),
                     fdmdO.view(),
                     flrdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
+                    old_z_vec
                 );
+                grad_ex = tmp.0;
+                new_z_vec = tmp.1;
             } else {
-                grad_ex = gradients_nolc_ex(
+                let tmp:(Array1<f64>,Array3<f64>) = gradients_nolc_ex(
                     exc_state.unwrap(),
                     (&molecule.calculator.g0).view(),
                     g1.view(),
@@ -317,8 +335,13 @@ pub fn get_gradients(
                     orbs_occ.view(),
                     orbs_virt.view(),
                     fdmdO.view(),
+                    molecule.multiplicity,
+                    molecule.calculator.spin_couplings.view(),
                     None,
+                    old_z_vec
                 );
+                grad_ex = tmp.0;
+                new_z_vec = tmp.1;
             }
         }
     }
@@ -348,7 +371,7 @@ pub fn get_gradients(
     );
     info!("{:^80} ", "");
     drop(grad_timer);
-    return (grad_e0, grad_vrep, grad_ex);
+    return (grad_e0, grad_vrep, grad_ex,new_z_vec);
 }
 
 // only ground state
@@ -371,6 +394,7 @@ pub fn gradient_lc_gs(
     Array3<f64>,
     Array3<f64>,
 ) {
+    let grad_timer = Instant::now();
     let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
         &molecule.atomic_numbers,
         molecule.n_atoms,
@@ -395,6 +419,14 @@ pub fn gradient_lc_gs(
     let n_at: usize = *&molecule.calculator.g0.dim().0;
     let n_orb: usize = *&molecule.calculator.g0_ao.dim().0;
 
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time for gammas:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+
+    let grad_timer = Instant::now();
     let (grad_s, grad_h0): (Array3<f64>, Array3<f64>) = h0_and_s_gradients(
         &molecule.atomic_numbers,
         molecule.positions.view(),
@@ -405,6 +437,13 @@ pub fn gradient_lc_gs(
         &molecule.calculator.orbital_energies,
     );
 
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time for h0andS gradients:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
 
@@ -416,7 +455,7 @@ pub fn gradient_lc_gs(
     let diff_d: Array2<f64> = &d - &d_ref;
     // computing F(D-D0)
 
-    let fdmd0: Array3<f64> = f_v(
+    let fdmd0: Array3<f64> = f_v_new(
         diff_d.view(),
         s.view(),
         grad_s.view(),
@@ -425,21 +464,34 @@ pub fn gradient_lc_gs(
         molecule.n_atoms,
         molecule.calculator.n_orbs,
     );
+
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time for f:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
     let mut flr_dmd0: Array3<f64> = Array::zeros((3 * n_at, n_orb, n_orb));
     if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS) > 0.0 {
-        flr_dmd0 = f_lr(
+        flr_dmd0 = f_lr_new(
             diff_d.view(),
             s.view(),
             grad_s.view(),
-            (&molecule.calculator.g0_ao).view(),
             (&molecule.calculator.g0_lr_ao).view(),
-            g1_ao.view(),
             g1lr_ao.view(),
             n_at,
             n_orb,
         );
     }
-
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time for f_lr:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
     // energy weighted density matrix
     let d_en = 2.0 * orbs_occ.dot(&ei.dot(&orbs_occ.t()));
 
@@ -461,12 +513,27 @@ pub fn gradient_lc_gs(
                     .into_dimensionality::<Ix1>()
                     .unwrap();
     }
+
+    info!(
+        "{:>65} {:>8.3} s",
+        "time tensordots gradients:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
     let grad_v_rep: Array1<f64> = gradient_v_rep(
         &molecule.atomic_numbers,
         molecule.distance_matrix.view(),
         molecule.directions_matrix.view(),
         &molecule.calculator.v_rep,
     );
+
+    info!(
+        "{:>65} {:>8.3} s",
+        "time grad_v_rep gradients:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
 
     return (
         grad_e0, grad_v_rep, grad_s, grad_h0, fdmd0, flr_dmd0, g1, g1_ao, g1lr, g1lr_ao,
@@ -539,8 +606,11 @@ pub fn gradients_nolc_ex(
     orbs_occ: ArrayView2<f64>,
     orbs_virt: ArrayView2<f64>,
     f_dmd0: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
     check_z_vec: Option<usize>,
-) -> (Array1<f64>) {
+    old_z_vec:Option<Array3<f64>>
+) -> (Array1<f64>,Array3<f64>) {
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
     let n_occ: usize = orbe_occ.len();
@@ -702,10 +772,11 @@ pub fn gradients_nolc_ex(
     let omega_input: Array2<f64> = into_col(Array::ones(orbe_occ.len())).dot(&into_row(orbe_virt.clone())) -
         into_col(orbe_occ.clone()).dot(&into_row(Array::ones(orbe_virt.len())));
     let b_matrix_input: Array3<f64> = r_ia.clone().into_shape((n_occ, n_virt, 1)).unwrap();
+
     let z_ia: Array3<f64> = krylov_solver_zvector(
         omega_input.view(),
         b_matrix_input.view(),
-        None,
+        old_z_vec,
         None,
         None,
         g0,
@@ -714,8 +785,10 @@ pub fn gradients_nolc_ex(
         None,
         qtrans_ov,
         0,
+        multiplicity,
+        spin_couplings,
     );
-    let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
+    let z_ia_transformed: Array2<f64> = z_ia.clone().into_shape((n_occ, n_virt)).unwrap();
 
     if check_z_vec.is_some() && check_z_vec.unwrap() == 1 {
         // compare with full solution
@@ -826,7 +899,7 @@ pub fn gradients_nolc_ex(
     let XmY_ao = orbs_occ.dot(&XmY_state.dot(&orbs_virt.t()));
 
     let mut gradExc: Array1<f64> = Array::zeros(3 * n_at);
-    let f: Array3<f64> = f_v(XpY_ao.view(), s, grad_s, g0_ao, g1_ao, n_at, n_orb);
+    let f: Array3<f64> = f_v_new(XpY_ao.view(), s, grad_s, g0_ao, g1_ao, n_at, n_orb);
     gradExc = gradExc
         + tensordot(
             &grad_h,
@@ -846,7 +919,7 @@ pub fn gradients_nolc_ex(
                 .into_dimensionality::<Ix1>()
                 .unwrap();
 
-    return gradExc;
+    return (gradExc,z_ia);
 }
 
 pub fn gradients_lc_ex(
@@ -874,8 +947,13 @@ pub fn gradients_lc_ex(
     orbs_virt: ArrayView2<f64>,
     f_dmd0: ArrayView3<f64>,
     f_lrdmd0: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
     check_z_vec: Option<usize>,
-) -> (Array1<f64>) {
+    old_z_vec:Option<Array3<f64>>
+) -> (Array1<f64>,Array3<f64>) {
+    let grad_timer = Instant::now();
+
     let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
     let ea: Array2<f64> = Array2::from_diag(&orbe_virt);
     let n_occ: usize = orbe_occ.len();
@@ -1055,6 +1133,14 @@ pub fn gradients_lc_ex(
     //q_ab
     let q_ab: Array2<f64> = omega_state * u_ab + v_ab;
 
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time for tensor dots in excited gradients:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
     // right hand side
     let r_ia: Array2<f64> = &q_ai.t() - &q_ia;
     // solve z-vector equation
@@ -1073,10 +1159,11 @@ pub fn gradients_lc_ex(
     let omega_input: Array2<f64> = into_col(Array::ones(orbe_occ.len())).dot(&into_row(orbe_virt.clone())) -
         into_col(orbe_occ.clone()).dot(&into_row(Array::ones(orbe_virt.len())));
     let b_matrix_input: Array3<f64> = r_ia.clone().into_shape((n_occ, n_virt, 1)).unwrap();
+
     let z_ia: Array3<f64> = krylov_solver_zvector(
         omega_input.view(),
         b_matrix_input.view(),
-        None,
+        old_z_vec,
         None,
         None,
         g0,
@@ -1085,8 +1172,17 @@ pub fn gradients_lc_ex(
         Some(qtrans_vv),
         qtrans_ov,
         1,
+        multiplicity,
+        spin_couplings,
     );
-    let z_ia_transformed: Array2<f64> = z_ia.into_shape((n_occ, n_virt)).unwrap();
+    let z_ia_transformed: Array2<f64> = z_ia.clone().into_shape((n_occ, n_virt)).unwrap();
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time for krylov z vector:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
 
     if check_z_vec.is_some() && check_z_vec.unwrap() == 1 {
         // compare with full solution
@@ -1148,6 +1244,8 @@ pub fn gradients_lc_ex(
         let err: f64 = z_diff.mapv(|z_diff| z_diff.abs()).sum();
         assert!(err < 1e-10);
     }
+    let grad_timer = Instant::now();
+
     // build w
     let mut w_ij: Array2<f64> = q_ij
         + h_plus_lr(
@@ -1191,6 +1289,15 @@ pub fn gradients_lc_ex(
             .assign(&w_ab.slice(s![i, ..]));
     }
     // assemble gradient
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time build w matric:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
     //dh/dr
     let grad_h: Array3<f64> = &grad_h0 + &f_dmd0 - 0.5 * &f_lrdmd0;
 
@@ -1216,26 +1323,22 @@ pub fn gradients_lc_ex(
     let XmY_ao = orbs_occ.dot(&XmY_state.dot(&orbs_virt.t()));
 
     let mut gradExc: Array1<f64> = Array::zeros(3 * n_at);
-    let f: Array3<f64> = f_v(XpY_ao.view(), s, grad_s, g0_ao, g1_ao, n_at, n_orb);
+    let f: Array3<f64> = f_v_new(XpY_ao.view(), s, grad_s, g0_ao, g1_ao, n_at, n_orb);
 
-    let flr_p = f_lr(
+    let flr_p = f_lr_new(
         (&XpY_ao + &XpY_ao.t()).view(),
         s,
         grad_s,
-        g0_ao,
         g0lr_ao,
-        g1_ao,
         g1lr_ao,
         n_at,
         n_orb,
     );
-    let flr_m = -f_lr(
+    let flr_m = -f_lr_new(
         (&XmY_ao - &XmY_ao.t()).view(),
         s,
         grad_s,
-        g0_ao,
         g0lr_ao,
-        g1_ao,
         g1lr_ao,
         n_at,
         n_orb,
@@ -1269,7 +1372,14 @@ pub fn gradients_lc_ex(
                 .into_dimensionality::<Ix1>()
                 .unwrap();
 
-    return gradExc;
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time assemble gradient:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+
+    return (gradExc,z_ia);
 }
 
 fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>) {
@@ -1280,6 +1390,186 @@ fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>
         }
     }
     return matrix;
+}
+
+fn f_v_new(v: ArrayView2<f64>,
+            s: ArrayView2<f64>,
+            grad_s: ArrayView3<f64>,
+            g0_ao: ArrayView2<f64>,
+            g1_ao: ArrayView3<f64>,
+            n_atoms: usize,
+            n_orb: usize,
+)->Array3<f64>{
+    let vp:Array2<f64> = v.to_owned()+v.t().to_owned();
+    let sv:Array1<f64> = (&s*&vp).sum_axis(Axis(0));
+    let gsv:Array1<f64> = g0_ao.dot(&sv);
+
+    let mut f_return:Array3<f64> = Array3::zeros((3*n_atoms,n_orb,n_orb));
+    //let iter_range= ;
+
+    //for nc in 0..3*n_atoms{
+    //    let ds:Array2<f64> = grad_s.slice(s![nc,..,..]).to_owned();
+    //    let dg:Array2<f64> = g1_ao.slice(s![nc,..,..]).to_owned();
+    //
+    //    let gdsv:Array1<f64> = g0_ao.dot(&(&ds*&vp).sum_axis(Axis(0)));
+    //   let dgsv:Array1<f64> = dg.dot(&sv);
+    //    let mut d_f:Array2<f64> = Array2::zeros((n_orb,n_orb));
+    //
+    //    for b in 0..n_orb{
+    //        for a in 0..n_orb{
+    //            d_f[[a,b]] = ds[[a,b]]*(gsv[a]+gsv[b]) + s[[a,b]]*(dgsv[a]+gdsv[a]+dgsv[b]+gdsv[b]);
+    //       }
+    //   }
+    //
+    //    d_f = d_f * 0.25;
+    //    f_return.slice_mut(s![nc,..,..]).assign(&d_f);
+    //}
+
+    let mut f_return:Vec<_> = (0..3*n_atoms).into_par_iter().map(|nc|{
+        let ds:Array2<f64> = grad_s.slice(s![nc,..,..]).to_owned();
+        let dg:Array2<f64> = g1_ao.slice(s![nc,..,..]).to_owned();
+
+        let gdsv:Array1<f64> = g0_ao.dot(&(&ds*&vp).sum_axis(Axis(0)));
+        let dgsv:Array1<f64> = dg.dot(&sv);
+        //let mut d_f:Array2<f64> = Array2::zeros((n_orb,n_orb));
+        let mut d_f:Vec<f64> = Vec::new();
+
+        for b in 0..n_orb{
+            for a in 0..n_orb{
+                d_f.push(ds[[a,b]]*(gsv[a]+gsv[b]) + s[[a,b]]*(dgsv[a]+gdsv[a]+dgsv[b]+gdsv[b]));
+            }
+        }
+        (Array::from(d_f) * 0.25).to_vec()
+    }).collect();
+    let mut f_result:Vec<f64> = Vec::new();
+
+    for vec in f_return.iter_mut(){
+        f_result.append(&mut *vec);
+    }
+
+    //for i in 0..f_return.len(){
+    //    for j in 0..f_return[i].len(){
+    //        f_result.push(f_return[i][j]);
+    //    }
+    //}
+    let f_result_temp:Array1<f64> = Array::from(f_result);
+    let f_return:Array3<f64> = f_result_temp.into_shape((3*n_atoms,n_orb,n_orb)).unwrap();
+
+    return f_return;
+}
+
+fn f_lr_new(v: ArrayView2<f64>,
+            s: ArrayView2<f64>,
+            grad_s: ArrayView3<f64>,
+            g0_lr_a0: ArrayView2<f64>,
+            g1_lr_ao: ArrayView3<f64>,
+            n_atoms: usize,
+            n_orb: usize,
+)->Array3<f64>{
+    let sv: Array2<f64> = s.dot(&v);
+    let v_t:Array2<f64> = v.t().to_owned();
+    let sv_t: Array2<f64> = s.dot(&v_t);
+    let gv: Array2<f64> = &g0_lr_a0 * &v;
+
+    let t_sv:Array2<f64> = sv.t().to_owned();
+    let svg_t:Array2<f64> =(&sv * &g0_lr_a0).t().to_owned();
+    let sgv_t:Array2<f64> = s.dot(&gv).t().to_owned();
+
+    let mut f_return:Array3<f64> = Array3::zeros((3*n_atoms,n_orb,n_orb));
+
+    //for nc in 0..3*n_atoms{
+    //    let d_s:Array2<f64> = grad_s.slice(s![nc,..,..]).to_owned();
+    //    let d_g:Array2<f64> = g1_lr_ao.slice(s![nc,..,..]).to_owned();
+
+    //    let d_sv_t:Array2<f64> = d_s.dot(&v_t);
+    //    let d_sv:Array2<f64> = d_s.dot(&v);
+    //    let d_gv:Array2<f64> = d_g.clone() * v;
+
+    //    let mut d_f:Array2<f64> = Array2::zeros((n_orb,n_orb));
+    //    // 1st term
+    //    d_f = d_f + g0_lr_a0.to_owned()*d_s.dot(&t_sv);
+    //    // 2nd term
+    //    d_f = d_f + (&d_sv_t*&g0_lr_a0).dot(&s);
+    //    // 3rd term
+    //    d_f = d_f + d_s.dot(&svg_t);
+    //    // 4th term
+    //    d_f = d_f + d_s.dot(&sgv_t);
+    //    // 5th term
+    //    d_f = d_f + g0_lr_a0.to_owned() * s.dot(&d_sv.t());
+    //    // 6th term
+    //    d_f = d_f + (sv_t.clone()*g0_lr_a0).dot(&d_s.t());
+    //    // 7th term
+    //    d_f = d_f + s.dot(&(&d_sv*&g0_lr_a0).t());
+    //    // 8th term
+    //    d_f = d_f + s.dot(&(d_s.dot(&gv)).t());
+    //    // 9th term
+    //    d_f = d_f + d_g.clone()*s.dot(&t_sv);
+    //    // 10th term
+    //    d_f = d_f + (sv_t.clone()*d_g.clone()).dot(&s);
+    //    // 11th term
+    //    d_f = d_f + s.dot(&(&sv*&d_g).t());
+    //    // 12th term
+    //    d_f = d_f + s.dot(&(s.dot(&d_gv)).t());
+    //    d_f = d_f * 0.25;
+    //
+    //    //f_return.slice_mut(s![..,..,nc]).assign(&d_f);
+    //    f_return.slice_mut(s![nc,..,..]).assign(&d_f);
+    //}
+    // f_return.swap_axes(1,2);
+    // f_return.swap_axes(0,1);
+    let mut f_return:Vec<_> = (0..3*n_atoms).into_par_iter().map(|nc|{
+        let d_s:Array2<f64> = grad_s.slice(s![nc,..,..]).to_owned();
+        let d_g:Array2<f64> = g1_lr_ao.slice(s![nc,..,..]).to_owned();
+
+        let d_sv_t:Array2<f64> = d_s.dot(&v_t);
+        let d_sv:Array2<f64> = d_s.dot(&v);
+        let d_gv:Array2<f64> = d_g.clone() * v;
+
+        let mut d_f:Array2<f64> = Array2::zeros((n_orb,n_orb));
+        // 1st term
+        d_f = d_f + g0_lr_a0.to_owned()*d_s.dot(&t_sv);
+        // 2nd term
+        d_f = d_f + (&d_sv_t*&g0_lr_a0).dot(&s);
+        // 3rd term
+        d_f = d_f + d_s.dot(&svg_t);
+        // 4th term
+        d_f = d_f + d_s.dot(&sgv_t);
+        // 5th term
+        d_f = d_f + g0_lr_a0.to_owned() * s.dot(&d_sv.t());
+        // 6th term
+        d_f = d_f + (sv_t.clone()*g0_lr_a0).dot(&d_s.t());
+        // 7th term
+        d_f = d_f + s.dot(&(&d_sv*&g0_lr_a0).t());
+        // 8th term
+        d_f = d_f + s.dot(&(d_s.dot(&gv)).t());
+        // 9th term
+        d_f = d_f + d_g.clone()*s.dot(&t_sv);
+        // 10th term
+        d_f = d_f + (sv_t.clone()*d_g.clone()).dot(&s);
+        // 11th term
+        d_f = d_f + s.dot(&(&sv*&d_g).t());
+        // 12th term
+        d_f = d_f + s.dot(&(s.dot(&d_gv)).t());
+        d_f = d_f * 0.25;
+
+        //f_return.slice_mut(s![..,..,nc]).assign(&d_f);
+        d_f.into_shape(n_orb*n_orb).unwrap().to_vec()
+    }).collect();
+    let mut f_result:Vec<f64> = Vec::new();
+
+    for vec in f_return.iter_mut(){
+        f_result.append(&mut *vec);
+    }
+
+    //for i in 0..f_return.len(){
+    //    for j in 0..f_return[i].len(){
+    //        f_result.push(f_return[i][j]);
+    //    }
+    //}
+    let f_result_temp:Array1<f64> = Array::from(f_result);
+    let f_return:Array3<f64> = f_result_temp.into_shape((3*n_atoms,n_orb,n_orb)).unwrap();
+
+    return f_return;
 }
 
 fn f_lr(
@@ -1293,6 +1583,8 @@ fn f_lr(
     n_atoms: usize,
     n_orb: usize,
 ) -> (Array3<f64>) {
+    let now = Instant::now();
+
     let sv: Array2<f64> = s.dot(&v);
     let svt: Array2<f64> = s.dot(&v.t());
     let gv: Array2<f64> = &g0_lr_a0 * &v;
@@ -1315,7 +1607,14 @@ fn f_lr(
     let mut tmp10: Array3<f64> = Array::zeros((3 * n_atoms, n_orb, n_orb));
     let mut tmp11: Array3<f64> = Array::zeros((3 * n_atoms, n_orb, n_orb));
 
-    //let now = Instant::now();
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time before loop:",
+        now.elapsed().as_secs_f32()
+    );
+    drop(now);
+
+    let now = Instant::now();
     for nc in 0..(3*n_atoms){
        dgv.slice_mut(s![nc,..,..]).assign(&(g1_lr_ao.slice(s![nc,..,..]).to_owned()*&v));
        flr.slice_mut(s![nc,..,..]).add_assign(&(&g0_lr_a0*&tmp1.slice(s![nc,..,..])));
@@ -1324,7 +1623,12 @@ fn f_lr(
        tmp10.slice_mut(s![nc,..,..]).assign(&(&svt*&g1_lr_ao.slice(s![nc,..,..])));
        tmp11.slice_mut(s![nc,..,..]).assign(&(&sv*&g1_lr_ao.slice(s![nc,..,..])));
     }
-    //println!("Loop test. Time elapsed in micro sec: {}", now.elapsed().as_micros());
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time for loop:",
+        now.elapsed().as_secs_f32()
+    );
+    drop(now);
 
     // let now = Instant::now();
     // // replace loop with einsums
@@ -1356,6 +1660,8 @@ fn f_lr(
     //
     // println!("Einsum test. Time elapsed in micro sec: {}", now.elapsed().as_micros());
 
+    let now = Instant::now();
+
     flr = flr
         + tensordot(&tmp2, &s, &[Axis(2)], &[Axis(1)])
             .into_dimensionality::<Ix3>()
@@ -1379,6 +1685,25 @@ fn f_lr(
 
     flr = flr + tmp_6;
 
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time after loop part1:",
+        now.elapsed().as_secs_f32()
+    );
+    drop(now);
+    let now = Instant::now();
+
+    // let mut tmp_7_loop:Array3<f64> = Array3::zeros((s.dim().0,tmp7.dim().0,tmp7.dim().1));
+    //
+    //
+    // for k in 0..tmp7.dim().0{
+    //     for l in 0..tmp7.dim().1{
+    //         for m in 0.. tmp7.dim().2{
+    //             tmp_7_loop[[i,k,l]] += s[[i,j]] * tmp7[[k,l,m]];
+    //         }
+    //     }
+    // }
+
     let mut tmp_7: Array3<f64> = tensordot(&s, &tmp7, &[Axis(1)], &[Axis(2)])
         .into_dimensionality::<Ix3>()
         .unwrap();
@@ -1396,6 +1721,14 @@ fn f_lr(
     tmp8.swap_axes(0, 1);
 
     flr = flr + tmp8;
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time after loop part2:",
+        now.elapsed().as_secs_f32()
+    );
+    drop(now);
+
+    let now = Instant::now();
 
     let tmp9: Array2<f64> = s.dot(&sv.t());
 
@@ -1426,6 +1759,13 @@ fn f_lr(
     flr = flr + tmp12;
 
     flr = flr * 0.25;
+
+    info!(
+        "{:>65} {:>8.3} s",
+        "elapsed time after loop part3:",
+        now.elapsed().as_secs_f32()
+    );
+    drop(now);
 
     return flr;
 }
@@ -1713,8 +2053,8 @@ fn get_gradients_gs_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) =
-        get_gradients(&orbe, &orbs, &S, &mol, &None, &None, None, &None);
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) =
+        get_gradients(&orbe, &orbs, &S, &mol, &None, &None, None, &None,None);
 
     println!("grad_e0 {}", grad_e0);
     assert!(grad_e0.abs_diff_eq(&gradE0_ref, 1e-12));
@@ -1939,7 +2279,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &S,
@@ -1948,6 +2288,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
         &Some(XpY),
         Some(0),
         &Some(omega),
+        None
     );
 
     println!("grad_e0 {}", &grad_e0);
@@ -2245,7 +2586,7 @@ fn get_gradients_exc_no_lc_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &S,
@@ -2254,6 +2595,7 @@ fn get_gradients_exc_no_lc_routine() {
         &Some(XpY),
         Some(0),
         &Some(omega),
+        None
     );
 
     println!("grad_e0 {}", &grad_e0);
@@ -2483,7 +2825,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &S,
@@ -2492,6 +2834,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
         &Some(XpY),
         Some(0),
         &Some(omega),
+        None
     );
 
     println!("grad_e0 {}", &grad_e0);
@@ -2793,7 +3136,7 @@ fn get_gradients_exc_routine() {
 
     mol.calculator.set_active_orbitals(f_occ.to_vec());
 
-    let (grad_e0, grad_vrep, grad_exc): (Array1<f64>, Array1<f64>, Array1<f64>) = get_gradients(
+    let (grad_e0, grad_vrep, grad_exc,old_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) = get_gradients(
         &orbe,
         &orbs,
         &S,
@@ -2802,6 +3145,7 @@ fn get_gradients_exc_routine() {
         &Some(XpY),
         Some(0),
         &Some(omega),
+        None
     );
 
     println!("grad_e0 {}", &grad_e0);
@@ -3102,6 +3446,8 @@ fn gs_gradients_lc_routine() {
 
 #[test]
 fn exc_gradient_no_lc_routine() {
+    let mol: Molecule = get_water_molecule();
+
     let orbs: Array2<f64> = array![
         [
             -8.6192475509337374e-01,
@@ -7202,7 +7548,7 @@ fn exc_gradient_no_lc_routine() {
         ]
     ];
 
-    let gradEx_test: Array1<f64> = gradients_nolc_ex(
+    let (gradEx_test,old_z_vec):(Array1<f64>,Array3<f64>) = gradients_nolc_ex(
         1,
         gamma0.view(),
         gamma1.view(),
@@ -7226,7 +7572,10 @@ fn exc_gradient_no_lc_routine() {
         orbs_occ.view(),
         orbs_virt.view(),
         FDmD0.view(),
+         mol.multiplicity,
+        mol.calculator.spin_couplings.view(),
         Some(1),
+        None
     );
 
     println!("gradEx_result {}", gradEx_test);
@@ -7236,6 +7585,8 @@ fn exc_gradient_no_lc_routine() {
 
 #[test]
 fn exc_gradient_lc_routine() {
+    let mol: Molecule = get_water_molecule();
+
     let orbs: Array2<f64> = array![
         [
             8.7633793350448586e-01,
@@ -11037,7 +11388,7 @@ fn exc_gradient_lc_routine() {
         ]
     ];
 
-    let (gradEx_test) = gradients_lc_ex(
+    let (gradEx_test,old_z_vec):(Array1<f64>,Array3<f64>) = gradients_lc_ex(
         1,
         gamma0.view(),
         gamma1.view(),
@@ -11062,10 +11413,333 @@ fn exc_gradient_lc_routine() {
         orbs_virt.view(),
         FDmD0.view(),
         FlrDmD0.view(),
+        mol.multiplicity,
+        mol.calculator.spin_couplings.view(),
         Some(1),
+        None
     );
 
     println!("gradEx_result {}", gradEx_test);
     println!("gradEx_ref {}", gradExc);
     assert!(gradEx_test.abs_diff_eq(&gradExc, 1e-14));
+
+    assert!(1 == 2);
+}
+#[test]
+pub fn test_new_flr(){
+    let SMatrix:Array2<f64> = array! [
+    [ 1.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   3.0749185256906808e-001 , 3.0749379923890652e-001],
+    [ 0.0000000000000000e+000 , 1.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 ,-0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  1.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 ,-1.9762625833649862e-323],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 1.0000000000000000e+000 ,  -2.4703282292062327e-323 , 9.8813129168249309e-324],
+    [ 3.0749185256906808e-001 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 ,-2.4703282292062327e-323 ,   1.0000000000000000e+000 , 2.6802469998434889e-002],
+    [ 3.0749379923890652e-001 ,-0.0000000000000000e+000  , -1.9762625833649862e-323 , 9.8813129168249309e-324 ,   2.6802469998434889e-002 , 1.0000000000000000e+000]];
+
+    let GradS:Array3<f64> = array![[
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 3.5903993049384009e-001 ,-1.1967953580003202e-001],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 ,-1.1541613756544200e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 1.0088965385345556e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 1.0039413923494130e-320 , 3.3637463214162198e-310],
+    [ 3.5903993049384009e-001 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 1.0039413923494130e-320   , 0.0000000000000000e+000 , 0.0000000000000000e+000],
+    [-1.1967953580003202e-001 ,-1.1541613756544200e-310  ,  1.0088965385345556e-310 , 3.3637463214162198e-310   , 0.0000000000000000e+000 , 0.0000000000000000e+000]
+    ],
+    [
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 1.7922133559835926e-001],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 1.7283685289893191e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 ,-1.5108329415552256e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 6.2964517354712130e-311],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 0.0000000000000000e+000],
+    [ 1.7922133559835926e-001 , 1.7283685289893191e-310  ,  -1.5108329415552256e-310,  6.2964517354712130e-311  , 0.0000000000000000e+000 , 0.0000000000000000e+000]
+    ],
+    [
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 2.8717092215302892e-001],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 2.7694090250641192e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  3.7841964635948309e-310 , 1.3633614578630434e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 1.0088965385345556e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  3.7841964635948309e-310 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000],
+    [ 2.8717092215302892e-001 , 2.7694090250641192e-310  ,  1.3633614578630434e-310 , 1.0088965385345556e-310  ,  0.0000000000000000e+000 , 0.0000000000000000e+000]
+    ],
+    [
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 0.0000000000000000e+000  , -3.5903993049384009e-001 , 0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 0.0000000000000000e+000  , -1.0039413923494130e-320 , 0.0000000000000000e+000],
+    [-3.5903993049384009e-001 , 0.0000000000000000e+000   , 0.0000000000000000e+000 ,-1.0039413923494130e-320  ,  0.0000000000000000e+000 ,-4.9326381257087708e-002],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000   , 0.0000000000000000e+000 , 0.0000000000000000e+000  , -4.9326381257087708e-002 , 0.0000000000000000e+000]
+    ],
+    [
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000  ,0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  , -3.7841962372757101e-310  ,0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000  ,0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000  ,0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 ,-3.7841962372757101e-310  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000  ,1.8466548012393818e-002],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  1.8466548012393818e-002  ,0.0000000000000000e+000]
+    ],
+    [
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  , -3.7841962372757101e-310 , 0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,-3.7841962372757101e-310  , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 2.9589421393369331e-002],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  2.9589421393369331e-002 , 0.0000000000000000e+000]
+    ],
+    [
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 1.1967953580003202e-001],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 ,-6.2964509823294000e-311],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 ,-1.0088964178566995e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 ,-3.3637459190661043e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 4.9326381257087708e-002],
+    [ 1.1967953580003202e-001 ,-6.2964509823294000e-311  , -1.0088964178566995e-310 ,-3.3637459190661043e-310  ,  4.9326381257087708e-002 , 0.0000000000000000e+000]
+    ],
+    [
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 ,-1.7922133559835926e-001],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 ,-2.8413071944937102e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 , 1.5108327608389075e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 ,-6.2964509823294000e-311],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 ,-1.8466548012393818e-002],
+    [-1.7922133559835926e-001 ,-2.8413071944937102e-310  ,  1.5108327608389075e-310 ,-6.2964509823294000e-311 ,  -1.8466548012393818e-002 , 0.0000000000000000e+000]
+    ],
+    [
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000, -2.8717092215302892e-001],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000,  1.5108327608389075e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000, -1.3633612947863510e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000, -1.0088964178566995e-310],
+    [ 0.0000000000000000e+000 , 0.0000000000000000e+000 ,   0.0000000000000000e+000 , 0.0000000000000000e+000  ,  0.0000000000000000e+000, -2.9589421393369331e-002],
+    [-2.8717092215302892e-001 , 1.5108327608389075e-310 ,  -1.3633612947863510e-310 ,-1.0088964178566995e-310  , -2.9589421393369331e-002,  0.0000000000000000e+000]
+    ]];
+
+    let G0lr:Array2<f64> = array! [
+    [0.2860554418243039 ,0.2860554418243039 ,0.2860554418243039  ,  0.2860554418243039, 0.2692279296946004 ,0.2692280400920803],
+    [0.2860554418243039 ,0.2860554418243039 ,0.2860554418243039  ,  0.2860554418243039, 0.2692279296946004 ,0.2692280400920803],
+    [0.2860554418243039 ,0.2860554418243039 ,0.2860554418243039  ,  0.2860554418243039, 0.2692279296946004 ,0.2692280400920803],
+    [0.2860554418243039 ,0.2860554418243039 ,0.2860554418243039  ,  0.2860554418243039, 0.2692279296946004 ,0.2692280400920803],
+    [0.2692279296946004 ,0.2692279296946004 ,0.2692279296946004  ,  0.2692279296946004, 0.2923649998054588 ,0.2429686492032624],
+    [0.2692280400920803 ,0.2692280400920803 ,0.2692280400920803  ,  0.2692280400920803, 0.2429686492032624 ,0.2923649998054588]];
+
+    let G1lr:Array3<f64> = array! [[
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000  ,0.0203615522580970, -0.0067871192953180],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000  ,0.0203615522580970, -0.0067871192953180],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000  ,0.0203615522580970, -0.0067871192953180],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000  ,0.0203615522580970, -0.0067871192953180],
+    [ 0.0203615522580970 , 0.0203615522580970 , 0.0203615522580970  ,  0.0203615522580970  ,0.0000000000000000,  0.0000000000000000],
+    [-0.0067871192953180 ,-0.0067871192953180 ,-0.0067871192953180  , -0.0067871192953180  ,0.0000000000000000,  0.0000000000000000]
+    ],
+    [
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000  ,0.0101637809408346],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000  ,0.0101637809408346],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000  ,0.0101637809408346],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000  ,0.0101637809408346],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000  ,0.0000000000000000],
+    [ 0.0101637809408346 , 0.0101637809408346 , 0.0101637809408346  ,  0.0101637809408346 , 0.0000000000000000  ,0.0000000000000000]
+    ],
+    [
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000  ,0.0162856857170278],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000  ,0.0162856857170278],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000  ,0.0162856857170278],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000  ,0.0162856857170278],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000  ,0.0000000000000000],
+    [ 0.0162856857170278 , 0.0162856857170278 , 0.0162856857170278   , 0.0162856857170278 , 0.0000000000000000  ,0.0000000000000000]
+    ],
+    [
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 ,-0.0203615522580970 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 ,-0.0203615522580970 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 ,-0.0203615522580970 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 ,-0.0203615522580970 , 0.0000000000000000],
+    [-0.0203615522580970 ,-0.0203615522580970 ,-0.0203615522580970  , -0.0203615522580970 , 0.0000000000000000 ,-0.0225742810190271],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 ,-0.0225742810190271 , 0.0000000000000000]
+    ],
+    [
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0084512391474741],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0084512391474741 , 0.0000000000000000]
+    ],
+    [
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0135416362745717],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0135416362745717 , 0.0000000000000000]
+    ],
+    [
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0067871192953180],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0067871192953180],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0067871192953180],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0067871192953180],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 , 0.0225742810190271],
+    [ 0.0067871192953180 , 0.0067871192953180 , 0.0067871192953180  ,  0.0067871192953180 , 0.0225742810190271 , 0.0000000000000000]
+    ],
+    [
+    [ 0.0000000000000000,  0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000 ,-0.0101637809408346],
+    [ 0.0000000000000000,  0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000 ,-0.0101637809408346],
+    [ 0.0000000000000000,  0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000 ,-0.0101637809408346],
+    [ 0.0000000000000000,  0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000 ,-0.0101637809408346],
+    [ 0.0000000000000000,  0.0000000000000000 , 0.0000000000000000   , 0.0000000000000000 , 0.0000000000000000 ,-0.0084512391474741],
+    [-0.0101637809408346, -0.0101637809408346 ,-0.0101637809408346   ,-0.0101637809408346 ,-0.0084512391474741 , 0.0000000000000000]
+    ],
+    [
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 ,-0.0162856857170278],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 ,-0.0162856857170278],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 ,-0.0162856857170278],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 ,-0.0162856857170278],
+    [ 0.0000000000000000 , 0.0000000000000000 , 0.0000000000000000  ,  0.0000000000000000 , 0.0000000000000000 ,-0.0135416362745717],
+    [-0.0162856857170278 ,-0.0162856857170278 ,-0.0162856857170278  , -0.0162856857170278 ,-0.0135416362745717 , 0.0000000000000000]
+    ]];
+
+    let input_matrix:Array2<f64> = array! [
+    [-5.8082484411611679e-01 , 9.9261362507570881e-17,  4.4634493240034066e-18 ,   1.1916171613942245e-17,  3.3789949421140558e-01,  3.3790011602378289e-01],
+    [ 9.9261362507570881e-17 , 6.6666666666666674e-01, -5.5511151231257827e-17 ,   2.7755575615628914e-16,  5.2213824442638725e-16, -6.2529502979177517e-16],
+    [ 4.4634493240034066e-18 ,-5.5511151231257827e-17,  6.6666666666666718e-01 ,  -3.3306690738754696e-16, -1.5412501425947915e-16,  1.2435905514942915e-16],
+    [ 1.1916171613942245e-17 , 2.7755575615628914e-16, -3.3306690738754696e-16 ,   6.6666666666666718e-01,  9.0727422381557298e-17, -1.3563966332560019e-16],
+    [ 3.3789949421140558e-01 , 5.2213824442638725e-16, -1.5412501425947915e-16 ,   9.0727422381557298e-17, -9.1954758528927805e-01,  8.0452562761571769e-02],
+    [ 3.3790011602378289e-01 ,-6.2529502979177517e-16,  1.2435905514942915e-16 ,  -1.3563966332560019e-16,  8.0452562761571769e-02, -9.1954728918730599e-01]];
+
+    let n_at:usize = 3;
+    let n_orb:usize = 6;
+
+    let flr_return:Array3<f64> = f_lr_new(input_matrix.view(),SMatrix.view(),GradS.view(),G0lr.view(),G1lr.view(),n_at,n_orb);
+    //println!("F_lr result {}",flr_return);
+
+    let  G0_AO: Array2<f64> = array![
+       [0.4467609798860577, 0.4467609798860577, 0.4467609798860577,
+        0.4467609798860577, 0.3863557889890281, 0.3863561531176491],
+       [0.4467609798860577, 0.4467609798860577, 0.4467609798860577,
+        0.4467609798860577, 0.3863557889890281, 0.3863561531176491],
+       [0.4467609798860577, 0.4467609798860577, 0.4467609798860577,
+        0.4467609798860577, 0.3863557889890281, 0.3863561531176491],
+       [0.4467609798860577, 0.4467609798860577, 0.4467609798860577,
+        0.4467609798860577, 0.3863557889890281, 0.3863561531176491],
+       [0.3863557889890281, 0.3863557889890281, 0.3863557889890281,
+        0.3863557889890281, 0.4720158398964135, 0.3084885848056254],
+       [0.3863561531176491, 0.3863561531176491, 0.3863561531176491,
+        0.3863561531176491, 0.3084885848056254, 0.4720158398964135]
+];
+    let  G1_AO: Array3<f64> = array![
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0671593223694436, -0.0223862512902948],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0671593223694436, -0.0223862512902948],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0671593223694436, -0.0223862512902948],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0671593223694436, -0.0223862512902948],
+        [ 0.0671593223694436,  0.0671593223694436,  0.0671593223694436,
+          0.0671593223694436,  0.0000000000000000,  0.0000000000000000],
+        [-0.0223862512902948, -0.0223862512902948, -0.0223862512902948,
+         -0.0223862512902948,  0.0000000000000000,  0.0000000000000000]],
+
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0335236415187203],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0335236415187203],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0335236415187203],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0335236415187203],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0335236415187203,  0.0335236415187203,  0.0335236415187203,
+          0.0335236415187203,  0.0000000000000000,  0.0000000000000000]],
+
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0537157867768206],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0537157867768206],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0537157867768206],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0537157867768206],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0537157867768206,  0.0537157867768206,  0.0537157867768206,
+          0.0537157867768206,  0.0000000000000000,  0.0000000000000000]],
+
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000, -0.0671593223694436,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000, -0.0671593223694436,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000, -0.0671593223694436,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000, -0.0671593223694436,  0.0000000000000000],
+        [-0.0671593223694436, -0.0671593223694436, -0.0671593223694436,
+         -0.0671593223694436,  0.0000000000000000, -0.0573037072665056],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000, -0.0573037072665056,  0.0000000000000000]],
+
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0214530568542981],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0214530568542981,  0.0000000000000000]],
+
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0000000000000000],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0343747807663729],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0343747807663729,  0.0000000000000000]],
+
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0223862512902948],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0223862512902948],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0223862512902948],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0223862512902948],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000,  0.0573037072665056],
+        [ 0.0223862512902948,  0.0223862512902948,  0.0223862512902948,
+          0.0223862512902948,  0.0573037072665056,  0.0000000000000000]],
+
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0335236415187203],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0335236415187203],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0335236415187203],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0335236415187203],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0214530568542981],
+        [-0.0335236415187203, -0.0335236415187203, -0.0335236415187203,
+         -0.0335236415187203, -0.0214530568542981,  0.0000000000000000]],
+
+       [[ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0537157867768206],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0537157867768206],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0537157867768206],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0537157867768206],
+        [ 0.0000000000000000,  0.0000000000000000,  0.0000000000000000,
+          0.0000000000000000,  0.0000000000000000, -0.0343747807663729],
+        [-0.0537157867768206, -0.0537157867768206, -0.0537157867768206,
+         -0.0537157867768206, -0.0343747807663729,  0.0000000000000000]]
+];
+
+
+    let fv_return:Array3<f64> = f_v_new(input_matrix.view(),SMatrix.view(),GradS.view(),G0_AO.view(),G1_AO.view(),n_at,n_orb);
+    //println!("F_v result {}",fv_return);
+
+    assert!(1==2);
+
 }
