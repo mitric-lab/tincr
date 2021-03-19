@@ -768,21 +768,65 @@ pub fn hermitian_davidson(
     let mut w: Array1<f64> = Array::zeros(lmax);
     let mut T_new: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
     let mut r_bs_first: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+    let mut r_bs_old:Array3<f64> = Array::zeros(bs.raw_dim());
 
     for it in 0..maxiter {
         let lmax: usize = bs.dim().2;
-        let r_bs: Array3<f64> = matrix_v_product(
-            &bs,
-            lmax,
-            n_occ,
-            n_virt,
-            &om,
-            &wq_ov,
-            &gamma,
-            multiplicity,
-            spin_couplings,
-        );
-        r_bs_first = r_bs.clone();
+        let mut r_bs:Array3<f64> = Array3::zeros(bs.raw_dim());
+        // let r_bs: Array3<f64> = matrix_v_product(
+        //     &bs,
+        //     lmax,
+        //     n_occ,
+        //     n_virt,
+        //     &om,
+        //     &wq_ov,
+        //     &gamma,
+        //     multiplicity,
+        //     spin_couplings,
+        // );
+        if it == 0{
+            r_bs = matrix_v_product_fortran(
+                &bs,
+                lmax,
+                n_occ,
+                n_virt,
+                &om,
+                &wq_ov,
+                &gamma,
+                multiplicity,
+                spin_couplings,
+            );
+        }
+        else if it == 1{
+            r_bs = matrix_v_product_fortran(
+                &bs,
+                lmax,
+                n_occ,
+                n_virt,
+                &om,
+                &wq_ov,
+                &gamma,
+                multiplicity,
+                spin_couplings,
+            );
+        }
+        else{
+            let r_bs_new_vec = matrix_v_product_fortran(
+                &bs.slice(s![..,..,l-(2*nstates)..l]).to_owned(),
+                lmax,
+                n_occ,
+                n_virt,
+                &om,
+                &wq_ov,
+                &gamma,
+                multiplicity,
+                spin_couplings,
+            );
+            r_bs.slice_mut(s![..,..,..l-(2*nstates)]).assign(&r_bs_old.slice(s![..,..,..l-(2*nstates)]));
+            r_bs.slice_mut(s![..,..,l-(2*nstates)..l]).assign(&r_bs_new_vec);
+            //r_bs.slice_mut(s![..,..,0..nstates]).assign(&(r_bs_old.slice(s![..,..,0..nstates]).to_owned()*(-1.0)));
+        }
+        r_bs_old = r_bs.clone();
         // shape of Hb: (lmax, lmax)
 
         let Hb: Array2<f64> = tensordot(&bs, &r_bs, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
@@ -1954,6 +1998,57 @@ pub fn matrix_v_product(
         //         .unwrap();
 
         us.slice_mut(s![.., .., i]).assign(&u);
+    }
+    return us;
+}
+
+pub fn matrix_v_product_fortran(
+    vs: &Array3<f64>,
+    n_vec: usize,
+    n_occ: usize,
+    n_virt: usize,
+    om: &Array2<f64>,
+    wq_ov: &Array3<f64>,
+    gamma: &ArrayView2<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+)-> (Array3<f64>)  {
+
+    let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
+    let n_at:usize = wq_ov.dim().0;
+
+    for i in (0..n_vec) {
+        let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
+        // 1st term - KS orbital energy differences
+        let mut u_l: Array2<f64> = om * &vl;
+
+        // 2nd term - Coulomb
+        let mut tmp21: Array1<f64> = Array1::zeros(n_at);
+
+        //for at in (0..n_at) {
+        //    let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
+        //    tmp21[at] = tmp.sum();
+        //}
+        let tmp21:Vec<f64> =(0..n_at).into_par_iter().map(|at|{
+            let tmp:Array2<f64> = &wq_ov.slice(s![at, .., ..])* &vl;
+            tmp.sum()
+        }).collect();
+        let tmp21:Array1<f64> = Array::from(tmp21);
+
+        let tmp22: Array1<f64> = 4.0 * gamma.dot(&tmp21);
+
+        // for at in (0..n_at).into_iter() {
+        //     u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
+        // }
+        let mut tmp:Vec<Array2<f64>> = (0..n_at).into_par_iter().map(|at|{
+            wq_ov.slice(s![at, .., ..]).to_owned() * tmp22[at]
+        }).collect();
+        for i in tmp.iter(){
+            u_l = u_l + i;
+        }
+        //u_l = u_l + tmp;
+
+        us.slice_mut(s![.., .., i]).assign(&u_l);
     }
     return us;
 }
