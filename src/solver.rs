@@ -773,31 +773,18 @@ pub fn hermitian_davidson(
     for it in 0..maxiter {
         let lmax: usize = bs.dim().2;
         let mut r_bs:Array3<f64> = Array3::zeros(bs.raw_dim());
-        // let r_bs: Array3<f64> = matrix_v_product(
-        //     &bs,
-        //     lmax,
-        //     n_occ,
-        //     n_virt,
-        //     &om,
-        //     &wq_ov,
-        //     &gamma,
-        //     multiplicity,
-        //     spin_couplings,
-        // );
-        if it == 0{
-            r_bs = matrix_v_product_fortran(
-                &bs,
-                lmax,
-                n_occ,
-                n_virt,
-                &om,
-                &wq_ov,
-                &gamma,
-                multiplicity,
-                spin_couplings,
-            );
-        }
-        else if it == 1{
+        let r_bs_alt: Array3<f64> = matrix_v_product(
+            &bs,
+            lmax,
+            n_occ,
+            n_virt,
+            &om,
+            &wq_ov,
+            &gamma,
+            multiplicity,
+            spin_couplings,
+        );
+        if it < 2 {
             r_bs = matrix_v_product_fortran(
                 &bs,
                 lmax,
@@ -811,9 +798,9 @@ pub fn hermitian_davidson(
             );
         }
         else{
-            let r_bs_new_vec = matrix_v_product_fortran(
+            let r_bs_new_vec:Array3<f64> = matrix_v_product_fortran(
                 &bs.slice(s![..,..,l-(2*nstates)..l]).to_owned(),
-                lmax,
+                (2*nstates),
                 n_occ,
                 n_virt,
                 &om,
@@ -824,7 +811,7 @@ pub fn hermitian_davidson(
             );
             r_bs.slice_mut(s![..,..,..l-(2*nstates)]).assign(&r_bs_old.slice(s![..,..,..l-(2*nstates)]));
             r_bs.slice_mut(s![..,..,l-(2*nstates)..l]).assign(&r_bs_new_vec);
-            //r_bs.slice_mut(s![..,..,0..nstates]).assign(&(r_bs_old.slice(s![..,..,0..nstates]).to_owned()*(-1.0)));
+            r_bs.slice_mut(s![..,..,0..nstates]).assign(&(r_bs_old.slice(s![..,..,0..nstates]).to_owned()*(-1.0)));
         }
         r_bs_old = r_bs.clone();
         // shape of Hb: (lmax, lmax)
@@ -852,7 +839,7 @@ pub fn hermitian_davidson(
         w = w2_new.mapv(f64::sqrt);
         //residual vectors
 
-        let W_res: Array3<f64> = matrix_v_product(
+        let W_res: Array3<f64> = matrix_v_product_fortran(
             &T,
             lmax,
             n_occ,
@@ -2045,6 +2032,18 @@ pub fn matrix_v_product_fortran(
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
     let n_at:usize = wq_ov.dim().0;
 
+    let gamma_equiv: Array2<f64> = if multiplicity == 1 {
+        gamma.to_owned()
+    } else if multiplicity == 3 {
+        Array2::from_diag(&spin_couplings)
+    } else {
+        panic!(
+            "Currently only singlets and triplets are supported, you wished a multiplicity of {}!",
+            multiplicity
+        );
+        Array::zeros(gamma.raw_dim())
+    };
+
     for i in (0..n_vec) {
         let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
         // 1st term - KS orbital energy differences
@@ -2063,7 +2062,7 @@ pub fn matrix_v_product_fortran(
         }).collect();
         let tmp21:Array1<f64> = Array::from(tmp21);
 
-        let tmp22: Array1<f64> = 4.0 * gamma.dot(&tmp21);
+        let tmp22: Array1<f64> = 4.0 * gamma_equiv.dot(&tmp21);
 
         // for at in (0..n_at).into_iter() {
         //     u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
