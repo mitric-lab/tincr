@@ -1067,7 +1067,9 @@ pub fn non_hermitian_davidson(
                     qtrans_ov.dim().0,
                     n_occ,
                     n_virt,
-                    l
+                    l,
+                    multiplicity,
+                    spin_couplings,
                 );
                 bm = get_ambv_fortran(
                     &gamma, &gamma_lr, &qtrans_oo, &qtrans_vv, &qtrans_ov, &omega, &bs, qtrans_ov.dim().0,n_occ,n_virt,l
@@ -1085,7 +1087,9 @@ pub fn non_hermitian_davidson(
                     qtrans_ov.dim().0,
                     n_occ,
                     n_virt,
-                    (3*nstates)
+                    (3*nstates),
+                    multiplicity,
+                    spin_couplings,
                 );
                 bp.slice_mut(s![..,..,..l-(3*nstates)]).assign(&bp_old.slice(s![..,..,..l-(3*nstates)]));
                 bp.slice_mut(s![..,..,l-(3*nstates)..l]).assign(&bp_new_vec);
@@ -1488,9 +1492,6 @@ pub fn get_apbv_fortran(
         .into_shape((n_virt * n_at, n_virt))
         .unwrap();
     let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.to_owned();
-        .to_owned()
-        .into_shape((n_virt * n_at, n_virt))
-        .unwrap();
     let tmp_q_oo: Array2<f64> = qtrans_oo
         .to_owned()
         .into_shape((n_at * n_occ, n_occ))
@@ -9635,8 +9636,9 @@ fn test_get_apbv(){
         [  5.7955130367724465e-17,  -1.5841923797104876e-17],
         [ -6.4732854585917048e-17,  -1.3641420964507075e-17]]
 ];
+    let spin_couplings: Array1<f64> = Array::zeros(12);
 
-    let bp_fortran:Array3<f64> = get_apbv_fortran(&g0.view(),&g0lr.view(),&q_oo.view(),&q_vv.view(),&q_ov.view(),&omega.view(),&bs,12,15,15,2);
+    let bp_fortran:Array3<f64> = get_apbv_fortran(&g0.view(),&g0lr.view(),&q_oo.view(),&q_vv.view(),&q_ov.view(),&omega.view(),&bs,12,15,15,2,1,spin_couplings.view());
 
     println!("bp fortran {}",bp_fortran.clone());
     assert!(bp_fortran.abs_diff_eq(&bp,1e-12));
