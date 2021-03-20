@@ -13,7 +13,7 @@ pub const SPEED_OF_LIGHT: f64 = 137.035999139; // speed of light in atomic units
                                                // c = 1/alpha
 
 pub const ATOM_NAMES: [&str; 87] = [
-    "dummy", "H", "he", "li", "be", "b", "C", "N", "O", "f", "ne", "na", "mg", "al", "si", "p",
+    "dummy", "h", "he", "li", "be", "b", "c", "n", "o", "f", "ne", "na", "mg", "al", "si", "p",
     "s", "cl", "ar", "k", "ca", "sc", "ti", "v", "cr", "mn", "fe", "co", "ni", "cu", "zn", "ga",
     "ge", "as", "se", "br", "kr", "rb", "sr", "y", "zr", "nb", "mo", "tc", "ru", "rh", "pd", "ag",
     "cd", "in", "sn", "sb", "te", "i", "xe", "cs", "ba", "la", "ce", "pr", "nd", "pm", "sm", "eu",
