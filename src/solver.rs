@@ -1478,11 +1478,11 @@ pub fn get_apbv_fortran(
         .to_owned()
         .into_shape((n_virt * n_at, n_virt))
         .unwrap();
-    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.to_owned();
     let tmp_q_oo: Array2<f64> = qtrans_oo
         .to_owned()
         .into_shape((n_at * n_occ, n_occ))
         .unwrap();
+    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.to_owned();
     tmp_q_ov_swapped.swap_axes(1, 2);
     tmp_q_ov_swapped = tmp_q_ov_swapped.as_standard_layout().to_owned();
     let tmp_q_ov_shape_1: Array2<f64> =
@@ -1493,6 +1493,17 @@ pub fn get_apbv_fortran(
     let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
         .into_shape((n_occ, n_at * n_virt))
         .unwrap();
+    //let tmp_q_oo: Array2<f64> = qtrans_oo
+    //    .to_owned()
+    //    .into_shape((n_at * n_occ, n_occ))
+    //    .unwrap();
+    let tmp_q_ov_shape_1_new:Array2<f64> = qtrans_ov.to_owned().into_shape((n_occ,n_at* n_virt)).unwrap().reversed_axes();
+    let tmp_q_ov_shape_2_new:Array2<f64> = qtrans_ov.to_owned().into_shape((n_at * n_virt,n_occ)).unwrap().reversed_axes();
+
+    println!("qtrans ov{}",qtrans_ov.clone());
+    println!("Compare shapes");
+    println!("Old q_ov {:?}",tmp_q_ov_shape_1);
+    println!("New q_ov {:?}",tmp_q_ov_shape_1_new);
 
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 

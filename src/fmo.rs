@@ -1,8 +1,10 @@
 use crate::defaults;
 use crate::gradients::{get_gradients, ToOwnedF};
+use crate::graph::*;
 use crate::h0_and_s::h0_and_s;
 use crate::internal_coordinates::*;
 use crate::io::GeneralConfig;
+use crate::molecule::distance_matrix;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
 use crate::Molecule;
@@ -14,28 +16,29 @@ use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
+use petgraph::stable_graph::*;
 use std::time::Instant;
 
 pub fn fmo_construct_mos(
     n_mo: Vec<usize>,
     h_0_complete: &Array2<f64>,
-    n_frags:usize,
+    n_frags: usize,
     homo_orbs: Vec<Array1<f64>>,
     lumo_orbs: Vec<Array1<f64>>,
-)->Array2<f64>{
-    let (e_vals,e_vecs):(Array1<f64>,Array2<f64>) = h_0_complete.eigh(UPLO::Upper).unwrap();
-    let n_aos:usize = n_mo.iter().cloned().max().unwrap();
-    let mut orbs:Array2<f64> = Array2::zeros((n_frags*2,n_frags*n_aos));
+) -> Array2<f64> {
+    let (e_vals, e_vecs): (Array1<f64>, Array2<f64>) = h_0_complete.eigh(UPLO::Upper).unwrap();
+    let n_aos: usize = n_mo.iter().cloned().max().unwrap();
+    let mut orbs: Array2<f64> = Array2::zeros((n_frags * 2, n_frags * n_aos));
 
-    for idx in (0..n_frags).into_iter(){
-        let i:usize = 2 * idx;
-        let j_1:usize = n_aos * idx;
-        let j_2:usize = n_aos * (idx + 1);
+    for idx in (0..n_frags).into_iter() {
+        let i: usize = 2 * idx;
+        let j_1: usize = n_aos * idx;
+        let j_2: usize = n_aos * (idx + 1);
 
-        orbs.slice_mut(s![i,j_1..j_2]).assign(&homo_orbs[idx]);
-        orbs.slice_mut(s![i+1,j_1..j_2]).assign(&lumo_orbs[idx]);
+        orbs.slice_mut(s![i, j_1..j_2]).assign(&homo_orbs[idx]);
+        orbs.slice_mut(s![i + 1, j_1..j_2]).assign(&lumo_orbs[idx]);
     }
-    let orbs_final:Array2<f64> = e_vecs.t().to_owned().dot(&orbs).t().to_owned();
+    let orbs_final: Array2<f64> = e_vecs.t().to_owned().dot(&orbs).t().to_owned();
 
     return (orbs_final);
 }
@@ -47,10 +50,11 @@ pub fn fmo_calculate_pairwise(
     h_0_complete: &Array2<f64>,
     homo_orbs: Vec<Array1<f64>>,
     lumo_orbs: Vec<Array1<f64>>,
-) -> (Array2<f64>,Vec<Molecule>){
+    config:GeneralConfig
+) -> (Array2<f64>, Vec<Molecule>) {
     let mut s_complete: Array2<f64> = Array2::zeros(h_0_complete.raw_dim());
     let mut h_0_complete_mut: Array2<f64> = h_0_complete.clone();
-    let mut pair_vec:Vec<Molecule> = Vec::new();
+    let mut pair_vec: Vec<Molecule> = Vec::new();
 
     for (ind1, molecule_a) in fragments.iter().enumerate() {
         for (ind2, molecule_b) in fragments.iter().enumerate() {
@@ -77,11 +81,11 @@ pub fn fmo_calculate_pairwise(
             let pair: Molecule = Molecule::new(
                 atomic_numbers,
                 positions,
-                Some(mol.charge),
-                Some(mol.multiplicity),
-                mol.calculator.r_lr,
-                mol.calculator.active_orbitals,
-                mol.config.clone(),
+                Some(config.mol.charge),
+                Some(config.mol.multiplicity),
+                Some(0.0),
+                None,
+                config.clone(),
             );
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
             let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
@@ -124,9 +128,15 @@ pub fn fmo_calculate_pairwise(
 }
 
 pub fn fmo_calculate_fragments(
-    mol: &Molecule,
     fragments: &Vec<Molecule>,
-) -> (Array2<f64>, Vec<usize>, Vec<Array1<f64>>, Vec<Array1<f64>>,Vec<usize>,Vec<usize>) {
+) -> (
+    Array2<f64>,
+    Vec<usize>,
+    Vec<Array1<f64>>,
+    Vec<Array1<f64>>,
+    Vec<usize>,
+    Vec<usize>,
+) {
     let norb_frag: usize = 2;
     let size: usize = norb_frag * fragments.len();
 
@@ -134,8 +144,8 @@ pub fn fmo_calculate_fragments(
     let mut h_diag: Vec<f64> = Vec::new();
     let mut homo_orbs: Vec<Array1<f64>> = Vec::new();
     let mut lumo_orbs: Vec<Array1<f64>> = Vec::new();
-    let mut ind_homo:Vec<usize>= Vec::new();
-    let mut ind_lumo:Vec<usize> = Vec::new();
+    let mut ind_homo: Vec<usize> = Vec::new();
+    let mut ind_lumo: Vec<usize> = Vec::new();
 
     for (ind, frag) in fragments.iter().enumerate() {
         let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
@@ -166,29 +176,34 @@ pub fn fmo_calculate_fragments(
     }
     let h_0: Array2<f64> = Array::from_diag(&Array::from(h_diag));
 
-    return (h_0, n_mo, homo_orbs, lumo_orbs,ind_homo,ind_lumo);
+    return (h_0, n_mo, homo_orbs, lumo_orbs, ind_homo, ind_lumo);
 }
 
-pub fn create_fragment_molecules(mol: &Molecule, config: GeneralConfig) -> Vec<Molecule> {
+pub fn create_fragment_molecules(
+    subgraphs: Vec<StableUnGraph<u8, f64>>,
+    config: GeneralConfig,
+    cluster_atomic_numbers: Vec<u8>,
+    cluster_positions: Array2<f64>,
+) -> Vec<Molecule> {
     let mut fragments: Vec<Molecule> = Vec::new();
 
-    for frag in mol.sub_graphs.iter() {
+    for frag in subgraphs.iter() {
         let mut atomic_numbers: Vec<u8> = Vec::new();
         let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
 
         for (ind, val) in frag.node_indices().enumerate() {
-            atomic_numbers.push(mol.atomic_numbers[val.index()]);
+            atomic_numbers.push(cluster_atomic_numbers[val.index()]);
             positions
                 .slice_mut(s![ind, ..])
-                .assign(&mol.positions.slice(s![val.index(), ..]));
+                .assign(&cluster_positions.slice(s![val.index(), ..]));
         }
         let frag_mol: Molecule = Molecule::new(
             atomic_numbers,
             positions,
-            Some(mol.charge),
-            Some(mol.multiplicity),
-            mol.calculator.r_lr,
-            mol.calculator.active_orbitals,
+            Some(config.mol.charge),
+            Some(config.mol.multiplicity),
+            Some(0.0),
+            None,
             config.clone(),
         );
         fragments.push(frag_mol);
@@ -196,31 +211,52 @@ pub fn create_fragment_molecules(mol: &Molecule, config: GeneralConfig) -> Vec<M
 
     return fragments;
 }
+// TODO: creating the complete cluster as a molecule is problematic
+// The creations of a new molecule includes the calculation of the gamma matrix,
+// which is too costly for huge clusters
+//pub fn reorder_molecule(
+//    mol: &Molecule,
+//    fragments: &Vec<Molecule>,
+//    config: GeneralConfig,
+//) -> Molecule {
+//    let mut atomic_numbers: Vec<u8> = Vec::new();
+//    let mut positions: Array2<f64> = Array2::zeros(mol.positions.raw_dim());
+//
+//    for molecule in fragments.iter() {
+//        for (ind, atom) in molecule.atomic_numbers.iter().enumerate() {
+//            atomic_numbers.push(*atom);
+//            positions
+//                .slice_mut(s![ind, ..])
+//                .assign(&molecule.positions.slice(s![ind, ..]));
+//        }
+//    }
+//    let new_mol: Molecule = Molecule::new(
+//        atomic_numbers,
+//        positions,
+//        Some(mol.charge),
+//        Some(mol.multiplicity),
+//        mol.calculator.r_lr,
+//        mol.calculator.active_orbitals,
+//        config.clone(),
+//    );
+//    return new_mol;
+//}
 
-pub fn reorder_molecule(
-    mol: &Molecule,
-    fragments: &Vec<Molecule>,
-    config: GeneralConfig,
-) -> Molecule {
-    let mut atomic_numbers: Vec<u8> = Vec::new();
-    let mut positions: Array2<f64> = Array2::zeros(mol.positions.raw_dim());
+pub fn create_fmo_graph(
+    atomic_numbers: Vec<u8>,
+    positions: Array2<f64>,
+) -> (StableUnGraph<u8, f64>, Vec<StableUnGraph<u8, f64>>) {
+    let n_atoms: usize = atomic_numbers.len();
+    let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
+        distance_matrix(positions.view(), None);
+    let connectivity_matrix: Array2<bool> =
+        build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
 
-    for molecule in fragments.iter() {
-        for (ind, atom) in molecule.atomic_numbers.iter().enumerate() {
-            atomic_numbers.push(*atom);
-            positions
-                .slice_mut(s![ind, ..])
-                .assign(&molecule.positions.slice(s![ind, ..]));
-        }
-    }
-    let new_mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions,
-        Some(mol.charge),
-        Some(mol.multiplicity),
-        mol.calculator.r_lr,
-        mol.calculator.active_orbitals,
-        config.clone(),
-    );
-    return new_mol;
+    let (graph, graph_indexes, subgraphs): (
+        StableUnGraph<u8, f64>,
+        Vec<NodeIndex>,
+        Vec<StableUnGraph<u8, f64>>,
+    ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
+
+    return (graph, subgraphs);
 }
