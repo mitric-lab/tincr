@@ -216,6 +216,25 @@ pub static COVALENCE_RADII: phf::Map<u8, f64> = phf_map! {
     96u8 =>1.69
 };
 
+// A. Bondi
+// The Journal of Physical Chemistry 1964 68 (3), 441-451
+// For H:
+// Rowland,  R.S.  and  Taylor,  R.,  Intermolecular  Non-bonded Contact Distances in Organic Crystal Structures:Comparison  with  Distances  Expected  from  van  derWaals  Radii,  J.  Phys.  Chem.,  1996,  vol.  100,  no.  18,pp. 7384–7391.
+//
+// different methods: Batsanov, S.S. Van der Waals Radii of Elements. Inorganic Materials 37, 871–885 (2001)
+// Manjeera Mantina, Adam C. Chamberlin, Rosendo Valero, Christopher J. Cramer, and Donald G. Truhlar
+// The Journal of Physical Chemistry A 2009 113 (19), 5806-5812
+
+pub static VDW_RADII: phf::Map<u8, f64> = phf_map! {
+    1u8 =>1.10,
+    2u8 =>1.40,
+    6u8 =>1.70,
+    7u8 =>1.55,
+    8u8 =>1.52,
+    9u8 =>1.47,
+    10u8 =>1.54,
+};
+
 // //  occupation numbers of valence orbitals
 // //  which are used to assign the correct occupation to orbitals loaded from hotbit .elm files
 // pub static OCCUPATION_NUMBERS: phf::Map<&'static str, f64> = phf_map! {

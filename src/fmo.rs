@@ -1,3 +1,5 @@
+use crate::constants;
+use crate::constants::VDW_RADII;
 use crate::defaults;
 use crate::gradients::{get_gradients, ToOwnedF};
 use crate::graph::*;
@@ -164,6 +166,46 @@ pub fn fmo_calculate_pairwise_par(
                     None,
                     config.clone(),
                 );
+                // get shortest distance between the fragment atoms of the pair
+                let distance_between_pair: Array2<f64> = pair
+                    .distance_matrix
+                    .slice(s![..molecule_a.n_atoms, molecule_a.n_atoms..])
+                    .to_owned();
+                let min_dist: f64 = distance_between_pair
+                    .iter()
+                    .cloned()
+                    .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                    .unwrap();
+
+                // get indices of the atoms
+                // TODO: use a more efficient method to determine the indices
+                let mut index_min: (usize, usize) = (0, 0);
+                for (ind_1, val_1) in distance_between_pair.outer_iter().enumerate() {
+                    for (ind_2, val_2) in val_1.iter().enumerate() {
+                        if *val_2 == min_dist {
+                            index_min = (ind_1, ind_2);
+                        }
+                    }
+                }
+                let vdw_radii_sum: f64 = (constants::VDW_RADII
+                    [&molecule_a.atomic_numbers[index_min.0]]
+                    + constants::VDW_RADII[&molecule_b.atomic_numbers[index_min.1]])
+                    / constants::BOHR_TO_ANGS;
+                let mut energy_pair: Option<f64> = None;
+
+                // do scc routine for pair if mininmal distance is below threshold
+                // TODO:CHARGES FOR THE PAIRS NEEDED
+                if min_dist / vdw_radii_sum < 2.0 {
+                    let (energy, orbs, orbe, s, f): (
+                        f64,
+                        Array2<f64>,
+                        Array1<f64>,
+                        Array2<f64>,
+                        Vec<f64>,
+                    ) = scc_routine::run_scc(&pair);
+                    energy_pair = Some(energy);
+                }
+
                 // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
                 let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
                     &pair.atomic_numbers,
@@ -204,7 +246,7 @@ pub fn fmo_calculate_pairwise_par(
                     cluster_results.lumo_orbs[ind1].dot(&s.dot(&cluster_results.lumo_orbs[ind2]));
                 h0_vals.push(h0_val);
 
-                let pair_res: pair_result = pair_result::new(pair, h0_vals, indices_vec);
+                let pair_res: pair_result = pair_result::new(pair, h0_vals, indices_vec,energy_pair);
 
                 Some(pair_res)
             } else {
@@ -229,6 +271,7 @@ pub struct pair_result {
     pair: Molecule,
     h0_vals: Vec<f64>,
     h0_indices: Vec<(usize, usize)>,
+    energy_pair:Option<f64>
 }
 
 impl pair_result {
@@ -236,11 +279,13 @@ impl pair_result {
         pair: Molecule,
         h0_vals: Vec<f64>,
         h0_indices: Vec<(usize, usize)>,
+        energy:Option<f64>
     ) -> (pair_result) {
         let result = pair_result {
             pair: pair,
             h0_vals: h0_vals,
             h0_indices: h0_indices,
+            energy_pair:energy
         };
         return result;
     }
