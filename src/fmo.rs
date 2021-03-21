@@ -1,3 +1,5 @@
+use crate::constants;
+use crate::constants::VDW_RADII;
 use crate::defaults;
 use crate::gradients::{get_gradients, ToOwnedF};
 use crate::graph::*;
@@ -17,6 +19,7 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use petgraph::stable_graph::*;
+use rayon::prelude::*;
 use std::time::Instant;
 
 pub fn fmo_construct_mos(
@@ -50,7 +53,7 @@ pub fn fmo_calculate_pairwise(
     h_0_complete: &Array2<f64>,
     homo_orbs: Vec<Array1<f64>>,
     lumo_orbs: Vec<Array1<f64>>,
-    config:GeneralConfig
+    config: GeneralConfig,
 ) -> (Array2<f64>, Vec<Molecule>) {
     let mut s_complete: Array2<f64> = Array2::zeros(h_0_complete.raw_dim());
     let mut h_0_complete_mut: Array2<f64> = h_0_complete.clone();
@@ -127,18 +130,273 @@ pub fn fmo_calculate_pairwise(
     return (h_0_complete_mut, pair_vec);
 }
 
-pub fn fmo_calculate_fragments(
+pub fn fmo_calculate_pairwise_par(
     fragments: &Vec<Molecule>,
-) -> (
-    Array2<f64>,
-    Vec<usize>,
-    Vec<Array1<f64>>,
-    Vec<Array1<f64>>,
-    Vec<usize>,
-    Vec<usize>,
-) {
+    cluster_results: &cluster_frag_result,
+    config: GeneralConfig,
+) -> (Array2<f64>, Vec<pair_result>) {
+    let result: Vec<pair_result> = fragments
+        .into_par_iter()
+        .enumerate()
+        .zip(fragments.into_par_iter().enumerate())
+        .filter_map(|((ind1, molecule_a), (ind2, molecule_b))| {
+            if ind1 < ind2 {
+                let mut atomic_numbers: Vec<u8> = Vec::new();
+                let mut positions: Array2<f64> =
+                    Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
+
+                for i in 0..molecule_a.n_atoms {
+                    atomic_numbers.push(molecule_a.atomic_numbers[i]);
+                    positions
+                        .slice_mut(s![i, ..])
+                        .assign(&molecule_a.positions.slice(s![i, ..]));
+                }
+                for i in 0..molecule_b.n_atoms {
+                    atomic_numbers.push(molecule_b.atomic_numbers[i]);
+                    positions
+                        .slice_mut(s![molecule_a.n_atoms + i, ..])
+                        .assign(&molecule_b.positions.slice(s![i, ..]));
+                }
+                let pair: Molecule = Molecule::new(
+                    atomic_numbers,
+                    positions,
+                    Some(config.mol.charge),
+                    Some(config.mol.multiplicity),
+                    Some(0.0),
+                    None,
+                    config.clone(),
+                );
+                // get shortest distance between the fragment atoms of the pair
+                let distance_between_pair: Array2<f64> = pair
+                    .distance_matrix
+                    .slice(s![..molecule_a.n_atoms, molecule_a.n_atoms..])
+                    .to_owned();
+                let min_dist: f64 = distance_between_pair
+                    .iter()
+                    .cloned()
+                    .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                    .unwrap();
+
+                // get indices of the atoms
+                // TODO: use a more efficient method to determine the indices
+                let mut index_min: (usize, usize) = (0, 0);
+                for (ind_1, val_1) in distance_between_pair.outer_iter().enumerate() {
+                    for (ind_2, val_2) in val_1.iter().enumerate() {
+                        if *val_2 == min_dist {
+                            index_min = (ind_1, ind_2);
+                        }
+                    }
+                }
+                let vdw_radii_sum: f64 = (constants::VDW_RADII
+                    [&molecule_a.atomic_numbers[index_min.0]]
+                    + constants::VDW_RADII[&molecule_b.atomic_numbers[index_min.1]])
+                    / constants::BOHR_TO_ANGS;
+                let mut energy_pair: Option<f64> = None;
+
+                // do scc routine for pair if mininmal distance is below threshold
+                // TODO:CHARGES FOR THE PAIRS NEEDED
+                if min_dist / vdw_radii_sum < 2.0 {
+                    let (energy, orbs, orbe, s, f): (
+                        f64,
+                        Array2<f64>,
+                        Array1<f64>,
+                        Array2<f64>,
+                        Vec<f64>,
+                    ) = scc_routine::run_scc(&pair);
+                    energy_pair = Some(energy);
+                }
+
+                // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
+                let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
+                    &pair.atomic_numbers,
+                    pair.positions.view(),
+                    pair.calculator.n_orbs,
+                    &pair.calculator.valorbs,
+                    pair.proximity_matrix.view(),
+                    &pair.calculator.skt,
+                    &pair.calculator.orbital_energies,
+                );
+                // Now select off-diagonal couplings. The block `H0_AB` contains matrix elements
+                // between atomic orbitals on fragments A and B:
+                //
+                //      ( H0_AA  H0_AB )
+                // H0 = (              )
+                //      ( H0_BA  H0_BB )
+                let mut indices_vec: Vec<(usize, usize)> = Vec::new();
+                let mut h0_vals: Vec<f64> = Vec::new();
+
+                let h0_ab: Array2<f64> = h0
+                    .slice(s![
+                        0..cluster_results.n_mo[ind1],
+                        cluster_results.n_mo[ind2]..
+                    ])
+                    .to_owned();
+                // contract Hamiltonian with coefficients of HOMOs on fragments A and B
+                let i: usize = ind1 * 2;
+                let j: usize = ind2 * 2;
+                indices_vec.push((i, j));
+                let h0_val: f64 = cluster_results.homo_orbs[ind1]
+                    .dot(&h0_ab.dot(&cluster_results.homo_orbs[ind2]));
+                h0_vals.push(h0_val);
+
+                let i: usize = ind1 * 2 + 1;
+                let j: usize = ind2 * 2 + 1;
+                indices_vec.push((i, j));
+                let h0_val: f64 =
+                    cluster_results.lumo_orbs[ind1].dot(&s.dot(&cluster_results.lumo_orbs[ind2]));
+                h0_vals.push(h0_val);
+
+                let pair_res: pair_result = pair_result::new(pair, h0_vals, indices_vec,energy_pair);
+
+                Some(pair_res)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let mut h_0_complete_mut: Array2<f64> = cluster_results.h_0.clone();
+    for pair in result.iter() {
+        h_0_complete_mut[[pair.h0_indices[0].0, pair.h0_indices[0].1]] = pair.h0_vals[0];
+        h_0_complete_mut[[pair.h0_indices[1].0, pair.h0_indices[1].1]] = pair.h0_vals[1];
+    }
+
+    h_0_complete_mut = h_0_complete_mut.clone()
+        + (h_0_complete_mut.clone() - Array::from_diag(&h_0_complete_mut.diag())).reversed_axes();
+
+    return (h_0_complete_mut, result);
+}
+
+pub struct pair_result {
+    pair: Molecule,
+    h0_vals: Vec<f64>,
+    h0_indices: Vec<(usize, usize)>,
+    energy_pair:Option<f64>
+}
+
+impl pair_result {
+    pub(crate) fn new(
+        pair: Molecule,
+        h0_vals: Vec<f64>,
+        h0_indices: Vec<(usize, usize)>,
+        energy:Option<f64>
+    ) -> (pair_result) {
+        let result = pair_result {
+            pair: pair,
+            h0_vals: h0_vals,
+            h0_indices: h0_indices,
+            energy_pair:energy
+        };
+        return result;
+    }
+}
+
+pub struct fragment_result {
+    n_mo: usize,
+    h_diag: Vec<f64>,
+    homo_orbs: Array1<f64>,
+    lumo_orbs: Array1<f64>,
+    ind_homo: usize,
+    ind_lumo: usize,
+    energy: f64,
+}
+
+impl fragment_result {
+    pub(crate) fn new(
+        n_mo: usize,
+        h_diag: Vec<f64>,
+        homo_orbs: Array1<f64>,
+        lumo_orbs: Array1<f64>,
+        ind_homo: usize,
+        ind_lumo: usize,
+        energy: f64,
+    ) -> (fragment_result) {
+        let result = fragment_result {
+            n_mo: n_mo,
+            h_diag: h_diag,
+            homo_orbs: homo_orbs,
+            lumo_orbs: lumo_orbs,
+            ind_homo: ind_homo,
+            ind_lumo: ind_lumo,
+            energy: energy,
+        };
+        return result;
+    }
+}
+
+pub struct cluster_frag_result {
+    n_mo: Vec<usize>,
+    h_0: Array2<f64>,
+    homo_orbs: Vec<Array1<f64>>,
+    lumo_orbs: Vec<Array1<f64>>,
+    ind_homo: Vec<usize>,
+    ind_lumo: Vec<usize>,
+    energy: Vec<f64>,
+}
+
+impl cluster_frag_result {
+    pub(crate) fn new(
+        n_mo: Vec<usize>,
+        h_0: Array2<f64>,
+        homo_orbs: Vec<Array1<f64>>,
+        lumo_orbs: Vec<Array1<f64>>,
+        ind_homo: Vec<usize>,
+        ind_lumo: Vec<usize>,
+        energy: Vec<f64>,
+    ) -> (cluster_frag_result) {
+        let result = cluster_frag_result {
+            n_mo: n_mo,
+            h_0: h_0,
+            homo_orbs: homo_orbs,
+            lumo_orbs: lumo_orbs,
+            ind_homo: ind_homo,
+            ind_lumo: ind_lumo,
+            energy: energy,
+        };
+        return result;
+    }
+}
+
+pub fn fmo_calculate_fragments(fragments: &Vec<Molecule>) -> (cluster_frag_result) {
     let norb_frag: usize = 2;
     let size: usize = norb_frag * fragments.len();
+
+    let mut results: Vec<fragment_result> = fragments
+        .into_par_iter()
+        .map(|frag| {
+            let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+                scc_routine::run_scc(frag);
+            let f_temp: Array1<f64> = Array::from(f);
+            let occ_indices: Array1<usize> = f_temp
+                .indexed_iter()
+                .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
+                .collect();
+            let virt_indices: Array1<usize> = f_temp
+                .indexed_iter()
+                .filter_map(|(index, &item)| if item <= 0.1 { Some(index) } else { None })
+                .collect();
+            let homo_ind: usize = occ_indices[occ_indices.len() - 1];
+            let lumo_ind: usize = virt_indices[0];
+            let e_homo: f64 = orbe[homo_ind];
+            let e_lumo: f64 = orbe[lumo_ind];
+            let frag_homo_orbs: Array1<f64> = orbs.slice(s![.., homo_ind]).to_owned();
+            let frag_lumo_orbs: Array1<f64> = orbs.slice(s![.., lumo_ind]).to_owned();
+            let mut h_diag: Vec<f64> = Vec::new();
+            h_diag.push(e_homo);
+            h_diag.push(e_lumo);
+
+            let frag_result: fragment_result = fragment_result::new(
+                orbs.dim().0,
+                h_diag,
+                frag_homo_orbs,
+                frag_lumo_orbs,
+                homo_ind,
+                lumo_ind,
+                energy,
+            );
+            frag_result
+        })
+        .collect();
 
     let mut n_mo: Vec<usize> = Vec::new();
     let mut h_diag: Vec<f64> = Vec::new();
@@ -146,37 +404,53 @@ pub fn fmo_calculate_fragments(
     let mut lumo_orbs: Vec<Array1<f64>> = Vec::new();
     let mut ind_homo: Vec<usize> = Vec::new();
     let mut ind_lumo: Vec<usize> = Vec::new();
+    let mut energies: Vec<f64> = Vec::new();
 
-    for (ind, frag) in fragments.iter().enumerate() {
-        let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-            scc_routine::run_scc(frag);
-        let f_temp: Array1<f64> = Array::from(f);
-        let occ_indices: Array1<usize> = f_temp
-            .indexed_iter()
-            .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
-            .collect();
-        let virt_indices: Array1<usize> = f_temp
-            .indexed_iter()
-            .filter_map(|(index, &item)| if item <= 0.1 { Some(index) } else { None })
-            .collect();
-        let homo_ind: usize = occ_indices[occ_indices.len() - 1];
-        let lumo_ind: usize = virt_indices[0];
-        ind_homo.push(homo_ind);
-        ind_lumo.push(lumo_ind);
-        let e_homo: f64 = orbe[homo_ind];
-        let e_lumo: f64 = orbe[lumo_ind];
-        let frag_homo_orbs: Array1<f64> = orbs.slice(s![.., homo_ind]).to_owned();
-        let frag_lumo_orbs: Array1<f64> = orbs.slice(s![.., lumo_ind]).to_owned();
-
-        h_diag.push(e_homo);
-        h_diag.push(e_lumo);
-        n_mo.push(orbs.dim().0);
-        homo_orbs.push(frag_homo_orbs);
-        lumo_orbs.push(frag_lumo_orbs);
+    for frag_res in results.iter_mut() {
+        n_mo.push(frag_res.n_mo);
+        h_diag.append(&mut frag_res.h_diag);
+        homo_orbs.push(frag_res.homo_orbs.clone());
+        lumo_orbs.push(frag_res.lumo_orbs.clone());
+        ind_homo.push(frag_res.ind_homo);
+        ind_lumo.push(frag_res.ind_lumo);
+        energies.push(frag_res.energy);
     }
     let h_0: Array2<f64> = Array::from_diag(&Array::from(h_diag));
 
-    return (h_0, n_mo, homo_orbs, lumo_orbs, ind_homo, ind_lumo);
+    let cluster_result: cluster_frag_result = cluster_frag_result::new(
+        n_mo, h_0, homo_orbs, lumo_orbs, ind_homo, ind_lumo, energies,
+    );
+
+    //let h_0: Array2<f64> = Array::from_diag(&Array::from(h_diag));
+    //for (ind, frag) in fragments.iter().enumerate() {
+    //    let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+    //        scc_routine::run_scc(frag);
+    //    let f_temp: Array1<f64> = Array::from(f);
+    //    let occ_indices: Array1<usize> = f_temp
+    //        .indexed_iter()
+    //        .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
+    //        .collect();
+    //    let virt_indices: Array1<usize> = f_temp
+    //        .indexed_iter()
+    //        .filter_map(|(index, &item)| if item <= 0.1 { Some(index) } else { None })
+    //        .collect();
+    //    let homo_ind: usize = occ_indices[occ_indices.len() - 1];
+    //    let lumo_ind: usize = virt_indices[0];
+    //    ind_homo.push(homo_ind);
+    //    ind_lumo.push(lumo_ind);
+    //    let e_homo: f64 = orbe[homo_ind];
+    //    let e_lumo: f64 = orbe[lumo_ind];
+    //    let frag_homo_orbs: Array1<f64> = orbs.slice(s![.., homo_ind]).to_owned();
+    //    let frag_lumo_orbs: Array1<f64> = orbs.slice(s![.., lumo_ind]).to_owned();
+    //
+    //    h_diag.push(e_homo);
+    //    h_diag.push(e_lumo);
+    //    n_mo.push(orbs.dim().0);
+    //    homo_orbs.push(frag_homo_orbs);
+    //    lumo_orbs.push(frag_lumo_orbs);
+    //}
+
+    return cluster_result;
 }
 
 pub fn create_fragment_molecules(
