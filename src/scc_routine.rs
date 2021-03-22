@@ -34,7 +34,7 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
     let p0: Array2<f64> = density_matrix_ref(&molecule);
     let mut p: Array2<f64> = p0.clone();
     // charge guess
-    let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
+    let mut dq: Array1<f64> = molecule.final_charges.clone();
     let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
