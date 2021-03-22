@@ -50,6 +50,7 @@ pub fn fmo_gs_energy(
 
             // get embedding potential of pairs
             // only relevant if the scc energy of the pair was calculated
+            // TODO: Change loop over a to matrix multiplications
             for a in (0..pair.pair.n_atoms).into_iter(){
                 println!("Atom {} in pair",a);
                 //for (ind_k, mol_k) in fragments.iter().enumerate(){
