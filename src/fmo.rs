@@ -486,8 +486,8 @@ impl cluster_frag_result {
 }
 
 pub fn fmo_calculate_fragments(fragments: &mut Vec<Molecule>) -> (cluster_frag_result) {
-    let norb_frag: usize = 2;
-    let size: usize = norb_frag * fragments.len();
+    //let norb_frag: usize = 2;
+    //let size: usize = norb_frag * fragments.len();
 
     let mut results: Vec<fragment_result> = fragments
         .par_iter_mut()
@@ -590,6 +590,8 @@ pub fn create_fragment_molecules(
     let mut fragments: Vec<Molecule> = Vec::new();
 
     for frag in subgraphs.iter() {
+        let molecule_timer: Instant = Instant::now();
+
         let mut atomic_numbers: Vec<u8> = Vec::new();
         let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
 
@@ -599,6 +601,9 @@ pub fn create_fragment_molecules(
                 .slice_mut(s![ind, ..])
                 .assign(&cluster_positions.slice(s![val.index(), ..]));
         }
+        info!("{:>68} {:>8.2} s", "elapsed time slices:", molecule_timer.elapsed().as_secs_f32());
+        drop(molecule_timer);
+        let molecule_timer: Instant = Instant::now();
         let frag_mol: Molecule = Molecule::new(
             atomic_numbers,
             positions,
@@ -608,6 +613,8 @@ pub fn create_fragment_molecules(
             None,
             config.clone(),
         );
+        info!("{:>68} {:>8.2} s", "elapsed time create mols:", molecule_timer.elapsed().as_secs_f32());
+        drop(molecule_timer);
         fragments.push(frag_mol);
     }
 
