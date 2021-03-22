@@ -22,7 +22,7 @@ use std::ops::Deref;
 use std::time::Instant;
 
 // This routine is very messy und should be rewritten in a clean form
-pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
+pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
     let scc_timer: Instant = Instant::now();
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     let max_iter: usize = molecule.config.scf.scf_max_cycles;
@@ -34,7 +34,7 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
     let p0: Array2<f64> = density_matrix_ref(&molecule);
     let mut p: Array2<f64> = p0.clone();
     // charge guess
-    let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
+    let mut dq: Array1<f64> = molecule.final_charges.clone();
     let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
@@ -213,6 +213,7 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
 
         if converged {
             break 'scf_loop;
+            molecule.set_final_charges(dq);
         }
     }
     info!("{:-^75} ", "");

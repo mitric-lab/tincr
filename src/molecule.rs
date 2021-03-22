@@ -40,6 +40,7 @@ pub struct Molecule {
     pub full_graph_indices: Vec<NodeIndex>,
     pub sub_graphs: Vec<StableUnGraph<u8, f64>>,
     pub config: GeneralConfig,
+    pub final_charges: Array1<f64>
 }
 
 impl Molecule {
@@ -79,6 +80,8 @@ impl Molecule {
             Vec<StableUnGraph<u8, f64>>,
         ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
 
+        let charges:Array1<f64> = Array1::zeros(n_atoms);
+
         info!("{: <25} {}", "charge:", charge);
         info!("{: <25} {}", "multiplicity:", multiplicity);
         info!("{: <25} {:.8} bohr", "long-range radius:", r_lr.unwrap_or(LONG_RANGE_RADIUS));
@@ -100,6 +103,7 @@ impl Molecule {
             full_graph_indices: graph_indexes,
             sub_graphs: subgraphs,
             config: config,
+            final_charges:charges
         };
 
         return mol;
@@ -125,9 +129,13 @@ impl Molecule {
         self.calculator
             .update_gamma_matrices(dist_matrix, &self.atomic_numbers);
     }
+
+    pub fn set_final_charges(&mut self, dq:Array1<f64>){
+        self.final_charges = dq;
+    }
 }
 
-fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
+pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
     // find unique atom types
     let mut unique_numbers: Vec<u8> = atomic_numbers;
     unique_numbers.sort_unstable(); // fast sort of atomic numbers

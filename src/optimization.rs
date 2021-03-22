@@ -768,7 +768,7 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
     //let mut molecule: Molecule = mol.clone();
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol);
+        scc_routine::run_scc(mol);
 
     let (grad_e0, grad_vrep, grad_exc,empty_z_vec): (Array1<f64>, Array1<f64>, Array1<f64>,Array3<f64>) =
         get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None,None);
@@ -790,7 +790,7 @@ pub fn get_energies_and_gradient(
     //let mut molecule: Molecule = mol.clone();
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol);
+        scc_routine::run_scc(mol);
     info!("{:-^70}", "");
     info!("{: ^0} ", "Calculate excited states ");
     info!("{:-^70}", "");
@@ -1241,7 +1241,7 @@ pub fn zoom(
 fn test_optimization() {
     let mut mol: Molecule = get_water_molecule();
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol);
+        scc_routine::run_scc(&mut mol);
 
 
     mol.calculator.set_active_orbitals(f.to_vec());
@@ -1467,7 +1467,7 @@ fn line_search_routine() {
 
     let mut mol: Molecule = get_water_molecule();
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol);
+        scc_routine::run_scc(&mut mol);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
@@ -1698,7 +1698,7 @@ fn test_opt_benzene() {
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol);
+        scc_routine::run_scc(&mut mol);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
@@ -1760,7 +1760,7 @@ fn test_opt_cyclohexene() {
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol);
+        scc_routine::run_scc(&mut mol);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
@@ -1819,7 +1819,7 @@ fn test_opt_water_6() {
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        scc_routine::run_scc(&mol);
+        scc_routine::run_scc(&mut mol);
 
     mol.calculator.set_active_orbitals(f.to_vec());
 

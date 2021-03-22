@@ -32,6 +32,8 @@ mod fmo;
 use crate::gradients::*;
 use crate::molecule::Molecule;
 use crate::solver::get_exc_energies;
+use crate::fmo::*;
+use petgraph::stable_graph::*;
 use ndarray::*;
 use ndarray_linalg::*;
 use std::ptr::eq;
@@ -53,7 +55,7 @@ use crate::optimization::optimize_geometry_ic;
 use ron::error::ErrorCode::TrailingCharacters;
 
 fn main() {
-    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new().num_threads(2).build_global().unwrap();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -128,12 +130,15 @@ fn main() {
             info!("{:>68} {:>8.2} s", "elapsed time:", molecule_timer.elapsed().as_secs_f32());
             drop(molecule_timer);
             info!("{:^80}", "");
+            let molecule_timer: Instant = Instant::now();
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-                scc_routine::run_scc(&mol);
+                scc_routine::run_scc(&mut mol);
+            info!("{:>68} {:>8.2} s", "elapsed time calculate energy:", molecule_timer.elapsed().as_secs_f32());
+            drop(molecule_timer);
 
-            mol.calculator.set_active_orbitals(f.to_vec());
-            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
-                get_exc_energies(&f, &mol, Some(4), &s, &orbe, &orbs, false, None);
+            //mol.calculator.set_active_orbitals(f.to_vec());
+            //let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
+            //    get_exc_energies(&f, &mol, Some(4), &s, &orbe, &orbs, false, None);
 
             0
         }
@@ -147,9 +152,11 @@ fn main() {
                 None,
                 config,
             );
+            info!("{:>68} {:>8.2} s", "elapsed time:", molecule_timer.elapsed().as_secs_f32());
+            drop(molecule_timer);
 
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-                scc_routine::run_scc(&mol);
+                scc_routine::run_scc(&mut mol);
             mol.calculator.set_active_orbitals(f.to_vec());
 
             let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol,Some(1));
@@ -161,6 +168,25 @@ fn main() {
                 .clone()
                 .into_shape((new_coords.len() / 3, 3))
                 .unwrap();
+            0
+        }
+        "fmo" => {
+            let (graph, subgraph):(StableUnGraph<u8,f64>, Vec<StableUnGraph<u8,f64>>) = create_fmo_graph(atomic_numbers.clone(),positions.clone());
+            info!("{:>68} {:>8.2} s", "elapsed time graph:", molecule_timer.elapsed().as_secs_f32());
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+            let mut fragments:Vec<Molecule> = create_fragment_molecules(subgraph,config.clone(),atomic_numbers.clone(),positions.clone());
+            info!("{:>68} {:>8.2} s", "elapsed time create fragment mols:", molecule_timer.elapsed().as_secs_f32());
+            drop(molecule_timer);
+
+            let molecule_timer: Instant = Instant::now();
+            let fragments_data:cluster_frag_result = fmo_calculate_fragments(&mut fragments);
+            let (h0,pairs_data):(Array2<f64>,Vec<pair_result>) = fmo_calculate_pairwise_par(&fragments,&fragments_data,config);
+            let energy:f64 = fmo_gs_energy(&fragments,&fragments_data,&pairs_data);
+            info!("{:>68} {:>8.2} s", "elapsed time calculate energy:", molecule_timer.elapsed().as_secs_f32());
+            drop(molecule_timer);
+
+            println!("FMO Energy {}", energy);
             0
         }
         _ => {
