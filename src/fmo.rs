@@ -587,23 +587,45 @@ pub fn create_fragment_molecules(
     cluster_atomic_numbers: Vec<u8>,
     cluster_positions: Array2<f64>,
 ) -> Vec<Molecule> {
-    let mut fragments: Vec<Molecule> = Vec::new();
+    //let mut fragments: Vec<Molecule> = Vec::new();
+    //for frag in subgraphs.iter() {
+    //    let molecule_timer: Instant = Instant::now();
+    //
+    //    let mut atomic_numbers: Vec<u8> = Vec::new();
+    //    let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
+    //
+    //    for (ind, val) in frag.node_indices().enumerate() {
+    //        atomic_numbers.push(cluster_atomic_numbers[val.index()]);
+    //        positions
+    //            .slice_mut(s![ind, ..])
+    //            .assign(&cluster_positions.slice(s![val.index(), ..]));
+    //    }
+    //    info!("{:>68} {:>8.2} s", "elapsed time slices:", molecule_timer.elapsed().as_secs_f32());
+    //    drop(molecule_timer);
+    //    let molecule_timer: Instant = Instant::now();
+    //    let frag_mol: Molecule = Molecule::new(
+    //        atomic_numbers,
+    //        positions,
+    //        Some(config.mol.charge),
+    //        Some(config.mol.multiplicity),
+    //        Some(0.0),
+    //        None,
+    //        config.clone(),
+    //    );
+    //    info!("{:>68} {:>8.2} s", "elapsed time create mols:", molecule_timer.elapsed().as_secs_f32());
+    //    drop(molecule_timer);
+    //    fragments.push(frag_mol);
+    //}
 
-    for frag in subgraphs.iter() {
-        let molecule_timer: Instant = Instant::now();
-
+    let fragments:Vec<Molecule> = subgraphs.par_iter().map(|frag|{
         let mut atomic_numbers: Vec<u8> = Vec::new();
         let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
-
         for (ind, val) in frag.node_indices().enumerate() {
             atomic_numbers.push(cluster_atomic_numbers[val.index()]);
             positions
                 .slice_mut(s![ind, ..])
                 .assign(&cluster_positions.slice(s![val.index(), ..]));
         }
-        info!("{:>68} {:>8.2} s", "elapsed time slices:", molecule_timer.elapsed().as_secs_f32());
-        drop(molecule_timer);
-        let molecule_timer: Instant = Instant::now();
         let frag_mol: Molecule = Molecule::new(
             atomic_numbers,
             positions,
@@ -613,10 +635,8 @@ pub fn create_fragment_molecules(
             None,
             config.clone(),
         );
-        info!("{:>68} {:>8.2} s", "elapsed time create mols:", molecule_timer.elapsed().as_secs_f32());
-        drop(molecule_timer);
-        fragments.push(frag_mol);
-    }
+        frag_mol
+    }).collect();
 
     return fragments;
 }
