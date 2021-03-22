@@ -215,7 +215,7 @@ impl GammaFunction {
     }
 }
 
-fn gamma_atomwise(
+pub fn gamma_atomwise(
     gamma_func: GammaFunction,
     atomic_numbers: &[u8],
     n_atoms: usize,

@@ -135,7 +135,7 @@ impl Molecule {
     }
 }
 
-fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
+pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
     // find unique atom types
     let mut unique_numbers: Vec<u8> = atomic_numbers;
     unique_numbers.sort_unstable(); // fast sort of atomic numbers
