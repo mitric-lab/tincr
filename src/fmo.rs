@@ -42,6 +42,7 @@ pub fn fmo_gs_energy(
     for pair in pair_results.iter() {
         let mut pair_energy: f64 = 0.0;
         if pair.energy_pair.is_some() {
+            println!("Pair is some");
             // E_ij - E_i - E_j
             pair_energy = pair.energy_pair.unwrap()
                 - cluster_results.energy[pair.frag_a_index]
@@ -50,8 +51,12 @@ pub fn fmo_gs_energy(
             // get embedding potential of pairs
             // only relevant if the scc energy of the pair was calculated
             for a in (0..pair.pair.n_atoms).into_iter(){
-                for (ind_k, mol_k) in fragments.iter().enumerate(){
+                println!("Atom {} in pair",a);
+                //for (ind_k, mol_k) in fragments.iter().enumerate(){
+                let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().map(|(ind_k,mol_k)|{
+                    let mut embedding:f64 = 0.0;
                     if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
+                        println!("Fragment Index {}",ind_k);
                         // embedding_potential = gamma_ac ddq_a^ij dq_c^k
                         // calculate distance matrix for gamma_ac
                         let mut new_positions:Array2<f64> = Array::zeros((pair.pair.n_atoms + mol_k.n_atoms,3));
@@ -98,17 +103,23 @@ pub fn fmo_gs_energy(
                                 ddq = pair.pair.final_charges[a] - fragments[pair.frag_a_index].final_charges[a];
                             }
                             else{
-                                ddq = pair.pair.final_charges[a] - fragments[pair.frag_b_index].final_charges[a];
+                                ddq = pair.pair.final_charges[a] - fragments[pair.frag_b_index].final_charges[a-pair.frag_a_atoms];
                             }
 
                             for c in (0..mol_k.n_atoms).into_iter(){
                                 let c_index:usize = pair.pair.n_atoms + c;
-                                // embedding_potential = gamma_ac ddq_a^ij dq_c^k
-                                embedding_potential += g0[[a,c_index]] *ddq * mol_k.final_charges[c];
+                                if prox_matrix[[a,c_index]] == true{
+                                    println!("Atom {} in Fragment",c);
+                                    // embedding_potential = gamma_ac ddq_a^ij dq_c^k
+                                    embedding += g0[[a,c_index]] *ddq * mol_k.final_charges[c];
+                                }
                             }
                         }
                     }
-                }
+                embedding
+                }).collect();
+                let embedding_pot_sum:f64 = embedding_pot.sum();
+                embedding_potential += embedding_pot_sum;
             }
 
         } else {
@@ -243,136 +254,277 @@ pub fn fmo_calculate_pairwise_par(
     fragments: &Vec<Molecule>,
     cluster_results: &cluster_frag_result,
     config: GeneralConfig,
-) -> (Array2<f64>, Vec<pair_result>) {
-    let result: Vec<pair_result> = fragments
-        .into_par_iter()
+) -> (Array2<f64>,Vec<pair_result>){
+    //let result: Vec<pair_result> = fragments
+    //    .into_par_iter()
+    //    .enumerate()
+    //    .zip(fragments.into_par_iter().enumerate())
+    //    .filter_map(|((ind1, molecule_a), (ind2, molecule_b))| {
+    //        if ind1 < ind2 {
+    //            let mut atomic_numbers: Vec<u8> = Vec::new();
+    //            let mut positions: Array2<f64> =
+    //                Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
+    //
+    //            for i in 0..molecule_a.n_atoms {
+    //                atomic_numbers.push(molecule_a.atomic_numbers[i]);
+    //                positions
+    //                    .slice_mut(s![i, ..])
+    //                    .assign(&molecule_a.positions.slice(s![i, ..]));
+    //            }
+    //            for i in 0..molecule_b.n_atoms {
+    //                atomic_numbers.push(molecule_b.atomic_numbers[i]);
+    //                positions
+    //                    .slice_mut(s![molecule_a.n_atoms + i, ..])
+    //                    .assign(&molecule_b.positions.slice(s![i, ..]));
+    //            }
+    //            let mut pair: Molecule = Molecule::new(
+    //                atomic_numbers,
+    //                positions,
+    //                Some(config.mol.charge),
+    //                Some(config.mol.multiplicity),
+    //                Some(0.0),
+    //                None,
+    //                config.clone(),
+    //            );
+    //            // get shortest distance between the fragment atoms of the pair
+    //            let distance_between_pair: Array2<f64> = pair
+    //                .distance_matrix
+    //                .slice(s![..molecule_a.n_atoms, molecule_a.n_atoms..])
+    //                .to_owned();
+    //            let min_dist: f64 = distance_between_pair
+    //                .iter()
+    //                .cloned()
+    //                .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+    //                .unwrap();
+    //
+    //            // get indices of the atoms
+    //            //// TODO: use a more efficient method to determine the indices
+    //            let mut index_min: (usize, usize) = (0, 0);
+    //            for (ind_1, val_1) in distance_between_pair.outer_iter().enumerate() {
+    //                for (ind_2, val_2) in val_1.iter().enumerate() {
+    //                    if *val_2 == min_dist {
+    //                        index_min = (ind_1, ind_2);
+    //                    }
+    //                }
+    //            }
+    //            //let index_min_vec:Vec<(usize,usize)> = distance_between_pair.indexed_iter()
+    //            //    .filter_map(
+    //            //        |(index, &item)| if item == min_dist{ Some(index) } else { None },
+    //            //    )
+    //            //    .collect();
+    //            //let index_min = index_min_vec[0];
+    //
+    //            let vdw_radii_sum: f64 = (constants::VDW_RADII
+    //                [&molecule_a.atomic_numbers[index_min.0]]
+    //                + constants::VDW_RADII[&molecule_b.atomic_numbers[index_min.1]])
+    //                / constants::BOHR_TO_ANGS;
+    //            let mut energy_pair: Option<f64> = None;
+    //
+    //            // do scc routine for pair if mininmal distance is below threshold
+    //            if (min_dist / vdw_radii_sum) < 2.0 {
+    //                let (energy, orbs, orbe, s, f): (
+    //                    f64,
+    //                    Array2<f64>,
+    //                    Array1<f64>,
+    //                    Array2<f64>,
+    //                    Vec<f64>,
+    //                ) = scc_routine::run_scc(&mut pair);
+    //                energy_pair = Some(energy);
+    //            }
+    //
+    //            // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
+    //            let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
+    //                &pair.atomic_numbers,
+    //                pair.positions.view(),
+    //                pair.calculator.n_orbs,
+    //                &pair.calculator.valorbs,
+    //                pair.proximity_matrix.view(),
+    //                &pair.calculator.skt,
+    //                &pair.calculator.orbital_energies,
+    //            );
+    //            // Now select off-diagonal couplings. The block `H0_AB` contains matrix elements
+    //            // between atomic orbitals on fragments A and B:
+    //            //
+    //            //      ( H0_AA  H0_AB )
+    //            // H0 = (              )
+    //            //      ( H0_BA  H0_BB )
+    //            let mut indices_vec: Vec<(usize, usize)> = Vec::new();
+    //            let mut h0_vals: Vec<f64> = Vec::new();
+    //
+    //            let h0_ab: Array2<f64> = h0
+    //                .slice(s![
+    //                    0..cluster_results.n_mo[ind1],
+    //                    cluster_results.n_mo[ind2]..
+    //                ])
+    //                .to_owned();
+    //            // contract Hamiltonian with coefficients of HOMOs on fragments A and B
+    //            let i: usize = ind1 * 2;
+    //            let j: usize = ind2 * 2;
+    //            indices_vec.push((i, j));
+    //            let h0_val: f64 = cluster_results.homo_orbs[ind1]
+    //                .dot(&h0_ab.dot(&cluster_results.homo_orbs[ind2]));
+    //            h0_vals.push(h0_val);
+    //
+    //            let i: usize = ind1 * 2 + 1;
+    //            let j: usize = ind2 * 2 + 1;
+    //            indices_vec.push((i, j));
+    //            let h0_val: f64 =
+    //                cluster_results.lumo_orbs[ind1].dot(&s.dot(&cluster_results.lumo_orbs[ind2]));
+    //            h0_vals.push(h0_val);
+    //
+    //            let pair_res: pair_result =
+    //                pair_result::new(pair, h0_vals, indices_vec, energy_pair, ind1, ind2, molecule_a.n_atoms,molecule_b.n_atoms);
+    //
+    //            Some(pair_res)
+    //        } else {
+    //            None
+    //        }
+    //    })
+    //    .collect();
+
+    let mut result: Vec<Vec<pair_result>> = fragments
+        .par_iter()
         .enumerate()
-        .zip(fragments.into_par_iter().enumerate())
-        .filter_map(|((ind1, molecule_a), (ind2, molecule_b))| {
-            if ind1 < ind2 {
-                let mut atomic_numbers: Vec<u8> = Vec::new();
-                let mut positions: Array2<f64> =
-                    Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
+        .map(|(ind1, molecule_a)| {
+            let mut vec_pair_result:Vec<pair_result> = Vec::new();
+            for (ind2, molecule_b) in fragments.iter().enumerate(){
+                println!("Index 1 {} and Index 2 {}",ind1,ind2);
+                if ind1 < ind2 {
+                    let mut atomic_numbers: Vec<u8> = Vec::new();
+                    let mut positions: Array2<f64> =
+                        Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
 
-                for i in 0..molecule_a.n_atoms {
-                    atomic_numbers.push(molecule_a.atomic_numbers[i]);
-                    positions
-                        .slice_mut(s![i, ..])
-                        .assign(&molecule_a.positions.slice(s![i, ..]));
-                }
-                for i in 0..molecule_b.n_atoms {
-                    atomic_numbers.push(molecule_b.atomic_numbers[i]);
-                    positions
-                        .slice_mut(s![molecule_a.n_atoms + i, ..])
-                        .assign(&molecule_b.positions.slice(s![i, ..]));
-                }
-                let mut pair: Molecule = Molecule::new(
-                    atomic_numbers,
-                    positions,
-                    Some(config.mol.charge),
-                    Some(config.mol.multiplicity),
-                    Some(0.0),
-                    None,
-                    config.clone(),
-                );
-                // get shortest distance between the fragment atoms of the pair
-                let distance_between_pair: Array2<f64> = pair
-                    .distance_matrix
-                    .slice(s![..molecule_a.n_atoms, molecule_a.n_atoms..])
-                    .to_owned();
-                let min_dist: f64 = distance_between_pair
-                    .iter()
-                    .cloned()
-                    .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
-                    .unwrap();
+                    for i in 0..molecule_a.n_atoms {
+                        atomic_numbers.push(molecule_a.atomic_numbers[i]);
+                        positions
+                            .slice_mut(s![i, ..])
+                            .assign(&molecule_a.positions.slice(s![i, ..]));
+                    }
+                    for i in 0..molecule_b.n_atoms {
+                        atomic_numbers.push(molecule_b.atomic_numbers[i]);
+                        positions
+                            .slice_mut(s![molecule_a.n_atoms + i, ..])
+                            .assign(&molecule_b.positions.slice(s![i, ..]));
+                    }
+                    let mut pair: Molecule = Molecule::new(
+                        atomic_numbers,
+                        positions,
+                        Some(config.mol.charge),
+                        Some(config.mol.multiplicity),
+                        Some(0.0),
+                        None,
+                        config.clone(),
+                    );
+                    // get shortest distance between the fragment atoms of the pair
+                    let distance_between_pair: Array2<f64> = pair
+                        .distance_matrix
+                        .slice(s![..molecule_a.n_atoms, molecule_a.n_atoms..])
+                        .to_owned();
+                    let min_dist: f64 = distance_between_pair
+                        .iter()
+                        .cloned()
+                        .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                        .unwrap();
 
-                // get indices of the atoms
-                //// TODO: use a more efficient method to determine the indices
-                //let mut index_min: (usize, usize) = (0, 0);
-                //for (ind_1, val_1) in distance_between_pair.outer_iter().enumerate() {
-                //    for (ind_2, val_2) in val_1.iter().enumerate() {
-                //        if *val_2 == min_dist {
-                //            index_min = (ind_1, ind_2);
-                //        }
-                //    }
-                //}
-                let index_min_vec:Vec<(usize,usize)> = distance_between_pair.indexed_iter()
-                    .filter_map(
-                        |(index, &item)| if item == min_dist{ Some(index) } else { None },
-                    )
-                    .collect();
-                let index_min = index_min_vec[0];
+                    // get indices of the atoms
+                    //// TODO: use a more efficient method to determine the indices
+                    //let mut index_min: (usize, usize) = (0, 0);
+                    //for (index_1, val_1) in distance_between_pair.outer_iter().enumerate() {
+                    //    for (index_2, val_2) in val_1.iter().enumerate() {
+                    //        if *val_2 == min_dist {
+                    //            index_min = (index_1, index_2);
+                    //        }
+                    //    }
+                    //}
+                    let index_min_vec:Vec<(usize,usize)> = distance_between_pair.indexed_iter()
+                        .filter_map(
+                            |(index, &item)| if item == min_dist{ Some(index) } else { None },
+                        )
+                        .collect();
+                    let index_min = index_min_vec[0];
 
-                let vdw_radii_sum: f64 = (constants::VDW_RADII
-                    [&molecule_a.atomic_numbers[index_min.0]]
-                    + constants::VDW_RADII[&molecule_b.atomic_numbers[index_min.1]])
-                    / constants::BOHR_TO_ANGS;
-                let mut energy_pair: Option<f64> = None;
+                    let vdw_radii_sum: f64 = (constants::VDW_RADII
+                        [&molecule_a.atomic_numbers[index_min.0]]
+                        + constants::VDW_RADII[&molecule_b.atomic_numbers[index_min.1]])
+                        / constants::BOHR_TO_ANGS;
+                    let mut energy_pair: Option<f64> = None;
 
-                // do scc routine for pair if mininmal distance is below threshold
-                if min_dist / vdw_radii_sum < 2.0 {
-                    let (energy, orbs, orbe, s, f): (
-                        f64,
-                        Array2<f64>,
-                        Array1<f64>,
-                        Array2<f64>,
-                        Vec<f64>,
-                    ) = scc_routine::run_scc(&mut pair);
-                    energy_pair = Some(energy);
-                }
+                    // do scc routine for pair if mininmal distance is below threshold
+                    if (min_dist / vdw_radii_sum) < 2.0 {
+                        let (energy, orbs, orbe, s, f): (
+                            f64,
+                            Array2<f64>,
+                            Array1<f64>,
+                            Array2<f64>,
+                            Vec<f64>,
+                        ) = scc_routine::run_scc(&mut pair);
+                        energy_pair = Some(energy);
+                    }
 
-                // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
-                let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
-                    &pair.atomic_numbers,
-                    pair.positions.view(),
-                    pair.calculator.n_orbs,
-                    &pair.calculator.valorbs,
-                    pair.proximity_matrix.view(),
-                    &pair.calculator.skt,
-                    &pair.calculator.orbital_energies,
-                );
-                // Now select off-diagonal couplings. The block `H0_AB` contains matrix elements
-                // between atomic orbitals on fragments A and B:
-                //
-                //      ( H0_AA  H0_AB )
-                // H0 = (              )
-                //      ( H0_BA  H0_BB )
-                let mut indices_vec: Vec<(usize, usize)> = Vec::new();
-                let mut h0_vals: Vec<f64> = Vec::new();
+                    // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
+                    let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
+                        &pair.atomic_numbers,
+                        pair.positions.view(),
+                        pair.calculator.n_orbs,
+                        &pair.calculator.valorbs,
+                        pair.proximity_matrix.view(),
+                        &pair.calculator.skt,
+                        &pair.calculator.orbital_energies,
+                    );
+                    // Now select off-diagonal couplings. The block `H0_AB` contains matrix elements
+                    // between atomic orbitals on fragments A and B:
+                    //
+                    //      ( H0_AA  H0_AB )
+                    // H0 = (              )
+                    //      ( H0_BA  H0_BB )
+                    let mut indices_vec: Vec<(usize, usize)> = Vec::new();
+                    let mut h0_vals: Vec<f64> = Vec::new();
 
-                let h0_ab: Array2<f64> = h0
-                    .slice(s![
+                    let h0_ab: Array2<f64> = h0
+                        .slice(s![
                         0..cluster_results.n_mo[ind1],
                         cluster_results.n_mo[ind2]..
                     ])
-                    .to_owned();
-                // contract Hamiltonian with coefficients of HOMOs on fragments A and B
-                let i: usize = ind1 * 2;
-                let j: usize = ind2 * 2;
-                indices_vec.push((i, j));
-                let h0_val: f64 = cluster_results.homo_orbs[ind1]
-                    .dot(&h0_ab.dot(&cluster_results.homo_orbs[ind2]));
-                h0_vals.push(h0_val);
+                        .to_owned();
+                    let s_ab: Array2<f64> = s
+                        .slice(s![
+                        0..cluster_results.n_mo[ind1],
+                        cluster_results.n_mo[ind2]..
+                    ])
+                        .to_owned();
+                    // contract Hamiltonian with coefficients of HOMOs on fragments A and B
+                    let i: usize = ind1 * 2;
+                    let j: usize = ind2 * 2;
+                    indices_vec.push((i, j));
+                    let h0_val: f64 = cluster_results.homo_orbs[ind1]
+                        .dot(&h0_ab.dot(&cluster_results.homo_orbs[ind2]));
+                    h0_vals.push(h0_val);
 
-                let i: usize = ind1 * 2 + 1;
-                let j: usize = ind2 * 2 + 1;
-                indices_vec.push((i, j));
-                let h0_val: f64 =
-                    cluster_results.lumo_orbs[ind1].dot(&s.dot(&cluster_results.lumo_orbs[ind2]));
-                h0_vals.push(h0_val);
+                    let i: usize = ind1 * 2 + 1;
+                    let j: usize = ind2 * 2 + 1;
+                    indices_vec.push((i, j));
+                    println!("Test12345");
+                    let h0_val: f64 =
+                        cluster_results.lumo_orbs[ind1].t().dot(&s_ab.dot(&cluster_results.lumo_orbs[ind2]));
+                    h0_vals.push(h0_val);
 
-                let pair_res: pair_result =
-                    pair_result::new(pair, h0_vals, indices_vec, energy_pair, ind1, ind2, molecule_a.n_atoms,molecule_b.n_atoms);
+                    let pair_res: pair_result =
+                        pair_result::new(pair, h0_vals, indices_vec, energy_pair, ind1, ind2, molecule_a.n_atoms,molecule_b.n_atoms);
 
-                Some(pair_res)
-            } else {
-                None
+                    vec_pair_result.push(pair_res);
+                }
             }
-        })
-        .collect();
+            vec_pair_result
+        }).collect();
+
+    // transform Vec<Vec> back to Vec<>
+    let mut pair_result:Vec<pair_result> = Vec::new();
+    for pair in result.iter_mut(){
+        pair_result.append(pair);
+    }
 
     let mut h_0_complete_mut: Array2<f64> = cluster_results.h_0.clone();
-    for pair in result.iter() {
+    for pair in pair_result.iter() {
         h_0_complete_mut[[pair.h0_indices[0].0, pair.h0_indices[0].1]] = pair.h0_vals[0];
         h_0_complete_mut[[pair.h0_indices[1].0, pair.h0_indices[1].1]] = pair.h0_vals[1];
     }
@@ -380,7 +532,7 @@ pub fn fmo_calculate_pairwise_par(
     h_0_complete_mut = h_0_complete_mut.clone()
         + (h_0_complete_mut.clone() - Array::from_diag(&h_0_complete_mut.diag())).reversed_axes();
 
-    return (h_0_complete_mut, result);
+    return (h_0_complete_mut, pair_result);
 }
 
 pub struct pair_result {
