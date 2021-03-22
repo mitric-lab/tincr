@@ -53,7 +53,7 @@ pub fn fmo_gs_energy(
             for a in (0..pair.pair.n_atoms).into_iter(){
                 println!("Atom {} in pair",a);
                 //for (ind_k, mol_k) in fragments.iter().enumerate(){
-                let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().map(|(ind_k,mol_k)|{
+                let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().filter_map(|(ind_k,mol_k)| if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
                     let mut embedding:f64 = 0.0;
                     if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
                         println!("Fragment Index {}",ind_k);
@@ -63,7 +63,7 @@ pub fn fmo_gs_energy(
                         new_positions.slice_mut(s![..pair.pair.n_atoms,..]).assign(&pair.pair.positions);
                         new_positions.slice_mut(s![pair.pair.n_atoms..,..]).assign(&mol_k.positions);
                         let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
-                            distance_matrix(new_positions.view(), None);
+                            distance_matrix(new_positions.view(), Some(10.0));
 
                         // check proximity matrix for distances
                         let proximity_indices:Array1<(usize,usize)> = prox_matrix.indexed_iter()
@@ -72,8 +72,15 @@ pub fn fmo_gs_energy(
                             )
                             .collect();
 
+                        //let proximity_zeros:Array1<f64> = prox_matrix.iter()
+                        //    .filter_map(
+                        //        | &item| if item == true { Some(1.0) } else { Some(0.0)},
+                        //    )
+                        //    .collect();
+
+                        //let gamma_zeros:Array2<f64> = proximity_zeros.into_shape((pair.pair.n_atoms + mol_k.n_atoms,pair.pair.n_atoms + mol_k.n_atoms)).unwrap();
+
                         // if the fragment is near the pair, calculate gamma matrix
-                        let mut gamma_embedding:Array2<f64> = Array2::zeros((pair.pair.n_atoms + mol_k.n_atoms,pair.pair.n_atoms + mol_k.n_atoms));
                         if proximity_indices.len() > 0{
                             let mut atomic_numbers_pair:Vec<u8> = pair.pair.atomic_numbers.clone();
                             let mut atomic_numbers_mol:Vec<u8> = mol_k.atomic_numbers.clone();
@@ -116,7 +123,10 @@ pub fn fmo_gs_energy(
                             }
                         }
                     }
-                embedding
+                Some(embedding)
+                }
+                else{
+                    None
                 }).collect();
                 let embedding_pot_sum:f64 = embedding_pot.sum();
                 embedding_potential += embedding_pot_sum;
