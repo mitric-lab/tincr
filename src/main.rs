@@ -129,7 +129,7 @@ fn main() {
             drop(molecule_timer);
             info!("{:^80}", "");
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-                scc_routine::run_scc(&mol);
+                scc_routine::run_scc(&mut mol);
 
             mol.calculator.set_active_orbitals(f.to_vec());
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
@@ -149,7 +149,7 @@ fn main() {
             );
 
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-                scc_routine::run_scc(&mol);
+                scc_routine::run_scc(&mut mol);
             mol.calculator.set_active_orbitals(f.to_vec());
 
             let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol,Some(1));

@@ -157,7 +157,7 @@ pub fn fmo_calculate_pairwise_par(
                         .slice_mut(s![molecule_a.n_atoms + i, ..])
                         .assign(&molecule_b.positions.slice(s![i, ..]));
                 }
-                let pair: Molecule = Molecule::new(
+                let mut pair: Molecule = Molecule::new(
                     atomic_numbers,
                     positions,
                     Some(config.mol.charge),
@@ -202,7 +202,7 @@ pub fn fmo_calculate_pairwise_par(
                         Array1<f64>,
                         Array2<f64>,
                         Vec<f64>,
-                    ) = scc_routine::run_scc(&pair);
+                    ) = scc_routine::run_scc(&mut pair);
                     energy_pair = Some(energy);
                 }
 
@@ -357,12 +357,12 @@ impl cluster_frag_result {
     }
 }
 
-pub fn fmo_calculate_fragments(fragments: &Vec<Molecule>) -> (cluster_frag_result) {
+pub fn fmo_calculate_fragments(fragments: &mut Vec<Molecule>) -> (cluster_frag_result) {
     let norb_frag: usize = 2;
     let size: usize = norb_frag * fragments.len();
 
     let mut results: Vec<fragment_result> = fragments
-        .into_par_iter()
+        .par_iter_mut()
         .map(|frag| {
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
                 scc_routine::run_scc(frag);

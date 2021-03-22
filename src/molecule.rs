@@ -40,6 +40,7 @@ pub struct Molecule {
     pub full_graph_indices: Vec<NodeIndex>,
     pub sub_graphs: Vec<StableUnGraph<u8, f64>>,
     pub config: GeneralConfig,
+    pub final_charges: Option<Array1<f64>>
 }
 
 impl Molecule {
@@ -100,6 +101,7 @@ impl Molecule {
             full_graph_indices: graph_indexes,
             sub_graphs: subgraphs,
             config: config,
+            final_charges:None
         };
 
         return mol;
@@ -124,6 +126,10 @@ impl Molecule {
         self.proximity_matrix = prox_matrix;
         self.calculator
             .update_gamma_matrices(dist_matrix, &self.atomic_numbers);
+    }
+
+    pub fn set_final_charges(&mut self, dq:Array1<f64>){
+        self.final_charges = Some(dq);
     }
 }
 
