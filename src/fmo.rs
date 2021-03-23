@@ -1,5 +1,6 @@
-use crate::constants::VDW_RADII;
+use crate::calculator::{get_gamma_matrix, get_only_gamma_matrix_atomwise, import_pseudo_atom};
 use crate::constants;
+use crate::constants::VDW_RADII;
 use crate::defaults;
 use crate::gradients::{get_gradients, ToOwnedF};
 use crate::graph::*;
@@ -7,12 +8,11 @@ use crate::h0_and_s::h0_and_s;
 use crate::internal_coordinates::*;
 use crate::io::GeneralConfig;
 use crate::molecule::distance_matrix;
+use crate::molecule::get_atomtypes;
+use crate::parameters::*;
 use crate::scc_routine;
 use crate::solver::get_exc_energies;
 use crate::Molecule;
-use crate::calculator::{get_gamma_matrix, get_only_gamma_matrix_atomwise,import_pseudo_atom};
-use crate::parameters::*;
-use crate::molecule::get_atomtypes;
 use approx::AbsDiffEq;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
@@ -30,10 +30,10 @@ pub fn fmo_gs_energy(
     fragments: &Vec<Molecule>,
     cluster_results: &cluster_frag_result,
     pair_results: &Vec<pair_result>,
-    indices_frags:&Vec<usize>,
-    gamma_total:Array2<f64>,
-    prox_mat:Array2<bool>
-) ->(f64){
+    indices_frags: &Vec<usize>,
+    gamma_total: Array2<f64>,
+    prox_mat: Array2<bool>,
+) -> (f64) {
     // sum over all monomer energies
     let energy_monomers: f64 = cluster_results.energy.sum();
 
@@ -42,18 +42,17 @@ pub fn fmo_gs_energy(
     let mut pair_energies: f64 = 0.0;
     let mut embedding_potential: f64 = 0.0;
 
-    let proximity_zeros:Array1<f64> = prox_mat.iter()
-        .filter_map(
-            | &item| if item == true { Some(1.0) } else { Some(0.0)},
-        )
+    let proximity_zeros: Array1<f64> = prox_mat
+        .iter()
+        .filter_map(|&item| if item == true { Some(1.0) } else { Some(0.0) })
         .collect();
-    let gamma_zeros:Array2<f64> = proximity_zeros.into_shape((prox_mat.raw_dim())).unwrap();
-    let gamma_tmp:Array2<f64> = gamma_zeros * gamma_total;
+    let gamma_zeros: Array2<f64> = proximity_zeros.into_shape((prox_mat.raw_dim())).unwrap();
+    let gamma_tmp: Array2<f64> = gamma_zeros * gamma_total;
 
     for pair in pair_results.iter() {
         let mut pair_energy: f64 = 0.0;
         if pair.energy_pair.is_some() {
-            let pair_charges:Array1<f64> = pair.pair_charges.clone().unwrap();
+            let pair_charges: Array1<f64> = pair.pair_charges.clone().unwrap();
             println!("Pair is some");
             // E_ij - E_i - E_j
             pair_energy = pair.energy_pair.unwrap()
@@ -63,34 +62,45 @@ pub fn fmo_gs_energy(
             // get embedding potential of pairs
             // only relevant if the scc energy of the pair was calculated
             // TODO: Change loop over a to matrix multiplications
-            let pair_atoms:usize = fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
-            let ddq_vec:Vec<f64> = (0..pair_atoms).into_par_iter().map(|a| {
-                let mut ddq:f64 = 0.0;
-                if a < pair.frag_a_atoms{
-                    ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
-                }
-                else{
-                    ddq = pair_charges[a] - fragments[pair.frag_b_index].final_charges[a-pair.frag_a_atoms];
-                }
-                ddq
-            }).collect();
-            let index_pair_iter:usize = indices_frags[pair.frag_a_index];
-            let ddq_arr:Array1<f64> = Array::from(ddq_vec);
+            let pair_atoms: usize =
+                fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
+            let ddq_vec: Vec<f64> = (0..pair_atoms)
+                .into_par_iter()
+                .map(|a| {
+                    let mut ddq: f64 = 0.0;
+                    if a < pair.frag_a_atoms {
+                        ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
+                    } else {
+                        ddq = pair_charges[a]
+                            - fragments[pair.frag_b_index].final_charges[a - pair.frag_a_atoms];
+                    }
+                    ddq
+                })
+                .collect();
+            let index_pair_iter: usize = indices_frags[pair.frag_a_index];
+            let ddq_arr: Array1<f64> = Array::from(ddq_vec);
 
-            let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().filter_map(|(ind_k,mol_k)| if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
+            let embedding_pot: Vec<f64> = fragments
+                .par_iter()
+                .enumerate()
+                .filter_map(|(ind_k, mol_k)| {
+                    if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index {
+                        let index_frag_iter: usize = indices_frags[ind_k];
+                        let gamma_ac: ArrayView2<f64> = gamma_tmp.slice(s![
+                            index_pair_iter..index_pair_iter + pair_atoms,
+                            index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        ]);
+                        println!("Fragment Index {}", ind_k);
+                        let embedding: f64 = ddq_arr.dot(&gamma_ac.dot(&mol_k.final_charges));
 
-                let index_frag_iter:usize = indices_frags[ind_k];
-                let gamma_ac:ArrayView2<f64> = gamma_tmp.slice(s![index_pair_iter..index_pair_iter+pair_atoms,index_frag_iter..index_frag_iter+mol_k.n_atoms]);
-                println!("Fragment Index {}",ind_k);
-                let embedding:f64 = ddq_arr.dot(&gamma_ac.dot(&mol_k.final_charges));
+                        Some(embedding)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-                Some(embedding)
-            }
-            else{
-                None
-            }).collect();
-
-            let embedding_pot_sum:f64 = embedding_pot.sum();
+            let embedding_pot_sum: f64 = embedding_pot.sum();
             embedding_potential += embedding_pot_sum;
 
             //for a in (0..pair_atoms).into_iter(){
@@ -127,7 +137,6 @@ pub fn fmo_gs_energy(
             //    let embedding_pot_sum:f64 = embedding_pot.sum();
             //    embedding_potential += embedding_pot_sum;
             //}
-
         } else {
             // E_ij = E_i + E_j + sum_(a in I) sum_(B in j) gamma_ab dq_a^i dq_b^j
             // loop version
@@ -236,7 +245,7 @@ pub fn fmo_gs_energy(
     //            let embedding_pot_sum:f64 = embedding_pot.sum();
     //            embedding_potential += embedding_pot_sum;
     //        }
-//
+    //
     //    } else {
     //        // E_ij = E_i + E_j + sum_(a in I) sum_(B in j) gamma_ab dq_a^i dq_b^j
     //        // loop version
@@ -252,7 +261,7 @@ pub fn fmo_gs_energy(
     //    pair_energies += pair_energy;
     //}
     // calculate total energy
-    let e_tot:f64 = energy_monomers+ pair_energies + embedding_potential;
+    let e_tot: f64 = energy_monomers + pair_energies + embedding_potential;
 
     return e_tot;
 }
@@ -369,7 +378,7 @@ pub fn fmo_calculate_pairwise_par(
     fragments: &Vec<Molecule>,
     cluster_results: &cluster_frag_result,
     config: GeneralConfig,
-) -> (Array2<f64>,Vec<pair_result>){
+) -> (Array2<f64>, Vec<pair_result>) {
     //let result: Vec<pair_result> = fragments
     //    .into_par_iter()
     //    .enumerate()
@@ -413,7 +422,6 @@ pub fn fmo_calculate_pairwise_par(
     //                .unwrap();
     //
     //            // get indices of the atoms
-    //            //// TODO: use a more efficient method to determine the indices
     //            let mut index_min: (usize, usize) = (0, 0);
     //            for (ind_1, val_1) in distance_between_pair.outer_iter().enumerate() {
     //                for (ind_2, val_2) in val_1.iter().enumerate() {
@@ -501,9 +509,9 @@ pub fn fmo_calculate_pairwise_par(
         .par_iter()
         .enumerate()
         .map(|(ind1, molecule_a)| {
-            let mut vec_pair_result:Vec<pair_result> = Vec::new();
-            for (ind2, molecule_b) in fragments.iter().enumerate(){
-                println!("Index 1 {} and Index 2 {}",ind1,ind2);
+            let mut vec_pair_result: Vec<pair_result> = Vec::new();
+            for (ind2, molecule_b) in fragments.iter().enumerate() {
+                println!("Index 1 {} and Index 2 {}", ind1, ind2);
                 if ind1 < ind2 {
                     let mut atomic_numbers: Vec<u8> = Vec::new();
                     let mut positions: Array2<f64> =
@@ -521,6 +529,7 @@ pub fn fmo_calculate_pairwise_par(
                             .slice_mut(s![molecule_a.n_atoms + i, ..])
                             .assign(&molecule_b.positions.slice(s![i, ..]));
                     }
+
                     let mut pair: Molecule = Molecule::new(
                         atomic_numbers,
                         positions,
@@ -530,6 +539,7 @@ pub fn fmo_calculate_pairwise_par(
                         None,
                         config.clone(),
                     );
+
                     // get shortest distance between the fragment atoms of the pair
                     let distance_between_pair: Array2<f64> = pair
                         .distance_matrix
@@ -540,7 +550,6 @@ pub fn fmo_calculate_pairwise_par(
                         .cloned()
                         .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
                         .unwrap();
-
                     // get indices of the atoms
                     //// TODO: use a more efficient method to determine the indices
                     //let mut index_min: (usize, usize) = (0, 0);
@@ -551,9 +560,10 @@ pub fn fmo_calculate_pairwise_par(
                     //        }
                     //    }
                     //}
-                    let index_min_vec:Vec<(usize,usize)> = distance_between_pair.indexed_iter()
+                    let index_min_vec: Vec<(usize, usize)> = distance_between_pair
+                        .indexed_iter()
                         .filter_map(
-                            |(index, &item)| if item == min_dist{ Some(index) } else { None },
+                            |(index, &item)| if item == min_dist { Some(index) } else { None },
                         )
                         .collect();
                     let index_min = index_min_vec[0];
@@ -576,7 +586,6 @@ pub fn fmo_calculate_pairwise_par(
                         ) = scc_routine::run_scc(&mut pair);
                         energy_pair = Some(energy);
                         charges_pair = Some(pair.final_charges);
-
                     }
 
                     // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
@@ -600,15 +609,15 @@ pub fn fmo_calculate_pairwise_par(
 
                     let h0_ab: Array2<f64> = h0
                         .slice(s![
-                        0..cluster_results.n_mo[ind1],
-                        cluster_results.n_mo[ind2]..
-                    ])
+                            0..cluster_results.n_mo[ind1],
+                            cluster_results.n_mo[ind2]..
+                        ])
                         .to_owned();
                     let s_ab: Array2<f64> = s
                         .slice(s![
-                        0..cluster_results.n_mo[ind1],
-                        cluster_results.n_mo[ind2]..
-                    ])
+                            0..cluster_results.n_mo[ind1],
+                            cluster_results.n_mo[ind2]..
+                        ])
                         .to_owned();
                     // contract Hamiltonian with coefficients of HOMOs on fragments A and B
                     let i: usize = ind1 * 2;
@@ -622,22 +631,33 @@ pub fn fmo_calculate_pairwise_par(
                     let j: usize = ind2 * 2 + 1;
                     indices_vec.push((i, j));
                     println!("Test12345");
-                    let h0_val: f64 =
-                        cluster_results.lumo_orbs[ind1].t().dot(&s_ab.dot(&cluster_results.lumo_orbs[ind2]));
+                    let h0_val: f64 = cluster_results.lumo_orbs[ind1]
+                        .t()
+                        .dot(&s_ab.dot(&cluster_results.lumo_orbs[ind2]));
                     h0_vals.push(h0_val);
 
-                    let pair_res: pair_result =
-                        pair_result::new(pair.calculator.g0,charges_pair, h0_vals, indices_vec, energy_pair, ind1, ind2, molecule_a.n_atoms,molecule_b.n_atoms);
+                    let pair_res: pair_result = pair_result::new(
+                        pair.calculator.g0,
+                        charges_pair,
+                        h0_vals,
+                        indices_vec,
+                        energy_pair,
+                        ind1,
+                        ind2,
+                        molecule_a.n_atoms,
+                        molecule_b.n_atoms,
+                    );
 
                     vec_pair_result.push(pair_res);
                 }
             }
             vec_pair_result
-        }).collect();
+        })
+        .collect();
 
     // transform Vec<Vec> back to Vec<>
-    let mut pair_result:Vec<pair_result> = Vec::new();
-    for pair in result.iter_mut(){
+    let mut pair_result: Vec<pair_result> = Vec::new();
+    for pair in result.iter_mut() {
         pair_result.append(pair);
     }
 
@@ -654,28 +674,28 @@ pub fn fmo_calculate_pairwise_par(
 }
 
 pub struct pair_result {
-    pair_gamma:Array2<f64>,
-    pair_charges:Option<Array1<f64>>,
+    pair_gamma: Array2<f64>,
+    pair_charges: Option<Array1<f64>>,
     h0_vals: Vec<f64>,
     h0_indices: Vec<(usize, usize)>,
     energy_pair: Option<f64>,
     frag_a_index: usize,
     frag_b_index: usize,
-    frag_a_atoms:usize,
-    frag_b_atoms:usize
+    frag_a_atoms: usize,
+    frag_b_atoms: usize,
 }
 
 impl pair_result {
     pub(crate) fn new(
-        pair_gamma:Array2<f64>,
-        pair_charges:Option<Array1<f64>>,
+        pair_gamma: Array2<f64>,
+        pair_charges: Option<Array1<f64>>,
         h0_vals: Vec<f64>,
         h0_indices: Vec<(usize, usize)>,
         energy: Option<f64>,
         frag_a_index: usize,
         frag_b_index: usize,
-        frag_a_atoms:usize,
-        frag_b_atoms:usize
+        frag_a_atoms: usize,
+        frag_b_atoms: usize,
     ) -> (pair_result) {
         let result = pair_result {
             pair_gamma: pair_gamma,
@@ -686,7 +706,7 @@ impl pair_result {
             frag_a_index: frag_a_index,
             frag_b_index: frag_b_index,
             frag_a_atoms: frag_a_atoms,
-            frag_b_atoms: frag_b_atoms
+            frag_b_atoms: frag_b_atoms,
         };
         return result;
     }
@@ -890,26 +910,29 @@ pub fn create_fragment_molecules(
     //    fragments.push(frag_mol);
     //}
 
-    let fragments:Vec<Molecule> = subgraphs.par_iter().map(|frag|{
-        let mut atomic_numbers: Vec<u8> = Vec::new();
-        let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
-        for (ind, val) in frag.node_indices().enumerate() {
-            atomic_numbers.push(cluster_atomic_numbers[val.index()]);
-            positions
-                .slice_mut(s![ind, ..])
-                .assign(&cluster_positions.slice(s![val.index(), ..]));
-        }
-        let frag_mol: Molecule = Molecule::new(
-            atomic_numbers,
-            positions,
-            Some(config.mol.charge),
-            Some(config.mol.multiplicity),
-            Some(0.0),
-            None,
-            config.clone(),
-        );
-        frag_mol
-    }).collect();
+    let fragments: Vec<Molecule> = subgraphs
+        .par_iter()
+        .map(|frag| {
+            let mut atomic_numbers: Vec<u8> = Vec::new();
+            let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
+            for (ind, val) in frag.node_indices().enumerate() {
+                atomic_numbers.push(cluster_atomic_numbers[val.index()]);
+                positions
+                    .slice_mut(s![ind, ..])
+                    .assign(&cluster_positions.slice(s![val.index(), ..]));
+            }
+            let frag_mol: Molecule = Molecule::new(
+                atomic_numbers,
+                positions,
+                Some(config.mol.charge),
+                Some(config.mol.multiplicity),
+                Some(0.0),
+                None,
+                config.clone(),
+            );
+            frag_mol
+        })
+        .collect();
 
     return fragments;
 }
@@ -919,13 +942,13 @@ pub fn create_fragment_molecules(
 pub fn reorder_molecule(
     fragments: &Vec<Molecule>,
     config: GeneralConfig,
-    shape_positions:Ix2
-) -> (Vec<usize>,Array2<f64>,Array2<bool>) {
+    shape_positions: Ix2,
+) -> (Vec<usize>, Array2<f64>, Array2<bool>) {
     let mut atomic_numbers: Vec<u8> = Vec::new();
     let mut positions: Array2<f64> = Array2::zeros(shape_positions);
-    let mut indices_vector:Vec<usize> = Vec::new();
-    let mut mut_fragments:Vec<Molecule> = fragments.clone();
-    let mut prev_nat:usize = 0;
+    let mut indices_vector: Vec<usize> = Vec::new();
+    let mut mut_fragments: Vec<Molecule> = fragments.clone();
+    let mut prev_nat: usize = 0;
 
     for molecule in mut_fragments.iter_mut() {
         //for (ind, atom) in molecule.atomic_numbers.iter().enumerate() {
@@ -935,7 +958,9 @@ pub fn reorder_molecule(
         //        .assign(&molecule.positions.slice(s![ind, ..]));
         //}
         atomic_numbers.append(&mut molecule.atomic_numbers);
-        positions.slice_mut(s![prev_nat..prev_nat+molecule.n_atoms,..]).assign(&molecule.positions);
+        positions
+            .slice_mut(s![prev_nat..prev_nat + molecule.n_atoms, ..])
+            .assign(&molecule.positions);
         indices_vector.push(prev_nat);
         prev_nat += molecule.n_atoms;
     }
@@ -949,7 +974,11 @@ pub fn reorder_molecule(
         None,
         config.clone(),
     );
-    return (indices_vector,new_mol.calculator.g0,new_mol.proximity_matrix);
+    return (
+        indices_vector,
+        new_mol.calculator.g0,
+        new_mol.proximity_matrix,
+    );
 }
 
 pub fn create_fmo_graph(
