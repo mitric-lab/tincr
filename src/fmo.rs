@@ -64,40 +64,69 @@ pub fn fmo_gs_energy(
             // only relevant if the scc energy of the pair was calculated
             // TODO: Change loop over a to matrix multiplications
             let pair_atoms:usize = fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
-            for a in (0..pair_atoms).into_iter(){
-                println!("Atom {} in pair",a);
+            let ddq_vec:Vec<f64> = (0..pair_atoms).into_par_iter().map(|a| {
                 let mut ddq:f64 = 0.0;
-                // check if atom a sits on fragment a or b of the pair
-                let mut index_a:usize = 0;
                 if a < pair.frag_a_atoms{
                     ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
-                    index_a = indices_frags[pair.frag_a_index] + a;
                 }
                 else{
                     ddq = pair_charges[a] - fragments[pair.frag_b_index].final_charges[a-pair.frag_a_atoms];
-                    index_a = indices_frags[pair.frag_b_index] + (a -pair.frag_a_atoms);
                 }
-                //for (ind_k, mol_k) in fragments.iter().enumerate(){
-                let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().filter_map(|(ind_k,mol_k)| if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
-                    let mut embedding:f64 = 0.0;
-                    if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
-                        println!("Fragment Index {}",ind_k);
+                ddq
+            }).collect();
+            let index_pair_iter:usize = indices_frags[pair.frag_a_index];
+            let ddq_arr:Array1<f64> = Array::from(ddq_vec);
 
-                        for c in (0..mol_k.n_atoms).into_iter(){
-                            let c_index:usize = indices_frags[ind_k] + c;
-                            println!("Atom {} in Fragment",c);
-                            // embedding_potential = gamma_ac ddq_a^ij dq_c^k
-                            embedding += gamma_tmp[[index_a,c_index]] *ddq * mol_k.final_charges[c];
-                        }
-                    }
-                    Some(embedding)
-                }
-                else{
-                    None
-                }).collect();
-                let embedding_pot_sum:f64 = embedding_pot.sum();
-                embedding_potential += embedding_pot_sum;
+            let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().filter_map(|(ind_k,mol_k)| if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
+
+                let index_frag_iter:usize = indices_frags[ind_k];
+                let gamma_ac:ArrayView2<f64> = gamma_tmp.slice(s![index_pair_iter..index_pair_iter+pair_atoms,index_frag_iter..index_frag_iter+mol_k.n_atoms]);
+                println!("Fragment Index {}",ind_k);
+                let embedding:f64 = ddq_arr.dot(&gamma_ac.dot(&mol_k.final_charges));
+
+                Some(embedding)
             }
+            else{
+                None
+            }).collect();
+
+            let embedding_pot_sum:f64 = embedding_pot.sum();
+            embedding_potential += embedding_pot_sum;
+
+            //for a in (0..pair_atoms).into_iter(){
+            //    println!("Atom {} in pair",a);
+            //    let mut ddq:f64 = 0.0;
+            //    // check if atom a sits on fragment a or b of the pair
+            //    let mut index_a:usize = 0;
+            //    if a < pair.frag_a_atoms{
+            //        ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
+            //        index_a = indices_frags[pair.frag_a_index] + a;
+            //    }
+            //    else{
+            //        ddq = pair_charges[a] - fragments[pair.frag_b_index].final_charges[a-pair.frag_a_atoms];
+            //        index_a = indices_frags[pair.frag_b_index] + (a -pair.frag_a_atoms);
+            //    }
+            //    //for (ind_k, mol_k) in fragments.iter().enumerate(){
+            //    let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().filter_map(|(ind_k,mol_k)| if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
+            //        let mut embedding:f64 = 0.0;
+            //        if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
+            //            println!("Fragment Index {}",ind_k);
+            //
+            //            for c in (0..mol_k.n_atoms).into_iter(){
+            //                let c_index:usize = indices_frags[ind_k] + c;
+            //                println!("Atom {} in Fragment",c);
+            //                // embedding_potential = gamma_ac ddq_a^ij dq_c^k
+            //                embedding += gamma_tmp[[index_a,c_index]] *ddq * mol_k.final_charges[c];
+            //            }
+            //        }
+            //        Some(embedding)
+            //    }
+            //    else{
+            //        None
+            //    }).collect();
+            //    let embedding_pot_sum:f64 = embedding_pot.sum();
+            //    embedding_potential += embedding_pot_sum;
+            //}
 
         } else {
             // E_ij = E_i + E_j + sum_(a in I) sum_(B in j) gamma_ab dq_a^i dq_b^j
@@ -223,7 +252,7 @@ pub fn fmo_gs_energy(
     //    pair_energies += pair_energy;
     //}
     // calculate total energy
-    let e_tot:f64 = energy_monomers; //+ pair_energies + embedding_potential;
+    let e_tot:f64 = energy_monomers+ pair_energies + embedding_potential;
 
     return e_tot;
 }
