@@ -92,14 +92,14 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
     info!("{:-^75} ", "");
 
     'scf_loop: for i in 0..max_iter {
-        let h1: Array2<f64> = construct_h1(&molecule, molecule.calculator.g0.view(), dq.view());
+        let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
 
         //let mut prev_h_X:Array2<f64>
         if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
             let h_x: Array2<f64> =
-                lc_exact_exchange(&s, &molecule.calculator.g0_lr_ao, &p0, &p, h.dim().0);
+                lc_exact_exchange(&s, &molecule.g0_lr_ao, &p0, &p, h.dim().0);
             h = h + h_x;
         }
 
@@ -185,8 +185,8 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
             &s,
             h0.view(),
             dq.view(),
-            (&molecule.calculator.g0).deref().view(),
-            &molecule.calculator.g0_lr_ao,
+            (&molecule.g0).deref().view(),
+            &molecule.g0_lr_ao,
         );
         if i == 0 {
             info!(
@@ -695,8 +695,8 @@ fn reference_density_matrix() {
 
 #[test]
 fn self_consistent_charge_routine() {
-    let mol: Molecule = get_water_molecule();
-    let energy = run_scc(&mol);
+    let mut mol: Molecule = get_water_molecule();
+    let energy = run_scc(&mut mol);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
 }
@@ -724,7 +724,7 @@ fn self_consistent_charge_routine_near_coin() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
-    let mol: Molecule = Molecule::new(
+    let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
         charge,
@@ -732,14 +732,15 @@ fn self_consistent_charge_routine_near_coin() {
         Some(0.0),
         None,
         config,
+        None
     );
-    let energy = run_scc(&mol);
+    let energy = run_scc(&mut mol);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
 }
 
 #[test]
 fn test_scc_routine_benzene() {
-    let mol: Molecule = get_benzene_molecule();
-    let energy = run_scc(&mol);
+    let mut mol: Molecule = get_benzene_molecule();
+    let energy = run_scc(&mut mol);
 }

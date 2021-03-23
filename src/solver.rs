@@ -74,7 +74,7 @@ pub fn get_exc_energies(
     }
 
     // get gamma matrices
-    let mut gamma0_lr: Array2<f64> = Array::zeros((molecule.calculator.g0.shape()))
+    let mut gamma0_lr: Array2<f64> = Array::zeros((molecule.g0.shape()))
         .into_dimensionality::<Ix2>()
         .unwrap();
 
@@ -84,9 +84,9 @@ pub fn get_exc_energies(
         .unwrap_or(defaults::LONG_RANGE_RADIUS);
 
     if r_lr == 0.0 {
-        gamma0_lr = &molecule.calculator.g0 * 0.0;
+        gamma0_lr = &molecule.g0 * 0.0;
     } else {
-        gamma0_lr = molecule.calculator.g0_lr.clone();
+        gamma0_lr = molecule.g0_lr.clone();
     }
     // get omega
     // omega_ia = en_a - en_i
@@ -119,7 +119,7 @@ pub fn get_exc_energies(
         if response_method.is_some() && response_method.unwrap() == "TDA" {
             println!("TDA routine called!");
             let tmp: (Array1<f64>, Array3<f64>) = tda(
-                (&molecule.calculator.g0).view(),
+                (&molecule.g0).view(),
                 gamma0_lr.view(),
                 qtrans_ov.view(),
                 qtrans_oo.view(),
@@ -136,7 +136,7 @@ pub fn get_exc_energies(
         } else {
             println!("Casida routine called!");
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = casida(
-                (&molecule.calculator.g0).view(),
+                (&molecule.g0).view(),
                 gamma0_lr.view(),
                 qtrans_ov.view(),
                 qtrans_oo.view(),
@@ -166,7 +166,7 @@ pub fn get_exc_energies(
                 lambda2_calc_oia(molecule, &active_occ, &active_virt, &qtrans_oo, &qtrans_vv);
             // use hermitian davidson routine, only possible with lc off
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = hermitian_davidson(
-                (&molecule.calculator.g0).view(),
+                (&molecule.g0).view(),
                 qtrans_ov.view(),
                 omega.view(),
                 (0.0 * &omega).view(),
@@ -190,8 +190,8 @@ pub fn get_exc_energies(
         } else {
             println!("non-Hermitian Davidson routine called!");
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = non_hermitian_davidson(
-                (&molecule.calculator.g0).view(),
-                (&molecule.calculator.g0_lr).view(),
+                (&molecule.g0).view(),
+                (&molecule.g0_lr).view(),
                 qtrans_oo.view(),
                 qtrans_vv.view(),
                 qtrans_ov.view(),
@@ -2423,6 +2423,7 @@ fn excited_energies_tda_routine() {
         None,
         None,
         config,
+        None
     );
 
     let S: Array2<f64> = array![
@@ -2590,6 +2591,7 @@ fn excited_energies_casida_routine() {
         Some(0.0),
         None,
         config,
+        None
     );
 
     let S: Array2<f64> = array![
@@ -2854,6 +2856,7 @@ fn excited_energies_hermitian_davidson_routine() {
         Some(0.0),
         None,
         config,
+        None
     );
 
     let S: Array2<f64> = array![
@@ -3557,6 +3560,7 @@ fn casida_routine() {
         None,
         None,
         config,
+        None
     );
 
     // Only for testing purposes
@@ -3804,6 +3808,7 @@ fn hermitian_davidson_routine() {
         None,
         None,
         config,
+        None
     );
 
     // Only for testing purposes
@@ -3958,6 +3963,7 @@ fn test_apbv_fortran() {
         None,
         None,
         config,
+        None
     );
 
     // Only for testing purposes
@@ -4085,6 +4091,7 @@ fn test_apbv_fortran_no_lc() {
         None,
         None,
         config,
+        None
     );
 
     // Only for testing purposes
@@ -4279,6 +4286,7 @@ fn non_hermitian_davidson_routine() {
         None,
         None,
         config,
+        None
     );
 
     // Only for testing purposes
@@ -4335,7 +4343,7 @@ fn benzene_excitations() {
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        run_scc(&mol);
+        run_scc(&mut mol);
     mol.calculator.set_active_orbitals(f.clone());
 
     // singlets
@@ -4434,7 +4442,7 @@ fn benzene_excitations() {
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-        run_scc(&mol);
+        run_scc(&mut mol);
     mol.calculator.set_active_orbitals(f.clone());
 
     // singlets

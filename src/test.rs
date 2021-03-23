@@ -16,7 +16,7 @@ pub fn get_water_molecule() -> Molecule {
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config);
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config,None);
     mol
 }
 
@@ -41,7 +41,7 @@ pub fn get_benzene_molecule() -> Molecule {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
-    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config);
+    let mol: Molecule = Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config,None);
     mol
 }
 
@@ -68,6 +68,7 @@ pub fn get_ethene_molecule() -> Molecule {
         None,
         None,
         config,
+        None
     );
     mol
 }

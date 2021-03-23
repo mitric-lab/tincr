@@ -134,7 +134,7 @@ fn connectivity_dimer_routine() {
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config);
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config,None);
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);
     let (graph, indexes, subgraphs): (
@@ -202,7 +202,7 @@ fn connectivity_benzene_dimer_routine() {
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
     let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config);
+        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config,None);
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);
     let (graph, indexes, subgraphs): (

@@ -21,7 +21,7 @@ use std::ops::{Deref, Neg};
 use log::{debug, error, info, trace, warn};
 use crate::defaults::LONG_RANGE_RADIUS;
 use crate::io::GeneralConfig;
-
+use std::time::Instant;
 
 #[derive(Clone)]
 pub struct Molecule {
@@ -40,7 +40,11 @@ pub struct Molecule {
     pub full_graph_indices: Vec<NodeIndex>,
     pub sub_graphs: Vec<StableUnGraph<u8, f64>>,
     pub config: GeneralConfig,
-    pub final_charges: Array1<f64>
+    pub final_charges: Array1<f64>,
+    pub g0: Array2<f64>,
+    pub g0_lr: Array2<f64>,
+    pub g0_ao: Array2<f64>,
+    pub g0_lr_ao: Array2<f64>
 }
 
 impl Molecule {
@@ -52,7 +56,9 @@ impl Molecule {
         r_lr: Option<f64>,
         active_orbitals: Option<(usize, usize)>,
         config: GeneralConfig,
+        saved_calc:Option<DFTBCalculator>
     ) -> Molecule {
+        let molecule_timer: Instant = Instant::now();
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
         let charge: i8 = charge.unwrap_or(defaults::CHARGE);
@@ -62,13 +68,70 @@ impl Molecule {
 
         let n_atoms: usize = positions.nrows();
 
-        let calculator: DFTBCalculator = DFTBCalculator::new(
-            &atomic_numbers,
-            &atomtypes,
-            active_orbitals,
-            &dist_matrix,
-            r_lr,
+        println!(
+            "{:>68} {:>8.6} s",
+            "elapsed atomtypes:",
+            molecule_timer.elapsed().as_secs_f32()
         );
+        drop(molecule_timer);
+        let molecule_timer: Instant = Instant::now();
+
+        let mut calculator_opt:Option<DFTBCalculator> = None;
+        if saved_calc.is_some(){
+            calculator_opt = saved_calc;
+        }
+        else{
+            let calculator: DFTBCalculator = DFTBCalculator::new(
+                &atomic_numbers,
+                &atomtypes,
+                active_orbitals,
+                &dist_matrix,
+                r_lr,
+            );
+            calculator_opt = Some(calculator);
+        }
+        let calculator:DFTBCalculator = calculator_opt.unwrap();
+
+        println!(
+            "{:>68} {:>8.6} s",
+            "elapsed calculator",
+            molecule_timer.elapsed().as_secs_f32()
+        );
+        drop(molecule_timer);
+        let molecule_timer: Instant = Instant::now();
+
+        let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+            &atomic_numbers,
+            atomic_numbers.len(),
+            calculator.n_orbs,
+            dist_matrix.view(),
+            &calculator.hubbard_u,
+            &calculator.valorbs,
+            Some(0.0),
+        );
+        let mut g0_lr: Array2<f64> = Array::zeros((g0.dim().0, g0.dim().1));
+        let mut g0_lr_a0: Array2<f64> = Array::zeros((g0_a0.dim().0, g0_a0.dim().1));
+        if r_lr.is_none() || r_lr.unwrap() > 0.0 {
+            let tmp: (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+                &atomic_numbers,
+                atomic_numbers.len(),
+                calculator.n_orbs,
+                dist_matrix.view(),
+                &calculator.hubbard_u,
+                &calculator.valorbs,
+                None,
+            );
+            g0_lr = tmp.0;
+            g0_lr_a0 = tmp.1;
+        }
+        println!(
+            "{:>68} {:>8.6} s",
+            "elapsed gammas:",
+            molecule_timer.elapsed().as_secs_f32()
+        );
+        drop(molecule_timer);
+        let molecule_timer: Instant = Instant::now();
+
         //(&atomic_numbers, &atomtypes, model);
 
         let connectivity_matrix: Array2<bool> =
@@ -87,6 +150,13 @@ impl Molecule {
         info!("{: <25} {:.8} bohr", "long-range radius:", r_lr.unwrap_or(LONG_RANGE_RADIUS));
         info!("{:-^80}", "");
 
+        println!(
+            "{:>68} {:>8.6} s",
+            "elapsed graph:",
+            molecule_timer.elapsed().as_secs_f32()
+        );
+        drop(molecule_timer);
+
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
             positions: positions,
@@ -103,7 +173,11 @@ impl Molecule {
             full_graph_indices: graph_indexes,
             sub_graphs: subgraphs,
             config: config,
-            final_charges:charges
+            final_charges:charges,
+            g0: g0,
+            g0_lr: g0_lr,
+            g0_ao: g0_a0,
+            g0_lr_ao: g0_lr_a0
         };
 
         return mol;
@@ -126,15 +200,50 @@ impl Molecule {
         self.distance_matrix = dist_matrix.clone();
         self.directions_matrix = dir_matrix;
         self.proximity_matrix = prox_matrix;
-        self.calculator
-            .update_gamma_matrices(dist_matrix, &self.atomic_numbers);
+
+        let mut n_orbs: usize = 0;
+
+        for zi in self.atomic_numbers.clone() {
+            n_orbs = n_orbs + &self.calculator.valorbs[&zi].len();
+        }
+        let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+            &self.atomic_numbers,
+            self.atomic_numbers.len(),
+            n_orbs,
+            self.distance_matrix.view(),
+            &self.calculator.hubbard_u,
+            &self.calculator.valorbs,
+            Some(0.0),
+        );
+
+        self.g0 = g0.clone();
+        self.g0_ao = g0_a0.clone();
+
+        let mut g0_lr: Array2<f64> = Array::zeros((g0.dim().0, g0.dim().1));
+        let mut g0_lr_a0: Array2<f64> = Array::zeros((g0_a0.dim().0, g0_a0.dim().1));
+        if self.calculator.r_lr.is_none() || self.calculator.r_lr.unwrap() > 0.0 {
+            let tmp: (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+                &self.atomic_numbers,
+                self.atomic_numbers.len(),
+                n_orbs,
+                self.distance_matrix.view(),
+                &self.calculator.hubbard_u,
+                &self.calculator.valorbs,
+                self.calculator.r_lr,
+            );
+            g0_lr = tmp.0;
+            g0_lr_a0 = tmp.1;
+        }
+
+        self.g0_lr = g0_lr;
+        self.g0_lr_ao = g0_lr_a0;
     }
 
     pub fn set_final_charges(&mut self, dq:Array1<f64>){
         self.final_charges = dq;
     }
-}
 
+}
 pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
     // find unique atom types
     let mut unique_numbers: Vec<u8> = atomic_numbers;

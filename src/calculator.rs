@@ -31,10 +31,6 @@ pub struct DFTBCalculator {
     pub orbs_per_atom: Vec<usize>,
     pub n_orbs: usize,
     pub active_orbitals: Option<(usize, usize)>,
-    pub g0: Array2<f64>,
-    pub g0_lr: Array2<f64>,
-    pub g0_ao: Array2<f64>,
-    pub g0_lr_ao: Array2<f64>,
     pub r_lr: Option<f64>,
     pub active_occ: Option<Vec<usize>>,
     pub active_virt: Option<Vec<usize>>,
@@ -82,37 +78,11 @@ impl DFTBCalculator {
         for zi in atomic_numbers {
             n_orbs = n_orbs + &valorbs[zi].len();
         }
-        // TODO: Check gamma matrices switching functions if lc =0
-        let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-            atomic_numbers,
-            atomic_numbers.len(),
-            n_orbs,
-            distance_matrix.view(),
-            &hubbard_u,
-            &valorbs,
-            Some(0.0),
-        );
-        let mut g0_lr: Array2<f64> = Array::zeros((g0.dim().0, g0.dim().1));
-        let mut g0_lr_a0: Array2<f64> = Array::zeros((g0_a0.dim().0, g0_a0.dim().1));
-        if r_lr.is_none() || r_lr.unwrap() > 0.0 {
-            let tmp: (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-                atomic_numbers,
-                atomic_numbers.len(),
-                n_orbs,
-                distance_matrix.view(),
-                &hubbard_u,
-                &valorbs,
-                r_lr,
-            );
-            g0_lr = tmp.0;
-            g0_lr_a0 = tmp.1;
-        }
 
         let number_electrons_per_atom: Vec<usize> = atomic_numbers.iter().map(|x|ne_val[x] as usize).collect();
         let number_electrons: usize = Array1::from(number_electrons_per_atom).sum();
         info!("{: <25} {}", "number of orbitals:", n_orbs);
         info!("{: <25} {}", "number of electrons", number_electrons);
-
 
         DFTBCalculator {
             valorbs: valorbs,
@@ -127,10 +97,6 @@ impl DFTBCalculator {
             orbs_per_atom: orbs_per_atom,
             n_orbs: n_orbs,
             active_orbitals: active_orbitals,
-            g0: g0,
-            g0_lr: g0_lr,
-            g0_ao: g0_a0,
-            g0_lr_ao: g0_lr_a0,
             r_lr: r_lr,
             active_occ: None,
             active_virt: None,
@@ -138,45 +104,6 @@ impl DFTBCalculator {
             full_virt: None,
             n_elec: number_electrons,
         }
-    }
-
-    pub fn update_gamma_matrices(&mut self, distance_matrix: Array2<f64>, atomic_numbers: &[u8]) {
-        let mut n_orbs: usize = 0;
-
-        for zi in atomic_numbers {
-            n_orbs = n_orbs + &self.valorbs[zi].len();
-        }
-        let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-            atomic_numbers,
-            atomic_numbers.len(),
-            n_orbs,
-            distance_matrix.view(),
-            &self.hubbard_u,
-            &self.valorbs,
-            Some(0.0),
-        );
-
-        self.g0 = g0.clone();
-        self.g0_ao = g0_a0.clone();
-
-        let mut g0_lr: Array2<f64> = Array::zeros((g0.dim().0, g0.dim().1));
-        let mut g0_lr_a0: Array2<f64> = Array::zeros((g0_a0.dim().0, g0_a0.dim().1));
-        if self.r_lr.is_none() || self.r_lr.unwrap() > 0.0 {
-            let tmp: (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-                atomic_numbers,
-                atomic_numbers.len(),
-                n_orbs,
-                distance_matrix.view(),
-                &self.hubbard_u,
-                &self.valorbs,
-                self.r_lr,
-            );
-            g0_lr = tmp.0;
-            g0_lr_a0 = tmp.1;
-        }
-
-        self.g0_lr = g0_lr;
-        self.g0_lr_ao = g0_lr_a0;
     }
 
     pub fn set_active_orbitals(&mut self, f: Vec<f64>) {
