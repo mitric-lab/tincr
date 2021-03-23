@@ -30,8 +30,9 @@ pub fn fmo_gs_energy(
     fragments: &Vec<Molecule>,
     cluster_results: &cluster_frag_result,
     pair_results: &Vec<pair_result>,
-    mol:&Molecule,
-    indices_frags:&Vec<usize>
+    indices_frags:&Vec<usize>,
+    gamma_total:Array2<f64>,
+    prox_mat:Array2<bool>
 ) ->(f64){
     // sum over all monomer energies
     let energy_monomers: f64 = cluster_results.energy.sum();
@@ -41,17 +42,18 @@ pub fn fmo_gs_energy(
     let mut pair_energies: f64 = 0.0;
     let mut embedding_potential: f64 = 0.0;
 
-    let proximity_zeros:Array1<f64> = mol.proximity_matrix.iter()
+    let proximity_zeros:Array1<f64> = prox_mat.iter()
         .filter_map(
             | &item| if item == true { Some(1.0) } else { Some(0.0)},
         )
         .collect();
-    let gamma_zeros:Array2<f64> = proximity_zeros.into_shape((mol.proximity_matrix.raw_dim())).unwrap();
-    let gamma_tmp:Array2<f64> = &gamma_zeros * &mol.calculator.g0;
+    let gamma_zeros:Array2<f64> = proximity_zeros.into_shape((prox_mat.raw_dim())).unwrap();
+    let gamma_tmp:Array2<f64> = gamma_zeros * gamma_total;
 
     for pair in pair_results.iter() {
         let mut pair_energy: f64 = 0.0;
         if pair.energy_pair.is_some() {
+            let pair_charges:Array1<f64> = pair.pair_charges.clone().unwrap();
             println!("Pair is some");
             // E_ij - E_i - E_j
             pair_energy = pair.energy_pair.unwrap()
@@ -61,17 +63,18 @@ pub fn fmo_gs_energy(
             // get embedding potential of pairs
             // only relevant if the scc energy of the pair was calculated
             // TODO: Change loop over a to matrix multiplications
-            for a in (0..pair.pair.n_atoms).into_iter(){
+            let pair_atoms:usize = fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
+            for a in (0..pair_atoms).into_iter(){
                 println!("Atom {} in pair",a);
                 let mut ddq:f64 = 0.0;
                 // check if atom a sits on fragment a or b of the pair
                 let mut index_a:usize = 0;
                 if a < pair.frag_a_atoms{
-                    ddq = pair.pair.final_charges[a] - fragments[pair.frag_a_index].final_charges[a];
+                    ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
                     index_a = indices_frags[pair.frag_a_index] + a;
                 }
                 else{
-                    ddq = pair.pair.final_charges[a] - fragments[pair.frag_b_index].final_charges[a-pair.frag_a_atoms];
+                    ddq = pair_charges[a] - fragments[pair.frag_b_index].final_charges[a-pair.frag_a_atoms];
                     index_a = indices_frags[pair.frag_b_index] + (a -pair.frag_a_atoms);
                 }
                 //for (ind_k, mol_k) in fragments.iter().enumerate(){
@@ -84,7 +87,7 @@ pub fn fmo_gs_energy(
                             let c_index:usize = indices_frags[ind_k] + c;
                             println!("Atom {} in Fragment",c);
                             // embedding_potential = gamma_ac ddq_a^ij dq_c^k
-                            embedding += gamma_tmp[[a,c_index]] *ddq * mol_k.final_charges[c];
+                            embedding += gamma_tmp[[index_a,c_index]] *ddq * mol_k.final_charges[c];
                         }
                     }
                     Some(embedding)
@@ -101,7 +104,7 @@ pub fn fmo_gs_energy(
             // loop version
             for a in (0..fragments[pair.frag_a_index].n_atoms).into_iter() {
                 for b in (0..fragments[pair.frag_b_index].n_atoms).into_iter() {
-                    pair_energy += pair_results[iter].pair.calculator.g0[[a, b]]
+                    pair_energy += pair_results[iter].pair_gamma[[a, b]]
                         * fragments[pair.frag_a_index].final_charges[a]
                         * fragments[pair.frag_b_index].final_charges[b];
                 }
@@ -220,7 +223,7 @@ pub fn fmo_gs_energy(
     //    pair_energies += pair_energy;
     //}
     // calculate total energy
-    let e_tot:f64 = energy_monomers + pair_energies + embedding_potential;
+    let e_tot:f64 = energy_monomers; //+ pair_energies + embedding_potential;
 
     return e_tot;
 }
@@ -531,6 +534,7 @@ pub fn fmo_calculate_pairwise_par(
                         + constants::VDW_RADII[&molecule_b.atomic_numbers[index_min.1]])
                         / constants::BOHR_TO_ANGS;
                     let mut energy_pair: Option<f64> = None;
+                    let mut charges_pair: Option<Array1<f64>> = None;
 
                     // do scc routine for pair if mininmal distance is below threshold
                     if (min_dist / vdw_radii_sum) < 2.0 {
@@ -542,6 +546,8 @@ pub fn fmo_calculate_pairwise_par(
                             Vec<f64>,
                         ) = scc_routine::run_scc(&mut pair);
                         energy_pair = Some(energy);
+                        charges_pair = Some(pair.final_charges);
+
                     }
 
                     // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
@@ -592,7 +598,7 @@ pub fn fmo_calculate_pairwise_par(
                     h0_vals.push(h0_val);
 
                     let pair_res: pair_result =
-                        pair_result::new(pair, h0_vals, indices_vec, energy_pair, ind1, ind2, molecule_a.n_atoms,molecule_b.n_atoms);
+                        pair_result::new(pair.calculator.g0,charges_pair, h0_vals, indices_vec, energy_pair, ind1, ind2, molecule_a.n_atoms,molecule_b.n_atoms);
 
                     vec_pair_result.push(pair_res);
                 }
@@ -619,7 +625,8 @@ pub fn fmo_calculate_pairwise_par(
 }
 
 pub struct pair_result {
-    pair: Molecule,
+    pair_gamma:Array2<f64>,
+    pair_charges:Option<Array1<f64>>,
     h0_vals: Vec<f64>,
     h0_indices: Vec<(usize, usize)>,
     energy_pair: Option<f64>,
@@ -631,7 +638,8 @@ pub struct pair_result {
 
 impl pair_result {
     pub(crate) fn new(
-        pair: Molecule,
+        pair_gamma:Array2<f64>,
+        pair_charges:Option<Array1<f64>>,
         h0_vals: Vec<f64>,
         h0_indices: Vec<(usize, usize)>,
         energy: Option<f64>,
@@ -641,7 +649,8 @@ impl pair_result {
         frag_b_atoms:usize
     ) -> (pair_result) {
         let result = pair_result {
-            pair: pair,
+            pair_gamma: pair_gamma,
+            pair_charges: pair_charges,
             h0_vals: h0_vals,
             h0_indices: h0_indices,
             energy_pair: energy,
@@ -879,12 +888,12 @@ pub fn create_fragment_molecules(
 // The creations of a new molecule includes the calculation of the gamma matrix,
 // which is too costly for huge clusters
 pub fn reorder_molecule(
-    mol: &Molecule,
     fragments: &Vec<Molecule>,
     config: GeneralConfig,
-) -> (Molecule, Vec<usize>) {
+    shape_positions:Ix2
+) -> (Vec<usize>,Array2<f64>,Array2<bool>) {
     let mut atomic_numbers: Vec<u8> = Vec::new();
-    let mut positions: Array2<f64> = Array2::zeros(mol.positions.raw_dim());
+    let mut positions: Array2<f64> = Array2::zeros(shape_positions);
     let mut indices_vector:Vec<usize> = Vec::new();
     let mut mut_fragments:Vec<Molecule> = fragments.clone();
     let mut prev_nat:usize = 0;
@@ -905,13 +914,13 @@ pub fn reorder_molecule(
     let new_mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
-        Some(mol.charge),
-        Some(mol.multiplicity),
+        Some(config.mol.charge),
+        Some(config.mol.multiplicity),
         Some(0.0),
         None,
         config.clone(),
     );
-    return (new_mol,indices_vector);
+    return (indices_vector,new_mol.calculator.g0,new_mol.proximity_matrix);
 }
 
 pub fn create_fmo_graph(

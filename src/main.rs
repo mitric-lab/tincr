@@ -55,7 +55,7 @@ use crate::optimization::optimize_geometry_ic;
 use ron::error::ErrorCode::TrailingCharacters;
 
 fn main() {
-    rayon::ThreadPoolBuilder::new().num_threads(16).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -171,28 +171,28 @@ fn main() {
             0
         }
         "fmo" => {
-            let mut mol: Molecule = Molecule::new(
-                atomic_numbers.clone(),
-                positions.clone(),
-                Some(config.mol.charge),
-                Some(config.mol.multiplicity),
-                Some(0.0),
-                None,
-                config.clone(),
-            );
+            let (graph, subgraph):(StableUnGraph<u8,f64>, Vec<StableUnGraph<u8,f64>>) = create_fmo_graph(atomic_numbers.clone(),positions.clone());
+            // let mut mol: Molecule = Molecule::new(
+            //     atomic_numbers.clone(),
+            //     positions.clone(),
+            //     Some(config.mol.charge),
+            //     Some(config.mol.multiplicity),
+            //     Some(0.0),
+            //     None,
+            //     config.clone(),
+            // );
             info!("{:>68} {:>8.2} s", "elapsed time graph:", molecule_timer.elapsed().as_secs_f32());
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
-            let mut fragments:Vec<Molecule> = create_fragment_molecules(mol.sub_graphs.clone(),config.clone(),atomic_numbers.clone(),positions.clone());
-            println!("Tset");
-            let (mol, indices_frags):(Molecule, Vec<usize>) = reorder_molecule(&mol,&fragments,config.clone());
+            let mut fragments:Vec<Molecule> = create_fragment_molecules(subgraph,config.clone(),atomic_numbers.clone(),positions.clone());
+            let (indices_frags,gamma_total,prox_matrix):(Vec<usize>,Array2<f64>,Array2<bool>) = reorder_molecule(&fragments,config.clone(),positions.raw_dim());
             info!("{:>68} {:>8.2} s", "elapsed time create fragment mols:", molecule_timer.elapsed().as_secs_f32());
             drop(molecule_timer);
 
             let molecule_timer: Instant = Instant::now();
             let fragments_data:cluster_frag_result = fmo_calculate_fragments(&mut fragments);
             let (h0,pairs_data):(Array2<f64>,Vec<pair_result>) = fmo_calculate_pairwise_par(&fragments,&fragments_data,config.clone());
-            let energy:f64 = fmo_gs_energy(&fragments,&fragments_data,&pairs_data,&mol,&indices_frags);
+            let energy:f64 = fmo_gs_energy(&fragments,&fragments_data,&pairs_data,&indices_frags,gamma_total,prox_matrix);
             info!("{:>68} {:>8.2} s", "elapsed time calculate energy:", molecule_timer.elapsed().as_secs_f32());
             drop(molecule_timer);
 
