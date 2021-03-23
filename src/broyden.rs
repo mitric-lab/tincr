@@ -140,7 +140,6 @@ impl BroydenMixer {
             // Store |dF(m-1)>
             self.df.slice_mut(s![.., nn_1]).assign(&df_uu);
 
-
             // Create |u(m-1)>
             df_uu = df_uu.mapv(|x| x * self.alpha)
                 + (&q_inp_result - &self.q_inp_last).mapv(|x| x * inv_norm);

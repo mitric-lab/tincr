@@ -1,4 +1,7 @@
-use crate::calculator::{get_gamma_matrix, get_only_gamma_matrix_atomwise, import_pseudo_atom, Calculator, DFTBCalculator};
+use crate::calculator::{
+    get_gamma_matrix, get_only_gamma_matrix_atomwise, import_pseudo_atom, Calculator,
+    DFTBCalculator,
+};
 use crate::constants;
 use crate::constants::VDW_RADII;
 use crate::defaults;
@@ -21,13 +24,13 @@ use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
+use petgraph::algo::{is_isomorphic, is_isomorphic_matching};
+use petgraph::dot::{Config, Dot};
 use petgraph::stable_graph::*;
-use petgraph::algo::{is_isomorphic_matching,is_isomorphic};
+use petgraph::{Graph, Undirected};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::time::Instant;
-use petgraph::dot::{Config, Dot};
-use petgraph::{Graph, Undirected};
 
 pub fn fmo_gs_energy(
     fragments: &Vec<Molecule>,
@@ -56,7 +59,6 @@ pub fn fmo_gs_energy(
         let mut pair_energy: f64 = 0.0;
         if pair.energy_pair.is_some() {
             let pair_charges: Array1<f64> = pair.pair_charges.clone().unwrap();
-            println!("Pair is some");
             // E_ij - E_i - E_j
             pair_energy = pair.energy_pair.unwrap()
                 - cluster_results.energy[pair.frag_a_index]
@@ -93,7 +95,6 @@ pub fn fmo_gs_energy(
                             index_pair_iter..index_pair_iter + pair_atoms,
                             index_frag_iter..index_frag_iter + mol_k.n_atoms
                         ]);
-                        println!("Fragment Index {}", ind_k);
                         let embedding: f64 = ddq_arr.dot(&gamma_ac.dot(&mol_k.final_charges));
 
                         Some(embedding)
@@ -106,40 +107,40 @@ pub fn fmo_gs_energy(
             let embedding_pot_sum: f64 = embedding_pot.sum();
             embedding_potential += embedding_pot_sum;
 
-            //for a in (0..pair_atoms).into_iter(){
-            //    println!("Atom {} in pair",a);
-            //    let mut ddq:f64 = 0.0;
-            //    // check if atom a sits on fragment a or b of the pair
-            //    let mut index_a:usize = 0;
-            //    if a < pair.frag_a_atoms{
-            //        ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
-            //        index_a = indices_frags[pair.frag_a_index] + a;
-            //    }
-            //    else{
-            //        ddq = pair_charges[a] - fragments[pair.frag_b_index].final_charges[a-pair.frag_a_atoms];
-            //        index_a = indices_frags[pair.frag_b_index] + (a -pair.frag_a_atoms);
-            //    }
-            //    //for (ind_k, mol_k) in fragments.iter().enumerate(){
-            //    let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().filter_map(|(ind_k,mol_k)| if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
-            //        let mut embedding:f64 = 0.0;
-            //        if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
-            //            println!("Fragment Index {}",ind_k);
-            //
-            //            for c in (0..mol_k.n_atoms).into_iter(){
-            //                let c_index:usize = indices_frags[ind_k] + c;
-            //                println!("Atom {} in Fragment",c);
-            //                // embedding_potential = gamma_ac ddq_a^ij dq_c^k
-            //                embedding += gamma_tmp[[index_a,c_index]] *ddq * mol_k.final_charges[c];
-            //            }
-            //        }
-            //        Some(embedding)
-            //    }
-            //    else{
-            //        None
-            //    }).collect();
-            //    let embedding_pot_sum:f64 = embedding_pot.sum();
-            //    embedding_potential += embedding_pot_sum;
-            //}
+        //for a in (0..pair_atoms).into_iter(){
+        //    println!("Atom {} in pair",a);
+        //    let mut ddq:f64 = 0.0;
+        //    // check if atom a sits on fragment a or b of the pair
+        //    let mut index_a:usize = 0;
+        //    if a < pair.frag_a_atoms{
+        //        ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
+        //        index_a = indices_frags[pair.frag_a_index] + a;
+        //    }
+        //    else{
+        //        ddq = pair_charges[a] - fragments[pair.frag_b_index].final_charges[a-pair.frag_a_atoms];
+        //        index_a = indices_frags[pair.frag_b_index] + (a -pair.frag_a_atoms);
+        //    }
+        //    //for (ind_k, mol_k) in fragments.iter().enumerate(){
+        //    let embedding_pot:Vec<f64> = fragments.par_iter().enumerate().filter_map(|(ind_k,mol_k)| if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
+        //        let mut embedding:f64 = 0.0;
+        //        if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index{
+        //            println!("Fragment Index {}",ind_k);
+        //
+        //            for c in (0..mol_k.n_atoms).into_iter(){
+        //                let c_index:usize = indices_frags[ind_k] + c;
+        //                println!("Atom {} in Fragment",c);
+        //                // embedding_potential = gamma_ac ddq_a^ij dq_c^k
+        //                embedding += gamma_tmp[[index_a,c_index]] *ddq * mol_k.final_charges[c];
+        //            }
+        //        }
+        //        Some(embedding)
+        //    }
+        //    else{
+        //        None
+        //    }).collect();
+        //    let embedding_pot_sum:f64 = embedding_pot.sum();
+        //    embedding_potential += embedding_pot_sum;
+        //}
         } else {
             // E_ij = E_i + E_j + sum_(a in I) sum_(B in j) gamma_ab dq_a^i dq_b^j
             // loop version
@@ -336,7 +337,7 @@ pub fn fmo_calculate_pairwise(
                 Some(0.0),
                 None,
                 config.clone(),
-                None
+                None,
             );
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
             let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
@@ -549,7 +550,7 @@ pub fn fmo_calculate_pairwise_par(
                         Some(0.0),
                         None,
                         config.clone(),
-                        None
+                        None,
                     );
                     println!(
                         "{:>68} {:>8.6} s",
@@ -947,22 +948,32 @@ pub fn create_fragment_molecules(
     //    drop(molecule_timer);
     //    fragments.push(frag_mol);
     //}
-    let graphs:Vec<Graph<u8,f64,Undirected>> = subgraphs.clone().into_par_iter().map(|graph|{
-        let graph:Graph<u8,f64,Undirected> = Graph::from(graph);
-        graph
-    }).collect();
+    let graphs: Vec<Graph<u8, f64, Undirected>> = subgraphs
+        .clone()
+        .into_par_iter()
+        .map(|graph| {
+            let graph: Graph<u8, f64, Undirected> = Graph::from(graph);
+            graph
+        })
+        .collect();
     let mut fragments: Vec<Molecule> = Vec::new();
-    let mut saved_calculators:Vec<DFTBCalculator> = Vec::new();
-    let mut saved_graphs:Vec<Graph<u8, f64,Undirected>> = Vec::new();
+    let mut saved_calculators: Vec<DFTBCalculator> = Vec::new();
+    let mut saved_graphs: Vec<Graph<u8, f64, Undirected>> = Vec::new();
 
-    for (ind_graph,frag) in subgraphs.iter().enumerate(){
-        let mut use_saved_calc:bool = false;
-        let mut saved_calc:Option<DFTBCalculator> = None;
-        if saved_graphs.len() > 0{
-            for (ind_g,saved_graph) in saved_graphs.iter().enumerate(){
+    for (ind_graph, frag) in subgraphs.iter().enumerate() {
+        let mut use_saved_calc: bool = false;
+        let mut saved_calc: Option<DFTBCalculator> = None;
+        if saved_graphs.len() > 0 {
+            for (ind_g, saved_graph) in saved_graphs.iter().enumerate() {
                 //let test_nodes = |a: &u8, b: &u8| a == b;
                 //let test_edges = |_: &f64, _: &f64| false;
-                if is_isomorphic(&graphs[ind_graph],saved_graph) == true{
+                if is_isomorphic_matching(
+                    &graphs[ind_graph],
+                    saved_graph,
+                    |a, b| a == b,
+                    |a, b| a == b,
+                ) == true
+                {
                     use_saved_calc = true;
                     saved_calc = Some(saved_calculators[ind_g].clone());
                 }
@@ -984,9 +995,9 @@ pub fn create_fragment_molecules(
             Some(0.0),
             None,
             config.clone(),
-            saved_calc
+            saved_calc,
         );
-        if use_saved_calc == false{
+        if use_saved_calc == false {
             saved_calculators.push(frag_mol.calculator.clone());
             saved_graphs.push(graphs[ind_graph].clone());
         }
@@ -1056,13 +1067,9 @@ pub fn reorder_molecule(
         Some(0.0),
         None,
         config.clone(),
-        None
+        None,
     );
-    return (
-        indices_vector,
-        new_mol.g0,
-        new_mol.proximity_matrix,
-    );
+    return (indices_vector, new_mol.g0, new_mol.proximity_matrix);
 }
 
 pub fn create_fmo_graph(
