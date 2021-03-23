@@ -1,4 +1,4 @@
-use crate::calculator::{get_gamma_matrix, get_only_gamma_matrix_atomwise, import_pseudo_atom};
+use crate::calculator::{get_gamma_matrix, get_only_gamma_matrix_atomwise, import_pseudo_atom, Calculator, DFTBCalculator};
 use crate::constants;
 use crate::constants::VDW_RADII;
 use crate::defaults;
@@ -22,9 +22,12 @@ use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
 use petgraph::stable_graph::*;
+use petgraph::algo::{is_isomorphic_matching,is_isomorphic};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::time::Instant;
+use petgraph::dot::{Config, Dot};
+use petgraph::{Graph, Undirected};
 
 pub fn fmo_gs_energy(
     fragments: &Vec<Molecule>,
@@ -333,6 +336,7 @@ pub fn fmo_calculate_pairwise(
                 Some(0.0),
                 None,
                 config.clone(),
+                None
             );
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
             let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
@@ -513,6 +517,7 @@ pub fn fmo_calculate_pairwise_par(
             for (ind2, molecule_b) in fragments.iter().enumerate() {
                 println!("Index 1 {} and Index 2 {}", ind1, ind2);
                 if ind1 < ind2 {
+                    let molecule_timer: Instant = Instant::now();
                     let mut atomic_numbers: Vec<u8> = Vec::new();
                     let mut positions: Array2<f64> =
                         Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
@@ -529,7 +534,13 @@ pub fn fmo_calculate_pairwise_par(
                             .slice_mut(s![molecule_a.n_atoms + i, ..])
                             .assign(&molecule_b.positions.slice(s![i, ..]));
                     }
-
+                    println!(
+                        "{:>68} {:>8.6} s",
+                        "elapsed time slices:",
+                        molecule_timer.elapsed().as_secs_f32()
+                    );
+                    drop(molecule_timer);
+                    let molecule_timer: Instant = Instant::now();
                     let mut pair: Molecule = Molecule::new(
                         atomic_numbers,
                         positions,
@@ -538,8 +549,15 @@ pub fn fmo_calculate_pairwise_par(
                         Some(0.0),
                         None,
                         config.clone(),
+                        None
                     );
-
+                    println!(
+                        "{:>68} {:>8.6} s",
+                        "elapsed time molecule:",
+                        molecule_timer.elapsed().as_secs_f32()
+                    );
+                    drop(molecule_timer);
+                    let molecule_timer: Instant = Instant::now();
                     // get shortest distance between the fragment atoms of the pair
                     let distance_between_pair: Array2<f64> = pair
                         .distance_matrix
@@ -575,6 +593,14 @@ pub fn fmo_calculate_pairwise_par(
                     let mut energy_pair: Option<f64> = None;
                     let mut charges_pair: Option<Array1<f64>> = None;
 
+                    println!(
+                        "{:>68} {:>8.6} s",
+                        "elapsed time distances:",
+                        molecule_timer.elapsed().as_secs_f32()
+                    );
+                    drop(molecule_timer);
+                    let molecule_timer: Instant = Instant::now();
+
                     // do scc routine for pair if mininmal distance is below threshold
                     if (min_dist / vdw_radii_sum) < 2.0 {
                         let (energy, orbs, orbe, s, f): (
@@ -587,7 +613,13 @@ pub fn fmo_calculate_pairwise_par(
                         energy_pair = Some(energy);
                         charges_pair = Some(pair.final_charges);
                     }
-
+                    println!(
+                        "{:>68} {:>8.6} s",
+                        "elapsed time scc:",
+                        molecule_timer.elapsed().as_secs_f32()
+                    );
+                    drop(molecule_timer);
+                    let molecule_timer: Instant = Instant::now();
                     // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
                     let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
                         &pair.atomic_numbers,
@@ -637,7 +669,7 @@ pub fn fmo_calculate_pairwise_par(
                     h0_vals.push(h0_val);
 
                     let pair_res: pair_result = pair_result::new(
-                        pair.calculator.g0,
+                        pair.g0,
                         charges_pair,
                         h0_vals,
                         indices_vec,
@@ -649,6 +681,12 @@ pub fn fmo_calculate_pairwise_par(
                     );
 
                     vec_pair_result.push(pair_res);
+                    println!(
+                        "{:>68} {:>8.6} s",
+                        "elapsed time excited state preps:",
+                        molecule_timer.elapsed().as_secs_f32()
+                    );
+                    drop(molecule_timer);
                 }
             }
             vec_pair_result
@@ -909,30 +947,75 @@ pub fn create_fragment_molecules(
     //    drop(molecule_timer);
     //    fragments.push(frag_mol);
     //}
+    let graphs:Vec<Graph<u8,f64,Undirected>> = subgraphs.clone().into_par_iter().map(|graph|{
+        let graph:Graph<u8,f64,Undirected> = Graph::from(graph);
+        graph
+    }).collect();
+    let mut fragments: Vec<Molecule> = Vec::new();
+    let mut saved_calculators:Vec<DFTBCalculator> = Vec::new();
+    let mut saved_graphs:Vec<Graph<u8, f64,Undirected>> = Vec::new();
 
-    let fragments: Vec<Molecule> = subgraphs
-        .par_iter()
-        .map(|frag| {
-            let mut atomic_numbers: Vec<u8> = Vec::new();
-            let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
-            for (ind, val) in frag.node_indices().enumerate() {
-                atomic_numbers.push(cluster_atomic_numbers[val.index()]);
-                positions
-                    .slice_mut(s![ind, ..])
-                    .assign(&cluster_positions.slice(s![val.index(), ..]));
+    for (ind_graph,frag) in subgraphs.iter().enumerate(){
+        let mut use_saved_calc:bool = false;
+        let mut saved_calc:Option<DFTBCalculator> = None;
+        if saved_graphs.len() > 0{
+            for (ind_g,saved_graph) in saved_graphs.iter().enumerate(){
+                //let test_nodes = |a: &u8, b: &u8| a == b;
+                //let test_edges = |_: &f64, _: &f64| false;
+                if is_isomorphic(&graphs[ind_graph],saved_graph) == true{
+                    use_saved_calc = true;
+                    saved_calc = Some(saved_calculators[ind_g].clone());
+                }
             }
-            let frag_mol: Molecule = Molecule::new(
-                atomic_numbers,
-                positions,
-                Some(config.mol.charge),
-                Some(config.mol.multiplicity),
-                Some(0.0),
-                None,
-                config.clone(),
-            );
-            frag_mol
-        })
-        .collect();
+        }
+        let mut atomic_numbers: Vec<u8> = Vec::new();
+        let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
+        for (ind, val) in frag.node_indices().enumerate() {
+            atomic_numbers.push(cluster_atomic_numbers[val.index()]);
+            positions
+                .slice_mut(s![ind, ..])
+                .assign(&cluster_positions.slice(s![val.index(), ..]));
+        }
+        let frag_mol: Molecule = Molecule::new(
+            atomic_numbers,
+            positions,
+            Some(config.mol.charge),
+            Some(config.mol.multiplicity),
+            Some(0.0),
+            None,
+            config.clone(),
+            saved_calc
+        );
+        if use_saved_calc == false{
+            saved_calculators.push(frag_mol.calculator.clone());
+            saved_graphs.push(graphs[ind_graph].clone());
+        }
+        fragments.push(frag_mol);
+    }
+
+    //let fragments: Vec<Molecule> = subgraphs
+    //    .par_iter()
+    //    .map(|frag| {
+    //        let mut atomic_numbers: Vec<u8> = Vec::new();
+    //        let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
+    //        for (ind, val) in frag.node_indices().enumerate() {
+    //            atomic_numbers.push(cluster_atomic_numbers[val.index()]);
+    //            positions
+    //                .slice_mut(s![ind, ..])
+    //                .assign(&cluster_positions.slice(s![val.index(), ..]));
+    //        }
+    //        let frag_mol: Molecule = Molecule::new(
+    //            atomic_numbers,
+    //            positions,
+    //            Some(config.mol.charge),
+    //            Some(config.mol.multiplicity),
+    //            Some(0.0),
+    //            None,
+    //            config.clone(),
+    //        );
+    //        frag_mol
+    //    })
+    //    .collect();
 
     return fragments;
 }
@@ -973,10 +1056,11 @@ pub fn reorder_molecule(
         Some(0.0),
         None,
         config.clone(),
+        None
     );
     return (
         indices_vector,
-        new_mol.calculator.g0,
+        new_mol.g0,
         new_mol.proximity_matrix,
     );
 }

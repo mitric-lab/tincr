@@ -166,13 +166,13 @@ pub fn get_gradients(
             if r_lr > 0.0 {
                  let tmp:(Array1<f64>,Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
-                    (&molecule.calculator.g0).view(),
+                    (&molecule.g0).view(),
                     g1.view(),
-                    (&molecule.calculator.g0_ao).view(),
+                    (&molecule.g0_ao).view(),
                     g1_ao.view(),
-                    (&molecule.calculator.g0_lr).view(),
+                    (&molecule.g0_lr).view(),
                     g1lr.view(),
-                    (&molecule.calculator.g0_lr_ao).view(),
+                    (&molecule.g0_lr_ao).view(),
                     g1lr_ao.view(),
                     s.view(),
                     grad_s.view(),
@@ -199,13 +199,13 @@ pub fn get_gradients(
             } else {
                 let tmp:(Array1<f64>,Array3<f64>) = gradients_nolc_ex(
                     exc_state.unwrap(),
-                    (&molecule.calculator.g0).view(),
+                    (&molecule.g0).view(),
                     g1.view(),
-                    (&molecule.calculator.g0_ao).view(),
+                    (&molecule.g0_ao).view(),
                     g1_ao.view(),
-                    (&molecule.calculator.g0_lr).view(),
+                    (&molecule.g0_lr).view(),
                     g1lr.view(),
-                    (&molecule.calculator.g0_lr_ao).view(),
+                    (&molecule.g0_lr_ao).view(),
                     g1lr_ao.view(),
                     s.view(),
                     grad_s.view(),
@@ -280,13 +280,13 @@ pub fn get_gradients(
             if r_lr > 0.0 {
                 let tmp:(Array1<f64>,Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
-                    (&molecule.calculator.g0).view(),
+                    (&molecule.g0).view(),
                     g1.view(),
-                    (&molecule.calculator.g0_ao).view(),
+                    (&molecule.g0_ao).view(),
                     g1_ao.view(),
-                    (&molecule.calculator.g0_lr).view(),
+                    (&molecule.g0_lr).view(),
                     g1lr.view(),
-                    (&molecule.calculator.g0_lr_ao).view(),
+                    (&molecule.g0_lr_ao).view(),
                     g1lr_ao.view(),
                     s.view(),
                     grad_s.view(),
@@ -313,13 +313,13 @@ pub fn get_gradients(
             } else {
                 let tmp:(Array1<f64>,Array3<f64>) = gradients_nolc_ex(
                     exc_state.unwrap(),
-                    (&molecule.calculator.g0).view(),
+                    (&molecule.g0).view(),
                     g1.view(),
-                    (&molecule.calculator.g0_ao).view(),
+                    (&molecule.g0_ao).view(),
                     g1_ao.view(),
-                    (&molecule.calculator.g0_lr).view(),
+                    (&molecule.g0_lr).view(),
                     g1lr.view(),
-                    (&molecule.calculator.g0_lr_ao).view(),
+                    (&molecule.g0_lr_ao).view(),
                     g1lr_ao.view(),
                     s.view(),
                     grad_s.view(),
@@ -416,8 +416,8 @@ pub fn gradient_lc_gs(
         &molecule.calculator.valorbs,
         None,
     );
-    let n_at: usize = *&molecule.calculator.g0.dim().0;
-    let n_orb: usize = *&molecule.calculator.g0_ao.dim().0;
+    let n_at: usize = *&molecule.g0.dim().0;
+    let n_orb: usize = *&molecule.g0_ao.dim().0;
 
     info!(
         "{:>65} {:>8.3} s",
@@ -459,7 +459,7 @@ pub fn gradient_lc_gs(
         diff_d.view(),
         s.view(),
         grad_s.view(),
-        (&molecule.calculator.g0_ao).view(),
+        (&molecule.g0_ao).view(),
         g1_ao.view(),
         molecule.n_atoms,
         molecule.calculator.n_orbs,
@@ -479,7 +479,7 @@ pub fn gradient_lc_gs(
             diff_d.view(),
             s.view(),
             grad_s.view(),
-            (&molecule.calculator.g0_lr_ao).view(),
+            (&molecule.g0_lr_ao).view(),
             g1lr_ao.view(),
             n_at,
             n_orb,
@@ -2082,6 +2082,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
         Some(0.0),
         Some((2, 2)),
         config,
+        None
     );
 
     let S: Array2<f64> = array![
@@ -2321,6 +2322,7 @@ fn get_gradients_exc_no_lc_routine() {
         Some(0.0),
         None,
         config,
+        None
     );
 
     let S: Array2<f64> = array![
@@ -2627,6 +2629,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
         None,
         Some((2, 2)),
         config,
+        None
     );
 
 

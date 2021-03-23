@@ -126,6 +126,7 @@ fn main() {
                 Some(0.0),
                 None,
                 config,
+                None
             );
             info!("{:>68} {:>8.2} s", "elapsed time:", molecule_timer.elapsed().as_secs_f32());
             drop(molecule_timer);
@@ -151,6 +152,7 @@ fn main() {
                 None,
                 None,
                 config,
+                None
             );
             info!("{:>68} {:>8.2} s", "elapsed time:", molecule_timer.elapsed().as_secs_f32());
             drop(molecule_timer);
@@ -185,6 +187,7 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
             let mut fragments:Vec<Molecule> = create_fragment_molecules(subgraph,config.clone(),atomic_numbers.clone(),positions.clone());
+
             let (indices_frags,gamma_total,prox_matrix):(Vec<usize>,Array2<f64>,Array2<bool>) = reorder_molecule(&fragments,config.clone(),positions.raw_dim());
             info!("{:>68} {:>8.2} s", "elapsed time create fragment mols:", molecule_timer.elapsed().as_secs_f32());
             drop(molecule_timer);
