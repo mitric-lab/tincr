@@ -515,9 +515,15 @@ pub fn fmo_calculate_pairwise_par(
         .enumerate()
         .map(|(ind1, molecule_a)| {
             let mut vec_pair_result: Vec<pair_result> = Vec::new();
+            let mut saved_calculators: Vec<DFTBCalculator> = Vec::new();
+            let mut saved_graphs: Vec<Graph<u8, f64, Undirected>> = Vec::new();
+
             for (ind2, molecule_b) in fragments.iter().enumerate() {
                 println!("Index 1 {} and Index 2 {}", ind1, ind2);
                 if ind1 < ind2 {
+                    let mut use_saved_calc: bool = false;
+                    let mut saved_calc: Option<DFTBCalculator> = None;
+
                     let molecule_timer: Instant = Instant::now();
                     let mut atomic_numbers: Vec<u8> = Vec::new();
                     let mut positions: Array2<f64> =
@@ -542,6 +548,34 @@ pub fn fmo_calculate_pairwise_par(
                     );
                     drop(molecule_timer);
                     let molecule_timer: Instant = Instant::now();
+
+                    let (graph, subgraph): (StableUnGraph<u8, f64>, Vec<StableUnGraph<u8, f64>>) =
+                        create_fmo_graph(atomic_numbers.clone(), positions.clone());
+
+                    let graph: Graph<u8, f64, Undirected> = Graph::from(graph);
+
+                    if saved_graphs.len() > 0{
+                        for (ind_g, saved_graph) in saved_graphs.iter().enumerate(){
+                            if is_isomorphic_matching(
+                                &graph,
+                                saved_graph,
+                                |a, b| a == b,
+                                |a, b| a == b,
+                            ) == true
+                            {
+                                use_saved_calc = true;
+                                saved_calc = Some(saved_calculators[ind_g].clone());
+                            }
+                        }
+                    }
+                    println!(
+                        "{:>68} {:>8.6} s",
+                        "elapsed time create pair graph and check isomorphic:",
+                        molecule_timer.elapsed().as_secs_f32()
+                    );
+                    drop(molecule_timer);
+
+                    let molecule_timer: Instant = Instant::now();
                     let mut pair: Molecule = Molecule::new(
                         atomic_numbers,
                         positions,
@@ -550,7 +584,7 @@ pub fn fmo_calculate_pairwise_par(
                         Some(0.0),
                         None,
                         config.clone(),
-                        None,
+                        saved_calc,
                     );
                     println!(
                         "{:>68} {:>8.6} s",
@@ -559,6 +593,11 @@ pub fn fmo_calculate_pairwise_par(
                     );
                     drop(molecule_timer);
                     let molecule_timer: Instant = Instant::now();
+
+                    if use_saved_calc == false{
+                        saved_calculators.push(pair.calculator.clone());
+                        saved_graphs.push(graph.clone());
+                    }
                     // get shortest distance between the fragment atoms of the pair
                     let distance_between_pair: Array2<f64> = pair
                         .distance_matrix
