@@ -25,6 +25,7 @@ mod transition_charges;
 mod zbrent;
 mod test;
 mod fmo;
+mod molecule2;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
@@ -53,7 +54,7 @@ use crate::optimization::optimize_geometry_ic;
 use ron::error::ErrorCode::TrailingCharacters;
 
 fn main() {
-    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -121,7 +122,7 @@ fn main() {
                 positions,
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
-                Some(0.0),
+                None,
                 None,
                 config,
             );
@@ -132,9 +133,14 @@ fn main() {
                 scc_routine::run_scc(&mol);
 
             mol.calculator.set_active_orbitals(f.to_vec());
+            let exc_timer: Instant = Instant::now();
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
                 get_exc_energies(&f, &mol, Some(4), &s, &orbe, &orbs, false, None);
-
+            info!(
+                "{:>68} {:>8.2} s",
+                "elapsed time:",
+                exc_timer.elapsed().as_secs_f32()
+            );
             0
         }
         "opt" => {

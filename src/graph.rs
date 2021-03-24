@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use crate::io::GeneralConfig;
 use crate::test::get_water_molecule;
 
+
 pub fn build_connectivity_matrix(
     n_atoms: usize,
     distance_matrix: &Array2<f64>,
@@ -27,8 +28,7 @@ pub fn build_connectivity_matrix(
     let mut connectivtiy_matrix: Array2<bool> = Array::default((n_atoms, n_atoms));
     for i in (0..n_atoms).combinations(2) {
         let r_cov = (constants::COVALENCE_RADII[&atomic_numbers[i[0]]]
-            + constants::COVALENCE_RADII[&atomic_numbers[i[1]]])
-            / 0.52917720859;
+            + constants::COVALENCE_RADII[&atomic_numbers[i[1]]]);
         if distance_matrix[[i[0], i[1]]] < (1.3 * r_cov) {
             connectivtiy_matrix[[i[0], i[1]]] = true;
             connectivtiy_matrix[[i[1], i[0]]] = true;

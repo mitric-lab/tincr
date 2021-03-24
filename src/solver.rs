@@ -9,7 +9,7 @@ use crate::Molecule;
 use approx::{AbsDiffEq, RelativeEq};
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
-use ndarray::Data;
+use ndarray::{Data, OwnedRepr};
 use ndarray::{stack, Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
@@ -1459,6 +1459,59 @@ pub fn get_apbv(
     return us;
 }
 
+pub fn get_apbv_fortran2(
+    gamma: &ArrayView2<f64>,
+    gamma_lr: &ArrayView2<f64>,
+    qtrans_oo: &ArrayView3<f64>,
+    qtrans_vv: &ArrayView3<f64>,
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
+    vs: &Array3<f64>,
+    n_at: usize,
+    n_occ: usize,
+    n_virt: usize,
+    n_vec: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array3<f64>) {
+    let qov: Array2<f64> = qtrans_ov.to_owned().into_shape((n_at, n_occ * n_virt)).unwrap();
+    let qoo: Array2<f64>= qtrans_oo.to_owned().into_shape((n_at, n_occ * n_occ)).unwrap();
+    let qvv: Array2<f64> = qtrans_vv.to_owned().into_shape((n_at * n_virt, n_virt)).unwrap();
+    let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
+    for i in (0..n_vec) {
+        let timer: Instant = Instant::now();
+
+        let vl: ArrayView2<f64> = vs.slice(s![.., .., i]);
+        // 1st term - KS orbital energy differences
+        let mut u_l: Array2<f64> = omega * &vl;
+
+        let vl_flat: Array1<f64> = vl.to_owned().into_shape((n_occ * n_virt)).unwrap();
+        println!("1 {}", timer.elapsed().as_secs_f32());
+        let timer: Instant = Instant::now();
+
+        u_l = u_l + &qov.t().dot(&gamma.dot(&qov)).dot(&vl_flat).into_shape((n_occ, n_virt)).unwrap() * 4.0;
+        println!("2 {}", timer.elapsed().as_secs_f32());
+        let timer: Instant = Instant::now();
+
+        let term1: Array4<f64> =  (&gamma_lr.dot(&qoo).into_shape((n_at*n_occ, n_occ)).unwrap()).dot(&vl.dot(&qvv.t())).into_shape((n_at, n_occ, n_at, n_virt)).unwrap();
+        let mut term2: Array2<f64> = Array::zeros((n_occ, n_virt));
+        for i in 0..n_at {
+            term2 = term2 + term1.slice(s![i,..,i,..]);
+        }
+        println!("3 {}", timer.elapsed().as_secs_f32());
+        //let term1: Array2<f64> = (0..n_at).map(|i| term1.into_shape((n_at, n_occ, n_at, n_virt)).unwrap().slice(s![i,..,i,..])).sum();
+        let timer: Instant = Instant::now();
+
+        u_l = u_l - term2;
+
+        u_l = u_l - &qov.t().dot(&gamma_lr.dot(&qov)).dot(&vl_flat).into_shape((n_occ, n_virt)).unwrap();
+        println!("4 {}", timer.elapsed().as_secs_f32());
+
+        us.slice_mut(s![.., .., i]).assign(&u_l);
+    }
+    return us;
+}
+
 pub fn get_apbv_fortran(
     gamma: &ArrayView2<f64>,
     gamma_lr: &ArrayView2<f64>,
@@ -1500,10 +1553,10 @@ pub fn get_apbv_fortran(
     let tmp_q_ov_shape_1_new:Array2<f64> = qtrans_ov.to_owned().into_shape((n_occ,n_at* n_virt)).unwrap().reversed_axes();
     let tmp_q_ov_shape_2_new:Array2<f64> = qtrans_ov.to_owned().into_shape((n_at * n_virt,n_occ)).unwrap().reversed_axes();
 
-    println!("qtrans ov{}",qtrans_ov.clone());
-    println!("Compare shapes");
-    println!("Old q_ov {:?}",tmp_q_ov_shape_1);
-    println!("New q_ov {:?}",tmp_q_ov_shape_1_new);
+    // println!("qtrans ov{}",qtrans_ov.clone());
+    // println!("Compare shapes");
+    // println!("Old q_ov {:?}",tmp_q_ov_shape_1);
+    // println!("New q_ov {:?}",tmp_q_ov_shape_1_new);
 
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 
@@ -1522,7 +1575,11 @@ pub fn get_apbv_fortran(
     for i in (0..n_vec) {
         let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
         // 1st term - KS orbital energy differences
+        let timer: Instant = Instant::now();
         let mut u_l: Array2<f64> = omega * &vl;
+        println!("1 {}", timer.elapsed().as_secs_f32());
+
+        let timer: Instant = Instant::now();
 
         // 2nd term - Coulomb
         let mut tmp21: Array1<f64> = Array1::zeros(n_at);
@@ -1549,7 +1606,10 @@ pub fn get_apbv_fortran(
         for i in tmp.iter() {
             u_l = u_l + i;
         }
+        println!("2 {}", timer.elapsed().as_secs_f32());
+
         //u_l = u_l + tmp;
+        let timer: Instant = Instant::now();
 
         // 3rd term - Exchange
         let tmp31: Array3<f64> = tmp_q_vv
@@ -1569,6 +1629,9 @@ pub fn get_apbv_fortran(
             .t()
             .dot(&tmp32.into_shape((n_at * n_occ, n_virt)).unwrap());
         u_l = u_l - tmp33;
+        println!("3 {}", timer.elapsed().as_secs_f32());
+
+        let timer: Instant = Instant::now();
 
         // 4th term - Exchange
         let tmp41: Array3<f64> = tmp_q_ov_shape_1
@@ -1586,6 +1649,7 @@ pub fn get_apbv_fortran(
         let tmp43: Array2<f64> =
             tmp_q_ov_shape_2.dot(&tmp42.into_shape((n_at * n_virt, n_virt)).unwrap());
         u_l = u_l - tmp43;
+        println!("4 {}", timer.elapsed().as_secs_f32());
 
         us.slice_mut(s![.., .., i]).assign(&u_l);
     }
@@ -3996,7 +4060,8 @@ fn test_apbv_fortran() {
         spin_couplings_null.view(),
     );
 
-    println!("BP diff {}", &bp - &bp_ref);
+    println!("BP {}", &bp);
+    println!("BP ref {}", &bp_ref);
     assert!(bp.abs_diff_eq(&bp_ref, 1e-8));
 }
 

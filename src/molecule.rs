@@ -54,7 +54,90 @@ impl Molecule {
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
-        let charge: i8 = charge.unwrap_or(defaults::CHARGE);
+        let charge: i8 = charge.unwrap_or(defaults::CHARGE);impl Molecule {
+            pub(crate) fn new(
+                atomic_numbers: Vec<u8>,
+                positions: Array2<f64>,
+                charge: Option<i8>,
+                multiplicity: Option<u8>,
+                r_lr: Option<f64>,
+                active_orbitals: Option<(usize, usize)>,
+                config: GeneralConfig,
+            ) -> Molecule {
+                let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
+                    get_atomtypes(atomic_numbers.clone());
+                let charge: i8 = charge.unwrap_or(defaults::CHARGE);
+                let multiplicity: u8 = multiplicity.unwrap_or(defaults::MULTIPLICITY);
+                let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
+                    distance_matrix(positions.view(), None);
+
+                let n_atoms: usize = positions.nrows();
+
+                let calculator: DFTBCalculator = DFTBCalculator::new(
+                    &atomic_numbers,
+                    &atomtypes,
+                    active_orbitals,
+                    &dist_matrix,
+                    r_lr,
+                );
+                //(&atomic_numbers, &atomtypes, model);
+
+                let connectivity_matrix: Array2<bool> =
+                    build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
+
+                let (graph, graph_indexes, subgraphs): (
+                    StableUnGraph<u8, f64>,
+                    Vec<NodeIndex>,
+                    Vec<StableUnGraph<u8, f64>>,
+                ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
+
+                info!("{: <25} {}", "charge:", charge);
+                info!("{: <25} {}", "multiplicity:", multiplicity);
+                info!("{: <25} {:.8} bohr", "long-range radius:", r_lr.unwrap_or(LONG_RANGE_RADIUS));
+                info!("{:-^80}", "");
+
+                let mol = Molecule {
+                    atomic_numbers: atomic_numbers,
+                    positions: positions,
+                    charge: charge,
+                    multiplicity: multiplicity,
+                    n_atoms: n_atoms,
+                    atomtypes: atomtypes,
+                    proximity_matrix: prox_matrix,
+                    distance_matrix: dist_matrix,
+                    directions_matrix: dir_matrix,
+                    calculator: calculator,
+                    connectivity_matrix: connectivity_matrix,
+                    full_graph: graph,
+                    full_graph_indices: graph_indexes,
+                    sub_graphs: subgraphs,
+                    config: config,
+                };
+
+                return mol;
+            }
+
+            pub fn iter_atomlist(
+                &self,
+            ) -> std::iter::Zip<
+                std::slice::Iter<'_, u8>,
+                ndarray::iter::AxisIter<'_, f64, ndarray::Dim<[usize; 1]>>,
+            > {
+                self.atomic_numbers.iter().zip(self.positions.outer_iter())
+            }
+
+            pub fn update_geometry(&mut self, coordinates: Array2<f64>) {
+                self.positions = coordinates;
+                let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
+                    distance_matrix(self.positions.view(), None);
+
+                self.distance_matrix = dist_matrix.clone();
+                self.directions_matrix = dir_matrix;
+                self.proximity_matrix = prox_matrix;
+                self.calculator
+                    .update_gamma_matrices(dist_matrix, &self.atomic_numbers);
+            }
+        }
         let multiplicity: u8 = multiplicity.unwrap_or(defaults::MULTIPLICITY);
         let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
             distance_matrix(positions.view(), None);
