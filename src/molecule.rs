@@ -65,7 +65,6 @@ impl Molecule {
         saved_dir: Option<Array3<f64>>,
         saved_prox: Option<Array2<bool>>
     ) -> Molecule {
-        let molecule_timer: Instant = Instant::now();
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
         let charge: i8 = charge.unwrap_or(defaults::CHARGE);
@@ -90,13 +89,6 @@ impl Molecule {
         let distance_mat:Array2<f64> = dist_opt.unwrap();
 
         let n_atoms: usize = positions.nrows();
-        println!(
-            "{:>68} {:>8.6} s",
-            "elapsed atomtypes:",
-            molecule_timer.elapsed().as_secs_f32()
-        );
-        drop(molecule_timer);
-        let molecule_timer: Instant = Instant::now();
 
         let mut calculator_opt: Option<DFTBCalculator> = None;
         if saved_calc.is_some() {
@@ -112,14 +104,6 @@ impl Molecule {
             calculator_opt = Some(calculator);
         }
         let calculator: DFTBCalculator = calculator_opt.unwrap();
-
-        println!(
-            "{:>68} {:>8.6} s",
-            "elapsed calculator",
-            molecule_timer.elapsed().as_secs_f32()
-        );
-        drop(molecule_timer);
-        let molecule_timer: Instant = Instant::now();
 
         let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
             &atomic_numbers,
@@ -145,13 +129,6 @@ impl Molecule {
             g0_lr = tmp.0;
             g0_lr_a0 = tmp.1;
         }
-        println!(
-            "{:>68} {:>8.6} s",
-            "elapsed gammas:",
-            molecule_timer.elapsed().as_secs_f32()
-        );
-        drop(molecule_timer);
-        let molecule_timer: Instant = Instant::now();
 
         //(&atomic_numbers, &atomtypes, model);
 
@@ -192,13 +169,6 @@ impl Molecule {
             r_lr.unwrap_or(LONG_RANGE_RADIUS)
         );
         info!("{:-^80}", "");
-
-        println!(
-            "{:>68} {:>8.6} s",
-            "elapsed graph:",
-            molecule_timer.elapsed().as_secs_f32()
-        );
-        drop(molecule_timer);
 
         let mol = Molecule {
             atomic_numbers: atomic_numbers,

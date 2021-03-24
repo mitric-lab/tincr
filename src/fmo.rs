@@ -1191,40 +1191,18 @@ pub fn create_fmo_graph(
     atomic_numbers: Vec<u8>,
     positions: Array2<f64>,
 ) -> (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) {
-    let molecule_timer: Instant = Instant::now();
     let n_atoms: usize = atomic_numbers.len();
     let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
         distance_matrix(positions.view(), None);
-    info!(
-        "{:>68} {:>8.2} s",
-        "elapsed time dist mat:",
-        molecule_timer.elapsed().as_secs_f32()
-    );
-    drop(molecule_timer);
-    let molecule_timer: Instant = Instant::now();
+
     let connectivity_matrix: Array2<bool> =
         build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
-
-    info!(
-        "{:>68} {:>8.2} s",
-        "elapsed time connectivity mat:",
-        molecule_timer.elapsed().as_secs_f32()
-    );
-    drop(molecule_timer);
-    let molecule_timer: Instant = Instant::now();
 
     let (graph, graph_indexes, subgraphs): (
         StableUnGraph<u8, f64>,
         Vec<NodeIndex>,
         Vec<StableUnGraph<u8, f64>>,
     ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
-
-    info!(
-        "{:>68} {:>8.2} s",
-        "elapsed time graph building:",
-        molecule_timer.elapsed().as_secs_f32()
-    );
-    drop(molecule_timer);
 
     return (graph,graph_indexes, subgraphs,connectivity_matrix,dist_matrix, dir_matrix,prox_matrix);
 }
