@@ -510,6 +510,43 @@ pub fn fmo_calculate_pairwise_par(
     //    })
     //    .collect();
 
+    // construct a first graph in case all monomers are the same
+    let molecule_a = fragments[0].clone();
+    let molecule_b = fragments[1].clone();
+    let mut atomic_numbers: Vec<u8> = Vec::new();
+    let mut positions: Array2<f64> =
+        Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
+
+    for i in 0..molecule_a.n_atoms {
+        atomic_numbers.push(molecule_a.atomic_numbers[i]);
+        positions
+            .slice_mut(s![i, ..])
+            .assign(&molecule_a.positions.slice(s![i, ..]));
+    }
+    for i in 0..molecule_b.n_atoms {
+        atomic_numbers.push(molecule_b.atomic_numbers[i]);
+        positions
+            .slice_mut(s![molecule_a.n_atoms + i, ..])
+            .assign(&molecule_b.positions.slice(s![i, ..]));
+    }
+
+    let (graph, subgraph): (StableUnGraph<u8, f64>, Vec<StableUnGraph<u8, f64>>) =
+        create_fmo_graph(atomic_numbers.clone(), positions.clone());
+
+    let first_graph: Graph<u8, f64, Undirected> = Graph::from(graph);
+    let first_pair: Molecule = Molecule::new(
+        atomic_numbers,
+        positions,
+        Some(config.mol.charge),
+        Some(config.mol.multiplicity),
+        Some(0.0),
+        None,
+        config.clone(),
+        None,
+    );
+    let first_calc:DFTBCalculator = first_pair.calculator.clone();
+
+
     let mut result: Vec<Vec<pair_result>> = fragments
         .par_iter()
         .enumerate()
@@ -517,6 +554,9 @@ pub fn fmo_calculate_pairwise_par(
             let mut vec_pair_result: Vec<pair_result> = Vec::new();
             let mut saved_calculators: Vec<DFTBCalculator> = Vec::new();
             let mut saved_graphs: Vec<Graph<u8, f64, Undirected>> = Vec::new();
+
+            saved_graphs.push(first_graph.clone());
+            saved_calculators.push(first_calc.clone());
 
             for (ind2, molecule_b) in fragments.iter().enumerate() {
                 println!("Index 1 {} and Index 2 {}", ind1, ind2);
