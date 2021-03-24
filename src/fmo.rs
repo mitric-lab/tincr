@@ -560,7 +560,7 @@ pub fn fmo_calculate_pairwise_par(
                                 &graph,
                                 saved_graph,
                                 |a, b| a == b,
-                                |a, b| a == b,
+                                |a, b| true,
                             ) == true
                             {
                                 use_saved_calc = true;
@@ -1010,7 +1010,7 @@ pub fn create_fragment_molecules(
                     &graphs[ind_graph],
                     saved_graph,
                     |a, b| a == b,
-                    |a, b| a == b,
+                    |a, b| true,
                 ) == true
                 {
                     use_saved_calc = true;
@@ -1018,6 +1018,7 @@ pub fn create_fragment_molecules(
                 }
             }
         }
+
         let mut atomic_numbers: Vec<u8> = Vec::new();
         let mut positions: Array2<f64> = Array2::zeros((frag.node_count(), 3));
         for (ind, val) in frag.node_indices().enumerate() {
