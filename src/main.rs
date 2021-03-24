@@ -208,7 +208,7 @@ fn main() {
             //     None,
             //     config.clone(),
             // );
-            info!(
+            println!(
                 "{:>68} {:>8.2} s",
                 "elapsed time create_fmo_graph:",
                 molecule_timer.elapsed().as_secs_f32()
@@ -223,7 +223,7 @@ fn main() {
             );
             let (indices_frags, gamma_total, prox_matrix): (Vec<usize>, Array2<f64>, Array2<bool>) =
                 reorder_molecule(&fragments, config.clone(), positions.raw_dim());
-            info!(
+            println!(
                 "{:>68} {:>8.2} s",
                 "elapsed time create fragment mols:",
                 molecule_timer.elapsed().as_secs_f32()
@@ -232,8 +232,25 @@ fn main() {
 
             let molecule_timer: Instant = Instant::now();
             let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate monomers",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
             let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
                 fmo_calculate_pairwise_par(&fragments, &fragments_data, config.clone());
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate dimers",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
             let energy: f64 = fmo_gs_energy(
                 &fragments,
                 &fragments_data,
@@ -242,9 +259,9 @@ fn main() {
                 gamma_total,
                 prox_matrix,
             );
-            info!(
+            println!(
                 "{:>68} {:>8.2} s",
-                "elapsed time calculate energy:",
+                "elapsed time calculate total and embedding:",
                 molecule_timer.elapsed().as_secs_f32()
             );
             drop(molecule_timer);

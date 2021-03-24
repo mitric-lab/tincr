@@ -143,14 +143,29 @@ pub fn fmo_gs_energy(
         //}
         } else {
             // E_ij = E_i + E_j + sum_(a in I) sum_(B in j) gamma_ab dq_a^i dq_b^j
+            let gamma_ab: ArrayView2<f64> = pair_results[iter].pair_gamma.slice(s![
+                            0..fragments[pair.frag_a_index].n_atoms,
+                            fragments[pair.frag_a_index].n_atoms..
+                        ]);
+            pair_energy += fragments[pair.frag_a_index].final_charges.dot(&gamma_ab.dot(&fragments[pair.frag_b_index].final_charges));
             // loop version
-            for a in (0..fragments[pair.frag_a_index].n_atoms).into_iter() {
-                for b in (0..fragments[pair.frag_b_index].n_atoms).into_iter() {
-                    pair_energy += pair_results[iter].pair_gamma[[a, b]]
-                        * fragments[pair.frag_a_index].final_charges[a]
-                        * fragments[pair.frag_b_index].final_charges[b];
-                }
-            }
+            //for a in (0..fragments[pair.frag_a_index].n_atoms).into_iter() {
+            //    for b in (0..fragments[pair.frag_b_index].n_atoms).into_iter() {
+            //        pair_energy += pair_results[iter].pair_gamma[[a, b]]
+            //            * fragments[pair.frag_a_index].final_charges[a]
+            //            * fragments[pair.frag_b_index].final_charges[b];
+            //    }
+            //}
+            //let pair_sum:Vec<f64> = (0..fragments[pair.frag_a_index].n_atoms).into_par_iter().map(|a|{
+            //    let mut pair_energy_loop:f64 = 0.0;
+            //    for b in (0..fragments[pair.frag_b_index].n_atoms).into_iter() {
+            //        pair_energy_loop += pair_results[iter].pair_gamma[[a, b]]
+            //            * fragments[pair.frag_a_index].final_charges[a]
+            //            * fragments[pair.frag_b_index].final_charges[b];
+            //    }
+            //    pair_energy_loop
+            //}).collect();
+            //pair_energy += pair_sum.sum();
         }
         iter += 1;
         pair_energies += pair_energy;
@@ -573,12 +588,12 @@ pub fn fmo_calculate_pairwise_par(
             saved_calculators.push(first_calc.clone());
 
             for (ind2, molecule_b) in fragments.iter().enumerate() {
-                println!("Index 1 {} and Index 2 {}", ind1, ind2);
+                //println!("Index 1 {} and Index 2 {}", ind1, ind2);
                 if ind1 < ind2 {
                     let mut use_saved_calc: bool = false;
                     let mut saved_calc: Option<DFTBCalculator> = None;
 
-                    let molecule_timer: Instant = Instant::now();
+                    //let molecule_timer: Instant = Instant::now();
                     let mut atomic_numbers: Vec<u8> = Vec::new();
                     let mut positions: Array2<f64> =
                         Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
@@ -595,13 +610,13 @@ pub fn fmo_calculate_pairwise_par(
                             .slice_mut(s![molecule_a.n_atoms + i, ..])
                             .assign(&molecule_b.positions.slice(s![i, ..]));
                     }
-                    println!(
-                        "{:>68} {:>8.6} s",
-                        "elapsed time slices:",
-                        molecule_timer.elapsed().as_secs_f32()
-                    );
-                    drop(molecule_timer);
-                    let molecule_timer: Instant = Instant::now();
+                    //println!(
+                    //    "{:>68} {:>8.6} s",
+                    //    "elapsed time slices:",
+                    //    molecule_timer.elapsed().as_secs_f32()
+                    //);
+                    //drop(molecule_timer);
+                    //let molecule_timer: Instant = Instant::now();
 
                     let (graph_new,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
                         create_fmo_graph(atomic_numbers.clone(), positions.clone());
@@ -622,14 +637,14 @@ pub fn fmo_calculate_pairwise_par(
                             }
                         }
                     }
-                    println!(
-                        "{:>68} {:>8.6} s",
-                        "elapsed time create pair graph and check isomorphic:",
-                        molecule_timer.elapsed().as_secs_f32()
-                    );
-                    drop(molecule_timer);
+                    //println!(
+                    //    "{:>68} {:>8.6} s",
+                    //    "elapsed time create pair graph and check isomorphic:",
+                    //    molecule_timer.elapsed().as_secs_f32()
+                    //);
+                    //drop(molecule_timer);
+                    //let molecule_timer: Instant = Instant::now();
 
-                    let molecule_timer: Instant = Instant::now();
                     let mut pair: Molecule = Molecule::new(
                         atomic_numbers,
                         positions,
@@ -647,13 +662,13 @@ pub fn fmo_calculate_pairwise_par(
                         Some(dir_matrix),
                         Some(prox_matrix)
                     );
-                    println!(
-                        "{:>68} {:>8.6} s",
-                        "elapsed time molecule:",
-                        molecule_timer.elapsed().as_secs_f32()
-                    );
-                    drop(molecule_timer);
-                    let molecule_timer: Instant = Instant::now();
+                    //println!(
+                    //    "{:>68} {:>8.6} s",
+                    //    "elapsed time molecule:",
+                    //    molecule_timer.elapsed().as_secs_f32()
+                    //);
+                    //drop(molecule_timer);
+                    //let molecule_timer: Instant = Instant::now();
 
                     if use_saved_calc == false{
                         saved_calculators.push(pair.calculator.clone());
@@ -694,13 +709,13 @@ pub fn fmo_calculate_pairwise_par(
                     let mut energy_pair: Option<f64> = None;
                     let mut charges_pair: Option<Array1<f64>> = None;
 
-                    println!(
-                        "{:>68} {:>8.6} s",
-                        "elapsed time distances:",
-                        molecule_timer.elapsed().as_secs_f32()
-                    );
-                    drop(molecule_timer);
-                    let molecule_timer: Instant = Instant::now();
+                    //println!(
+                    //    "{:>68} {:>8.6} s",
+                    //    "elapsed time distances:",
+                    //    molecule_timer.elapsed().as_secs_f32()
+                    //);
+                    //drop(molecule_timer);
+                    //let molecule_timer: Instant = Instant::now();
 
                     // do scc routine for pair if mininmal distance is below threshold
                     if (min_dist / vdw_radii_sum) < 2.0 {
@@ -714,13 +729,13 @@ pub fn fmo_calculate_pairwise_par(
                         energy_pair = Some(energy);
                         charges_pair = Some(pair.final_charges);
                     }
-                    println!(
-                        "{:>68} {:>8.6} s",
-                        "elapsed time scc:",
-                        molecule_timer.elapsed().as_secs_f32()
-                    );
-                    drop(molecule_timer);
-                    let molecule_timer: Instant = Instant::now();
+                    //println!(
+                    //    "{:>68} {:>8.6} s",
+                    //    "elapsed time scc:",
+                    //    molecule_timer.elapsed().as_secs_f32()
+                    //);
+                    //drop(molecule_timer);
+                    //let molecule_timer: Instant = Instant::now();
                     // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
                     // let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
                     //     &pair.atomic_numbers,
@@ -782,12 +797,12 @@ pub fn fmo_calculate_pairwise_par(
                     );
 
                     vec_pair_result.push(pair_res);
-                    println!(
-                        "{:>68} {:>8.6} s",
-                        "elapsed time excited state preps:",
-                        molecule_timer.elapsed().as_secs_f32()
-                    );
-                    drop(molecule_timer);
+                    //println!(
+                    //    "{:>68} {:>8.6} s",
+                    //    "elapsed time excited state preps:",
+                    //    molecule_timer.elapsed().as_secs_f32()
+                    //);
+                    //drop(molecule_timer);
                 }
             }
             vec_pair_result
