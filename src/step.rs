@@ -8,6 +8,7 @@ use crate::solver::get_exc_energies;
 use crate::Molecule;
 use approx::AbsDiffEq;
 use itertools::any;
+use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
 use ndarray::Data;
 use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
@@ -17,7 +18,6 @@ use peroxide::prelude::*;
 use rand::Rng;
 use std::ops::Deref;
 use std::ops::Not;
-use log::{debug, error, info, log_enabled, trace, warn, Level};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -143,8 +143,14 @@ pub fn find_root_brent(
         //     a_new, b_new, f_a_new, f_b_new
         // );
 
-        debug!("{:<5} {:<20.12} {:<8} {:>15.12}","a", a_new,"F(a)", f_a_new);
-        debug!("{:<5} {:<20.12} {:<8} {:>15.12}","b", b_new, "F(b)", f_b_new);
+        debug!(
+            "{:<5} {:<20.12} {:<8} {:>15.12}",
+            "a", a_new, "F(a)", f_a_new
+        );
+        debug!(
+            "{:<5} {:<20.12} {:<8} {:>15.12}",
+            "b", b_new, "F(b)", f_b_new
+        );
 
         // evaluate conditions
         let condition_1: bool = between_floats(s, (3.0 * a_new + b_new) / 4.0, b_new).not();
@@ -183,13 +189,13 @@ pub fn find_root_brent(
         bork = tmp_1.4;
         let f_s: f64 = tmp_1.0;
 
-        debug!("{:<5} {:<20.12} {:<8} {:>15.12}","s", s, "F(s)", f_s);
+        debug!("{:<5} {:<20.12} {:<8} {:>15.12}", "s", s, "F(s)", f_s);
         //println!("F(s) {}", f_s);
 
         if (f_s / rel).abs() <= conv {
             return_value = s;
             debug!("{:-^70}", "");
-            debug!("{: ^0}","Brent converged");
+            debug!("{: ^0}", "Brent converged");
             debug!("{:-^70}", "");
             //println!("Brent converged");
             break;
@@ -199,7 +205,7 @@ pub fn find_root_brent(
             return_value = s;
             brent_failed = true;
             debug!("{:-^70}", "");
-            debug!("{: ^0}","Brent failed");
+            debug!("{: ^0}", "Brent failed");
             debug!("{:-^70}", "");
             break;
         }

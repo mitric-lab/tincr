@@ -1,11 +1,11 @@
 use crate::molecule::{distance_matrix, Molecule};
+use crate::test::get_water_molecule;
 use approx::AbsDiffEq;
 use libm;
 use ndarray::prelude::*;
 use ndarray::{array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
-use crate::test::get_water_molecule;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -215,7 +215,7 @@ impl GammaFunction {
     }
 }
 
-fn gamma_atomwise(
+pub fn gamma_atomwise(
     gamma_func: GammaFunction,
     atomic_numbers: &[u8],
     n_atoms: usize,

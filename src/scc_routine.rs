@@ -22,7 +22,7 @@ use std::ops::Deref;
 use std::time::Instant;
 
 // This routine is very messy und should be rewritten in a clean form
-pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
+pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
     let scc_timer: Instant = Instant::now();
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     let max_iter: usize = molecule.config.scf.scf_max_cycles;
@@ -34,7 +34,7 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
     let p0: Array2<f64> = density_matrix_ref(&molecule);
     let mut p: Array2<f64> = p0.clone();
     // charge guess
-    let mut dq: Array1<f64> = Array1::zeros([molecule.n_atoms]);
+    let mut dq: Array1<f64> = molecule.final_charges.clone();
     let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
     let mut energy_old: f64 = 0.0;
     let mut scf_energy: f64 = 0.0;
@@ -92,21 +92,22 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
     info!("{:-^75} ", "");
 
     'scf_loop: for i in 0..max_iter {
-        let h1: Array2<f64> = construct_h1(&molecule, molecule.calculator.g0.view(), dq.view());
+        let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
         let mut h: Array2<f64> = h_coul + h0.view();
 
         //let mut prev_h_X:Array2<f64>
         if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
-            let h_x: Array2<f64> =
-                lc_exact_exchange(&s, &molecule.calculator.g0_lr_ao, &p0, &p, h.dim().0);
+            let h_x: Array2<f64> = lc_exact_exchange(&s, &molecule.g0_lr_ao, &p0, &p, h.dim().0);
             h = h + h_x;
         }
 
         if level_shift_flag {
             if level_shifter.is_empty() {
-                level_shifter =
-                    LevelShifter::new(molecule.calculator.n_orbs, get_frontier_orbitals(molecule.calculator.n_elec).1);
+                level_shifter = LevelShifter::new(
+                    molecule.calculator.n_orbs,
+                    get_frontier_orbitals(molecule.calculator.n_elec).1,
+                );
             } else {
                 if charge_diff < (1.0e5 * scf_charge_conv) {
                     level_shifter.reduce_weight();
@@ -185,8 +186,8 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
             &s,
             h0.view(),
             dq.view(),
-            (&molecule.calculator.g0).deref().view(),
-            &molecule.calculator.g0_lr_ao,
+            (&molecule.g0).deref().view(),
+            &molecule.g0_lr_ao,
         );
         if i == 0 {
             info!(
@@ -213,6 +214,7 @@ pub fn run_scc(molecule: &Molecule) -> (f64, Array2<f64>, Array1<f64>, Array2<f6
 
         if converged {
             break 'scf_loop;
+            molecule.set_final_charges(dq);
         }
     }
     info!("{:-^75} ", "");
@@ -694,8 +696,8 @@ fn reference_density_matrix() {
 
 #[test]
 fn self_consistent_charge_routine() {
-    let mol: Molecule = get_water_molecule();
-    let energy = run_scc(&mol);
+    let mut mol: Molecule = get_water_molecule();
+    let energy = run_scc(&mut mol);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
 }
@@ -723,7 +725,7 @@ fn self_consistent_charge_routine_near_coin() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
-    let mol: Molecule = Molecule::new(
+    let mut mol: Molecule = Molecule::new(
         atomic_numbers,
         positions,
         charge,
@@ -731,14 +733,15 @@ fn self_consistent_charge_routine_near_coin() {
         Some(0.0),
         None,
         config,
+        None,
     );
-    let energy = run_scc(&mol);
+    let energy = run_scc(&mut mol);
     //println!("ENERGY: {}", energy);
     //TODO: CREATE AN APPROPIATE TEST FOR THE SCC ROUTINE
 }
 
 #[test]
 fn test_scc_routine_benzene() {
-    let mol: Molecule = get_benzene_molecule();
-    let energy = run_scc(&mol);
+    let mut mol: Molecule = get_benzene_molecule();
+    let energy = run_scc(&mut mol);
 }
