@@ -145,7 +145,10 @@ fn connectivity_dimer_routine() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);
@@ -225,7 +228,10 @@ fn connectivity_benzene_dimer_routine() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);

@@ -2471,7 +2471,10 @@ fn excited_energies_tda_routine() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     let S: Array2<f64> = array![
@@ -2643,7 +2646,10 @@ fn excited_energies_casida_routine() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     let S: Array2<f64> = array![
@@ -2912,7 +2918,10 @@ fn excited_energies_hermitian_davidson_routine() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     let S: Array2<f64> = array![
@@ -3620,7 +3629,10 @@ fn casida_routine() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     // Only for testing purposes
@@ -3872,7 +3884,10 @@ fn hermitian_davidson_routine() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     // Only for testing purposes
@@ -4031,7 +4046,10 @@ fn test_apbv_fortran() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     // Only for testing purposes
@@ -4163,7 +4181,10 @@ fn test_apbv_fortran_no_lc() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     // Only for testing purposes
@@ -4362,7 +4383,10 @@ fn non_hermitian_davidson_routine() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     // Only for testing purposes

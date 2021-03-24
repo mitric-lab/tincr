@@ -60,18 +60,36 @@ impl Molecule {
         saved_connect_mat:Option<Array2<bool>>,
         saved_graph: Option<StableUnGraph<u8,f64>>,
         saved_graph_indexes: Option<Vec<NodeIndex>>,
-        saved_subgraphs: Option<Vec<StableUnGraph<u8, f64>>>
+        saved_subgraphs: Option<Vec<StableUnGraph<u8, f64>>>,
+        saved_dist: Option<Array2<f64>>,
+        saved_dir: Option<Array3<f64>>,
+        saved_prox: Option<Array2<bool>>
     ) -> Molecule {
         let molecule_timer: Instant = Instant::now();
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
         let charge: i8 = charge.unwrap_or(defaults::CHARGE);
         let multiplicity: u8 = multiplicity.unwrap_or(defaults::MULTIPLICITY);
-        let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
-            distance_matrix(positions.view(), None);
+
+        let mut dist_opt: Option<Array2<f64>> = None;
+        let mut dir_opt: Option<Array3<f64>> = None;
+        let mut prox_opt: Option<Array2<bool>> = None;
+
+        if saved_dist.is_none(){
+            let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
+                distance_matrix(positions.view(), None);
+            dist_opt = Some(dist_matrix);
+            dir_opt = Some(dir_matrix);
+            prox_opt = Some(prox_matrix);
+        }
+        else{
+            dist_opt = saved_dist;
+            dir_opt = saved_dir;
+            prox_opt = saved_prox;
+        }
+        let distance_mat:Array2<f64> = dist_opt.unwrap();
 
         let n_atoms: usize = positions.nrows();
-
         println!(
             "{:>68} {:>8.6} s",
             "elapsed atomtypes:",
@@ -88,7 +106,7 @@ impl Molecule {
                 &atomic_numbers,
                 &atomtypes,
                 active_orbitals,
-                &dist_matrix,
+                &distance_mat,
                 r_lr,
             );
             calculator_opt = Some(calculator);
@@ -107,7 +125,7 @@ impl Molecule {
             &atomic_numbers,
             atomic_numbers.len(),
             calculator.n_orbs,
-            dist_matrix.view(),
+            distance_mat.view(),
             &calculator.hubbard_u,
             &calculator.valorbs,
             Some(0.0),
@@ -119,7 +137,7 @@ impl Molecule {
                 &atomic_numbers,
                 atomic_numbers.len(),
                 calculator.n_orbs,
-                dist_matrix.view(),
+                distance_mat.view(),
                 &calculator.hubbard_u,
                 &calculator.valorbs,
                 None,
@@ -142,16 +160,14 @@ impl Molecule {
         let mut subgraphs_opt:Option<Vec<StableUnGraph<u8, f64>>> = None;
         let mut connectivity_opt:Option<Array2<bool>> = None;
 
-
-
         if saved_graph.is_none(){
             let connectivity_matrix: Array2<bool> =
-                build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
+                build_connectivity_matrix(n_atoms, &distance_mat, &atomic_numbers);
             let (graph, graph_indexes, subgraphs): (
                 StableUnGraph<u8, f64>,
                 Vec<NodeIndex>,
                 Vec<StableUnGraph<u8, f64>>,
-            ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
+            ) = build_graph(&atomic_numbers, &connectivity_matrix, &distance_mat);
 
             graph_opt = Some(graph);
             graph_indexes_opt = Some(graph_indexes);
@@ -191,9 +207,9 @@ impl Molecule {
             multiplicity: multiplicity,
             n_atoms: n_atoms,
             atomtypes: atomtypes,
-            proximity_matrix: prox_matrix,
-            distance_matrix: dist_matrix,
-            directions_matrix: dir_matrix,
+            proximity_matrix: prox_opt.unwrap(),
+            distance_matrix: distance_mat,
+            directions_matrix: dir_opt.unwrap(),
             calculator: calculator,
             connectivity_matrix: connectivity_opt.unwrap(),
             full_graph: graph_opt.unwrap(),

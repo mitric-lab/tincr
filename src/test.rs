@@ -27,7 +27,10 @@ pub fn get_water_molecule() -> Molecule {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
     mol
 }
@@ -65,7 +68,10 @@ pub fn get_benzene_molecule() -> Molecule {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
     mol
 }
@@ -97,7 +103,10 @@ pub fn get_ethene_molecule() -> Molecule {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
     mol
 }

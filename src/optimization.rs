@@ -1766,7 +1766,10 @@ fn test_opt_benzene() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
@@ -1833,7 +1836,10 @@ fn test_opt_cyclohexene() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
@@ -1897,7 +1903,10 @@ fn test_opt_water_6() {
         None,
         None,
         None,
-        None
+        None,
+        None,
+        None,
+        None,
     );
 
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
