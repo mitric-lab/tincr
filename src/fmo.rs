@@ -661,15 +661,15 @@ pub fn fmo_calculate_pairwise_par(
                     drop(molecule_timer);
                     let molecule_timer: Instant = Instant::now();
                     // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
-                    let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
-                        &pair.atomic_numbers,
-                        pair.positions.view(),
-                        pair.calculator.n_orbs,
-                        &pair.calculator.valorbs,
-                        pair.proximity_matrix.view(),
-                        &pair.calculator.skt,
-                        &pair.calculator.orbital_energies,
-                    );
+                    // let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
+                    //     &pair.atomic_numbers,
+                    //     pair.positions.view(),
+                    //     pair.calculator.n_orbs,
+                    //     &pair.calculator.valorbs,
+                    //     pair.proximity_matrix.view(),
+                    //     &pair.calculator.skt,
+                    //     &pair.calculator.orbital_energies,
+                    // );
                     // Now select off-diagonal couplings. The block `H0_AB` contains matrix elements
                     // between atomic orbitals on fragments A and B:
                     //
@@ -679,34 +679,34 @@ pub fn fmo_calculate_pairwise_par(
                     let mut indices_vec: Vec<(usize, usize)> = Vec::new();
                     let mut h0_vals: Vec<f64> = Vec::new();
 
-                    let h0_ab: Array2<f64> = h0
-                        .slice(s![
-                            0..cluster_results.n_mo[ind1],
-                            cluster_results.n_mo[ind2]..
-                        ])
-                        .to_owned();
-                    let s_ab: Array2<f64> = s
-                        .slice(s![
-                            0..cluster_results.n_mo[ind1],
-                            cluster_results.n_mo[ind2]..
-                        ])
-                        .to_owned();
-                    // contract Hamiltonian with coefficients of HOMOs on fragments A and B
-                    let i: usize = ind1 * 2;
-                    let j: usize = ind2 * 2;
-                    indices_vec.push((i, j));
-                    let h0_val: f64 = cluster_results.homo_orbs[ind1]
-                        .dot(&h0_ab.dot(&cluster_results.homo_orbs[ind2]));
-                    h0_vals.push(h0_val);
-
-                    let i: usize = ind1 * 2 + 1;
-                    let j: usize = ind2 * 2 + 1;
-                    indices_vec.push((i, j));
-                    println!("Test12345");
-                    let h0_val: f64 = cluster_results.lumo_orbs[ind1]
-                        .t()
-                        .dot(&s_ab.dot(&cluster_results.lumo_orbs[ind2]));
-                    h0_vals.push(h0_val);
+                    // let h0_ab: Array2<f64> = h0
+                    //     .slice(s![
+                    //         0..cluster_results.n_mo[ind1],
+                    //         cluster_results.n_mo[ind2]..
+                    //     ])
+                    //     .to_owned();
+                    // let s_ab: Array2<f64> = s
+                    //     .slice(s![
+                    //         0..cluster_results.n_mo[ind1],
+                    //         cluster_results.n_mo[ind2]..
+                    //     ])
+                    //     .to_owned();
+                    // // contract Hamiltonian with coefficients of HOMOs on fragments A and B
+                    // let i: usize = ind1 * 2;
+                    // let j: usize = ind2 * 2;
+                    // indices_vec.push((i, j));
+                    // let h0_val: f64 = cluster_results.homo_orbs[ind1]
+                    //     .dot(&h0_ab.dot(&cluster_results.homo_orbs[ind2]));
+                    // h0_vals.push(h0_val);
+                    //
+                    // let i: usize = ind1 * 2 + 1;
+                    // let j: usize = ind2 * 2 + 1;
+                    // indices_vec.push((i, j));
+                    // println!("Test12345");
+                    // let h0_val: f64 = cluster_results.lumo_orbs[ind1]
+                    //     .t()
+                    //     .dot(&s_ab.dot(&cluster_results.lumo_orbs[ind2]));
+                    // h0_vals.push(h0_val);
 
                     let pair_res: pair_result = pair_result::new(
                         pair.g0,
@@ -740,13 +740,13 @@ pub fn fmo_calculate_pairwise_par(
     }
 
     let mut h_0_complete_mut: Array2<f64> = cluster_results.h_0.clone();
-    for pair in pair_result.iter() {
-        h_0_complete_mut[[pair.h0_indices[0].0, pair.h0_indices[0].1]] = pair.h0_vals[0];
-        h_0_complete_mut[[pair.h0_indices[1].0, pair.h0_indices[1].1]] = pair.h0_vals[1];
-    }
-
-    h_0_complete_mut = h_0_complete_mut.clone()
-        + (h_0_complete_mut.clone() - Array::from_diag(&h_0_complete_mut.diag())).reversed_axes();
+    // for pair in pair_result.iter() {
+    //     h_0_complete_mut[[pair.h0_indices[0].0, pair.h0_indices[0].1]] = pair.h0_vals[0];
+    //     h_0_complete_mut[[pair.h0_indices[1].0, pair.h0_indices[1].1]] = pair.h0_vals[1];
+    // }
+    //
+    // h_0_complete_mut = h_0_complete_mut.clone()
+    //     + (h_0_complete_mut.clone() - Array::from_diag(&h_0_complete_mut.diag())).reversed_axes();
 
     return (h_0_complete_mut, pair_result);
 }
