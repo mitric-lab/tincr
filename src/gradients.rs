@@ -2124,6 +2124,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
         None,
         None,
         None,
+        None,
         None
     );
 
@@ -2369,6 +2370,7 @@ fn get_gradients_exc_no_lc_routine() {
         Some(0.0),
         None,
         config,
+        None,
         None,
         None,
         None,
@@ -2684,6 +2686,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
         None,
         Some((2, 2)),
         config,
+        None,
         None,
         None,
         None,

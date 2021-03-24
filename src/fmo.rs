@@ -340,6 +340,7 @@ pub fn fmo_calculate_pairwise(
                 None,
                 None,
                 None,
+                None,
                 None
             );
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
@@ -533,7 +534,7 @@ pub fn fmo_calculate_pairwise_par(
             .assign(&molecule_b.positions.slice(s![i, ..]));
     }
 
-    let (graph_new,graph_indexes, subgraph): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>) =
+    let (graph_new,graph_indexes, subgraph,connectivity_mat): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>) =
         create_fmo_graph(atomic_numbers.clone(), positions.clone());
 
     let first_graph: Graph<u8, f64, Undirected> = Graph::from(graph_new.clone());
@@ -546,9 +547,10 @@ pub fn fmo_calculate_pairwise_par(
         None,
         config.clone(),
         None,
+        Some(connectivity_mat),
         Some(graph_new),
         Some(graph_indexes),
-        Some(subgraph)
+        Some(subgraph),
     );
     let first_calc:DFTBCalculator = first_pair.calculator.clone();
 
@@ -595,7 +597,7 @@ pub fn fmo_calculate_pairwise_par(
                     drop(molecule_timer);
                     let molecule_timer: Instant = Instant::now();
 
-                    let (graph_new,graph_indexes, subgraph): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>) =
+                    let (graph_new,graph_indexes, subgraph,connectivity_mat): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>) =
                         create_fmo_graph(atomic_numbers.clone(), positions.clone());
 
                     let graph: Graph<u8, f64, Undirected> = Graph::from(graph_new.clone());
@@ -631,6 +633,7 @@ pub fn fmo_calculate_pairwise_par(
                         None,
                         config.clone(),
                         saved_calc,
+                        Some(connectivity_mat),
                         Some(graph_new),
                         Some(graph_indexes),
                         Some(subgraph)
@@ -1087,6 +1090,7 @@ pub fn create_fragment_molecules(
             saved_calc,
             None,
             None,
+            None,
             None
         );
         if use_saved_calc == false {
@@ -1162,6 +1166,7 @@ pub fn reorder_molecule(
         None,
         None,
         None,
+        None,
         None
     );
     return (indices_vector, new_mol.g0, new_mol.proximity_matrix);
@@ -1170,12 +1175,28 @@ pub fn reorder_molecule(
 pub fn create_fmo_graph(
     atomic_numbers: Vec<u8>,
     positions: Array2<f64>,
-) -> (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>) {
+) -> (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>) {
+    let molecule_timer: Instant = Instant::now();
     let n_atoms: usize = atomic_numbers.len();
     let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
         distance_matrix(positions.view(), None);
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time dist mat:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+    let molecule_timer: Instant = Instant::now();
     let connectivity_matrix: Array2<bool> =
         build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time connectivity mat:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+    let molecule_timer: Instant = Instant::now();
 
     let (graph, graph_indexes, subgraphs): (
         StableUnGraph<u8, f64>,
@@ -1183,5 +1204,12 @@ pub fn create_fmo_graph(
         Vec<StableUnGraph<u8, f64>>,
     ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
 
-    return (graph,graph_indexes, subgraphs);
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time graph building:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+
+    return (graph,graph_indexes, subgraphs,connectivity_matrix);
 }

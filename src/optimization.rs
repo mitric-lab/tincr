@@ -1765,6 +1765,7 @@ fn test_opt_benzene() {
         None,
         None,
         None,
+        None,
         None
     );
 
@@ -1831,6 +1832,7 @@ fn test_opt_cyclohexene() {
         None,
         None,
         None,
+        None,
         None
     );
 
@@ -1891,6 +1893,7 @@ fn test_opt_water_6() {
         None,
         None,
         config,
+        None,
         None,
         None,
         None,

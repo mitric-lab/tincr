@@ -144,6 +144,7 @@ fn connectivity_dimer_routine() {
         None,
         None,
         None,
+        None,
         None
     );
 
@@ -220,6 +221,7 @@ fn connectivity_benzene_dimer_routine() {
         None,
         None,
         config,
+        None,
         None,
         None,
         None,

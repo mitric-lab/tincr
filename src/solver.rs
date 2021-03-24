@@ -2470,6 +2470,7 @@ fn excited_energies_tda_routine() {
         None,
         None,
         None,
+        None,
         None
     );
 
@@ -2638,6 +2639,7 @@ fn excited_energies_casida_routine() {
         Some(0.0),
         None,
         config,
+        None,
         None,
         None,
         None,
@@ -2906,6 +2908,7 @@ fn excited_energies_hermitian_davidson_routine() {
         Some(0.0),
         None,
         config,
+        None,
         None,
         None,
         None,
@@ -3616,6 +3619,7 @@ fn casida_routine() {
         None,
         None,
         None,
+        None,
         None
     );
 
@@ -3867,6 +3871,7 @@ fn hermitian_davidson_routine() {
         None,
         None,
         None,
+        None,
         None
     );
 
@@ -4025,6 +4030,7 @@ fn test_apbv_fortran() {
         None,
         None,
         None,
+        None,
         None
     );
 
@@ -4153,6 +4159,7 @@ fn test_apbv_fortran_no_lc() {
         None,
         None,
         config,
+        None,
         None,
         None,
         None,
@@ -4351,6 +4358,7 @@ fn non_hermitian_davidson_routine() {
         None,
         None,
         config,
+        None,
         None,
         None,
         None,

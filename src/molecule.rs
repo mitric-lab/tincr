@@ -57,6 +57,7 @@ impl Molecule {
         active_orbitals: Option<(usize, usize)>,
         config: GeneralConfig,
         saved_calc: Option<DFTBCalculator>,
+        saved_connect_mat:Option<Array2<bool>>,
         saved_graph: Option<StableUnGraph<u8,f64>>,
         saved_graph_indexes: Option<Vec<NodeIndex>>,
         saved_subgraphs: Option<Vec<StableUnGraph<u8, f64>>>
@@ -139,11 +140,13 @@ impl Molecule {
         let mut graph_opt:Option<StableUnGraph<u8, f64>> = None;
         let mut graph_indexes_opt:Option<Vec<NodeIndex>> = None;
         let mut subgraphs_opt:Option<Vec<StableUnGraph<u8, f64>>> = None;
+        let mut connectivity_opt:Option<Array2<bool>> = None;
 
-        let connectivity_matrix: Array2<bool> =
-            build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
+
 
         if saved_graph.is_none(){
+            let connectivity_matrix: Array2<bool> =
+                build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
             let (graph, graph_indexes, subgraphs): (
                 StableUnGraph<u8, f64>,
                 Vec<NodeIndex>,
@@ -153,11 +156,13 @@ impl Molecule {
             graph_opt = Some(graph);
             graph_indexes_opt = Some(graph_indexes);
             subgraphs_opt = Some(subgraphs);
+            connectivity_opt = Some(connectivity_matrix)
         }
         else{
             graph_opt = saved_graph;
             graph_indexes_opt = saved_graph_indexes;
             subgraphs_opt = saved_subgraphs;
+            connectivity_opt = saved_connect_mat;
         }
 
 
@@ -190,7 +195,7 @@ impl Molecule {
             distance_matrix: dist_matrix,
             directions_matrix: dir_matrix,
             calculator: calculator,
-            connectivity_matrix: connectivity_matrix,
+            connectivity_matrix: connectivity_opt.unwrap(),
             full_graph: graph_opt.unwrap(),
             full_graph_indices: graph_indexes_opt.unwrap(),
             sub_graphs: subgraphs_opt.unwrap(),
