@@ -728,9 +728,6 @@ pub fn fmo_calculate_pairwise_par(
                         energy_pair = Some(energy);
                         charges_pair = Some(pair.final_charges);
                     }
-                    else{
-                        saved_graphs.push(graph.clone());
-                    }
 
                     //println!(
                     //    "{:>68} {:>8.6} s",
