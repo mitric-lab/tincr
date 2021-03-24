@@ -143,10 +143,16 @@ pub fn fmo_gs_energy(
         //}
         } else {
             // E_ij = E_i + E_j + sum_(a in I) sum_(B in j) gamma_ab dq_a^i dq_b^j
-            let gamma_ab: ArrayView2<f64> = pair_results[iter].pair_gamma.slice(s![
-                            0..fragments[pair.frag_a_index].n_atoms,
-                            fragments[pair.frag_a_index].n_atoms..
+            let index_pair_a: usize = indices_frags[pair.frag_a_index];
+            let index_pair_b: usize = indices_frags[pair.frag_b_index];
+            let gamma_ab: ArrayView2<f64> = gamma_tmp.slice(s![
+                            index_pair_a..index_pair_a + fragments[pair.frag_a_index].n_atoms,
+                            index_pair_b..index_pair_b + fragments[pair.frag_b_index].n_atoms
                         ]);
+            //let gamma_ab: ArrayView2<f64> = pair_results[iter].pair_gamma.slice(s![
+            //                0..fragments[pair.frag_a_index].n_atoms,
+            //                fragments[pair.frag_a_index].n_atoms..
+            //            ]);
             pair_energy += fragments[pair.frag_a_index].final_charges.dot(&gamma_ab.dot(&fragments[pair.frag_b_index].final_charges));
             // loop version
             //for a in (0..fragments[pair.frag_a_index].n_atoms).into_iter() {
@@ -637,46 +643,8 @@ pub fn fmo_calculate_pairwise_par(
                             }
                         }
                     }
-                    //println!(
-                    //    "{:>68} {:>8.6} s",
-                    //    "elapsed time create pair graph and check isomorphic:",
-                    //    molecule_timer.elapsed().as_secs_f32()
-                    //);
-                    //drop(molecule_timer);
-                    //let molecule_timer: Instant = Instant::now();
-
-                    let mut pair: Molecule = Molecule::new(
-                        atomic_numbers,
-                        positions,
-                        Some(config.mol.charge),
-                        Some(config.mol.multiplicity),
-                        Some(0.0),
-                        None,
-                        config.clone(),
-                        saved_calc,
-                        Some(connectivity_mat),
-                        Some(graph_new),
-                        Some(graph_indexes),
-                        Some(subgraph),
-                        Some(dist_matrix),
-                        Some(dir_matrix),
-                        Some(prox_matrix)
-                    );
-                    //println!(
-                    //    "{:>68} {:>8.6} s",
-                    //    "elapsed time molecule:",
-                    //    molecule_timer.elapsed().as_secs_f32()
-                    //);
-                    //drop(molecule_timer);
-                    //let molecule_timer: Instant = Instant::now();
-
-                    if use_saved_calc == false{
-                        saved_calculators.push(pair.calculator.clone());
-                        saved_graphs.push(graph.clone());
-                    }
                     // get shortest distance between the fragment atoms of the pair
-                    let distance_between_pair: Array2<f64> = pair
-                        .distance_matrix
+                    let distance_between_pair: Array2<f64> = dist_matrix
                         .slice(s![..molecule_a.n_atoms, molecule_a.n_atoms..])
                         .to_owned();
                     let min_dist: f64 = distance_between_pair
@@ -711,6 +679,14 @@ pub fn fmo_calculate_pairwise_par(
 
                     //println!(
                     //    "{:>68} {:>8.6} s",
+                    //    "elapsed time molecule:",
+                    //    molecule_timer.elapsed().as_secs_f32()
+                    //);
+                    //drop(molecule_timer);
+                    //let molecule_timer: Instant = Instant::now();
+
+                    //println!(
+                    //    "{:>68} {:>8.6} s",
                     //    "elapsed time distances:",
                     //    molecule_timer.elapsed().as_secs_f32()
                     //);
@@ -719,6 +695,29 @@ pub fn fmo_calculate_pairwise_par(
 
                     // do scc routine for pair if mininmal distance is below threshold
                     if (min_dist / vdw_radii_sum) < 2.0 {
+                        let mut pair: Molecule = Molecule::new(
+                            atomic_numbers,
+                            positions,
+                            Some(config.mol.charge),
+                            Some(config.mol.multiplicity),
+                            Some(0.0),
+                            None,
+                            config.clone(),
+                            saved_calc,
+                            Some(connectivity_mat),
+                            Some(graph_new),
+                            Some(graph_indexes),
+                            Some(subgraph),
+                            Some(dist_matrix),
+                            Some(dir_matrix),
+                            Some(prox_matrix)
+                        );
+
+                        if use_saved_calc == false{
+                            saved_calculators.push(pair.calculator.clone());
+                            saved_graphs.push(graph.clone());
+                        }
+
                         let (energy, orbs, orbe, s, f): (
                             f64,
                             Array2<f64>,
@@ -729,6 +728,10 @@ pub fn fmo_calculate_pairwise_par(
                         energy_pair = Some(energy);
                         charges_pair = Some(pair.final_charges);
                     }
+                    else{
+                        saved_graphs.push(graph.clone());
+                    }
+
                     //println!(
                     //    "{:>68} {:>8.6} s",
                     //    "elapsed time scc:",
@@ -785,7 +788,6 @@ pub fn fmo_calculate_pairwise_par(
                     // h0_vals.push(h0_val);
 
                     let pair_res: pair_result = pair_result::new(
-                        pair.g0,
                         charges_pair,
                         h0_vals,
                         indices_vec,
@@ -828,7 +830,6 @@ pub fn fmo_calculate_pairwise_par(
 }
 
 pub struct pair_result {
-    pair_gamma: Array2<f64>,
     pair_charges: Option<Array1<f64>>,
     h0_vals: Vec<f64>,
     h0_indices: Vec<(usize, usize)>,
@@ -841,7 +842,6 @@ pub struct pair_result {
 
 impl pair_result {
     pub(crate) fn new(
-        pair_gamma: Array2<f64>,
         pair_charges: Option<Array1<f64>>,
         h0_vals: Vec<f64>,
         h0_indices: Vec<(usize, usize)>,
@@ -852,7 +852,6 @@ impl pair_result {
         frag_b_atoms: usize,
     ) -> (pair_result) {
         let result = pair_result {
-            pair_gamma: pair_gamma,
             pair_charges: pair_charges,
             h0_vals: h0_vals,
             h0_indices: h0_indices,
