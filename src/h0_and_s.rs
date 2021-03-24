@@ -3,10 +3,10 @@ use ndarray::prelude::*;
 use crate::molecule::Molecule;
 use crate::parameters::*;
 use crate::slako_transformations::*;
+use crate::test::get_water_molecule;
 use approx::AbsDiffEq;
 use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
 use std::collections::HashMap;
-use crate::test::get_water_molecule;
 
 ///
 /// compute Hamiltonian and overlap matrix elements between two sets of atoms. If the sets

@@ -1,12 +1,15 @@
 use crate::calculator::*;
 use crate::constants::ATOM_NAMES;
 use crate::defaults;
+use crate::defaults::LONG_RANGE_RADIUS;
 use crate::gamma_approximation;
 use crate::graph::build_connectivity_matrix;
 use crate::graph::*;
+use crate::io::GeneralConfig;
 use crate::parameters::*;
 use approx::AbsDiffEq;
 use itertools::Itertools;
+use log::{debug, error, info, trace, warn};
 use ndarray::prelude::*;
 use ndarray::*;
 use ndarray_linalg::*;
@@ -18,9 +21,6 @@ use petgraph::stable_graph::*;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Deref, Neg};
-use log::{debug, error, info, trace, warn};
-use crate::defaults::LONG_RANGE_RADIUS;
-use crate::io::GeneralConfig;
 use std::time::Instant;
 
 #[derive(Clone)]
@@ -44,7 +44,7 @@ pub struct Molecule {
     pub g0: Array2<f64>,
     pub g0_lr: Array2<f64>,
     pub g0_ao: Array2<f64>,
-    pub g0_lr_ao: Array2<f64>
+    pub g0_lr_ao: Array2<f64>,
 }
 
 impl Molecule {
@@ -56,7 +56,7 @@ impl Molecule {
         r_lr: Option<f64>,
         active_orbitals: Option<(usize, usize)>,
         config: GeneralConfig,
-        saved_calc:Option<DFTBCalculator>
+        saved_calc: Option<DFTBCalculator>,
     ) -> Molecule {
         let molecule_timer: Instant = Instant::now();
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
@@ -76,11 +76,10 @@ impl Molecule {
         drop(molecule_timer);
         let molecule_timer: Instant = Instant::now();
 
-        let mut calculator_opt:Option<DFTBCalculator> = None;
-        if saved_calc.is_some(){
+        let mut calculator_opt: Option<DFTBCalculator> = None;
+        if saved_calc.is_some() {
             calculator_opt = saved_calc;
-        }
-        else{
+        } else {
             let calculator: DFTBCalculator = DFTBCalculator::new(
                 &atomic_numbers,
                 &atomtypes,
@@ -90,7 +89,7 @@ impl Molecule {
             );
             calculator_opt = Some(calculator);
         }
-        let calculator:DFTBCalculator = calculator_opt.unwrap();
+        let calculator: DFTBCalculator = calculator_opt.unwrap();
 
         println!(
             "{:>68} {:>8.6} s",
@@ -143,11 +142,15 @@ impl Molecule {
             Vec<StableUnGraph<u8, f64>>,
         ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
 
-        let charges:Array1<f64> = Array1::zeros(n_atoms);
+        let charges: Array1<f64> = Array1::zeros(n_atoms);
 
         info!("{: <25} {}", "charge:", charge);
         info!("{: <25} {}", "multiplicity:", multiplicity);
-        info!("{: <25} {:.8} bohr", "long-range radius:", r_lr.unwrap_or(LONG_RANGE_RADIUS));
+        info!(
+            "{: <25} {:.8} bohr",
+            "long-range radius:",
+            r_lr.unwrap_or(LONG_RANGE_RADIUS)
+        );
         info!("{:-^80}", "");
 
         println!(
@@ -173,11 +176,11 @@ impl Molecule {
             full_graph_indices: graph_indexes,
             sub_graphs: subgraphs,
             config: config,
-            final_charges:charges,
+            final_charges: charges,
             g0: g0,
             g0_lr: g0_lr,
             g0_ao: g0_a0,
-            g0_lr_ao: g0_lr_a0
+            g0_lr_ao: g0_lr_a0,
         };
 
         return mol;
@@ -239,10 +242,9 @@ impl Molecule {
         self.g0_lr_ao = g0_lr_a0;
     }
 
-    pub fn set_final_charges(&mut self, dq:Array1<f64>){
+    pub fn set_final_charges(&mut self, dq: Array1<f64>) {
         self.final_charges = dq;
     }
-
 }
 pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
     // find unique atom types

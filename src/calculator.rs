@@ -4,6 +4,7 @@ use crate::gamma_approximation;
 use crate::molecule::Molecule;
 use crate::parameters::*;
 use itertools::Itertools;
+use log::{debug, error, info, trace, warn};
 use ndarray::prelude::*;
 use ndarray::*;
 use ndarray_linalg::*;
@@ -11,7 +12,6 @@ use std::collections::HashMap;
 use std::f64::consts::{E, PI};
 use std::hash::Hash;
 use std::ops::{Deref, Neg};
-use log::{debug, error, info, trace, warn};
 
 pub enum Calculator {
     DFTB(DFTBCalculator),
@@ -79,7 +79,8 @@ impl DFTBCalculator {
             n_orbs = n_orbs + &valorbs[zi].len();
         }
 
-        let number_electrons_per_atom: Vec<usize> = atomic_numbers.iter().map(|x|ne_val[x] as usize).collect();
+        let number_electrons_per_atom: Vec<usize> =
+            atomic_numbers.iter().map(|x| ne_val[x] as usize).collect();
         let number_electrons: usize = Array1::from(number_electrons_per_atom).sum();
         info!("{: <25} {}", "number of orbitals:", n_orbs);
         info!("{: <25} {}", "number of electrons", number_electrons);
@@ -274,7 +275,8 @@ pub fn get_only_gamma_matrix_atomwise(
     let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
     let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
-    let g0: Array2<f64> = gamma_approximation::gamma_atomwise(gf, atomic_numbers, n_atoms, distances);
+    let g0: Array2<f64> =
+        gamma_approximation::gamma_atomwise(gf, atomic_numbers, n_atoms, distances);
 
     return g0;
 }

@@ -1,7 +1,9 @@
 use crate::constants;
 use crate::defaults;
 use crate::gradients;
+use crate::io::GeneralConfig;
 use crate::molecule::distance_matrix;
+use crate::test::get_water_molecule;
 use crate::Molecule;
 use itertools::Itertools;
 use ndarray::prelude::*;
@@ -16,8 +18,6 @@ use petgraph::dot::{Config, Dot};
 use petgraph::graph::*;
 use petgraph::stable_graph::*;
 use std::collections::HashMap;
-use crate::io::GeneralConfig;
-use crate::test::get_water_molecule;
 
 pub fn build_connectivity_matrix(
     n_atoms: usize,
@@ -133,8 +133,16 @@ fn connectivity_dimer_routine() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config,None);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+        config,
+        None,
+    );
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);
     let (graph, indexes, subgraphs): (
@@ -201,8 +209,16 @@ fn connectivity_benzene_dimer_routine() {
     let charge: Option<i8> = Some(0);
     let multiplicity: Option<u8> = Some(1);
     let config: GeneralConfig = toml::from_str("").unwrap();
-    let mut mol: Molecule =
-        Molecule::new(atomic_numbers, positions, charge, multiplicity, None, None, config,None);
+    let mut mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions,
+        charge,
+        multiplicity,
+        None,
+        None,
+        config,
+        None,
+    );
 
     println!("connectivity_matrix {}", mol.connectivity_matrix);
     let (graph, indexes, subgraphs): (

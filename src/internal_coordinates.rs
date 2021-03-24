@@ -2,6 +2,7 @@ use crate::constants;
 use crate::defaults;
 use crate::gradients;
 use crate::molecule::distance_matrix;
+use crate::test::get_ethene_molecule;
 use crate::Molecule;
 use approx::AbsDiffEq;
 use itertools::Itertools;
@@ -21,7 +22,6 @@ use petgraph::stable_graph::*;
 use std::cmp::Ordering;
 use std::f64::consts::PI;
 use std::ops::{AddAssign, Deref};
-use crate::test::get_ethene_molecule;
 
 pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
@@ -2040,8 +2040,8 @@ impl RotationA {
         let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
 
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2096,8 +2096,8 @@ impl RotationA {
         }
         let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2135,7 +2135,7 @@ impl RotationA {
                 .slice_mut(s![i, ..])
                 .assign(&coords_self.slice(s![j.index(), ..]));
         }
-        let vy: Array1<f64> = &y_sel.slice(s![y_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+        let vy: Array1<f64> = &y_sel.slice(s![y_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
         let ev: Array1<f64> = &vy / vy.to_vec().norm();
         let ex: Vec<f64> = vec![1.0, 0.0, 0.0];
         let ey: Vec<f64> = vec![0.0, 1.0, 0.0];
@@ -2180,8 +2180,8 @@ impl RotationA {
         let mut deriv_raw: Array3<f64> = get_exmap_deriv_rot(&x_sel, &y_sel);
 
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2216,7 +2216,8 @@ impl RotationA {
             //         .unwrap()
             //         .into_dimensionality::<Ix2>()
             //         .unwrap());
-            let dexdum:Array2<f64> = (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
+            let dexdum: Array2<f64> =
+                (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
             let tmp_slice: Array2<f64> =
                 deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw
@@ -2311,8 +2312,8 @@ impl RotationB {
         let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
 
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2369,8 +2370,8 @@ impl RotationB {
         let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
 
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2408,7 +2409,7 @@ impl RotationB {
                 .slice_mut(s![i, ..])
                 .assign(&coords_self.slice(s![j.index(), ..]));
         }
-        let vy: Array1<f64> = &y_sel.slice(s![y_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+        let vy: Array1<f64> = &y_sel.slice(s![y_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
         let ev: Array1<f64> = &vy / vy.to_vec().norm();
         let ex: Vec<f64> = vec![1.0, 0.0, 0.0];
         let ey: Vec<f64> = vec![0.0, 1.0, 0.0];
@@ -2453,8 +2454,8 @@ impl RotationB {
         let mut deriv_raw: Array3<f64> = get_exmap_deriv_rot(&x_sel, &y_sel);
 
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2489,7 +2490,8 @@ impl RotationB {
             //         .unwrap()
             //         .into_dimensionality::<Ix2>()
             //         .unwrap());
-            let dexdum:Array2<f64> = (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
+            let dexdum: Array2<f64> =
+                (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
             let tmp_slice: Array2<f64> =
                 deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw
@@ -2583,8 +2585,8 @@ impl RotationC {
         let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
 
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2641,8 +2643,8 @@ impl RotationC {
         let mut answer: Array1<f64> = get_exmap_rot(&x_sel, &y_sel);
 
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2680,7 +2682,7 @@ impl RotationC {
                 .slice_mut(s![i, ..])
                 .assign(&coords_self.slice(s![j.index(), ..]));
         }
-        let vy: Array1<f64> = &y_sel.slice(s![y_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+        let vy: Array1<f64> = &y_sel.slice(s![y_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
         let ev: Array1<f64> = &vy / vy.to_vec().norm();
         let ex: Vec<f64> = vec![1.0, 0.0, 0.0];
         let ey: Vec<f64> = vec![0.0, 1.0, 0.0];
@@ -2725,8 +2727,8 @@ impl RotationC {
         let mut deriv_raw: Array3<f64> = get_exmap_deriv_rot(&x_sel, &y_sel);
 
         if bool_linear {
-            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0-1, ..]) - &x_sel.slice(s![0, ..]);
-            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0-1, ..]) - &y_sel.slice(s![0, ..]);
+            let vx: Array1<f64> = &x_sel.slice(s![x_sel.dim().0 - 1, ..]) - &x_sel.slice(s![0, ..]);
+            let vy: Array1<f64> = &y_sel.slice(s![x_sel.dim().0 - 1, ..]) - &y_sel.slice(s![0, ..]);
             let e0: Vec<f64> = self.calc_e0();
             let xdum: Vec<f64> = vx.to_vec().cross(&e0);
             let ydum: Vec<f64> = vy.to_vec().cross(&e0);
@@ -2761,7 +2763,8 @@ impl RotationC {
             //         .unwrap()
             //         .into_dimensionality::<Ix2>()
             //         .unwrap());
-            let dexdum:Array2<f64> = (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
+            let dexdum: Array2<f64> =
+                (dxdum * nxdum - into_col(dnxdum.clone()).dot(&into_row(Array::from(xdum))));
             let tmp_slice: Array2<f64> =
                 deriv_raw.clone().slice(s![draw_dim - 1, .., ..]).to_owned();
             deriv_raw

@@ -98,15 +98,16 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
 
         //let mut prev_h_X:Array2<f64>
         if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
-            let h_x: Array2<f64> =
-                lc_exact_exchange(&s, &molecule.g0_lr_ao, &p0, &p, h.dim().0);
+            let h_x: Array2<f64> = lc_exact_exchange(&s, &molecule.g0_lr_ao, &p0, &p, h.dim().0);
             h = h + h_x;
         }
 
         if level_shift_flag {
             if level_shifter.is_empty() {
-                level_shifter =
-                    LevelShifter::new(molecule.calculator.n_orbs, get_frontier_orbitals(molecule.calculator.n_elec).1);
+                level_shifter = LevelShifter::new(
+                    molecule.calculator.n_orbs,
+                    get_frontier_orbitals(molecule.calculator.n_elec).1,
+                );
             } else {
                 if charge_diff < (1.0e5 * scf_charge_conv) {
                     level_shifter.reduce_weight();
@@ -732,7 +733,7 @@ fn self_consistent_charge_routine_near_coin() {
         Some(0.0),
         None,
         config,
-        None
+        None,
     );
     let energy = run_scc(&mut mol);
     //println!("ENERGY: {}", energy);

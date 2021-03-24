@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(warnings)]
 #[macro_use]
-
 use clap::crate_version;
 use crate::constants::BOHR_TO_ANGS;
 use crate::defaults::*;
@@ -9,6 +8,7 @@ use crate::gradients::*;
 use crate::molecule::Molecule;
 use chemfiles::{Frame, Trajectory};
 use clap::App;
+use log::{debug, error, info, trace, warn};
 use ndarray::*;
 use ndarray_linalg::*;
 use serde::{Deserialize, Serialize};
@@ -16,8 +16,6 @@ use std::env;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::ptr::eq;
-use log::{debug, error, info, trace, warn};
-
 
 fn default_charge() -> i8 {
     CHARGE
@@ -34,7 +32,7 @@ fn default_long_range_correction() -> bool {
 fn default_long_range_radius() -> f64 {
     LONG_RANGE_RADIUS
 }
-fn default_verbose() -> i8{
+fn default_verbose() -> i8 {
     0
 }
 fn default_dispersion_correction() -> bool {
