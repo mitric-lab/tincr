@@ -56,7 +56,7 @@ use toml;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(16)
+        .num_threads(1)
         .build_global()
         .unwrap();
 
