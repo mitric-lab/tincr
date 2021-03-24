@@ -411,6 +411,10 @@ pub fn fmo_calculate_pairwise_par(
     fragments: &Vec<Molecule>,
     cluster_results: &cluster_frag_result,
     config: GeneralConfig,
+    dist_mat:&Array2<f64>,
+    direct_mat:&Array3<f64>,
+    prox_mat:&Array2<bool>,
+    indices_frags: &Vec<usize>
 ) -> (Array2<f64>, Vec<pair_result>) {
     //let result: Vec<pair_result> = fragments
     //    .into_par_iter()
@@ -539,27 +543,33 @@ pub fn fmo_calculate_pairwise_par(
     //    .collect();
 
     // construct a first graph in case all monomers are the same
-    let molecule_a = fragments[0].clone();
-    let molecule_b = fragments[1].clone();
+    let mol_a = fragments[0].clone();
+    let mol_b = fragments[1].clone();
     let mut atomic_numbers: Vec<u8> = Vec::new();
+    atomic_numbers.append(&mut mol_a.atomic_numbers.clone());
+    atomic_numbers.append(&mut mol_b.atomic_numbers.clone());
+
     let mut positions: Array2<f64> =
-        Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
+        Array2::zeros((mol_a.n_atoms + mol_b.n_atoms, 3));
 
-    for i in 0..molecule_a.n_atoms {
-        atomic_numbers.push(molecule_a.atomic_numbers[i]);
-        positions
-            .slice_mut(s![i, ..])
-            .assign(&molecule_a.positions.slice(s![i, ..]));
-    }
-    for i in 0..molecule_b.n_atoms {
-        atomic_numbers.push(molecule_b.atomic_numbers[i]);
-        positions
-            .slice_mut(s![molecule_a.n_atoms + i, ..])
-            .assign(&molecule_b.positions.slice(s![i, ..]));
-    }
+    positions.slice_mut(s![0..mol_a.n_atoms,..]).assign(&mol_a.positions);
+    positions.slice_mut(s![mol_a.n_atoms..,..]).assign(&mol_b.positions);
 
-    let (graph_new,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
-        create_fmo_graph(atomic_numbers.clone(), positions.clone());
+    let distance_frag:Array2<f64> = dist_mat.slice(s![0..mol_a.n_atoms+mol_b.n_atoms,0..mol_a.n_atoms+mol_b.n_atoms]).to_owned();
+    let dir_frag:Array3<f64> = direct_mat.slice(s![0..mol_a.n_atoms+mol_b.n_atoms,0..mol_a.n_atoms+mol_b.n_atoms,..]).to_owned();
+    let prox_frag:Array2<bool> = prox_mat.slice(s![0..mol_a.n_atoms+mol_b.n_atoms,0..mol_a.n_atoms+mol_b.n_atoms]).to_owned();
+
+    let connectivity_matrix: Array2<bool> =
+        build_connectivity_matrix(atomic_numbers.len(), &distance_frag, &atomic_numbers);
+
+    let (graph_new, graph_indexes, subgraph): (
+        StableUnGraph<u8, f64>,
+        Vec<NodeIndex>,
+        Vec<StableUnGraph<u8, f64>>,
+    ) = build_graph(&atomic_numbers, &connectivity_matrix, &distance_frag);
+
+    //let (graph_new,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
+    //    create_fmo_graph(atomic_numbers.clone(), positions.clone());
 
     let first_graph: Graph<u8, f64, Undirected> = Graph::from(graph_new.clone());
     let first_pair: Molecule = Molecule::new(
@@ -571,16 +581,15 @@ pub fn fmo_calculate_pairwise_par(
         None,
         config.clone(),
         None,
-        Some(connectivity_mat),
+        Some(connectivity_matrix),
         Some(graph_new),
         Some(graph_indexes),
         Some(subgraph),
-        Some(dist_matrix),
-        Some(dir_matrix),
-        Some(prox_matrix)
+        Some(distance_frag),
+        Some(dir_frag),
+        Some(prox_frag)
     );
     let first_calc:DFTBCalculator = first_pair.calculator.clone();
-
 
     let mut result: Vec<Vec<pair_result>> = fragments
         .par_iter()
@@ -601,21 +610,27 @@ pub fn fmo_calculate_pairwise_par(
 
                     //let molecule_timer: Instant = Instant::now();
                     let mut atomic_numbers: Vec<u8> = Vec::new();
+                    atomic_numbers.append(&mut molecule_a.atomic_numbers.clone());
+                    atomic_numbers.append(&mut molecule_b.atomic_numbers.clone());
+
                     let mut positions: Array2<f64> =
                         Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
 
-                    for i in 0..molecule_a.n_atoms {
-                        atomic_numbers.push(molecule_a.atomic_numbers[i]);
-                        positions
-                            .slice_mut(s![i, ..])
-                            .assign(&molecule_a.positions.slice(s![i, ..]));
-                    }
-                    for i in 0..molecule_b.n_atoms {
-                        atomic_numbers.push(molecule_b.atomic_numbers[i]);
-                        positions
-                            .slice_mut(s![molecule_a.n_atoms + i, ..])
-                            .assign(&molecule_b.positions.slice(s![i, ..]));
-                    }
+                    positions.slice_mut(s![0..molecule_a.n_atoms,..]).assign(&molecule_a.positions);
+                    positions.slice_mut(s![molecule_a.n_atoms..,..]).assign(&molecule_b.positions);
+
+                    //for i in 0..molecule_a.n_atoms {
+                    //    atomic_numbers.push(molecule_a.atomic_numbers[i]);
+                    //    positions
+                    //        .slice_mut(s![i, ..])
+                    //        .assign(&molecule_a.positions.slice(s![i, ..]));
+                    //}
+                    //for i in 0..molecule_b.n_atoms {
+                    //    atomic_numbers.push(molecule_b.atomic_numbers[i]);
+                    //    positions
+                    //        .slice_mut(s![molecule_a.n_atoms + i, ..])
+                    //        .assign(&molecule_b.positions.slice(s![i, ..]));
+                    //}
                     //println!(
                     //    "{:>68} {:>8.6} s",
                     //    "elapsed time slices:",
@@ -624,8 +639,36 @@ pub fn fmo_calculate_pairwise_par(
                     //drop(molecule_timer);
                     //let molecule_timer: Instant = Instant::now();
 
-                    let (graph_new,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
-                        create_fmo_graph(atomic_numbers.clone(), positions.clone());
+                    //let (graph_new,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
+                    //    create_fmo_graph(atomic_numbers.clone(), positions.clone());
+
+                    let mut distance_frag:Array2<f64> = Array2::zeros((molecule_a.n_atoms+molecule_b.n_atoms,molecule_a.n_atoms+molecule_b.n_atoms));
+                    distance_frag.slice_mut(s![0..molecule_a.n_atoms,0..molecule_a.n_atoms]).assign(&dist_mat.slice(s![indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms,indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms]));
+                    distance_frag.slice_mut(s![0..molecule_a.n_atoms,molecule_a.n_atoms..]).assign(&dist_mat.slice(s![indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms,indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms]));
+                    distance_frag.slice_mut(s![molecule_a.n_atoms..,0..molecule_a.n_atoms]).assign(&dist_mat.slice(s![indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms,indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms]));
+                    distance_frag.slice_mut(s![molecule_a.n_atoms..,molecule_a.n_atoms..]).assign(&dist_mat.slice(s![indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms,indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms]));
+
+                    let mut dir_frag:Array3<f64> = Array3::zeros((molecule_a.n_atoms+molecule_b.n_atoms,molecule_a.n_atoms+molecule_b.n_atoms,3));
+                    let mut prox_frag:Array2<bool> = Array::from_elem((molecule_a.n_atoms+molecule_b.n_atoms,molecule_a.n_atoms+molecule_b.n_atoms), false);
+
+                    dir_frag.slice_mut(s![0..molecule_a.n_atoms,0..molecule_a.n_atoms,..]).assign(&direct_mat.slice(s![indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms,indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms,..]));
+                    dir_frag.slice_mut(s![0..molecule_a.n_atoms,molecule_a.n_atoms..,..]).assign(&direct_mat.slice(s![indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms,indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms,..]));
+                    dir_frag.slice_mut(s![molecule_a.n_atoms..,0..molecule_a.n_atoms,..]).assign(&direct_mat.slice(s![indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms,indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms,..]));
+                    dir_frag.slice_mut(s![molecule_a.n_atoms..,molecule_a.n_atoms..,..]).assign(&direct_mat.slice(s![indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms,indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms,..]));
+
+                    prox_frag.slice_mut(s![0..molecule_a.n_atoms,0..molecule_a.n_atoms]).assign(&prox_mat.slice(s![indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms,indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms]));
+                    prox_frag.slice_mut(s![0..molecule_a.n_atoms,molecule_a.n_atoms..]).assign(&prox_mat.slice(s![indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms,indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms]));
+                    prox_frag.slice_mut(s![molecule_a.n_atoms..,0..molecule_a.n_atoms]).assign(&prox_mat.slice(s![indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms,indices_frags[ind1]..indices_frags[ind1]+molecule_a.n_atoms]));
+                    prox_frag.slice_mut(s![molecule_a.n_atoms..,molecule_a.n_atoms..]).assign(&prox_mat.slice(s![indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms,indices_frags[ind2]..indices_frags[ind2]+molecule_b.n_atoms]));
+
+                    let connectivity_matrix: Array2<bool> =
+                        build_connectivity_matrix(atomic_numbers.len(), &distance_frag, &atomic_numbers);
+
+                    let (graph_new, graph_indexes, subgraph): (
+                        StableUnGraph<u8, f64>,
+                        Vec<NodeIndex>,
+                        Vec<StableUnGraph<u8, f64>>,
+                    ) = build_graph(&atomic_numbers, &connectivity_matrix, &distance_frag);
 
                     let graph: Graph<u8, f64, Undirected> = Graph::from(graph_new.clone());
 
@@ -644,7 +687,7 @@ pub fn fmo_calculate_pairwise_par(
                         }
                     }
                     // get shortest distance between the fragment atoms of the pair
-                    let distance_between_pair: Array2<f64> = dist_matrix
+                    let distance_between_pair: Array2<f64> = distance_frag
                         .slice(s![..molecule_a.n_atoms, molecule_a.n_atoms..])
                         .to_owned();
                     let min_dist: f64 = distance_between_pair
@@ -704,13 +747,13 @@ pub fn fmo_calculate_pairwise_par(
                             None,
                             config.clone(),
                             saved_calc,
-                            Some(connectivity_mat),
+                            Some(connectivity_matrix),
                             Some(graph_new),
                             Some(graph_indexes),
                             Some(subgraph),
-                            Some(dist_matrix),
-                            Some(dir_matrix),
-                            Some(prox_matrix)
+                            Some(distance_frag),
+                            Some(dir_frag),
+                            Some(prox_frag)
                         );
 
                         if use_saved_calc == false{
@@ -1156,7 +1199,7 @@ pub fn reorder_molecule(
     fragments: &Vec<Molecule>,
     config: GeneralConfig,
     shape_positions: Ix2,
-) -> (Vec<usize>, Array2<f64>, Array2<bool>) {
+) -> (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>) {
     let mut atomic_numbers: Vec<u8> = Vec::new();
     let mut positions: Array2<f64> = Array2::zeros(shape_positions);
     let mut indices_vector: Vec<usize> = Vec::new();
@@ -1195,7 +1238,7 @@ pub fn reorder_molecule(
         None,
         None,
     );
-    return (indices_vector, new_mol.g0, new_mol.proximity_matrix);
+    return (indices_vector, new_mol.g0, new_mol.proximity_matrix,new_mol.distance_matrix,new_mol.directions_matrix);
 }
 
 pub fn create_fmo_graph(

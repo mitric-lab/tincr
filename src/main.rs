@@ -56,7 +56,7 @@ use toml;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(16)
         .build_global()
         .unwrap();
 
@@ -221,7 +221,7 @@ fn main() {
                 atomic_numbers.clone(),
                 positions.clone(),
             );
-            let (indices_frags, gamma_total, prox_matrix): (Vec<usize>, Array2<f64>, Array2<bool>) =
+            let (indices_frags, gamma_total,prox_mat,dist_mat,direct_mat): (Vec<usize>, Array2<f64>, Array2<bool>,Array2<f64>, Array3<f64>) =
                 reorder_molecule(&fragments, config.clone(), positions.raw_dim());
             println!(
                 "{:>68} {:>8.2} s",
@@ -242,7 +242,7 @@ fn main() {
             let molecule_timer: Instant = Instant::now();
 
             let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
-                fmo_calculate_pairwise_par(&fragments, &fragments_data, config.clone());
+                fmo_calculate_pairwise_par(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags);
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -257,7 +257,7 @@ fn main() {
                 &pairs_data,
                 &indices_frags,
                 gamma_total,
-                prox_matrix,
+                prox_mat,
             );
             println!(
                 "{:>68} {:>8.2} s",
