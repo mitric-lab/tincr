@@ -125,6 +125,9 @@ fn main() {
                 None,
                 config,
                 None,
+                None,
+                None,
+                None
             );
             info!(
                 "{:>68} {:>8.2} s",
@@ -159,6 +162,9 @@ fn main() {
                 None,
                 config,
                 None,
+                None,
+                None,
+                None
             );
             info!(
                 "{:>68} {:>8.2} s",
@@ -183,7 +189,7 @@ fn main() {
             0
         }
         "fmo" => {
-            let (graph, subgraph): (StableUnGraph<u8, f64>, Vec<StableUnGraph<u8, f64>>) =
+            let (graph,graph_indexes, subgraph): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>) =
                 create_fmo_graph(atomic_numbers.clone(), positions.clone());
             // let mut mol: Molecule = Molecule::new(
             //     atomic_numbers.clone(),

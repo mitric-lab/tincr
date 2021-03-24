@@ -338,6 +338,9 @@ pub fn fmo_calculate_pairwise(
                 None,
                 config.clone(),
                 None,
+                None,
+                None,
+                None
             );
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
             let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
@@ -530,10 +533,10 @@ pub fn fmo_calculate_pairwise_par(
             .assign(&molecule_b.positions.slice(s![i, ..]));
     }
 
-    let (graph, subgraph): (StableUnGraph<u8, f64>, Vec<StableUnGraph<u8, f64>>) =
+    let (graph_new,graph_indexes, subgraph): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>) =
         create_fmo_graph(atomic_numbers.clone(), positions.clone());
 
-    let first_graph: Graph<u8, f64, Undirected> = Graph::from(graph);
+    let first_graph: Graph<u8, f64, Undirected> = Graph::from(graph_new.clone());
     let first_pair: Molecule = Molecule::new(
         atomic_numbers,
         positions,
@@ -543,6 +546,9 @@ pub fn fmo_calculate_pairwise_par(
         None,
         config.clone(),
         None,
+        Some(graph_new),
+        Some(graph_indexes),
+        Some(subgraph)
     );
     let first_calc:DFTBCalculator = first_pair.calculator.clone();
 
@@ -589,10 +595,10 @@ pub fn fmo_calculate_pairwise_par(
                     drop(molecule_timer);
                     let molecule_timer: Instant = Instant::now();
 
-                    let (graph, subgraph): (StableUnGraph<u8, f64>, Vec<StableUnGraph<u8, f64>>) =
+                    let (graph_new,graph_indexes, subgraph): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>) =
                         create_fmo_graph(atomic_numbers.clone(), positions.clone());
 
-                    let graph: Graph<u8, f64, Undirected> = Graph::from(graph);
+                    let graph: Graph<u8, f64, Undirected> = Graph::from(graph_new.clone());
 
                     if saved_graphs.len() > 0{
                         for (ind_g, saved_graph) in saved_graphs.iter().enumerate(){
@@ -625,6 +631,9 @@ pub fn fmo_calculate_pairwise_par(
                         None,
                         config.clone(),
                         saved_calc,
+                        Some(graph_new),
+                        Some(graph_indexes),
+                        Some(subgraph)
                     );
                     println!(
                         "{:>68} {:>8.6} s",
@@ -1076,6 +1085,9 @@ pub fn create_fragment_molecules(
             None,
             config.clone(),
             saved_calc,
+            None,
+            None,
+            None
         );
         if use_saved_calc == false {
             saved_calculators.push(frag_mol.calculator.clone());
@@ -1148,6 +1160,9 @@ pub fn reorder_molecule(
         None,
         config.clone(),
         None,
+        None,
+        None,
+        None
     );
     return (indices_vector, new_mol.g0, new_mol.proximity_matrix);
 }
@@ -1155,7 +1170,7 @@ pub fn reorder_molecule(
 pub fn create_fmo_graph(
     atomic_numbers: Vec<u8>,
     positions: Array2<f64>,
-) -> (StableUnGraph<u8, f64>, Vec<StableUnGraph<u8, f64>>) {
+) -> (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>) {
     let n_atoms: usize = atomic_numbers.len();
     let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
         distance_matrix(positions.view(), None);
@@ -1168,5 +1183,5 @@ pub fn create_fmo_graph(
         Vec<StableUnGraph<u8, f64>>,
     ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
 
-    return (graph, subgraphs);
+    return (graph,graph_indexes, subgraphs);
 }

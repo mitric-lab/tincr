@@ -57,6 +57,9 @@ impl Molecule {
         active_orbitals: Option<(usize, usize)>,
         config: GeneralConfig,
         saved_calc: Option<DFTBCalculator>,
+        saved_graph: Option<StableUnGraph<u8,f64>>,
+        saved_graph_indexes: Option<Vec<NodeIndex>>,
+        saved_subgraphs: Option<Vec<StableUnGraph<u8, f64>>>
     ) -> Molecule {
         let molecule_timer: Instant = Instant::now();
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
@@ -133,14 +136,30 @@ impl Molecule {
 
         //(&atomic_numbers, &atomtypes, model);
 
+        let mut graph_opt:Option<StableUnGraph<u8, f64>> = None;
+        let mut graph_indexes_opt:Option<Vec<NodeIndex>> = None;
+        let mut subgraphs_opt:Option<Vec<StableUnGraph<u8, f64>>> = None;
+
         let connectivity_matrix: Array2<bool> =
             build_connectivity_matrix(n_atoms, &dist_matrix, &atomic_numbers);
 
-        let (graph, graph_indexes, subgraphs): (
-            StableUnGraph<u8, f64>,
-            Vec<NodeIndex>,
-            Vec<StableUnGraph<u8, f64>>,
-        ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
+        if saved_graph.is_none(){
+            let (graph, graph_indexes, subgraphs): (
+                StableUnGraph<u8, f64>,
+                Vec<NodeIndex>,
+                Vec<StableUnGraph<u8, f64>>,
+            ) = build_graph(&atomic_numbers, &connectivity_matrix, &dist_matrix);
+
+            graph_opt = Some(graph);
+            graph_indexes_opt = Some(graph_indexes);
+            subgraphs_opt = Some(subgraphs);
+        }
+        else{
+            graph_opt = saved_graph;
+            graph_indexes_opt = saved_graph_indexes;
+            subgraphs_opt = saved_subgraphs;
+        }
+
 
         let charges: Array1<f64> = Array1::zeros(n_atoms);
 
@@ -172,9 +191,9 @@ impl Molecule {
             directions_matrix: dir_matrix,
             calculator: calculator,
             connectivity_matrix: connectivity_matrix,
-            full_graph: graph,
-            full_graph_indices: graph_indexes,
-            sub_graphs: subgraphs,
+            full_graph: graph_opt.unwrap(),
+            full_graph_indices: graph_indexes_opt.unwrap(),
+            sub_graphs: subgraphs_opt.unwrap(),
             config: config,
             final_charges: charges,
             g0: g0,

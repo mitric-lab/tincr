@@ -734,6 +734,9 @@ fn self_consistent_charge_routine_near_coin() {
         None,
         config,
         None,
+        None,
+        None,
+        None
     );
     let energy = run_scc(&mut mol);
     //println!("ENERGY: {}", energy);
