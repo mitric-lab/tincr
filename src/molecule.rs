@@ -41,6 +41,7 @@ pub struct Molecule {
     pub sub_graphs: Vec<StableUnGraph<u8, f64>>,
     pub config: GeneralConfig,
     pub final_charges: Array1<f64>,
+    pub final_p_matrix:Array2<f64>,
     pub g0: Array2<f64>,
     pub g0_lr: Array2<f64>,
     pub g0_ao: Array2<f64>,
@@ -174,6 +175,7 @@ impl Molecule {
         }
 
         let charges: Array1<f64> = Array1::zeros(n_atoms);
+        let p_matrix:Array2<f64> = Array2::zeros((calculator.n_orbs, calculator.n_orbs));
 
         info!("{: <25} {}", "charge:", charge);
         info!("{: <25} {}", "multiplicity:", multiplicity);
@@ -201,6 +203,7 @@ impl Molecule {
             sub_graphs: subgraphs_opt.unwrap(),
             config: config,
             final_charges: charges,
+            final_p_matrix:p_matrix,
             g0: g0,
             g0_lr: g0_lr,
             g0_ao: g0_a0,
@@ -269,6 +272,7 @@ impl Molecule {
     pub fn set_final_charges(&mut self, dq: Array1<f64>) {
         self.final_charges = dq;
     }
+    pub fn set_final_p_mat(&mut self, p:Array2<f64>) {self.final_p_matrix = p;}
 }
 pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
     // find unique atom types

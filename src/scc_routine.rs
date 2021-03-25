@@ -215,6 +215,7 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
         if converged {
             break 'scf_loop;
             molecule.set_final_charges(dq);
+            molecule.set_final_p_mat(p);
         }
     }
     info!("{:-^75} ", "");
