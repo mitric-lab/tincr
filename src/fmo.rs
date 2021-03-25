@@ -85,8 +85,9 @@ pub fn fmo_gs_energy(
             let index_pair_iter: usize = indices_frags[pair.frag_a_index];
             let ddq_arr: Array1<f64> = Array::from(ddq_vec);
 
+            // TODO:deactivate par_iter if threads = 1
             let embedding_pot: Vec<f64> = fragments
-                .par_iter()
+                .iter()
                 .enumerate()
                 .filter_map(|(ind_k, mol_k)| {
                     if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index {
@@ -368,6 +369,7 @@ pub fn fmo_calculate_pairwise(
                 None,
                 None,
                 None,
+                None
             );
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
             let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
@@ -417,6 +419,7 @@ pub fn fmo_calculate_pairwise_single(
     direct_mat: &Array3<f64>,
     prox_mat: &Array2<bool>,
     indices_frags: &Vec<usize>,
+    gamma_total:&Array2<f64>
 ) -> (Array2<f64>, Vec<pair_result>) {
     // construct a first graph in case all monomers are the same
     let mol_a = fragments[0].clone();
@@ -450,6 +453,12 @@ pub fn fmo_calculate_pairwise_single(
             0..mol_a.n_atoms + mol_b.n_atoms
         ])
         .to_owned();
+    let ga_frag: Array2<f64> = gamma_total
+        .slice(s![
+            0..mol_a.n_atoms + mol_b.n_atoms,
+            0..mol_a.n_atoms + mol_b.n_atoms
+        ])
+        .to_owned();
     let connectivity_matrix: Array2<bool> =
         build_connectivity_matrix(atomic_numbers.len(), &distance_frag, &atomic_numbers);
     let (graph_new, graph_indexes, subgraph): (
@@ -476,6 +485,7 @@ pub fn fmo_calculate_pairwise_single(
         Some(distance_frag),
         Some(dir_frag),
         Some(prox_frag),
+        Some(ga_frag)
     );
     let first_calc: DFTBCalculator = first_pair.calculator.clone();
 
@@ -512,6 +522,11 @@ pub fn fmo_calculate_pairwise_single(
                     molecule_a.n_atoms + molecule_b.n_atoms,
                     molecule_a.n_atoms + molecule_b.n_atoms,
                 ));
+                let mut gamma_frag:Array2<f64> = Array2::zeros((
+                    molecule_a.n_atoms + molecule_b.n_atoms,
+                    molecule_a.n_atoms + molecule_b.n_atoms,
+                ));
+
                 distance_frag
                     .slice_mut(s![0..molecule_a.n_atoms, 0..molecule_a.n_atoms])
                     .assign(&dist_mat.slice(s![
@@ -533,6 +548,31 @@ pub fn fmo_calculate_pairwise_single(
                 distance_frag
                     .slice_mut(s![molecule_a.n_atoms.., molecule_a.n_atoms..])
                     .assign(&dist_mat.slice(s![
+                        indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
+                        indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
+                    ]));
+
+                gamma_frag
+                    .slice_mut(s![0..molecule_a.n_atoms, 0..molecule_a.n_atoms])
+                    .assign(&gamma_total.slice(s![
+                        indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
+                        indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms
+                    ]));
+                gamma_frag
+                    .slice_mut(s![0..molecule_a.n_atoms, molecule_a.n_atoms..])
+                    .assign(&gamma_total.slice(s![
+                        indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
+                        indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
+                    ]));
+                gamma_frag
+                    .slice_mut(s![molecule_a.n_atoms.., 0..molecule_a.n_atoms])
+                    .assign(&gamma_total.slice(s![
+                        indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
+                        indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms
+                    ]));
+                gamma_frag
+                    .slice_mut(s![molecule_a.n_atoms.., molecule_a.n_atoms..])
+                    .assign(&gamma_total.slice(s![
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
                     ]));
@@ -669,6 +709,7 @@ pub fn fmo_calculate_pairwise_single(
                         Some(distance_frag),
                         Some(dir_frag),
                         Some(prox_frag),
+                        Some(gamma_frag)
                     );
 
                     if use_saved_calc == false {
@@ -918,6 +959,7 @@ pub fn fmo_calculate_pairwise_par(
         Some(distance_frag),
         Some(dir_frag),
         Some(prox_frag),
+        None
     );
     let first_calc: DFTBCalculator = first_pair.calculator.clone();
 
@@ -1168,6 +1210,7 @@ pub fn fmo_calculate_pairwise_par(
                             Some(distance_frag),
                             Some(dir_frag),
                             Some(prox_frag),
+                            None
                         );
 
                         if use_saved_calc == false {
@@ -1572,6 +1615,7 @@ pub fn create_fragment_molecules(
             None,
             None,
             None,
+            None
         );
         if use_saved_calc == false {
             saved_calculators.push(frag_mol.calculator.clone());
@@ -1657,6 +1701,7 @@ pub fn reorder_molecule(
         None,
         None,
         None,
+        None
     );
     return (
         indices_vector,

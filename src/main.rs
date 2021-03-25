@@ -132,6 +132,7 @@ fn main() {
                 None,
                 None,
                 None,
+                None
             );
             info!(
                 "{:>68} {:>8.2} s",
@@ -173,6 +174,7 @@ fn main() {
                 None,
                 None,
                 None,
+                None
             );
             info!(
                 "{:>68} {:>8.2} s",
@@ -242,7 +244,7 @@ fn main() {
             let molecule_timer: Instant = Instant::now();
 
             let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
-                fmo_calculate_pairwise_par(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags);
+                fmo_calculate_pairwise_single(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&gamma_total);
 
             println!(
                 "{:>68} {:>8.2} s",

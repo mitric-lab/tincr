@@ -2129,6 +2129,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
         None,
         None,
         None,
+        None
     );
 
     let S: Array2<f64> = array![
@@ -2381,6 +2382,7 @@ fn get_gradients_exc_no_lc_routine() {
         None,
         None,
         None,
+        None
     );
 
     let S: Array2<f64> = array![
@@ -2700,6 +2702,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
         None,
         None,
         None,
+        None
     );
 
     let S: Array2<f64> = array![

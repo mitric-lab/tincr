@@ -63,7 +63,8 @@ impl Molecule {
         saved_subgraphs: Option<Vec<StableUnGraph<u8, f64>>>,
         saved_dist: Option<Array2<f64>>,
         saved_dir: Option<Array3<f64>>,
-        saved_prox: Option<Array2<bool>>
+        saved_prox: Option<Array2<bool>>,
+        saved_gamma:Option<Array2<f64>>
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
@@ -105,15 +106,29 @@ impl Molecule {
         }
         let calculator: DFTBCalculator = calculator_opt.unwrap();
 
-        let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-            &atomic_numbers,
-            atomic_numbers.len(),
-            calculator.n_orbs,
-            distance_mat.view(),
-            &calculator.hubbard_u,
-            &calculator.valorbs,
-            Some(0.0),
-        );
+        let mut gamma_opt: Option<Array2<f64>> = None;
+        let mut g_ao_opt: Option<Array2<f64>> = None;
+
+        if saved_gamma.is_none(){
+            let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+                &atomic_numbers,
+                atomic_numbers.len(),
+                calculator.n_orbs,
+                distance_mat.view(),
+                &calculator.hubbard_u,
+                &calculator.valorbs,
+                Some(0.0),
+            );
+            gamma_opt = Some(g0);
+            g_ao_opt = Some(g0_a0);
+        }
+        else{
+            gamma_opt = saved_gamma;
+            g_ao_opt = Some(Array2::zeros((calculator.n_orbs,calculator.n_orbs)));
+        }
+        let g0:Array2<f64> = gamma_opt.unwrap();
+        let g0_a0:Array2<f64> = g_ao_opt.unwrap();
+
         let mut g0_lr: Array2<f64> = Array::zeros((g0.dim().0, g0.dim().1));
         let mut g0_lr_a0: Array2<f64> = Array::zeros((g0_a0.dim().0, g0_a0.dim().1));
         if r_lr.is_none() || r_lr.unwrap() > 0.0 {
@@ -157,7 +172,6 @@ impl Molecule {
             subgraphs_opt = saved_subgraphs;
             connectivity_opt = saved_connect_mat;
         }
-
 
         let charges: Array1<f64> = Array1::zeros(n_atoms);
 
