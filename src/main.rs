@@ -25,6 +25,8 @@ mod step;
 mod test;
 mod transition_charges;
 mod zbrent;
+mod molecule2;
+mod parametrization;
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;

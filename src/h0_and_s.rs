@@ -20,6 +20,111 @@ use std::collections::HashMap;
 /// atomlist_a, atomlist_b: list of (Zi,(xi,yi,zi)) for each atom
 ///
 ///
+pub fn h0_and_s_ab(
+    atomic_numbers1: &[u8],
+    atomic_numbers2: &[u8],
+    positions1: ArrayView2<f64>,
+    positions2: ArrayView2<f64>,
+    n_orbs1: usize,
+    n_orbs2: usize,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
+    proximity_matrix: ArrayView2<bool>,
+    skt: &HashMap<(u8, u8), SlaterKosterTable>,
+    orbital_energies: &HashMap<u8, HashMap<(i8, i8), f64>>,
+) -> (Array2<f64>, Array2<f64>) {
+    let mut h0: Array2<f64> = Array2::zeros((n_orbs1, n_orbs2));
+    let mut s: Array2<f64> = Array2::zeros((n_orbs1, n_orbs2));
+    // iterate over atoms
+    let mut mu: usize = 0;
+    for (i, (zi, posi)) in atomic_numbers1
+        .iter()
+        .zip(positions1.outer_iter())
+        .enumerate()
+    {
+        // iterate over orbitals on center i
+        for (ni, li, mi) in &valorbs[zi] {
+            // iterate over atoms
+            let mut nu: usize = 0;
+            for (j, (zj, posj)) in atomic_numbers2
+                .iter()
+                .zip(positions2.outer_iter())
+                .enumerate()
+            {
+                // iterate over orbitals on center j
+                for (nj, lj, mj) in &valorbs[zj] {
+                    if proximity_matrix[[i, j]] {
+                        if mu < nu {
+                            if zi <= zj {
+                                if i != j {
+                                    let (r, x, y, z): (f64, f64, f64, f64) =
+                                        directional_cosines(posi, posj);
+                                    s[[mu, nu]] = slako_transformation(
+                                        r,
+                                        x,
+                                        y,
+                                        z,
+                                        &skt[&(*zi, *zj)].s_spline,
+                                        *li,
+                                        *mi,
+                                        *lj,
+                                        *mj,
+                                    );
+                                    h0[[mu, nu]] = slako_transformation(
+                                        r,
+                                        x,
+                                        y,
+                                        z,
+                                        &skt[&(*zi, *zj)].h_spline,
+                                        *li,
+                                        *mi,
+                                        *lj,
+                                        *mj,
+                                    );
+                                }
+                            } else {
+                                let (r, x, y, z): (f64, f64, f64, f64) =
+                                    directional_cosines(posj, posi);
+                                s[[mu, nu]] = slako_transformation(
+                                    r,
+                                    x,
+                                    y,
+                                    z,
+                                    &skt[&(*zj, *zi)].s_spline,
+                                    *lj,
+                                    *mj,
+                                    *li,
+                                    *mi,
+                                );
+                                h0[[mu, nu]] = slako_transformation(
+                                    r,
+                                    x,
+                                    y,
+                                    z,
+                                    &skt[&(*zj, *zi)].h_spline,
+                                    *lj,
+                                    *mj,
+                                    *li,
+                                    *mi,
+                                );
+                            }
+                        } else if mu == nu {
+                            assert_eq!(zi, zj);
+                            h0[[mu, nu]] = orbital_energies[zi][&(*ni, *li)];
+                            s[[mu, nu]] = 1.0;
+                        } else {
+                            s[[mu, nu]] = s[[nu, mu]];
+                            h0[[mu, nu]] = h0[[nu, mu]];
+                        }
+                    }
+                    nu = nu + 1;
+                }
+            }
+            mu = mu + 1;
+        }
+    }
+    return (s, h0);
+}
+
 pub fn h0_and_s(
     atomic_numbers: &[u8],
     positions: ArrayView2<f64>,

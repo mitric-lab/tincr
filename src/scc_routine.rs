@@ -191,7 +191,7 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
         );
         if i == 0 {
             info!(
-                "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>12.2e}",
+                "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>12.4}",
                 i + 1,
                 scf_energy + rep_energy,
                 0.0,
