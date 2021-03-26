@@ -67,10 +67,11 @@ pub fn fmo_gs_gradients(
 
     for pair in pair_results.iter() {
         if pair.energy_pair.is_some() {
-            let dimer_gradient_e0:Array1<f64> = pair.grad_e0.unwrap();
-            let dimer_gradient_vrep:Array1<f64> = pair.grad_vrep.unwrap();
+            let dimer_gradient_e0:Array1<f64> = pair.grad_e0.clone().unwrap();
+            let dimer_gradient_vrep:Array1<f64> = pair.grad_vrep.clone().unwrap();
 
             let pair_atoms: usize = fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
+            let pair_charges = pair.pair_charges.clone().unwrap();
             let ddq_vec: Vec<f64> = (0..pair_atoms)
                 .into_iter()
                 .map(|a| {
@@ -86,18 +87,19 @@ pub fn fmo_gs_gradients(
                 .collect();
             let index_pair_iter: usize = indices_frags[pair.frag_a_index];
             let ddq_arr: Array1<f64> = Array::from(ddq_vec);
-            let shape_orbs_dimer:usize = pair.grad_s.dim().1;
+            // TODO:Reduce cloning by doing let ... = ...,clone() and using that expression
+            let shape_orbs_dimer:usize = pair.grad_s.clone().unwrap().dim().1;
             let shape_orbs_a: usize = frag_grad_results[pair.frag_a_index].grad_s.dim().1;
             let shape_orbs_b: usize = frag_grad_results[pair.frag_b_index].grad_s.dim().1;
-            let w_dimer:Array3<f64> = -0.5 *pair.p_mat
+            let w_dimer:Array3<f64> = -0.5 *pair.p_mat.clone().unwrap()
                 .dot(
-                    &pair.grad_s.clone()
+                    &pair.grad_s.clone().unwrap()
                         .into_shape((
                             3 * pair_atoms * shape_orbs_dimer,
                             shape_orbs_dimer,
                         ))
                         .unwrap()
-                        .dot(&pair.p_mat)
+                        .dot(&pair.p_mat.clone().unwrap())
                         .t(),
                 )
                 .t()
@@ -156,9 +158,9 @@ pub fn fmo_gs_gradients(
             // Build delta W_mu,nu^I,J
             // And delta p_mu,nu^I,J
             let mut dw_dimer:Array3<f64> = Array3::zeros(w_dimer.raw_dim());
-            let dw_dimer_vec:Vec<Array2<f64>> = (0..pair_atoms).into_iter().map(|a|{
+            //let dw_dimer_vec:Vec<Array2<f64>> = (0..pair_atoms).into_iter().map(|a|{
                 // do something
-            }).collect();
+            //}).collect();
 
 
             let embedding_pot: Vec<f64> = fragments
@@ -726,7 +728,7 @@ pub fn fmo_calculate_pairwise_gradients(
                     ) = scc_routine::run_scc(&mut pair);
                     energy_pair = Some(energy);
                     charges_pair = Some(pair.final_charges.clone());
-                    pair_density = Some(pair.final_p_matrix);
+                    pair_density = Some(pair.final_p_matrix.clone());
 
                     pair.calculator.set_active_orbitals(f);
                     let full_occ: Vec<usize> = pair.calculator.full_occ.clone().unwrap();
