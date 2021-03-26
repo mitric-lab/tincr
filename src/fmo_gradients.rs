@@ -62,6 +62,7 @@ pub fn fmo_gs_gradients(
         .collect();
     let gamma_zeros: Array2<f64> = proximity_zeros.into_shape((prox_mat.raw_dim())).unwrap();
     let gamma_tmp: Array2<f64> = gamma_zeros * gamma_total;
+    let mut dimer_gradients:Vec<Array1<f64>> = Vec::new();
 
     for pair in pair_results.iter() {
         if pair.energy_pair.is_some() {
@@ -215,8 +216,33 @@ pub fn fmo_gs_gradients(
                         0..fragments[pair.frag_a_index].n_atoms,
                         fragments[pair.frag_a_index].n_atoms..
                     ])
-                    .dot(&fragments[pair.frag_a_index].final_charges)
+                    .dot(&fragments[pair.frag_b_index].final_charges)
                     .sum();
+
+            let gradient_frag_a:Array1<f64> = term_1 + term_2;
+
+            let g1_qa: Array2<f64> = pair_results[iter]
+                .g1
+                .slice(s![
+                    fragments[pair.frag_a_index].n_atoms..,
+                    fragments[pair.frag_a_index].n_atoms..,
+                    0..fragments[pair.frag_a_index].n_atoms
+                ])
+                .into_shape((
+                    3 * fragments[pair.frag_b_index].n_atoms * fragments[pair.frag_b_index].n_atoms,
+                    fragments[pair.frag_a_index].n_atoms,
+                ))
+                .unwrap()
+                .dot(&fragments[pair.frag_a_index].final_charges)
+                .into_shape((
+                    3 * fragments[pair.frag_b_index].n_atoms,
+                    fragments[pair.frag_b_index].n_atoms,
+                    fragments[pair.frag_a_index].n_atoms,
+                ))
+                .unwrap()
+                .sum_axis(Axis(2));
+
+            let term_1:Array1<f64> = g1_qa.dot(&fragments[pair.frag_b_index].final_charges);
 
             let w_mat_b: Array3<f64> = fragments[pair.frag_b_index]
                 .final_p_matrix
@@ -281,29 +307,23 @@ pub fn fmo_gs_gradients(
                 .sum_axis(Axis(2))
                 .sum_axis(Axis(1));
 
-            for coord in (0..3).into_iter() {
-                for atom_a in (0..fragments[pair.frag_a_index].n_atoms).into_iter() {
-                    let mut first_term: f64 = 0.0;
-                    for atom_b in (0..fragments[pair.frag_b_index].n_atoms).into_iter() {
-                        first_term += fragments[pair.frag_a_index].final_charges[atom_a]
-                            * fragments[pair.frag_b_index].final_charges[atom_b]
-                            * pair.g1[[3 * atom_a + coord, atom_a, atom_b]];
-                    }
-                    // loop over occ of atom a and virts
-                    // loop over atom b
-                }
-            }
-            //         let index_pair_a: usize = indices_frags[pair.frag_a_index];
-            //         let index_pair_b: usize = indices_frags[pair.frag_b_index];
-            //         let gamma_ab: ArrayView2<f64> = gamma_tmp.slice(s![
-            //             index_pair_a..index_pair_a + fragments[pair.frag_a_index].n_atoms,
-            //             index_pair_b..index_pair_b + fragments[pair.frag_b_index].n_atoms
-            //         ]);
-            //
-            //         pair_energy += fragments[pair.frag_a_index]
-            //             .final_charges
-            //             .dot(&gamma_ab.dot(&fragments[pair.frag_b_index].final_charges));
-            //
+            let term_2: Array1<f64> = (w_s_b + p_grads_b)
+                * pair_results[iter]
+                .g0
+                .slice(s![
+                        fragments[pair.frag_a_index].n_atoms..,
+                        0..fragments[pair.frag_a_index].n_atoms
+                    ])
+                .dot(&fragments[pair.frag_a_index].final_charges)
+                .sum();
+
+            let gradient_frag_b:Array1<f64> = term_1 + term_2;
+            let mut dimer_gradient:Vec<f64> = Vec::new();
+            dimer_gradient.append(&mut gradient_frag_a.to_vec());
+            dimer_gradient.append(&mut gradient_frag_b.to_vec());
+
+            let dimer_gradient:Array1<f64> = Array::from(dimer_gradient);
+            dimer_gradients.push(dimer_gradient);
         }
         iter += 1;
         //     pair_energies += pair_energy;
