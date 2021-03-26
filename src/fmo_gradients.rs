@@ -40,6 +40,7 @@ pub fn fmo_gs_gradients(
     pair_results: &Vec<pair_grad_result>,
     indices_frags: &Vec<usize>,
     gamma_total: Array2<f64>,
+    g1_total:Array3<f64>,
     prox_mat: Array2<bool>,
 ) -> () {
     // sum over all monomer energies
@@ -66,54 +67,118 @@ pub fn fmo_gs_gradients(
 
     for pair in pair_results.iter() {
         if pair.energy_pair.is_some() {
-            //         let pair_charges: Array1<f64> = pair.pair_charges.clone().unwrap();
-            //         // E_ij - E_i - E_j
-            //         pair_energy = pair.energy_pair.unwrap()
-            //             - frag_grad_results.energy[pair.frag_a_index]
-            //             - frag_grad_results.energy[pair.frag_b_index];
-            //
-            //         // get embedding potential of pairs
-            //         // only relevant if the scc energy of the pair was calculated
-            //         let pair_atoms: usize =
-            //             fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
-            //         let ddq_vec: Vec<f64> = (0..pair_atoms)
-            //             .into_iter()
-            //             .map(|a| {
-            //                 let mut ddq: f64 = 0.0;
-            //                 if a < pair.frag_a_atoms {
-            //                     ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
-            //                 } else {
-            //                     ddq = pair_charges[a]
-            //                         - fragments[pair.frag_b_index].final_charges[a - pair.frag_a_atoms];
-            //                 }
-            //                 ddq
-            //             })
-            //             .collect();
-            //         let index_pair_iter: usize = indices_frags[pair.frag_a_index];
-            //         let ddq_arr: Array1<f64> = Array::from(ddq_vec);
-            //
-            //         let embedding_pot: Vec<f64> = fragments
-            //             .iter()
-            //             .enumerate()
-            //             .filter_map(|(ind_k, mol_k)| {
-            //                 if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index {
-            //                     let index_frag_iter: usize = indices_frags[ind_k];
-            //                     let gamma_ac: ArrayView2<f64> = gamma_tmp.slice(s![
-            //                         index_pair_iter..index_pair_iter + pair_atoms,
-            //                         index_frag_iter..index_frag_iter + mol_k.n_atoms
-            //                     ]);
-            //                     let embedding: f64 = ddq_arr.dot(&gamma_ac.dot(&mol_k.final_charges));
-            //
-            //                     Some(embedding)
-            //                 } else {
-            //                     None
-            //                 }
-            //             })
-            //             .collect();
-            //
-            //         let embedding_pot_sum: f64 = embedding_pot.sum();
-            //         embedding_potential += embedding_pot_sum;
-            //
+            let dimer_gradient_e0:Array1<f64> = pair.grad_e0.unwrap();
+            let dimer_gradient_vrep:Array1<f64> = pair.grad_vrep.unwrap();
+
+            let pair_atoms: usize = fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
+            let ddq_vec: Vec<f64> = (0..pair_atoms)
+                .into_iter()
+                .map(|a| {
+                    let mut ddq: f64 = 0.0;
+                    if a < pair.frag_a_atoms {
+                        ddq = pair_charges[a] - fragments[pair.frag_a_index].final_charges[a];
+                    } else {
+                        ddq = pair_charges[a]
+                            - fragments[pair.frag_b_index].final_charges[a - pair.frag_a_atoms];
+                    }
+                    ddq
+                })
+                .collect();
+            let index_pair_iter: usize = indices_frags[pair.frag_a_index];
+            let ddq_arr: Array1<f64> = Array::from(ddq_vec);
+            let shape_orbs_dimer:usize = pair.grad_s.dim().1;
+            let shape_orbs_a: usize = frag_grad_results[pair.frag_a_index].grad_s.dim().1;
+            let shape_orbs_b: usize = frag_grad_results[pair.frag_b_index].grad_s.dim().1;
+            let w_dimer:Array3<f64> = pair.p_mat
+                .dot(
+                    &pair.grad_s.clone()
+                        .into_shape((
+                            3 * pair_atoms * shape_orbs_dimer,
+                            shape_orbs_dimer,
+                        ))
+                        .unwrap()
+                        .dot(&pair.p_mat)
+                        .t(),
+                )
+                .t()
+                .to_owned()
+                .into_shape((
+                    3 * pair_atoms,
+                    shape_orbs_dimer,
+                    shape_orbs_dimer,
+                ))
+                .unwrap();
+            let w_mat_a: Array3<f64> = fragments[pair.frag_a_index]
+                .final_p_matrix
+                .dot(
+                    &frag_grad_results[pair.frag_a_index]
+                        .grad_s
+                        .clone()
+                        .into_shape((
+                            3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
+                            shape_orbs_a,
+                        ))
+                        .unwrap()
+                        .dot(&fragments[pair.frag_a_index].final_p_matrix)
+                        .t(),
+                )
+                .t()
+                .to_owned()
+                .into_shape((
+                    3 * fragments[pair.frag_a_index].n_atoms,
+                    shape_orbs_a,
+                    shape_orbs_a,
+                ))
+                .unwrap();
+            let w_mat_b: Array3<f64> = fragments[pair.frag_b_index]
+                .final_p_matrix
+                .dot(
+                    &frag_grad_results[pair.frag_b_index]
+                        .grad_s
+                        .clone()
+                        .into_shape((
+                            3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
+                            shape_orbs_b,
+                        ))
+                        .unwrap()
+                        .dot(&fragments[pair.frag_b_index].final_p_matrix)
+                        .t(),
+                )
+                .t()
+                .to_owned()
+                .into_shape((
+                    3 * fragments[pair.frag_b_index].n_atoms,
+                    shape_orbs_b,
+                    shape_orbs_b,
+                ))
+                .unwrap();
+
+            // Build delta W_mu,nu^I,J
+            // And delta p_mu,nu^I,J
+            let mut dw_dimer:Array3<f64> = Array3::zeros(w_dimer.raw_dim());
+            let dw_dimer_vec:Vec<Array2<f64>> = (0..pair_atoms).into_iter().map(|a|{
+
+            }).collect();
+
+
+            let embedding_pot: Vec<f64> = fragments
+                .iter()
+                .enumerate()
+                .filter_map(|(ind_k, mol_k)|
+                    if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index {
+                        let index_frag_iter: usize = indices_frags[ind_k];
+                        let gamma_ac: ArrayView2<f64> = gamma_tmp.slice(s![
+                            index_pair_iter..index_pair_iter + pair_atoms,
+                            index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        ]);
+                        let embedding: f64 = ddq_arr.dot(&gamma_ac.dot(&mol_k.final_charges));
+
+                        Some(embedding)
+                    } else {
+                        None
+                    }
+                ).collect();
+
         } else {
             let dimer_natoms: usize =
                 fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
@@ -582,6 +647,9 @@ pub fn fmo_calculate_pairwise_gradients(
                 let mut charges_pair: Option<Array1<f64>> = None;
                 let mut grad_e0_pair: Option<Array1<f64>> = None;
                 let mut grad_vrep_pair: Option<Array1<f64>> = None;
+                let mut pair_grad_s:Option<Array3<f64>> = None;
+                let mut pair_s:Option<Array2<f64>> = None;
+                let mut pair_density:Option<Array2<f64>> = None;
 
                 let mut gamma_frag: Array2<f64> = Array2::zeros((
                     molecule_a.n_atoms + molecule_b.n_atoms,
@@ -658,6 +726,7 @@ pub fn fmo_calculate_pairwise_gradients(
                     ) = scc_routine::run_scc(&mut pair);
                     energy_pair = Some(energy);
                     charges_pair = Some(pair.final_charges.clone());
+                    pair_density = Some(pair.final_p_matrix);
 
                     pair.calculator.set_active_orbitals(f);
                     let full_occ: Vec<usize> = pair.calculator.full_occ.clone().unwrap();
@@ -710,6 +779,8 @@ pub fn fmo_calculate_pairwise_gradients(
                         &pair.calculator.skt,
                         &pair.calculator.orbital_energies,
                     );
+                    pair_s = Some(s);
+                    pair_grad_s = Some(grad_s)
                 }
 
                 let pair_res: pair_grad_result = pair_grad_result::new(
@@ -723,6 +794,9 @@ pub fn fmo_calculate_pairwise_gradients(
                     grad_vrep_pair,
                     pair.g0,
                     g1,
+                    pair_s,
+                    pair_grad_s,
+                    pair_density
                 );
 
                 vec_pair_result.push(pair_res);
@@ -773,6 +847,78 @@ pub fn fmo_calculate_fragment_gradients(fragments: &mut Vec<Molecule>) -> (Vec<f
     return results;
 }
 
+pub fn reorder_molecule_gradients(
+    fragments: &Vec<Molecule>,
+    config: GeneralConfig,
+    shape_positions: Ix2,
+) -> (
+    Vec<usize>,
+    Array2<f64>,
+    Array3<f64>,
+    Array2<bool>,
+    Array2<f64>,
+    Array3<f64>,
+) {
+    let mut atomic_numbers: Vec<u8> = Vec::new();
+    let mut positions: Array2<f64> = Array2::zeros(shape_positions);
+    let mut indices_vector: Vec<usize> = Vec::new();
+    let mut mut_fragments: Vec<Molecule> = fragments.clone();
+    let mut prev_nat: usize = 0;
+
+    for molecule in mut_fragments.iter_mut() {
+        //for (ind, atom) in molecule.atomic_numbers.iter().enumerate() {
+        //    atomic_numbers.push(*atom);
+        //    positions
+        //        .slice_mut(s![ind, ..])
+        //        .assign(&molecule.positions.slice(s![ind, ..]));
+        //}
+        atomic_numbers.append(&mut molecule.atomic_numbers);
+        positions
+            .slice_mut(s![prev_nat..prev_nat + molecule.n_atoms, ..])
+            .assign(&molecule.positions);
+        indices_vector.push(prev_nat);
+        prev_nat += molecule.n_atoms;
+    }
+
+    let new_mol: Molecule = Molecule::new(
+        atomic_numbers,
+        positions,
+        Some(config.mol.charge),
+        Some(config.mol.multiplicity),
+        Some(0.0),
+        None,
+        config.clone(),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    );
+    let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
+        &new_mol.atomic_numbers,
+        new_mol.n_atoms,
+        new_mol.calculator.n_orbs,
+        new_mol.distance_matrix.view(),
+        new_mol.directions_matrix.view(),
+        &new_mol.calculator.hubbard_u,
+        &new_mol.calculator.valorbs,
+        Some(0.0),
+    );
+
+    return (
+        indices_vector,
+        new_mol.g0,
+        g1,
+        new_mol.proximity_matrix,
+        new_mol.distance_matrix,
+        new_mol.directions_matrix,
+    );
+}
+
 pub struct frag_grad_result {
     energy: f64,
     grad_e0: Array1<f64>,
@@ -811,6 +957,9 @@ pub struct pair_grad_result {
     grad_vrep: Option<Array1<f64>>,
     g0: Array2<f64>,
     g1: Array3<f64>,
+    s:Option<Array2<f64>>,
+    grad_s:Option<Array3<f64>>,
+    p_mat:Option<Array2<f64>>
 }
 
 impl pair_grad_result {
@@ -825,6 +974,9 @@ impl pair_grad_result {
         grad_vrep: Option<Array1<f64>>,
         g0: Array2<f64>,
         g1: Array3<f64>,
+        s:Option<Array2<f64>>,
+        grad_s:Option<Array3<f64>>,
+        p_mat:Option<Array2<f64>>
     ) -> (pair_grad_result) {
         let result = pair_grad_result {
             pair_charges: pair_charges,
@@ -837,6 +989,9 @@ impl pair_grad_result {
             grad_vrep: grad_vrep,
             g0: g0,
             g1: g1,
+            s:s,
+            grad_s:grad_s,
+            p_mat: p_mat
         };
         return result;
     }
