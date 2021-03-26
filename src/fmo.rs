@@ -369,7 +369,7 @@ pub fn fmo_calculate_pairwise(
                 None,
                 None,
                 None,
-                None
+                None,
             );
             // compute Slater-Koster matrix elements for overlap (S) and 0-th order Hamiltonian (H0)
             let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
@@ -419,7 +419,7 @@ pub fn fmo_calculate_pairwise_single(
     direct_mat: &Array3<f64>,
     prox_mat: &Array2<bool>,
     indices_frags: &Vec<usize>,
-    gamma_total:&Array2<f64>
+    gamma_total: &Array2<f64>,
 ) -> (Array2<f64>, Vec<pair_result>) {
     // construct a first graph in case all monomers are the same
     let mol_a = fragments[0].clone();
@@ -485,7 +485,7 @@ pub fn fmo_calculate_pairwise_single(
         Some(distance_frag),
         Some(dir_frag),
         Some(prox_frag),
-        Some(ga_frag)
+        Some(ga_frag),
     );
     let first_calc: DFTBCalculator = first_pair.calculator.clone();
 
@@ -664,7 +664,7 @@ pub fn fmo_calculate_pairwise_single(
 
                 // do scc routine for pair if mininmal distance is below threshold
                 if (min_dist / vdw_radii_sum) < 2.0 {
-                    let mut gamma_frag:Array2<f64> = Array2::zeros((
+                    let mut gamma_frag: Array2<f64> = Array2::zeros((
                         molecule_a.n_atoms + molecule_b.n_atoms,
                         molecule_a.n_atoms + molecule_b.n_atoms,
                     ));
@@ -711,7 +711,7 @@ pub fn fmo_calculate_pairwise_single(
                         Some(distance_frag),
                         Some(dir_frag),
                         Some(prox_frag),
-                        Some(gamma_frag)
+                        Some(gamma_frag),
                     );
                     // println!("old gamma {}",pair.g0);
                     // assert!(gamma_frag.abs_diff_eq(&pair.g0,1e-10),"Gamma is wroooooooooooooooooooooooooooooooooooooooooooooooooooooooooong!!!!!");
@@ -963,7 +963,7 @@ pub fn fmo_calculate_pairwise_par(
         Some(distance_frag),
         Some(dir_frag),
         Some(prox_frag),
-        None
+        None,
     );
     let first_calc: DFTBCalculator = first_pair.calculator.clone();
 
@@ -1214,7 +1214,7 @@ pub fn fmo_calculate_pairwise_par(
                             Some(distance_frag),
                             Some(dir_frag),
                             Some(prox_frag),
-                            None
+                            None,
                         );
 
                         if use_saved_calc == false {
@@ -1619,7 +1619,7 @@ pub fn create_fragment_molecules(
             None,
             None,
             None,
-            None
+            None,
         );
         if use_saved_calc == false {
             saved_calculators.push(frag_mol.calculator.clone());
@@ -1705,7 +1705,7 @@ pub fn reorder_molecule(
         None,
         None,
         None,
-        None
+        None,
     );
     return (
         indices_vector,

@@ -121,7 +121,28 @@ pub fn fmo_gs_gradients(
             let shape_orbs_b: usize = frag_grad_results[pair.frag_b_index].grad_s.dim().1;
 
             // TODO:Which part of g1 is necessary? Only off-diagonal?
-            //let term_1:Array1<f64> = pair_results[iter].g1.into_shape((3*dimer_natoms*fragments[pair.frag_a_index].n_atoms,fragments[pair.frag_b_index].n_atoms))
+            let g1_qb: Array2<f64> = pair_results[iter]
+                .g1
+                .slice(s![
+                    0..fragments[pair.frag_a_index].n_atoms,
+                    0..fragments[pair.frag_a_index].n_atoms,
+                    fragments[pair.frag_a_index].n_atoms..
+                ])
+                .into_shape((
+                    3 * fragments[pair.frag_a_index].n_atoms * fragments[pair.frag_a_index].n_atoms,
+                    fragments[pair.frag_b_index].n_atoms,
+                ))
+                .unwrap()
+                .dot(&fragments[pair.frag_b_index].final_charges)
+                .into_shape((
+                    3 * fragments[pair.frag_a_index].n_atoms,
+                    fragments[pair.frag_a_index].n_atoms,
+                    fragments[pair.frag_b_index].n_atoms,
+                ))
+                .unwrap()
+                .sum_axis(Axis(2));
+
+            let term_1:Array1<f64> = g1_qb.dot(&fragments[pair.frag_a_index].final_charges);
 
             let w_mat_a: Array3<f64> = fragments[pair.frag_a_index]
                 .final_p_matrix
@@ -182,11 +203,20 @@ pub fn fmo_gs_gradients(
                     shape_orbs_a,
                     shape_orbs_a,
                 ))
-                .unwrap().sum_axis(Axis(2))
+                .unwrap()
+                .sum_axis(Axis(2))
                 .sum_axis(Axis(1));
 
             // TODO: Slice g0 to get the off-diagonal of g0_ab
-            //let term_2:Array1<f64> = (w_s_a + p_grads_a) * pair_results[iter].g0.dot(&fragments[pair.frag_a_index].final_charges).sum();
+            let term_2: Array1<f64> = (w_s_a + p_grads_a)
+                * pair_results[iter]
+                    .g0
+                    .slice(s![
+                        0..fragments[pair.frag_a_index].n_atoms,
+                        fragments[pair.frag_a_index].n_atoms..
+                    ])
+                    .dot(&fragments[pair.frag_a_index].final_charges)
+                    .sum();
 
             let w_mat_b: Array3<f64> = fragments[pair.frag_b_index]
                 .final_p_matrix
@@ -247,7 +277,8 @@ pub fn fmo_gs_gradients(
                     shape_orbs_b,
                     shape_orbs_b,
                 ))
-                .unwrap().sum_axis(Axis(2))
+                .unwrap()
+                .sum_axis(Axis(2))
                 .sum_axis(Axis(1));
 
             for coord in (0..3).into_iter() {
@@ -758,7 +789,7 @@ pub struct pair_grad_result {
     frag_b_atoms: usize,
     grad_e0: Option<Array1<f64>>,
     grad_vrep: Option<Array1<f64>>,
-    g0:Array2<f64>,
+    g0: Array2<f64>,
     g1: Array3<f64>,
 }
 
@@ -772,7 +803,7 @@ impl pair_grad_result {
         frag_b_atoms: usize,
         grad_e0: Option<Array1<f64>>,
         grad_vrep: Option<Array1<f64>>,
-        g0:Array2<f64>,
+        g0: Array2<f64>,
         g1: Array3<f64>,
     ) -> (pair_grad_result) {
         let result = pair_grad_result {
@@ -784,7 +815,7 @@ impl pair_grad_result {
             frag_b_atoms: frag_b_atoms,
             grad_e0: grad_e0,
             grad_vrep: grad_vrep,
-            g0:g0,
+            g0: g0,
             g1: g1,
         };
         return result;
