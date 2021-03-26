@@ -89,7 +89,7 @@ pub fn fmo_gs_gradients(
             let shape_orbs_dimer:usize = pair.grad_s.dim().1;
             let shape_orbs_a: usize = frag_grad_results[pair.frag_a_index].grad_s.dim().1;
             let shape_orbs_b: usize = frag_grad_results[pair.frag_b_index].grad_s.dim().1;
-            let w_dimer:Array3<f64> = pair.p_mat
+            let w_dimer:Array3<f64> = -0.5 *pair.p_mat
                 .dot(
                     &pair.grad_s.clone()
                         .into_shape((
@@ -108,7 +108,7 @@ pub fn fmo_gs_gradients(
                     shape_orbs_dimer,
                 ))
                 .unwrap();
-            let w_mat_a: Array3<f64> = fragments[pair.frag_a_index]
+            let w_mat_a: Array3<f64> = -0.5 *fragments[pair.frag_a_index]
                 .final_p_matrix
                 .dot(
                     &frag_grad_results[pair.frag_a_index]
@@ -130,7 +130,7 @@ pub fn fmo_gs_gradients(
                     shape_orbs_a,
                 ))
                 .unwrap();
-            let w_mat_b: Array3<f64> = fragments[pair.frag_b_index]
+            let w_mat_b: Array3<f64> = -0.5 *fragments[pair.frag_b_index]
                 .final_p_matrix
                 .dot(
                     &frag_grad_results[pair.frag_b_index]
@@ -157,7 +157,7 @@ pub fn fmo_gs_gradients(
             // And delta p_mu,nu^I,J
             let mut dw_dimer:Array3<f64> = Array3::zeros(w_dimer.raw_dim());
             let dw_dimer_vec:Vec<Array2<f64>> = (0..pair_atoms).into_iter().map(|a|{
-
+                // do something
             }).collect();
 
 
@@ -210,7 +210,7 @@ pub fn fmo_gs_gradients(
 
             let term_1:Array1<f64> = g1_qb.dot(&fragments[pair.frag_a_index].final_charges);
 
-            let w_mat_a: Array3<f64> = fragments[pair.frag_a_index]
+            let w_mat_a: Array3<f64> = -0.5 *fragments[pair.frag_a_index]
                 .final_p_matrix
                 .dot(
                     &frag_grad_results[pair.frag_a_index]
@@ -309,7 +309,7 @@ pub fn fmo_gs_gradients(
 
             let term_1:Array1<f64> = g1_qa.dot(&fragments[pair.frag_b_index].final_charges);
 
-            let w_mat_b: Array3<f64> = fragments[pair.frag_b_index]
+            let w_mat_b: Array3<f64> = -0.5 *fragments[pair.frag_b_index]
                 .final_p_matrix
                 .dot(
                     &frag_grad_results[pair.frag_b_index]
