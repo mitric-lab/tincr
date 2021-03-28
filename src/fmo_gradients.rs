@@ -184,7 +184,7 @@ pub fn fmo_gs_gradients(
             for a in dw_dimer_vec.iter(){
                 dw_dimer_vec_flat.append(&mut a.to_vec());
             }
-            let dw_dimer:Array3<f64> = Array::from(dw_dimer_vec_flat).into_shape((pair_atoms,w_dimer_dim,w_dimer_dim)).unwrap();
+            let dw_dimer:Array3<f64> = Array::from(dw_dimer_vec_flat).into_shape((3*pair_atoms,w_dimer_dim,w_dimer_dim)).unwrap();
 
 
             let embedding_pot: Vec<f64> = fragments
