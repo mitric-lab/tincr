@@ -1,0 +1,116 @@
+use crate::initialization::parameters::*;
+use crate::initialization::molecule::Molecule;
+use crate::{constants, defaults};
+use approx::AbsDiffEq;
+use ndarray::prelude::*;
+use ndarray::*;
+use ndarray_linalg::Norm;
+use std::collections::HashMap;
+use std::hash::Hash;
+
+pub fn build_geometric_matrices(
+    coordinates: ArrayView2<f64>,
+    cutoff: Option<f64>,
+) -> (Array2<f64>, Array3<f64>, Array2<bool>, Array2<bool>) {
+    let cutoff: f64 = cutoff.unwrap_or(defaults::PROXIMITY_CUTOFF);
+    let n_atoms: usize = coordinates.nrows();
+    let mut dist_matrix: Array2<f64> = Array::zeros((n_atoms, n_atoms));
+    let mut directions_matrix: Array3<f64> = Array::zeros((n_atoms, n_atoms, 3));
+    let mut prox_matrix: Array2<bool> = Array::from_elem((n_atoms, n_atoms), false);
+    let mut adj_matrix: Array2<bool> = Array::from_elem((n_atoms, n_atoms), false);
+    for (i, pos_i) in coordinates.outer_iter().enumerate() {
+        for (j0, pos_j) in coordinates.slice(s![i.., ..]).outer_iter().enumerate() {
+            let j: usize = j0 + i;
+            let r: Array1<f64> = &pos_i - &pos_j;
+            let r_ij: f64 = r.norm();
+            let r_cov: f64 = (constants::COVALENCE_RADII[&atomic_numbers[i[0]]]
+                + constants::COVALENCE_RADII[&atomic_numbers[i[1]]]);
+            if i != j {
+                dist_matrix[[i, j]] = r_ij;
+                dist_matrix[[j, i]] = r_ij;
+                let e_ij: Array1<f64> = r / r_ij;
+                directions_matrix.slice_mut(s![i, j, ..]).assign(&e_ij);
+                directions_matrix.slice_mut(s![j, i, ..]).assign(&-e_ij);
+            }
+            if r_ij <= cutoff {
+                prox_matrix[[i, j]] = true;
+                prox_matrix[[j, i]] = true;
+                if r_ij <= (1.3 * r_cov) {
+                    adj_matrix[[i, j]] = true;
+                    adj_matrix[[j, i]] = true;
+                }
+            }
+        }
+    }
+    return (dist_matrix, directions_matrix, prox_matrix, adj_matrix);
+}
+
+// We only build the upper right and lower left block of the geometric matrices. The diagonal blocks
+// are taken from the monomers.
+pub fn build_geometric_matrices_from_monomers(
+    coordinates: ArrayView2<f64>,
+    m1: &Molecule,
+    m2: &Molecule,
+    cutoff: Option<f64>,
+) -> (Array2<f64>, Array3<f64>, Array2<bool>, Array2<bool>) {
+    let cutoff: f64 = cutoff.unwrap_or(defaults::PROXIMITY_CUTOFF);
+    let n_at_1: usize = m1.atomic_numbers.len();
+    let n_at_2: usize = m2.atomic_numbers.len();
+    let n_atoms: usize = n_at_1 + n_at_2;
+    let mut dist_matrix: Array2<f64> = Array::zeros((n_atoms, n_atoms));
+    let mut directions_matrix: Array3<f64> = Array::zeros((n_atoms, n_atoms, 3));
+    let mut prox_matrix: Array2<bool> = Array::from_elem((n_atoms, n_atoms), false);
+    let mut adj_matrix: Array2<bool> = Array::from_elem((n_atoms, n_atoms), false);
+    // fill the upper left block with the matrices from the first monomer
+    dist_matrix
+        .slice_mut(s![0..n_at_1, 0..n_at_1])
+        .assign(m1.distance_matrix.view());
+    directions_matrix
+        .slice_mut(s![0..n_at_1, 0..n_at_1, ..])
+        .assign(m1.directions_matrix.view());
+    prox_matrix
+        .slice_mut(s![0..n_at_1, 0..n_at_1])
+        .assign(m1.proximity_matrix.view());
+    adj_matrix
+        .slice_mut(s![0..n_at_1, 0..n_at_1])
+        .assign(m1.distance_matrix.view());
+    // fill the lower right block with the matrices from the second monomer
+    dist_matrix
+        .slice_mut(s![n_at_1.., n_at_1..])
+        .assign(m2.distance_matrix.view());
+    directions_matrix
+        .slice_mut(s![n_at_1.., n_at_1.., ..])
+        .assign(m2.directions_matrix.view());
+    prox_matrix
+        .slice_mut(s![n_at_1.., n_at_1..])
+        .assign(m2.proximity_matrix.view());
+    adj_matrix
+        .slice_mut(s![n_at_1.., n_at_1..])
+        .assign(m2.distance_matrix.view());
+
+    for (i, pos_i) in coordinates.slice(s![..n_at_1, ..]).outer_iter().enumerate() {
+        for (j0, pos_j) in coordinates.slice(s![n_at_1.., ..]).outer_iter().enumerate() {
+            let j: usize = j0 + n_at_1;
+            let r: Array1<f64> = &pos_i - &pos_j;
+            let r_ij: f64 = r.norm();
+            let r_cov: f64 = (constants::COVALENCE_RADII[&atomic_numbers[i[0]]]
+                + constants::COVALENCE_RADII[&atomic_numbers[i[1]]]);
+            if i != j {
+                dist_matrix[[i, j]] = r_ij;
+                dist_matrix[[j, i]] = r_ij;
+                let e_ij: Array1<f64> = r / r_ij;
+                directions_matrix.slice_mut(s![i, j, ..]).assign(&e_ij);
+                directions_matrix.slice_mut(s![j, i, ..]).assign(&-e_ij);
+            }
+            if r_ij <= cutoff {
+                prox_matrix[[i, j]] = true;
+                prox_matrix[[j, i]] = true;
+                if r_ij <= (1.3 * r_cov) {
+                    adj_matrix[[i, j]] = true;
+                    adj_matrix[[j, i]] = true;
+                }
+            }
+        }
+    }
+    return (dist_matrix, directions_matrix, prox_matrix, adj_matrix);
+}

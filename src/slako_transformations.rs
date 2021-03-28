@@ -1,4 +1,4 @@
-use crate::parameters::*;
+use crate::initialization::parameters::*;
 use ndarray::prelude::*;
 use rusty_fitpack::{splder_uniform, splev_uniform};
 use std::collections::HashMap;

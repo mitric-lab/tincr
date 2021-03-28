@@ -7,7 +7,7 @@ use crate::defaults;
 use crate::h0_and_s::h0_and_s_gradients;
 use crate::io::GeneralConfig;
 use crate::molecule::{distance_matrix, Molecule};
-use crate::parameters::*;
+use crate::initialization::parameters::*;
 use crate::scc_routine::density_matrix_ref;
 use crate::slako_transformations::*;
 use crate::solver::*;

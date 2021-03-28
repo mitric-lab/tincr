@@ -16,6 +16,8 @@ use std::env;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::ptr::eq;
+use std::collections::HashMap;
+use crate::constants;
 
 fn default_charge() -> i8 {
     CHARGE
@@ -200,6 +202,35 @@ pub fn get_coordinates(filename: &str) -> (Vec<u8>, Array2<f64>) {
         .collect();
 
     return (atomic_numbers, positions);
+}
+
+pub fn get_monomers(atomic_numbers: &[u8], positions: Array2<f64>) {
+
+    let mut indices_seen: Vec<usize> = Vec::new();
+    let mut positions_seen: Vec<ArrayView1<f64>> = Vec::new();
+    let mut numbers_seen: Vec<u8> = Vec::new();
+    let mut idxtomol: HashMap<usize, usize> = HashMap::new();
+    let mut molecules: HashMap<usize, Vec<(u8, &[f64])>> = HashMap::new();
+    let mut iflag: bool = true;
+    'outer: for (i, (zi, posi)) in atomic_numbers.iter().zip(positions.outer_iter()).enumerate() {
+        iflag = true;
+        'inner: for (j,(zj, posj)) in indices_seen.iter().zip(numbers_seen.iter().zip(positions_seen.iter())).rev() {
+            let r_cov: f64 = (constants::COVALENCE_RADII[zi] + constants::COVALENCE_RADII[zj]);
+            if (&posi-&posj).norm() < (1.3 * r_cov) {
+                molecules[idxtomol[j]].push((*zi, posi.as_slice().unwrap()));
+                idxtomol.insert(i, idxtomol[j]);
+                iflag = false;
+                break inner;
+            }
+        }
+        indices_seen.push(i);
+        numbers_seen.push(*zi);
+        positions_seen.push(posi);
+        if iflag {
+            molecules.insert(i, vec![(u8, posi.as_slice().unwrap())]);
+            idxtomol.insert(i, i);
+        }
+    }
 }
 
 pub fn write_header() {

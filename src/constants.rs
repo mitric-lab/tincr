@@ -216,6 +216,26 @@ pub static COVALENCE_RADII: phf::Map<u8, f64> = phf_map! {
     96u8 => (1.0 / BOHR_TO_ANGS) * 1.69
 };
 
+// taken from
+// Beatriz Cordero, Ver ́onica G ́omez, Ana E. Platero-Prats, Marc Rev ́es, Jorge Echeverr ́ıa, Eduard Cremades,Flavia Barrag ́an and Santiago Alvarez
+// Covalent radii revisited, Dalton Trans., 2008, 2832–2838
+pub static BOND_THRESHOLD: phf::Map<(u8, u8), f64> = phf_map! {
+    (1u8, 1u8) =>  1.3 * (0.31 + 0.31),
+    (1u8, 6u8) =>  1.3 * (0.31 + 0.76),
+    (6u8, 1u8) =>  1.3 * (0.31 + 0.76),
+    (1u8, 7u8) =>  1.3 * (0.31 + 0.71),
+    (7u8, 1u8) =>  1.3 * (0.31 + 0.71),
+    (1u8, 8u8) =>  1.3 * (0.31 + 0.66),
+    (8u8, 1u8) =>  1.3 * (0.31 + 0.66),
+    (6u8, 6u8) =>  1.3 * (0.76 + 0.76),
+    (6u8, 7u8) =>  1.3 * (0.76 + 0.71),
+    (7u8, 6u8) =>  1.3 * (0.76 + 0.71),
+    (7u8, 7u8) =>  1.3 * (0.71 + 0.71),
+    (7u8, 8u8) =>  1.3 * (0.71 + 0.66),
+    (8u8, 7u8) =>  1.3 * (0.71 + 0.66),
+    (8u8, 8u8) =>  1.3 * (0.66 + 0.66)
+};
+
 // A. Bondi
 // The Journal of Physical Chemistry 1964 68 (3), 441-451
 // For H:

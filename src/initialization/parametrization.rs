@@ -2,7 +2,7 @@ use crate::constants::ATOM_NAMES;
 use crate::defaults;
 use crate::gamma_approximation;
 use crate::molecule::Molecule;
-use crate::parameters::*;
+use crate::initialization::parameters::*;
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
 use ndarray::prelude::*;
@@ -38,7 +38,6 @@ pub struct Parametrization{
 impl Parametrization {
     pub fn new(
         atomic_numbers: &[u8],
-        atomtypes: &HashMap<u8, String>,
         active_orbitals: Option<(usize, usize)>,
     ) -> Parametrization {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =

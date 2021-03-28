@@ -1,4 +1,4 @@
-use crate::defaults;
+use tincr::defaults;
 use ndarray::*;
 use ndarray_linalg::krylov::qr;
 use ndarray_linalg::{Inverse, Norm, Solve};

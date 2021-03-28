@@ -1,7 +1,7 @@
 #[macro_use(array)]
 use ndarray::prelude::*;
+use crate::initialization::parameters::*;
 use crate::molecule::Molecule;
-use crate::parameters::*;
 use crate::slako_transformations::*;
 use crate::test::get_water_molecule;
 use approx::AbsDiffEq;
@@ -21,14 +21,9 @@ use std::collections::HashMap;
 ///
 ///
 pub fn h0_and_s_ab(
-    atomic_numbers1: &[u8],
-    atomic_numbers2: &[u8],
-    positions1: ArrayView2<f64>,
-    positions2: ArrayView2<f64>,
-    n_orbs1: usize,
-    n_orbs2: usize,
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
-    proximity_matrix: ArrayView2<bool>,
+    atomic_numbers1: &[u8], atomic_numbers2: &[u8], positions1: ArrayView2<f64>,
+    positions2: ArrayView2<f64>, n_orbs1: usize, n_orbs2: usize,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, proximity_matrix: ArrayView2<bool>,
     skt: &HashMap<(u8, u8), SlaterKosterTable>,
     orbital_energies: &HashMap<u8, HashMap<(i8, i8), f64>>,
 ) -> (Array2<f64>, Array2<f64>) {
@@ -126,11 +121,8 @@ pub fn h0_and_s_ab(
 }
 
 pub fn h0_and_s(
-    atomic_numbers: &[u8],
-    positions: ArrayView2<f64>,
-    n_orbs: usize,
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
-    proximity_matrix: ArrayView2<bool>,
+    atomic_numbers: &[u8], positions: ArrayView2<f64>, n_orbs: usize,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, proximity_matrix: ArrayView2<bool>,
     skt: &HashMap<(u8, u8), SlaterKosterTable>,
     orbital_energies: &HashMap<u8, HashMap<(i8, i8), f64>>,
 ) -> (Array2<f64>, Array2<f64>) {
@@ -242,11 +234,8 @@ pub fn h0_and_s(
 ///
 ///
 pub fn h0_and_s_gradients(
-    atomic_numbers: &[u8],
-    positions: ArrayView2<f64>,
-    n_orbs: usize,
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
-    proximity_matrix: ArrayView2<bool>,
+    atomic_numbers: &[u8], positions: ArrayView2<f64>, n_orbs: usize,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, proximity_matrix: ArrayView2<bool>,
     skt: &HashMap<(u8, u8), SlaterKosterTable>,
     orbital_energies: &HashMap<u8, HashMap<(i8, i8), f64>>,
 ) -> (Array3<f64>, Array3<f64>) {

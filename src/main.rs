@@ -1,60 +1,61 @@
 #![allow(dead_code)]
 #![allow(warnings)]
-mod broyden;
+
+use std::{env, fs};
+use std::io::Write;
+use std::path::Path;
+use std::process;
+use std::ptr::eq;
+use std::time::{Duration, Instant};
+
+use clap::{App, Arg};
+use env_logger::Builder;
+use log::{debug, error, info, Level, trace, warn};
+use log::LevelFilter;
+use ndarray::*;
+use ndarray_linalg::*;
+use petgraph::stable_graph::*;
+use ron::error::ErrorCode::TrailingCharacters;
+use toml;
+
+use crate::defaults::CONFIG_FILE_NAME;
+use crate::fmo_energy::*;
+use crate::gradients::*;
+use crate::io::{GeneralConfig, get_coordinates, write_header};
+use crate::molecule::Molecule;
+use crate::optimization::optimize_geometry_ic;
+use crate::solver::get_exc_energies;
+
 mod calculator;
 mod constants;
 mod defaults;
 mod diis;
-mod fermi_occupation;
-mod fmo;
+mod fmo_energy;
 mod gamma_approximation;
 mod gradients;
-mod graph;
 mod h0_and_s;
 mod internal_coordinates;
 mod io;
 mod molecule;
-mod mulliken;
 mod optimization;
-mod parameters;
-mod scc_routine;
-mod scc_routine_unrestricted;
 mod slako_transformations;
 mod solver;
-mod step;
 mod test;
 mod transition_charges;
 mod zbrent;
 mod molecule2;
-mod parametrization;
+mod initialization;
+mod io2;
+mod scc;
+mod utils;
+mod optimization;
+
 //mod transition_charges;
 //mod solver;
 //mod scc_routine_unrestricted;
 
-use crate::fmo::*;
-use crate::gradients::*;
-use crate::molecule::Molecule;
-use crate::solver::get_exc_energies;
-use ndarray::*;
-use ndarray_linalg::*;
-use petgraph::stable_graph::*;
-use std::ptr::eq;
-use std::time::{Duration, Instant};
-use std::{env, fs};
 #[macro_use]
 extern crate clap;
-use crate::defaults::CONFIG_FILE_NAME;
-use crate::io::{get_coordinates, write_header, GeneralConfig};
-use crate::optimization::optimize_geometry_ic;
-use clap::{App, Arg};
-use env_logger::Builder;
-use log::LevelFilter;
-use log::{debug, error, info, trace, warn, Level};
-use ron::error::ErrorCode::TrailingCharacters;
-use std::io::Write;
-use std::path::Path;
-use std::process;
-use toml;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()

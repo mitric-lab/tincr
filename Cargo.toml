@@ -10,7 +10,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chemfiles = "0.9"
+chemfiles = "0.10"
 ndarray = {version = "0.13.1", features = ["serde-1", "approx", "rayon"]}
 approx = "0.3.2"
 ndarray-linalg = { version = "0.12.1", features = ["intel-mkl"]}
