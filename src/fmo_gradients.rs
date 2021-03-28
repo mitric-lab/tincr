@@ -167,7 +167,7 @@ pub fn fmo_gs_gradients(
             // Build delta W_mu,nu^I,J
             let mut dw_dimer:Array3<f64> = Array3::zeros(w_dimer.raw_dim());
             let w_dimer_dim:usize = w_dimer.dim().1;
-            let dw_dimer_vec:Vec<Array2<f64>> = (0..pair_atoms).into_iter().map(|a|{
+            let mut dw_dimer_vec:Vec<Array1<f64>> = (0..pair_atoms).into_iter().map(|a|{
                 let mut w_a_dimer:Array2<f64> = Array::zeros((w_dimer_dim,w_dimer_dim));
                 if a < pair.frag_a_atoms {
                     w_a_dimer.slice_mut(s![0..p_dim_monomer,0..p_dim_monomer]).assign(&w_mat_a);
@@ -175,8 +175,16 @@ pub fn fmo_gs_gradients(
                     w_a_dimer.slice_mut(s![p_dim_monomer..,p_dim_monomer..]).assign(&w_mat_b);
                 }
                 let w_return:Array2<f64> = w_dimer.slice(s![a,..,..]).to_owned() - w_a_dimer;
-                w_return
+                let w_flat:Array1<f64> = w_return.into_shape((w_dimer_dim*w_dimer_dim)).unwrap();
+                w_flat
             }).collect();
+
+            // transform dW from flat array to 3d array
+            let mut dw_dimer_vec_flat:Vec<f64> = Vec::new();
+            for a in dw_dimer_vec.iter(){
+                dw_dimer_vec_flat.append(&mut a.to_vec());
+            }
+            let dw_dimer:Array3<f64> = Array::from(dw_dimer_vec_flat).into_shape((pair_atoms,w_dimer_dim,w_dimer_dim)).unwrap();
 
 
             let embedding_pot: Vec<f64> = fragments
