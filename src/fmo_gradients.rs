@@ -69,6 +69,7 @@ pub fn fmo_gs_gradients(
         if pair.energy_pair.is_some() {
             let dimer_gradient_e0:Array1<f64> = pair.grad_e0.clone().unwrap();
             let dimer_gradient_vrep:Array1<f64> = pair.grad_vrep.clone().unwrap();
+            let dimer_pmat:Array2<f64> = pair.p_mat.clone().unwrap();
 
             let pair_atoms: usize = fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
             let pair_charges = pair.pair_charges.clone().unwrap();
@@ -91,7 +92,7 @@ pub fn fmo_gs_gradients(
             let shape_orbs_dimer:usize = pair.grad_s.clone().unwrap().dim().1;
             let shape_orbs_a: usize = frag_grad_results[pair.frag_a_index].grad_s.dim().1;
             let shape_orbs_b: usize = frag_grad_results[pair.frag_b_index].grad_s.dim().1;
-            let w_dimer:Array3<f64> = -0.5 *pair.p_mat.clone().unwrap()
+            let w_dimer:Array3<f64> = -0.5 *dimer_pmat.clone()
                 .dot(
                     &pair.grad_s.clone().unwrap()
                         .into_shape((
@@ -99,7 +100,7 @@ pub fn fmo_gs_gradients(
                             shape_orbs_dimer,
                         ))
                         .unwrap()
-                        .dot(&pair.p_mat.clone().unwrap())
+                        .dot(&dimer_pmat.clone())
                         .t(),
                 )
                 .t()
@@ -155,12 +156,27 @@ pub fn fmo_gs_gradients(
                 ))
                 .unwrap();
 
+
+            // Build delta p_mu,nu^I,J
+            let mut dp_direct_sum_monomer:Array2<f64> = Array2::zeros(dimer_pmat.raw_dim());
+            let p_dim_monomer:usize = fragments[pair.frag_a_index].final_p_matrix.dim().0;
+            dp_direct_sum_monomer.slice_mut(s![0..p_dim_monomer,0..p_dim_monomer]).assign(&fragments[pair.frag_a_index].final_p_matrix);
+            dp_direct_sum_monomer.slice_mut(s![p_dim_monomer..,p_dim_monomer]).assign(&fragments[pair.frag_b_index].final_p_matrix);
+            let dp_dimer:Array2<f64> = &dimer_pmat - &dp_direct_sum_monomer;
+
             // Build delta W_mu,nu^I,J
-            // And delta p_mu,nu^I,J
             let mut dw_dimer:Array3<f64> = Array3::zeros(w_dimer.raw_dim());
-            //let dw_dimer_vec:Vec<Array2<f64>> = (0..pair_atoms).into_iter().map(|a|{
-                // do something
-            //}).collect();
+            let w_dimer_dim:usize = w_dimer.dim().1;
+            let dw_dimer_vec:Vec<Array2<f64>> = (0..pair_atoms).into_iter().map(|a|{
+                let mut w_a_dimer:Array2<f64> = Array::zeros((w_dimer_dim,w_dimer_dim));
+                if a < pair.frag_a_atoms {
+                    w_a_dimer.slice_mut(s![0..p_dim_monomer,0..p_dim_monomer]).assign(&w_mat_a);
+                } else {
+                    w_a_dimer.slice_mut(s![p_dim_monomer..,p_dim_monomer..]).assign(&w_mat_b);
+                }
+                let w_return:Array2<f64> = w_dimer.slice(s![a,..,..]).to_owned() - w_a_dimer;
+                w_return
+            }).collect();
 
 
             let embedding_pot: Vec<f64> = fragments
