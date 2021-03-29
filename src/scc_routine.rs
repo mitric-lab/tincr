@@ -213,9 +213,9 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
         assert_ne!(i + 1, max_iter, "SCF not converged");
 
         if converged {
-            break 'scf_loop;
             molecule.set_final_charges(dq);
             molecule.set_final_p_mat(p);
+            break 'scf_loop;
         }
     }
     info!("{:-^75} ", "");

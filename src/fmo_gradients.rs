@@ -613,34 +613,33 @@ pub fn fmo_gs_gradients(
         let index_frag_a: usize = indices_frags[index_a];
         let index_frag_b: usize = indices_frags[index_b];
 
-        // grad_total_dimers
-        //     .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
-        //     .add_assign(
-        //         &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-        //             - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
-        // grad_total_dimers
-        //     .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
-        //     .add_assign(
-        //         &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
-        //             - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
-
         grad_total_dimers
             .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
             .add_assign(
-                &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-            );
+                &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+                    - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
         grad_total_dimers
             .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
             .add_assign(
-                &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
-            ));
+                &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
+                    - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
+
+        // grad_total_dimers
+        //     .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+        //     .add_assign(
+        //         &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+        //     );
+        // grad_total_dimers
+        //     .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+        //     .add_assign(
+        //         &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
+        //     ));
     }
 
     for embed in embedding_gradients.iter() {
-        println!("Embed");
+        //println!("Embed {}",embed.clone());
         grad_total_dimers.add_assign(embed);
     }
-
     let total_gradient: Array1<f64> = grad_total_dimers+ grad_total_frags;
 
     return total_gradient;
