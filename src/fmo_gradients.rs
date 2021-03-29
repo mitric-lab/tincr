@@ -63,7 +63,8 @@ pub fn fmo_gs_gradients(
         .filter_map(|&item| if item == true { Some(1.0) } else { Some(0.0) })
         .collect();
     let gamma_zeros: Array2<f64> = proximity_zeros.into_shape((prox_mat.raw_dim())).unwrap();
-    let gamma_tmp: Array2<f64> = gamma_zeros * gamma_total;
+    //let gamma_tmp: Array2<f64> = gamma_zeros * gamma_total;
+    let gamma_tmp: Array2<f64> = 1.0 * gamma_total;
     let mut dimer_gradients: Vec<Array1<f64>> = Vec::new();
     let mut embedding_gradients: Vec<Array1<f64>> = Vec::new();
 
@@ -121,6 +122,7 @@ pub fn fmo_gs_gradients(
                     .to_owned()
                     .into_shape((3 * pair_atoms, shape_orbs_dimer, shape_orbs_dimer))
                     .unwrap();
+
             let w_mat_a: Array3<f64> = -0.5
                 * fragments[pair.frag_a_index]
                     .final_p_matrix
@@ -595,6 +597,7 @@ pub fn fmo_gs_gradients(
             dimer_gradient.append(&mut gradient_frag_b.to_vec());
 
             let dimer_gradient: Array1<f64> = Array::from(dimer_gradient);
+
             dimer_gradients.push(dimer_gradient);
         }
     }
@@ -610,30 +613,31 @@ pub fn fmo_gs_gradients(
         let index_frag_a: usize = indices_frags[index_a];
         let index_frag_b: usize = indices_frags[index_b];
 
-        grad_total_dimers
-            .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
-            .add_assign(
-                &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-                    - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
-        grad_total_dimers
-            .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
-            .add_assign(
-                &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
-                    - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
-
         // grad_total_dimers
         //     .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
         //     .add_assign(
-        //         &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-        //     );
+        //         &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+        //             - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
         // grad_total_dimers
         //     .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
         //     .add_assign(
-        //         &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
-        //     ));
+        //         &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
+        //             - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
+
+        grad_total_dimers
+            .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+            .add_assign(
+                &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+            );
+        grad_total_dimers
+            .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+            .add_assign(
+                &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
+            ));
     }
 
     for embed in embedding_gradients.iter() {
+        println!("Embed");
         grad_total_dimers.add_assign(embed);
     }
 
@@ -927,6 +931,25 @@ pub fn fmo_calculate_pairwise_gradients(
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
                     ]));
 
+                // let mut pair: Molecule = Molecule::new(
+                //     atomic_numbers,
+                //     positions,
+                //     Some(config.mol.charge),
+                //     Some(config.mol.multiplicity),
+                //     Some(0.0),
+                //     None,
+                //     config.clone(),
+                //     saved_calc,
+                //     Some(connectivity_matrix),
+                //     Some(graph_new),
+                //     Some(graph_indexes),
+                //     Some(subgraph),
+                //     Some(distance_frag),
+                //     Some(dir_frag),
+                //     Some(prox_frag),
+                //     Some(gamma_frag),
+                // );
+
                 let mut pair: Molecule = Molecule::new(
                     atomic_numbers,
                     positions,
@@ -935,15 +958,15 @@ pub fn fmo_calculate_pairwise_gradients(
                     Some(0.0),
                     None,
                     config.clone(),
-                    saved_calc,
-                    Some(connectivity_matrix),
-                    Some(graph_new),
-                    Some(graph_indexes),
-                    Some(subgraph),
-                    Some(distance_frag),
-                    Some(dir_frag),
-                    Some(prox_frag),
-                    Some(gamma_frag),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
                 );
 
                 if use_saved_calc == false {
