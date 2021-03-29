@@ -274,7 +274,9 @@ fn main() {
             );
             drop(molecule_timer);
 
+            println!(" ");
             println!("FMO gradients {}", gradients);
+            println!(" ");
 
             let mut mol: Molecule = Molecule::new(
                 atomic_numbers,
@@ -300,6 +302,7 @@ fn main() {
                 molecule_timer.elapsed().as_secs_f32()
             );
             drop(molecule_timer);
+            println!(" ");
 
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
                 scc_routine::run_scc(&mut mol);
