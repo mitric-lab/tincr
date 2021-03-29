@@ -100,70 +100,122 @@ pub fn fmo_gs_gradients(
             let shape_orbs_dimer: usize = pair.grad_s.clone().unwrap().dim().1;
             let shape_orbs_a: usize = frag_grad_results[pair.frag_a_index].grad_s.dim().1;
             let shape_orbs_b: usize = frag_grad_results[pair.frag_b_index].grad_s.dim().1;
-            let w_dimer: Array3<f64> = -0.5
-                * dimer_pmat
-                    .clone()
-                    .dot(
-                        &pair
-                            .grad_s
-                            .clone()
-                            .unwrap()
-                            .into_shape((3 * pair_atoms * shape_orbs_dimer, shape_orbs_dimer))
-                            .unwrap()
-                            .dot(&dimer_pmat.clone())
-                            .t(),
-                    )
-                    .t()
-                    .to_owned()
-                    .into_shape((3 * pair_atoms, shape_orbs_dimer, shape_orbs_dimer))
-                    .unwrap();
+            //let w_dimer: Array3<f64> = -0.5
+            //    * dimer_pmat
+            //        .clone()
+            //        .dot(
+            //            &pair
+            //                .grad_s
+            //                .clone()
+            //                .unwrap()
+            //                .into_shape((3 * pair_atoms * shape_orbs_dimer, shape_orbs_dimer))
+            //                .unwrap()
+            //                .dot(&dimer_pmat.clone())
+            //                .t(),
+            //        )
+            //        .t()
+            //        .to_owned()
+            //        .into_shape((3 * pair_atoms, shape_orbs_dimer, shape_orbs_dimer))
+            //        .unwrap();
 
-            let w_mat_a: Array3<f64> = -0.5
-                * fragments[pair.frag_a_index]
-                    .final_p_matrix
-                    .dot(
-                        &frag_grad_results[pair.frag_a_index]
-                            .grad_s
-                            .clone()
-                            .into_shape((
-                                3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
-                                shape_orbs_a,
-                            ))
-                            .unwrap()
-                            .dot(&fragments[pair.frag_a_index].final_p_matrix)
-                            .t(),
-                    )
-                    .t()
-                    .to_owned()
+            let w_dimer: Array3<f64> = -0.5*
+                &pair
+                    .grad_s
+                    .clone()
+                    .unwrap()
+                    .into_shape((3 * pair_atoms * shape_orbs_dimer, shape_orbs_dimer))
+                    .unwrap()
+                    .dot(&dimer_pmat.clone())
+                    .dot(&dimer_pmat
+                        .clone())
+                .into_shape((3 * pair_atoms, shape_orbs_dimer, shape_orbs_dimer))
+                .unwrap();
+
+            let w_mat_a: Array3<f64> = -0.5*
+                &frag_grad_results[pair.frag_a_index]
+                    .grad_s
+                    .clone()
+                    .into_shape((
+                        3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
+                        shape_orbs_a,
+                    ))
+                    .unwrap()
+                    .dot(&fragments[pair.frag_a_index].final_p_matrix)
+                    .dot(&fragments[pair.frag_a_index]
+                        .final_p_matrix)
                     .into_shape((
                         3 * fragments[pair.frag_a_index].n_atoms,
                         shape_orbs_a,
                         shape_orbs_a,
                     ))
                     .unwrap();
-            let w_mat_b: Array3<f64> = -0.5
-                * fragments[pair.frag_b_index]
-                    .final_p_matrix
-                    .dot(
-                        &frag_grad_results[pair.frag_b_index]
-                            .grad_s
-                            .clone()
-                            .into_shape((
-                                3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
-                                shape_orbs_b,
-                            ))
-                            .unwrap()
-                            .dot(&fragments[pair.frag_b_index].final_p_matrix)
-                            .t(),
-                    )
-                    .t()
-                    .to_owned()
+
+            let w_mat_b: Array3<f64> = -0.5*
+                &frag_grad_results[pair.frag_b_index]
+                    .grad_s
+                    .clone()
+                    .into_shape((
+                        3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
+                        shape_orbs_b,
+                    ))
+                    .unwrap()
+                    .dot(&fragments[pair.frag_b_index].final_p_matrix)
+                    .dot(&fragments[pair.frag_b_index]
+                        .final_p_matrix)
                     .into_shape((
                         3 * fragments[pair.frag_b_index].n_atoms,
                         shape_orbs_b,
                         shape_orbs_b,
                     ))
                     .unwrap();
+
+            //let w_mat_a: Array3<f64> = -0.5
+            //    * fragments[pair.frag_a_index]
+            //        .final_p_matrix
+            //        .dot(
+            //            &frag_grad_results[pair.frag_a_index]
+            //                .grad_s
+            //                .clone()
+            //                .into_shape((
+            //                    3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
+            //                    shape_orbs_a,
+            //                ))
+            //                .unwrap()
+            //                .dot(&fragments[pair.frag_a_index].final_p_matrix)
+            //                .t(),
+            //        )
+            //        .t()
+            //        .to_owned()
+            //        .into_shape((
+            //            3 * fragments[pair.frag_a_index].n_atoms,
+            //            shape_orbs_a,
+            //            shape_orbs_a,
+            //        ))
+            //        .unwrap();
+
+            //let w_mat_b: Array3<f64> = -0.5
+            //    * fragments[pair.frag_b_index]
+            //        .final_p_matrix
+            //        .dot(
+            //            &frag_grad_results[pair.frag_b_index]
+            //                .grad_s
+            //                .clone()
+            //                .into_shape((
+            //                    3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
+            //                    shape_orbs_b,
+            //                ))
+            //                .unwrap()
+            //                .dot(&fragments[pair.frag_b_index].final_p_matrix)
+            //                .t(),
+            //        )
+            //        .t()
+            //        .to_owned()
+            //        .into_shape((
+            //            3 * fragments[pair.frag_b_index].n_atoms,
+            //            shape_orbs_b,
+            //            shape_orbs_b,
+            //        ))
+            //        .unwrap();
 
             // Build delta p_mu,nu^I,J
             let mut dp_direct_sum_monomer: Array2<f64> = Array2::zeros(dimer_pmat.raw_dim());
@@ -410,29 +462,48 @@ pub fn fmo_gs_gradients(
 
             let term_1: Array1<f64> = g1_qb.dot(&fragments[pair.frag_a_index].final_charges);
 
-            let w_mat_a: Array3<f64> = -0.5
-                * fragments[pair.frag_a_index]
-                    .final_p_matrix
-                    .dot(
-                        &frag_grad_results[pair.frag_a_index]
-                            .grad_s
-                            .clone()
-                            .into_shape((
-                                3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
-                                shape_orbs_a,
-                            ))
-                            .unwrap()
-                            .dot(&fragments[pair.frag_a_index].final_p_matrix)
-                            .t(),
-                    )
-                    .t()
-                    .to_owned()
+            //let w_mat_a: Array3<f64> = -0.5
+            //    * fragments[pair.frag_a_index]
+            //        .final_p_matrix
+            //        .dot(
+            //            &frag_grad_results[pair.frag_a_index]
+            //                .grad_s
+            //                .clone()
+            //                .into_shape((
+            //                    3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
+            //                    shape_orbs_a,
+            //                ))
+            //                .unwrap()
+            //                .dot(&fragments[pair.frag_a_index].final_p_matrix)
+            //                .t(),
+            //        )
+            //        .t()
+            //        .to_owned()
+            //        .into_shape((
+            //            3 * fragments[pair.frag_a_index].n_atoms,
+            //            shape_orbs_a,
+            //            shape_orbs_a,
+            //        ))
+            //        .unwrap();
+
+            let w_mat_a: Array3<f64> = -0.5*
+                &frag_grad_results[pair.frag_a_index]
+                    .grad_s
+                    .clone()
                     .into_shape((
-                        3 * fragments[pair.frag_a_index].n_atoms,
-                        shape_orbs_a,
+                        3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
                         shape_orbs_a,
                     ))
-                    .unwrap();
+                    .unwrap()
+                    .dot(&fragments[pair.frag_a_index].final_p_matrix)
+                    .dot(&fragments[pair.frag_a_index]
+                        .final_p_matrix)
+                .into_shape((
+                    3 * fragments[pair.frag_a_index].n_atoms,
+                    shape_orbs_a,
+                    shape_orbs_a,
+                ))
+                .unwrap();
 
             let w_s_a: Array1<f64> = w_mat_a
                 .into_shape((
@@ -450,21 +521,17 @@ pub fn fmo_gs_gradients(
                 .sum_axis(Axis(2))
                 .sum_axis(Axis(1));
 
-            let p_grads_a: Array1<f64> = fragments[pair.frag_a_index]
-                .final_p_matrix
-                .dot(
-                    &frag_grad_results[pair.frag_a_index]
-                        .grad_s
-                        .clone()
-                        .into_shape((
-                            3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
-                            shape_orbs_a,
-                        ))
-                        .unwrap()
-                        .t(),
-                )
-                .t()
-                .to_owned()
+            let p_grads_a: Array1<f64> =
+                frag_grad_results[pair.frag_a_index]
+                    .grad_s
+                    .clone()
+                    .into_shape((
+                        3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
+                        shape_orbs_a,
+                    ))
+                    .unwrap()
+                    .dot(&fragments[pair.frag_a_index]
+                        .final_p_matrix)
                 .into_shape((
                     3 * fragments[pair.frag_a_index].n_atoms,
                     shape_orbs_a,
@@ -473,6 +540,30 @@ pub fn fmo_gs_gradients(
                 .unwrap()
                 .sum_axis(Axis(2))
                 .sum_axis(Axis(1));
+
+            //let p_grads_a: Array1<f64> = fragments[pair.frag_a_index]
+            //    .final_p_matrix
+            //    .dot(
+            //        &frag_grad_results[pair.frag_a_index]
+            //            .grad_s
+            //            .clone()
+            //            .into_shape((
+            //                3 * fragments[pair.frag_a_index].n_atoms * shape_orbs_a,
+            //                shape_orbs_a,
+            //            ))
+            //            .unwrap()
+            //            .t(),
+            //    )
+            //    .t()
+            //    .to_owned()
+            //    .into_shape((
+            //        3 * fragments[pair.frag_a_index].n_atoms,
+            //        shape_orbs_a,
+            //        shape_orbs_a,
+            //    ))
+            //    .unwrap()
+            //    .sum_axis(Axis(2))
+            //    .sum_axis(Axis(1));
 
             // TODO: Slice g0 to get the off-diagonal of g0_ab
             let term_2: Array1<f64> = (w_s_a + p_grads_a)
@@ -509,29 +600,48 @@ pub fn fmo_gs_gradients(
 
             let term_1: Array1<f64> = g1_qa.dot(&fragments[pair.frag_b_index].final_charges);
 
-            let w_mat_b: Array3<f64> = -0.5
-                * fragments[pair.frag_b_index]
-                    .final_p_matrix
-                    .dot(
-                        &frag_grad_results[pair.frag_b_index]
-                            .grad_s
-                            .clone()
-                            .into_shape((
-                                3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
-                                shape_orbs_b,
-                            ))
-                            .unwrap()
-                            .dot(&fragments[pair.frag_b_index].final_p_matrix)
-                            .t(),
-                    )
-                    .t()
-                    .to_owned()
+            //let w_mat_b: Array3<f64> = -0.5
+            //    * fragments[pair.frag_b_index]
+            //        .final_p_matrix
+            //        .dot(
+            //            &frag_grad_results[pair.frag_b_index]
+            //                .grad_s
+            //                .clone()
+            //                .into_shape((
+            //                    3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
+            //                    shape_orbs_b,
+            //                ))
+            //                .unwrap()
+            //                .dot(&fragments[pair.frag_b_index].final_p_matrix)
+            //                .t(),
+            //        )
+            //        .t()
+            //        .to_owned()
+            //        .into_shape((
+            //            3 * fragments[pair.frag_b_index].n_atoms,
+            //            shape_orbs_b,
+            //            shape_orbs_b,
+            //        ))
+            //        .unwrap();
+
+            let w_mat_b: Array3<f64> = -0.5*
+                &frag_grad_results[pair.frag_b_index]
+                    .grad_s
+                    .clone()
                     .into_shape((
-                        3 * fragments[pair.frag_b_index].n_atoms,
-                        shape_orbs_b,
+                        3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
                         shape_orbs_b,
                     ))
-                    .unwrap();
+                    .unwrap()
+                    .dot(&fragments[pair.frag_b_index].final_p_matrix)
+                    .dot(&fragments[pair.frag_b_index]
+                        .final_p_matrix)
+                .into_shape((
+                    3 * fragments[pair.frag_b_index].n_atoms,
+                    shape_orbs_b,
+                    shape_orbs_b,
+                ))
+                .unwrap();
 
             let w_s_b: Array1<f64> = w_mat_b
                 .into_shape((
@@ -549,21 +659,16 @@ pub fn fmo_gs_gradients(
                 .sum_axis(Axis(2))
                 .sum_axis(Axis(1));
 
-            let p_grads_b: Array1<f64> = fragments[pair.frag_b_index]
-                .final_p_matrix
-                .dot(
-                    &frag_grad_results[pair.frag_b_index]
-                        .grad_s
-                        .clone()
-                        .into_shape((
-                            3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
-                            shape_orbs_b,
-                        ))
-                        .unwrap()
-                        .t(),
-                )
-                .t()
-                .to_owned()
+            let p_grads_b: Array1<f64> = frag_grad_results[pair.frag_b_index]
+                .grad_s
+                .clone()
+                .into_shape((
+                    3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
+                    shape_orbs_b,
+                ))
+                .unwrap()
+                .dot(&fragments[pair.frag_b_index]
+                    .final_p_matrix)
                 .into_shape((
                     3 * fragments[pair.frag_b_index].n_atoms,
                     shape_orbs_b,
@@ -572,6 +677,30 @@ pub fn fmo_gs_gradients(
                 .unwrap()
                 .sum_axis(Axis(2))
                 .sum_axis(Axis(1));
+
+            //let p_grads_b: Array1<f64> = fragments[pair.frag_b_index]
+            //    .final_p_matrix
+            //    .dot(
+            //        &frag_grad_results[pair.frag_b_index]
+            //            .grad_s
+            //            .clone()
+            //            .into_shape((
+            //                3 * fragments[pair.frag_b_index].n_atoms * shape_orbs_b,
+            //                shape_orbs_b,
+            //            ))
+            //            .unwrap()
+            //            .t(),
+            //    )
+            //    .t()
+            //    .to_owned()
+            //    .into_shape((
+            //        3 * fragments[pair.frag_b_index].n_atoms,
+            //        shape_orbs_b,
+            //        shape_orbs_b,
+            //    ))
+            //    .unwrap()
+            //    .sum_axis(Axis(2))
+            //    .sum_axis(Axis(1));
 
             let term_2: Array1<f64> = (w_s_b + p_grads_b)
                 * pair_results[pair_index]
@@ -605,18 +734,29 @@ pub fn fmo_gs_gradients(
         let index_frag_a: usize = indices_frags[index_a];
         let index_frag_b: usize = indices_frags[index_b];
 
-        if pair.energy_pair.is_some(){
-            grad_total_dimers
-                .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
-                .add_assign(
-                    &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-                        - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
-            grad_total_dimers
-                .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
-                .add_assign(
-                    &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
-                        - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
-        }
+        //if pair.energy_pair.is_some(){
+        //    grad_total_dimers
+        //        .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+        //        .add_assign(
+        //            &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+        //                - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
+        //    grad_total_dimers
+        //        .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+        //        .add_assign(
+        //            &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
+        //                - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
+        //}
+
+        grad_total_dimers
+            .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+            .add_assign(
+                &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+                    - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
+        grad_total_dimers
+            .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+            .add_assign(
+                &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
+                    - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
 
         //grad_total_dimers
         //    .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
