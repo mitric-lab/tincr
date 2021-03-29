@@ -1,16 +1,10 @@
 use crate::constants::{ATOM_NAMES, BOHR_TO_ANGS};
 use crate::defaults;
-use crate::gradients;
 use crate::gradients::{get_gradients, ToOwnedF};
-use crate::internal_coordinates::*;
-use crate::io::GeneralConfig;
-use crate::scc_routine;
-use crate::solver::get_exc_energies;
 use crate::step::{
     calc_drms_dmax, find_root_brent, get_cartesian_norm, get_delta_prime, trust_step,
 };
 use crate::test::{get_ethene_molecule, get_water_molecule};
-use crate::Molecule;
 use approx::AbsDiffEq;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
@@ -21,6 +15,8 @@ use ndarray_linalg::*;
 use peroxide::prelude::*;
 use std::ops::Deref;
 use std::time::Instant;
+use crate::initialization::Molecule;
+use crate::scc::scc_routine;
 
 // Optimization using internal coordinates
 // from geomeTRIC
@@ -1313,7 +1309,7 @@ fn test_optimization() {
 
     mol.calculator.set_active_orbitals(f.to_vec());
 
-    println!("Coordinates before start {}", mol.positions);
+    println!("Coordinates before start {}", mol.positions.unwrap());
     println!("Energy_before_start {}", energy);
 
     let gradVrep_ref: Array1<f64> = array![

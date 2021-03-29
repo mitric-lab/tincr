@@ -2,19 +2,19 @@ use crate::initialization::get_fragments;
 use crate::initialization::molecule::Molecule;
 use crate::initialization::parametrization::Parametrization;
 use crate::io::read_file_to_frame;
-use crate::io::settings::GeneralConfig;
+use crate::io::settings::Configuration;
 use chemfiles::Frame;
 use std::collections::HashMap;
 
-pub struct Engine {
-    pub config: GeneralConfig,
+pub struct System{
+    pub config: Configuration,
     pub molecules: Vec<Molecule>,
     pub parameters: HashMap<String, Parametrization>,
 }
 
-impl Engine {
-    pub fn from_geometry_file(filename: &str) -> Engine {
-        let settings: GeneralConfig = GeneralConfig::new();
+impl System {
+    pub fn from_geometry_file(filename: &str) -> Self {
+        let settings: Configuration = Configuration::new();
         let main_frame: Frame = read_file_to_frame(filename);
 
         let molecules: Vec<Molecule> = if settings.fmo {
@@ -38,6 +38,6 @@ impl Engine {
                 );
             }
         }
-        Engine{config: settings, molecules: molecules, parameters: parameters}
+        Self{config: settings, molecules: molecules, parameters: parameters}
     }
 }

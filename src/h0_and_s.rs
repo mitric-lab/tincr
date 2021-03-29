@@ -2,7 +2,7 @@
 use ndarray::prelude::*;
 use crate::initialization::parameters::*;
 use crate::molecule::Molecule;
-use crate::slako_transformations::*;
+use crate::param::slako_transformations::*;
 use crate::test::get_water_molecule;
 use approx::AbsDiffEq;
 use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};

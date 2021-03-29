@@ -18,6 +18,7 @@ use petgraph::dot::{Config, Dot};
 use petgraph::graph::*;
 use petgraph::stable_graph::*;
 use std::collections::HashMap;
+use crate::initialization::Molecule;
 
 
 pub fn build_connectivity_matrix(

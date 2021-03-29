@@ -934,7 +934,7 @@ pub fn gradients_nolc_ex(
 }
 
 pub fn gradients_lc_ex(
-    state: usize,
+        state: usize,
     g0: ArrayView2<f64>,
     g1: ArrayView3<f64>,
     g0_ao: ArrayView2<f64>,

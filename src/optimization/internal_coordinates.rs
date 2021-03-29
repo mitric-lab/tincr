@@ -1,9 +1,6 @@
 use crate::constants;
 use crate::defaults;
-use crate::gradients;
-use crate::molecule::distance_matrix;
 use crate::test::get_ethene_molecule;
-use crate::Molecule;
 use approx::AbsDiffEq;
 use itertools::Itertools;
 use nalgebra::*;
@@ -22,6 +19,7 @@ use petgraph::stable_graph::*;
 use std::cmp::Ordering;
 use std::f64::consts::PI;
 use std::ops::{AddAssign, Deref};
+use crate::initialization::Molecule;
 
 pub fn argsort(v: ArrayView1<f64>) -> Vec<usize> {
     let mut idx = (0..v.len()).collect::<Vec<_>>();
@@ -2878,13 +2876,6 @@ pub fn test_build_gmatrix() {
     ];
     let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
 
-    // let g_matrix:Array2<f64> = build_g_matrix(coordinates_1d.clone(),&internal_coordinates);
-    //
-    // println!("Gmatrix");
-    // for i in 0..g_matrix.dim().0{
-    //     println!("{:?}",g_matrix.slice(s![i,..]));
-    // }
-
     let q_mat: Array2<f64> =
         build_delocalized_internal_coordinates(coordinates_1d.clone(), &internal_coordinates);
 
@@ -2892,8 +2883,6 @@ pub fn test_build_gmatrix() {
         calculate_internal_coordinate_vector(coordinates_1d, &internal_coordinates, &q_mat);
 
     println!("q_internal: {:?}", q_internal);
-
-    // assert!(1 == 2);
 }
 
 #[test]

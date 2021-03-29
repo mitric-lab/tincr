@@ -23,7 +23,7 @@ pub struct Molecule {
     pub proximity_matrix: Option<Array2<bool>>,
     pub distance_matrix: Option<Array2<f64>>,
     pub directions_matrix: Option<Array3<f64>>,
-    pub adjacency_matrix: Option<Array2<bool>>,
+    // pub adjacency_matrix: Option<Array2<bool>>,
     electronic_structure: ElectronicStructure,
 }
 
@@ -36,7 +36,7 @@ impl Molecule {
             proximity_matrix: None,
             distance_matrix: None,
             directions_matrix: None,
-            adjacency_matrix: None,
+            // adjacency_matrix: None,
             electronic_structure: ElectronicStructure::new(),
         }
     }
@@ -83,42 +83,41 @@ impl Molecule {
         };
     }
 
-    pub fn set_adjacency_matrix(&mut self, adj_matrix: Option<Array2<bool>>) {
-        self.adjacency_matrix = match adj_matrix {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
+    // pub fn set_adjacency_matrix(&mut self, adj_matrix: Option<Array2<bool>>) {
+    //     self.adjacency_matrix = match adj_matrix {
+    //         Some(x) => Some(x),
+    //         None => None,
+    //     };
+    // }
 
     pub fn reset(&mut self) {
         self.positions = None;
         self.distance_matrix = None;
         self.directions_matrix = None;
         self.proximity_matrix = None;
-        self.adjacency_matrix = None;
+        // self.adjacency_matrix = None;
         if self.electronic_structure.is_some() {
             self.electronic_structure.reset()
         }
     }
 
-    pub fn from_geometry(smiles: String, numbers: &[u8], coordinates: Array2<f64>) -> Molecule {
-        let (dist_matrix, dir_matrix, prox_matrix, adj_matrix): (
+    pub fn from_geometry(smiles: String, numbers: &[u8], coordinates: Array2<f64>) -> Self{
+        let (dist_matrix, dir_matrix, prox_matrix): (
             Array2<f64>,
             Array3<f64>,
             Array2<bool>,
-            Array2<bool>,
-        ) = build_geometric_matrices(coordinates.view(), None);
+        ) = build_geometric_matrices(&numbers, coordinates.view(), None);
         let repr_string: String = smiles;
-        let mol = Molecule {
+       Molecule {
             atomic_numbers: Some(Vec::from(numbers)),
             positions: Some(coordinates),
             repr: Some(repr_string),
             proximity_matrix: Some(prox_matrix),
             distance_matrix: Some(dist_matrix),
             directions_matrix: Some(dir_matrix),
-            adjacency_matrix: Some(adj_matrix),
+            // adjacency_matrix: Some(adj_matrix),
             electronic_structure: ElectronicStructure::new(),
-        };
+        }
     }
 
     pub fn from_frame(frame: Frame) -> Molecule {
@@ -126,29 +125,27 @@ impl Molecule {
         Molecule::from_geometry(smiles, &numbers, coords)
     }
 
-    pub fn update_geometry(&mut self, coordinates: Array2<f64>) {
-        let (dist_matrix, dir_matrix, prox_matrix, adj_matrix): (
+    pub fn update_geometry(&mut self, atomic_numbers: &[u8], coordinates: Array2<f64>) {
+        let (dist_matrix, dir_matrix, prox_matrix): (
             Array2<f64>,
             Array3<f64>,
             Array2<bool>,
-            Array2<bool>,
-        ) = build_geometric_matrices(coordinates.view(), None);
+        ) = build_geometric_matrices(atomic_numbers, coordinates.view(), None);
         self.set_distance_matrix(Some(dist_matrix));
         self.set_directions_matrix(Some(dir_matrix));
         self.set_proximity_matrix(Some(prox_matrix));
-        self.set_adjacency_matrix(Some(adj_matrix));
+        // self.set_adjacency_matrix(Some(adj_matrix));
         self.set_positions(Some(coordinates));
     }
 
     pub fn dimer_from_monomers(m1: &Molecule, m2: &Molecule) -> Molecule {
         let numbers: Vec<u8> = [&m1.atomic_numbers, &m2.atomic_numbers].concat();
-        let repr: String = [&m1.repr, &m2.repr].concat();
+        let repr: String = [&m1.repr.unwrap(), &m2.repr.unwrap()].concat();
         let positions: Array2<f64> =
             concatenate![Axis(0), m1.positions.view(), m2.positions.view()];
-        let (dist_matrix, dir_matrix, prox_matrix, adj_matrix): (
+        let (dist_matrix, dir_matrix, prox_matrix): (
             Array2<f64>,
             Array3<f64>,
-            Array2<bool>,
             Array2<bool>,
         ) = build_geometric_matrices_from_monomers(positions.view(), &m1, &m2, None);
         let es: ElectronicStructure = ElectronicStructure::dimer_from_monomers(
@@ -162,7 +159,7 @@ impl Molecule {
             proximity_matrix: Some(prox_matrix),
             distance_matrix: Some(dist_matrix),
             directions_matrix: Some(dir_matrix),
-            adjacency_matrix: Some(adj_matrix),
+            // adjacency_matrix: Some(adj_matrix),
             electronic_structure: es,
         }
     }

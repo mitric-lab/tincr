@@ -6,10 +6,9 @@ use ndarray_stats::QuantileExt;
 use peroxide::special::function::beta;
 use std::cmp::{max, min};
 use std::iter::FromIterator;
+use crate::defaults;
 
 /// Modified Broyden mixer
-///
-///
 ///
 /// The algorithm is based on the implementation in the DFTB+ Code
 /// see https://github.com/dftbplus/dftbplus/blob/master/prog/dftb%2B/lib_mixer/broydenmixer.F90

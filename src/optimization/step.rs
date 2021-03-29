@@ -1,11 +1,4 @@
 use crate::defaults;
-use crate::gradients;
-use crate::gradients::get_gradients;
-use crate::internal_coordinates::*;
-use crate::optimization::*;
-use crate::scc_routine;
-use crate::solver::get_exc_energies;
-use crate::Molecule;
 use approx::AbsDiffEq;
 use itertools::any;
 use log::{debug, error, info, log_enabled, trace, warn, Level};

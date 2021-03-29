@@ -4,4 +4,4 @@ mod imprint;
 
 pub use coordinates::{frame_to_coordinates, read_file_to_frame};
 pub use imprint::write_header;
-pub use settings::{GeneralConfig, MoleculeConfig, SccConfig, OptConfig, LCConfig, ExcitedStatesConfig};
+pub use settings::{Configuration, MoleculeConfig, SccConfig, OptConfig, LCConfig, ExcitedStatesConfig};

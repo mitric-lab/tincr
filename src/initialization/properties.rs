@@ -10,7 +10,7 @@ use ndarray_linalg::Norm;
 use std::collections::HashMap;
 use std::hash::Hash;
 
-
+#[derive(Clone)]
 pub struct ElectronicStructure {
     pub h0: Option<Array2<f64>>,
     pub s: Option<Array2<f64>>,
@@ -108,7 +108,7 @@ impl ElectronicStructure {
     }
 
     pub fn set_gamma_ao_wise_grad(&mut self, set_gamma_ao_wise_grad: Option<Array3<f64>>) {
-        self.set_gamma_ao_wise_grad = match set_gamma_ao_wise_grad {
+        self.gamma_ao_wise_grad = match set_gamma_ao_wise_grad {
             Some(x) => Some(x),
             None => None,
         };
@@ -152,7 +152,7 @@ impl ElectronicStructure {
         self.set_s(Some(overlap));
     }
 
-    pub fn set_dq_from_monomers(&mut self, dq1: &ArrayView1<f64>, dq2: &ArrayView1<f64>) {
+    pub fn set_dq_from_monomers(&mut self, dq1: ArrayView1<f64>, dq2: ArrayView1<f64>) {
         self.set_dq(Some(concatenate![Axis(0), &dq1, &dq2]));
     }
 
@@ -239,8 +239,8 @@ impl ElectronicStructure {
         g1_grad: ArrayView3<f64>,
         g2_grad: ArrayView3<f64>,
     ) {
-        let (f1, n_at_1, _) = (usize, usize, usize) = g1_grad.dim();
-        let (f2, n_at_2, _) = (usize, usize, usize) = g2_grad.dim();
+        let (f1, n_at_1, _): (usize, usize, usize) = g1_grad.dim();
+        let (f2, n_at_2, _): (usize, usize, usize) = g2_grad.dim();
         let n_atoms: usize = n_at_1 + n_at_2;
         let mut gamma_atom_wise_grad: Array3<f64> = Array3::zeros([f1 + f2, n_atoms, n_atoms]);
         gamma_atom_wise_grad
@@ -257,8 +257,8 @@ impl ElectronicStructure {
         g1_grad: ArrayView3<f64>,
         g2_grad: ArrayView3<f64>,
     ) {
-        let (f1, n_orb_1, _) = (usize, usize, usize) = g1_grad.dim();
-        let (f2, n_orb_2, _) = (usize, usize, usize) = g2_grad.dim();
+        let (f1, n_orb_1, _): (usize, usize, usize) = g1_grad.dim();
+        let (f2, n_orb_2, _): (usize, usize, usize) = g2_grad.dim();
         let n_orbs: usize = n_orb_1 + n_orb_2;
         let mut gamma_ao_wise_grad: Array3<f64> = Array3::zeros([f1 + f2, n_orbs, n_orbs]);
         gamma_ao_wise_grad
@@ -275,8 +275,8 @@ impl ElectronicStructure {
         g1_grad: ArrayView3<f64>,
         g2_grad: ArrayView3<f64>,
     ) {
-        let (f1, n_at_1, _) = (usize, usize, usize) = g1_grad.dim();
-        let (f2, n_at_2, _) = (usize, usize, usize) = g2_grad.dim();
+        let (f1, n_at_1, _): (usize, usize, usize) = g1_grad.dim();
+        let (f2, n_at_2, _): (usize, usize, usize) = g2_grad.dim();
         let n_atoms: usize = n_at_1 + n_at_2;
         let mut gamma_lrc_atom_wise_grad: Array3<f64> = Array3::zeros([f1 + f2, n_atoms, n_atoms]);
         gamma_lrc_atom_wise_grad
@@ -293,8 +293,8 @@ impl ElectronicStructure {
         g1_grad: ArrayView3<f64>,
         g2_grad: ArrayView3<f64>,
     ) {
-        let (f1, n_orb_1, _) = (usize, usize, usize) = g1_grad.dim();
-        let (f2, n_orb_2, _) = (usize, usize, usize) = g2_grad.dim();
+        let (f1, n_orb_1, _): (usize, usize, usize) = g1_grad.dim();
+        let (f2, n_orb_2, _): (usize, usize, usize) = g2_grad.dim();
         let n_orbs: usize = n_orb_1 + n_orb_2;
         let mut gamma_lrc_ao_wise_grad: Array3<f64> = Array3::zeros([f1 + f2, n_orbs, n_orbs]);
         gamma_lrc_ao_wise_grad
@@ -314,55 +314,55 @@ impl ElectronicStructure {
         if e1.is_some() && e2.is_some() {
             match (&e1.h0, &e2.h0) {
                 (Some(x), Some(y)) => es.set_h0_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.s, &e2.s) {
                 (Some(x), Some(y)) => es.set_overlap_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.dq, &e2.dq) {
                 (Some(x), Some(y)) => es.set_dq_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.p, &e2.p) {
                 (Some(x), Some(y)) => es.set_density_matrix_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.gamma_atom_wise, &e2.gamma_atom_wise) {
                 (Some(x), Some(y)) => es.set_gamma_atom_wise_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.gamma_ao_wise, &e2.gamma_ao_wise) {
                 (Some(x), Some(y)) => es.set_gamma_ao_wise_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.gamma_lrc_atom_wise, &e2.gamma_lrc_atom_wise) {
                 (Some(x), Some(y)) => es.set_gamma_lrc_atom_wise_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.gamma_lrc_ao_wise, &e2.gamma_lrc_ao_wise) {
                 (Some(x), Some(y)) => es.set_gamma_lrc_ao_wise_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.gamma_atom_wise_grad, &e2.gamma_atom_wise_grad) {
                 (Some(x), Some(y)) => es.set_gamma_atom_wise_grad_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.gamma_ao_wise_grad, &e2.gamma_ao_wise_grad) {
                 (Some(x), Some(y)) => es.set_gamma_ao_wise_grad_from_monomers(x.view(), y.view()),
-                _ => None,
+                _ => (),
             };
             match (&e1.gamma_lrc_atom_wise_grad, &e2.gamma_lrc_atom_wise_grad) {
                 (Some(x), Some(y)) => {
                     es.set_gamma_lrc_atom_wise_grad_from_monomers(x.view(), y.view())
                 }
-                _ => None,
+                _ => (),
             };
             match (&e1.gamma_lrc_ao_wise_grad, &e2.gamma_lrc_ao_wise_grad) {
                 (Some(x), Some(y)) => {
                     es.set_gamma_lrc_ao_wise_grad_from_monomers(x.view(), y.view())
                 }
-                _ => None,
+                _ => (),
             };
         }
         return el;

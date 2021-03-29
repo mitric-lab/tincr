@@ -6,6 +6,7 @@ use ndarray::prelude::*;
 use ndarray::{array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
+use crate::initialization::Molecule;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 

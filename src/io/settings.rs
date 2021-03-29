@@ -103,7 +103,7 @@ fn default_excited_state_config() -> ExcitedStatesConfig {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct GeneralConfig {
+pub struct Configuration {
     #[serde(default = "default_jobtype")]
     pub jobtype: String,
     #[serde(default = "default_use_fmo")]
@@ -124,8 +124,8 @@ pub struct GeneralConfig {
     pub excited: ExcitedStatesConfig,
 }
 
-impl GeneralConfig {
-    pub fn new() -> GeneralConfig {
+impl Configuration {
+    pub fn new() -> Self {
         // read tincr configuration file, if it does not exist in the directory
         // the program initializes the default settings and writes an configuration file
         // to the directory
@@ -136,7 +136,7 @@ impl GeneralConfig {
             String::from("")
         };
         // load the configration settings
-        let config: GeneralConfig = toml::from_str(&config_string).unwrap();
+        let config: Self = toml::from_str(&config_string).unwrap();
         // save the configuration file if it does not exist already
         if config_file_path.exists() == false {
             config_string = toml::to_string(&config).unwrap();
