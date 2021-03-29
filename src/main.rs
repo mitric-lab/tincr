@@ -32,6 +32,7 @@ mod fmo_gradients;
 
 use crate::fmo::*;
 use crate::gradients::*;
+use crate::fmo_gradients::*;
 use crate::molecule::Molecule;
 use crate::solver::get_exc_energies;
 use ndarray::*;
@@ -199,7 +200,7 @@ fn main() {
                 .unwrap();
             0
         }
-        "fmo" => {
+        "fmo_grad" => {
             let (graph,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
                 create_fmo_graph(atomic_numbers.clone(), positions.clone());
             // let mut mol: Molecule = Molecule::new(
@@ -224,7 +225,118 @@ fn main() {
                 atomic_numbers.clone(),
                 positions.clone(),
             );
-            let (indices_frags, gamma_total,prox_mat,dist_mat,direct_mat): (Vec<usize>, Array2<f64>, Array2<bool>,Array2<f64>, Array3<f64>) =
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time create fragment mols:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
+            let (indices_frags, gamma_total,g1_total,prox_mat,dist_mat,direct_mat): (Vec<usize>, Array2<f64>,Array3<f64>, Array2<bool>,Array2<f64>, Array3<f64>) =
+                reorder_molecule_gradients(&fragments, config.clone(), positions.raw_dim());
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time reorder mol gradients:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
+            let fragments_data: Vec<frag_grad_result> = fmo_calculate_fragment_gradients(&mut fragments);
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate gradients monomers",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
+            let (pairs_data): (Vec<pair_grad_result>) =
+                fmo_calculate_pairwise_gradients(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&gamma_total);
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate gradients dimers",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
+            let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,gamma_total,g1_total,prox_matrix);
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate total and embedding:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+
+            println!("FMO gradients {}", gradients);
+
+            let mut mol: Molecule = Molecule::new(
+                atomic_numbers,
+                positions,
+                Some(config.mol.charge),
+                Some(config.mol.multiplicity),
+                None,
+                None,
+                config,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None
+            );
+            info!(
+                "{:>68} {:>8.2} s",
+                "elapsed time:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+
+            let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+                scc_routine::run_scc(&mut mol);
+            mol.calculator.set_active_orbitals(f.to_vec());
+
+            let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+            let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
+
+            println!("Normal Gradient {}",grad);
+            0
+        }
+        "fmo" => {
+            let (graph, graph_indexes, subgraph, connectivity_mat, dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>, Array2<bool>, Array2<f64>, Array3<f64>, Array2<bool>) =
+                create_fmo_graph(atomic_numbers.clone(), positions.clone());
+            // let mut mol: Molecule = Molecule::new(
+            //     atomic_numbers.clone(),
+            //     positions.clone(),
+            //     Some(config.mol.charge),
+            //     Some(config.mol.multiplicity),
+            //     Some(0.0),
+            //     None,
+            //     config.clone(),
+            // );
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time create_fmo_graph:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+            let mut fragments: Vec<Molecule> = create_fragment_molecules(
+                subgraph,
+                config.clone(),
+                atomic_numbers.clone(),
+                positions.clone(),
+            );
+            let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>) =
                 reorder_molecule(&fragments, config.clone(), positions.raw_dim());
             println!(
                 "{:>68} {:>8.2} s",
@@ -245,7 +357,7 @@ fn main() {
             let molecule_timer: Instant = Instant::now();
 
             let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
-                fmo_calculate_pairwise_single(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&gamma_total);
+                fmo_calculate_pairwise_single(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags, &gamma_total);
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -270,6 +382,7 @@ fn main() {
             drop(molecule_timer);
 
             println!("FMO Energy {}", energy);
+
             0
         }
         _ => {
