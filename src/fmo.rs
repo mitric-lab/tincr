@@ -32,6 +32,78 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::time::Instant;
 
+pub fn fmo_numerical_gradient(atomic_numbers:&Vec<u8>,positions:&Array1<f64>,config:GeneralConfig)->Array1<f64>{
+
+    let mut gradient:Array1<f64> = Array1::zeros(positions.raw_dim());
+    let positions_len:usize = positions.len()/3;
+
+    for ind in (0..positions.len()).into_iter(){
+        let mut ei:Array1<f64> = Array1::zeros(positions.raw_dim());
+        ei[ind] = 1.0;
+        let positions_1:Array1<f64> = positions - &(1e-5 *ei.clone());
+        let positions_2:Array1<f64> = positions + &(1e-5 *ei.clone());
+
+        let coordinates_1:Array2<f64> = positions_1.into_shape((positions_len,3)).unwrap();
+        let coordinates_2:Array2<f64> = positions_2.into_shape((positions_len,3)).unwrap();
+
+        let (graph, graph_indexes, subgraph, connectivity_mat, dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>, Array2<bool>, Array2<f64>, Array3<f64>, Array2<bool>) =
+            create_fmo_graph(atomic_numbers.clone(), coordinates_1.clone());
+
+        let mut fragments: Vec<Molecule> = create_fragment_molecules(
+            subgraph,
+            config.clone(),
+            atomic_numbers.clone(),
+            coordinates_1.clone(),
+        );
+        let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>) =
+            reorder_molecule(&fragments, config.clone(), coordinates_1.raw_dim());
+
+        let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
+
+        let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
+            fmo_calculate_pairwise_single(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags, &gamma_total);
+
+        let energy_1: f64 = fmo_gs_energy(
+            &fragments,
+            &fragments_data,
+            &pairs_data,
+            &indices_frags,
+            gamma_total,
+            prox_mat,
+        );
+
+        let (graph, graph_indexes, subgraph, connectivity_mat, dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>, Array2<bool>, Array2<f64>, Array3<f64>, Array2<bool>) =
+            create_fmo_graph(atomic_numbers.clone(), coordinates_2.clone());
+
+        let mut fragments: Vec<Molecule> = create_fragment_molecules(
+            subgraph,
+            config.clone(),
+            atomic_numbers.clone(),
+            coordinates_2.clone(),
+        );
+        let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>) =
+            reorder_molecule(&fragments, config.clone(), coordinates_2.raw_dim());
+
+        let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
+
+        let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
+            fmo_calculate_pairwise_single(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags, &gamma_total);
+
+        let energy_2: f64 = fmo_gs_energy(
+            &fragments,
+            &fragments_data,
+            &pairs_data,
+            &indices_frags,
+            gamma_total,
+            prox_mat,
+        );
+
+        let grad_temp:f64 = (energy_2 - energy_1)/(2.0*1e-5);
+        gradient[ind] = grad_temp;
+    }
+    return gradient;
+}
+
 pub fn fmo_gs_energy(
     fragments: &Vec<Molecule>,
     cluster_results: &cluster_frag_result,

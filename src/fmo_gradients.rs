@@ -68,13 +68,8 @@ pub fn fmo_gs_gradients(
     let mut dimer_gradients: Vec<Array1<f64>> = Vec::new();
     let mut embedding_gradients: Vec<Array1<f64>> = Vec::new();
 
-    println!("Test before loop over pairs");
-
     for (pair_index, pair) in pair_results.iter().enumerate() {
         if pair.energy_pair.is_some() {
-            println!("Pair is some!");
-            println!("Iter is {}", iter);
-
             let dimer_gradient_e0: Array1<f64> = pair.grad_e0.clone().unwrap();
             let dimer_gradient_vrep: Array1<f64> = pair.grad_vrep.clone().unwrap();
 
@@ -213,7 +208,6 @@ pub fn fmo_gs_gradients(
                 .into_shape((3 * pair_atoms, w_dimer_dim, w_dimer_dim))
                 .unwrap();
 
-            println!("Test123");
             let embedding_pot: Vec<Array1<f64>> = fragments
                 .iter()
                 .enumerate()
@@ -387,8 +381,6 @@ pub fn fmo_gs_gradients(
             embedding_gradients.push(embedding_gradient);
             dimer_gradients.push(dimer_gradient_e0 + dimer_gradient_vrep);
         } else {
-            println!("Pair is None!");
-
             let dimer_natoms: usize =
                 fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
             let dimer_gradient: Array1<f64> = Array::zeros(dimer_natoms * 3);
@@ -613,33 +605,35 @@ pub fn fmo_gs_gradients(
         let index_frag_a: usize = indices_frags[index_a];
         let index_frag_b: usize = indices_frags[index_b];
 
-        grad_total_dimers
-            .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
-            .add_assign(
-                &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-                    - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
-        grad_total_dimers
-            .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
-            .add_assign(
-                &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
-                    - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
+        if pair.energy_pair.is_some(){
+            grad_total_dimers
+                .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+                .add_assign(
+                    &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+                        - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
+            grad_total_dimers
+                .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+                .add_assign(
+                    &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
+                        - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
+        }
 
-        // grad_total_dimers
-        //     .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
-        //     .add_assign(
-        //         &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-        //     );
-        // grad_total_dimers
-        //     .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
-        //     .add_assign(
-        //         &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
-        //     ));
+        //grad_total_dimers
+        //    .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+        //    .add_assign(
+        //        &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+        //    );
+        //grad_total_dimers
+        //    .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+        //    .add_assign(
+        //        &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
+        //        ));
     }
 
-    for embed in embedding_gradients.iter() {
-        //println!("Embed {}",embed.clone());
-        grad_total_dimers.add_assign(embed);
-    }
+    //for embed in embedding_gradients.iter() {
+    //    //println!("Embed {}",embed.clone());
+    //    grad_total_dimers.add_assign(embed);
+    //}
     let total_gradient: Array1<f64> = grad_total_dimers+ grad_total_frags;
 
     return total_gradient;
@@ -930,25 +924,6 @@ pub fn fmo_calculate_pairwise_gradients(
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
                     ]));
 
-                // let mut pair: Molecule = Molecule::new(
-                //     atomic_numbers,
-                //     positions,
-                //     Some(config.mol.charge),
-                //     Some(config.mol.multiplicity),
-                //     Some(0.0),
-                //     None,
-                //     config.clone(),
-                //     saved_calc,
-                //     Some(connectivity_matrix),
-                //     Some(graph_new),
-                //     Some(graph_indexes),
-                //     Some(subgraph),
-                //     Some(distance_frag),
-                //     Some(dir_frag),
-                //     Some(prox_frag),
-                //     Some(gamma_frag),
-                // );
-
                 let mut pair: Molecule = Molecule::new(
                     atomic_numbers,
                     positions,
@@ -957,16 +932,35 @@ pub fn fmo_calculate_pairwise_gradients(
                     Some(0.0),
                     None,
                     config.clone(),
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
+                    saved_calc,
+                    Some(connectivity_matrix),
+                    Some(graph_new),
+                    Some(graph_indexes),
+                    Some(subgraph),
+                    Some(distance_frag),
+                    Some(dir_frag),
+                    Some(prox_frag),
+                    Some(gamma_frag),
                 );
+
+                //let mut pair: Molecule = Molecule::new(
+                //    atomic_numbers,
+                //    positions,
+                //    Some(config.mol.charge),
+                //    Some(config.mol.multiplicity),
+                //    Some(0.0),
+                //    None,
+                //    config.clone(),
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //);
 
                 if use_saved_calc == false {
                     saved_calculators.push(pair.calculator.clone());

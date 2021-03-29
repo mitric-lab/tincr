@@ -279,13 +279,13 @@ fn main() {
             println!(" ");
 
             let mut mol: Molecule = Molecule::new(
-                atomic_numbers,
+                atomic_numbers.clone(),
                 positions,
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
                 None,
                 None,
-                config,
+                config.clone(),
                 None,
                 None,
                 None,
@@ -296,12 +296,7 @@ fn main() {
                 None,
                 None
             );
-            info!(
-                "{:>68} {:>8.2} s",
-                "elapsed time:",
-                molecule_timer.elapsed().as_secs_f32()
-            );
-            drop(molecule_timer);
+
             println!(" ");
 
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
@@ -309,6 +304,11 @@ fn main() {
             mol.calculator.set_active_orbitals(f.to_vec());
 
             let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+            let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());
+
+            println!("Numerical gradient fmo {}",numerical_gradient);
+            println!(" ");
+
             let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
 
             println!("Normal Gradient {}",grad);
