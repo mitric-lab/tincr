@@ -1,4 +1,4 @@
-use crate::constants::BOND_THRESHOLD;
+use crate::constants::{BOND_THRESHOLD, ATOM_NAMES};
 use chemfiles::{Atom, Frame, Trajectory};
 use std::collections::HashMap;
 
@@ -75,7 +75,7 @@ pub fn get_fragments(frame: Frame) -> Vec<Frame>{
     for (key, value) in molecules.into_iter() {
         let mut fragment: Frame = Frame::new();
         for (num, pos) in value.iter() {
-            fragment.add_atom(&Atom::new(idx_to_symbols[num]), *pos, None);
+            fragment.add_atom(&Atom::new(ATOM_NAMES[*num as usize]), *pos, None);
         }
         // let chemfiles guess the connectivity, so that we have access to the smiles representation
         fragment.guess_bonds();

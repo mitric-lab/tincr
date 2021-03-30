@@ -1,10 +1,11 @@
-use ndarray::{ArrayView2, ArrayView1, Array2, Axis, Array1, Array};
+use ndarray::prelude::*;
 use ndarray_linalg::{Norm};
 use itertools::Itertools;
 use crate::initialization::Molecule;
 use std::collections::HashMap;
 use crate::initialization::parameters::RepulsivePotentialTable;
 use crate::defaults;
+use log::{error, warn, info, debug, trace};
 
 // find indeces of HOMO and LUMO orbitals (starting from 0)
 pub fn get_frontier_orbitals(n_elec: usize) -> (usize, usize) {
@@ -171,7 +172,7 @@ pub fn density_matrix_ref(atomic_numbers: &[u8], n_orbs: usize, valorbs: &HashMa
     return p0;
 }
 
-pub fn construct_h1(atomic_numbers: &[u8], n_orbs: usize, valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, valorbs_occupation: &HashMap<u8, Vec<f64>> gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
+pub fn construct_h1(atomic_numbers: &[u8], n_orbs: usize, valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, valorbs_occupation: &HashMap<u8, Vec<f64>>, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
     let mut h1: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
 

@@ -3,10 +3,8 @@
 #[macro_use]
 use clap::crate_version;
 use crate::constants::BOHR_TO_ANGS;
-use crate::defaults::CONFIG_FILE_NAME;
 use crate::defaults::*;
-use crate::gradients::*;
-use crate::molecule::Molecule;
+use crate::initialization::Molecule;
 use chemfiles::{Frame, Trajectory};
 use clap::App;
 use log::{debug, error, info, trace, warn};

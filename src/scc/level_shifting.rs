@@ -1,4 +1,4 @@
-use ndarray::{Array2, ArrayView2};
+use ndarray::prelude::*;
 use crate::defaults;
 
 pub struct LevelShifter {

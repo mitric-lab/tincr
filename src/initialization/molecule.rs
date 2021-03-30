@@ -1,8 +1,8 @@
-use crate::calculator::get_gamma_matrix;
 use crate::h0_and_s::h0_and_s;
 use crate::initialization::parameters::*;
 use crate::initialization::geometry::*;
 use crate::initialization::properties::ElectronicStructure;
+use crate::initialization::parametrization::get_gamma_matrix;
 use crate::{constants, defaults};
 use approx::AbsDiffEq;
 use log::{debug, error, info, trace, warn};
@@ -139,8 +139,8 @@ impl Molecule {
     }
 
     pub fn dimer_from_monomers(m1: &Molecule, m2: &Molecule) -> Molecule {
-        let numbers: Vec<u8> = [&m1.atomic_numbers, &m2.atomic_numbers].concat();
-        let repr: String = [&m1.repr.unwrap(), &m2.repr.unwrap()].concat();
+        let numbers: Vec<u8> = [&m1.atomic_numbers.unwrap()[..], &m2.atomic_numbers.unwrap()[..]].concat();
+        let repr: String = [&m1.repr.unwrap()[..], &m2.repr.unwrap()[..]].concat();
         let positions: Array2<f64> =
             concatenate![Axis(0), m1.positions.view(), m2.positions.view()];
         let (dist_matrix, dir_matrix, prox_matrix): (

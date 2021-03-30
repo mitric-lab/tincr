@@ -1,11 +1,11 @@
-use crate::calculator::get_gamma_matrix;
 use crate::h0_and_s::h0_and_s;
 use crate::initialization::parameters::*;
 use crate::{constants, defaults};
 use approx::AbsDiffEq;
 use log::{debug, error, info, trace, warn};
 use ndarray::prelude::*;
-use ndarray::*;
+#[macro_use]
+use ndarray;
 use ndarray_linalg::Norm;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -153,7 +153,7 @@ impl ElectronicStructure {
     }
 
     pub fn set_dq_from_monomers(&mut self, dq1: ArrayView1<f64>, dq2: ArrayView1<f64>) {
-        self.set_dq(Some(concatenate![Axis(0), &dq1, &dq2]));
+        self.set_dq(Some(ndarray::concatenate![Axis(0), &dq1, &dq2]));
     }
 
     pub fn set_density_matrix_from_monomers(&mut self, p1: ArrayView2<f64>, p2: ArrayView2<f64>) {
@@ -309,7 +309,7 @@ impl ElectronicStructure {
     pub fn dimer_from_monomers(
         e1: &ElectronicStructure,
         e2: &ElectronicStructure,
-    ) -> ElectronicStructure {
+    ) -> Self {
         let mut es: ElectronicStructure = ElectronicStructure::new();
         if e1.is_some() && e2.is_some() {
             match (&e1.h0, &e2.h0) {
@@ -365,7 +365,7 @@ impl ElectronicStructure {
                 _ => (),
             };
         }
-        return el;
+        return es;
     }
 
     pub fn reset(&mut self) {

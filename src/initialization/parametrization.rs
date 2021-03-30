@@ -1,7 +1,7 @@
 use crate::constants::ATOM_NAMES;
 use crate::defaults;
 use crate::param::gamma_approximation;
-use crate::molecule::Molecule;
+use crate::initialization::Molecule;
 use crate::initialization::parameters::*;
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};

@@ -1,5 +1,6 @@
 pub use fragmentation::get_fragments;
 pub use molecule::Molecule;
+pub use geometry::*;
 
 mod fragmentation;
 pub mod parameters;
