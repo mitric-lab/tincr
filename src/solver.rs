@@ -1534,10 +1534,10 @@ pub fn get_apbv_fortran(
         .unwrap()
         .reversed_axes();
 
-    println!("qtrans ov{}", qtrans_ov.clone());
-    println!("Compare shapes");
-    println!("Old q_ov {:?}", tmp_q_ov_shape_1);
-    println!("New q_ov {:?}", tmp_q_ov_shape_1_new);
+    // println!("qtrans ov{}", qtrans_ov.clone());
+    // println!("Compare shapes");
+    // println!("Old q_ov {:?}", tmp_q_ov_shape_1);
+    // println!("New q_ov {:?}", tmp_q_ov_shape_1_new);
 
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 

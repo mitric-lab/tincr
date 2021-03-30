@@ -189,7 +189,7 @@ fn main() {
                 scc_routine::run_scc(&mut mol);
             mol.calculator.set_active_orbitals(f.to_vec());
 
-            let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol, Some(1));
+            let tmp: (f64, Array1<f64>, Array1<f64>) = optimize_geometry_ic(&mut mol, Some(0));
             let new_energy: f64 = tmp.0;
             let new_gradient: Array1<f64> = tmp.1;
             let new_coords: Array1<f64> = tmp.2;
