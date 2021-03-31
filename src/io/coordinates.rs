@@ -22,7 +22,7 @@ pub fn frame_to_coordinates(mut frame: Frame) -> (String, Vec<u8>, Array2<f64>) 
 
     let mut smiles_repr: Trajectory = Trajectory::memory_writer("SMI").unwrap();
     smiles_repr.write(&mut frame).unwrap();
-    let smiles: String = smiles_repr.memory_buffer().unwrap().replace(&['~','\n'], "");
+    let smiles: String = smiles_repr.memory_buffer().unwrap().replace('~', "").replace('\n', "");
     return (smiles, atomic_numbers, positions);
 }
 

@@ -49,7 +49,7 @@ pub fn get_fragments(frame: Frame) -> Vec<Frame>{
                 .sqrt();
             // if the atom is linked to an atom that we have already seen, the atom will be added
             // to this molecule. otherwise a new molecule will be createad
-            if r < BOND_THRESHOLD[&(*zi, *zj)] {
+            if r < BOND_THRESHOLD[*zi as usize][*zj as usize] {
                 // append atomic number and coordinates
                 molecules
                     .entry(idxtomol[&j])
