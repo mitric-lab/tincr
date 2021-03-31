@@ -118,17 +118,19 @@ pub fn fmo_gs_gradients(
             for i in (0..3*pair_atoms).into_iter(){
                 w_dimer.slice_mut(s![i,..,..]).assign(&dimer_pmat.dot(&pair_grads.slice(s![i,..,..]).dot(&dimer_pmat)));
             }
+            w_dimer = -0.5 * w_dimer;
 
             let mut w_mat_a:Array3<f64> = Array3::zeros((3 * fragments[pair.frag_a_index].n_atoms,shape_orbs_a,shape_orbs_a));
             for i in (0..3 * fragments[pair.frag_a_index].n_atoms).into_iter(){
                 w_mat_a.slice_mut(s![i,..,..]).assign(&fragments[pair.frag_a_index].final_p_matrix.dot(&frag_grad_results[pair.frag_a_index].grad_s.slice(s![i,..,..]).dot(&fragments[pair.frag_a_index].final_p_matrix)));
             }
+            w_mat_a = -0.5 * w_mat_a;
 
             let mut w_mat_b:Array3<f64> = Array3::zeros((3 * fragments[pair.frag_b_index].n_atoms,shape_orbs_b,shape_orbs_b));
             for i in (0..3 * fragments[pair.frag_b_index].n_atoms).into_iter(){
                 w_mat_b.slice_mut(s![i,..,..]).assign(&fragments[pair.frag_b_index].final_p_matrix.dot(&frag_grad_results[pair.frag_b_index].grad_s.slice(s![i,..,..]).dot(&fragments[pair.frag_b_index].final_p_matrix)));
             }
-
+            w_mat_b = -0.5 * w_mat_b;
 
             // Build delta p_mu,nu^I,J
             let mut dp_direct_sum_monomer: Array2<f64> = Array2::zeros(dimer_pmat.raw_dim());
@@ -285,6 +287,7 @@ pub fn fmo_gs_gradients(
                         for i in (0..3 * fragments[ind_k].n_atoms).into_iter(){
                             w_mat_k.slice_mut(s![i,..,..]).assign(&fragments[ind_k].final_p_matrix.dot(&frag_grad_results[ind_k].grad_s.slice(s![i,..,..]).dot(&fragments[ind_k].final_p_matrix)));
                         }
+                        w_mat_k = -0.5 * w_mat_k;
 
                         let w_s_k: Array1<f64> = w_mat_k
                             .into_shape((3 * fragments[ind_k].n_atoms * shape_orbs_k, shape_orbs_k))
@@ -417,6 +420,7 @@ pub fn fmo_gs_gradients(
             for i in (0..3 * fragments[pair.frag_a_index].n_atoms).into_iter(){
                 w_mat_a.slice_mut(s![i,..,..]).assign(&fragments[pair.frag_a_index].final_p_matrix.dot(&frag_grad_results[pair.frag_a_index].grad_s.slice(s![i,..,..]).dot(&fragments[pair.frag_a_index].final_p_matrix)));
             }
+            w_mat_a = -0.5 * w_mat_a;
 
             let w_s_a: Array1<f64> = w_mat_a
                 .into_shape((
@@ -520,6 +524,7 @@ pub fn fmo_gs_gradients(
             for i in (0..3 * fragments[pair.frag_b_index].n_atoms).into_iter(){
                 w_mat_b.slice_mut(s![i,..,..]).assign(&fragments[pair.frag_b_index].final_p_matrix.dot(&frag_grad_results[pair.frag_b_index].grad_s.slice(s![i,..,..]).dot(&fragments[pair.frag_b_index].final_p_matrix)));
             }
+            w_mat_b = -0.5 * w_mat_b;
 
             let w_s_b: Array1<f64> = w_mat_b
                 .into_shape((
