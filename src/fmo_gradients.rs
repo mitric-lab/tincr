@@ -339,6 +339,15 @@ pub fn fmo_gs_gradients(
                 ])
                 .to_owned();
 
+            let g1_ab_2:Array3<f64> = pair_results[pair_index]
+                .g1
+                .slice(s![
+                    3 * fragments[pair.frag_a_index].n_atoms..,
+                    0..fragments[pair.frag_a_index].n_atoms,
+                    fragments[pair.frag_a_index].n_atoms..
+                ])
+                .to_owned();
+
             let g0_ab:Array2<f64> = pair_results[pair_index]
                 .g0
                 .slice(s![
@@ -379,7 +388,7 @@ pub fn fmo_gs_gradients(
                 let dir_xyz:usize = dir as usize;
                 for a in (0..fragments[pair.frag_b_index].n_atoms).into_iter(){
                     let index:usize = 3 * a+dir_xyz;
-                    term_1[index] = fragments[pair.frag_b_index].final_charges[a] * g1_ab.slice(s![index,..,a]).dot(&fragments[pair.frag_a_index].final_charges);
+                    term_1[index] = fragments[pair.frag_b_index].final_charges[a] * g1_ab_2.slice(s![index,..,a]).dot(&fragments[pair.frag_a_index].final_charges);
 
                     let tmp_1:f64 = w_mat_b.slice(s![index,..,..]).dot(&frag_grad_results[pair.frag_b_index].s.t()).trace().unwrap();
                     let tmp_2:f64 = fragments[pair.frag_b_index].final_p_matrix.dot(&frag_grad_results[pair.frag_b_index].grad_s.slice(s![index,..,..]).t()).trace().unwrap();
@@ -420,17 +429,20 @@ pub fn fmo_gs_gradients(
                   &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
                       - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
         }
+        else{
+            grad_total_dimers
+                .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+                .add_assign(
+                    &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+                        - &frag_grad_results[index_a].grad_e0));
+            grad_total_dimers
+                .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+                .add_assign(
+                    &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
+                        - &frag_grad_results[index_b].grad_e0));
+        }
 
-        // grad_total_dimers
-        //     .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
-        //     .add_assign(
-        //         &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-        //             - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
-        // grad_total_dimers
-        //     .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
-        //     .add_assign(
-        //         &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
-        //             - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
+
 
         // grad_total_dimers
         //    .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
