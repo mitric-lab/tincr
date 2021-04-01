@@ -64,7 +64,7 @@ pub fn get_atm_dispersion(
         // parallelise this loop
         for iat in 0..mol.n_atoms {
             let izp = mol.id[iat];
-            for jat in 0..mol.n_atoms {
+            for jat in 0..iat {
                 let jzp = mol.id[jat];
                 let c6ij = c6[[iat, jat]];
                 let r0ij = a1 * (3.0*r4r2[jzp]*r4r2[izp]).sqrt() + a2;
@@ -173,7 +173,7 @@ pub fn get_atm_dispersion(
         // parallelise this loop
         for iat in 0..mol.n_atoms {
             let izp = mol.id[iat];
-            for jat in 0..mol.n_atoms {
+            for jat in 0..iat {
                 let jzp = mol.id[jat];
                 let c6ij = c6[[iat, jat]];
                 let r0ij = a1 * (3.0*r4r2[jzp]*r4r2[izp]).sqrt() + a2;
@@ -284,4 +284,198 @@ pub struct RationalDampingParam {
     pub a1: f64,
     pub a2: f64,
     pub alp: f64,
+}
+
+impl RationalDampingParam {
+    pub fn new(
+        s6: Option<f64>,
+        s8: f64,
+        s9: Option<f64>,
+        a1: f64,
+        a2: f64,
+        alp: Option<f64>,
+    ) -> RationalDampingParam {
+        let s6 = s6.unwrap();
+        let s9 = s9.unwrap();
+        let alp = alp.unwrap();
+
+        let rdp = RationalDampingParam{s6, s8, s9, a1, a2, alp};
+        return rdp;
+    }
+
+    pub fn get_dispersion2(
+        &self,
+        mol: &Molecule, // molecular structure data
+        trans: ArrayView2<f64>, // lattice points
+        cutoff: f64, // real space cutoff
+        r4r2: ArrayView1<f64>, // expectation values for r4 over r4 operator
+        c6: ArrayView2<f64>, // C6 coefficients for all atom pairs
+        dc6dcn: Option<ArrayView2<f64>>, // derivative of the C6 w.r.t. the coordination number
+        dc6dq: Option<ArrayView2<f64>>, // derivative of the C6 w.r.t. the partial charges
+        energy_in: Array1<f64>, // dispersion energy input
+        dEdcn_in: Option<Array1<f64>>, // derivative of the energy w.r.t the coordination number
+        dEdq_in: Option<Array1<f64>>, // derivative of the energy w.r.t the partial charges
+        gradient_in: Option<Array2<f64>>, // dispersion gradient
+        sigma_in: Option<Array2<f64>>, // dispersion virial
+    )-> AtmDispersionGradientsResult {
+
+        if self.s6.abs() < EPSILON && self.s8.abs() < EPSILON {
+            let res = AtmDispersionGradientsResult {
+                energy: energy_in,
+                dEdcn: dEdcn_in,
+                dEdq: dEdq_in,
+                gradient: gradient_in,
+                sigma: sigma_in,
+            };
+            return res;
+        }
+
+        let grad = dc6dcn.is_some() && dEdcn_in.is_some() && dc6dq.is_some()
+            && dEdq_in.is_some() && gradient_in.is_some() && sigma_in.is_some();
+        let cutoff2 = cutoff * cutoff;
+
+        if grad {
+            let mut energy: Array1<f64> = energy_in.clone();
+            let mut dEdcn: Array1<f64> = dEdcn_in.unwrap().clone();
+            let mut dEdq: Array1<f64> = dEdq_in.unwrap().clone();
+            let mut gradient: Array2<f64> = gradient_in.unwrap().clone();
+            let mut sigma: Array2<f64> = sigma_in.unwrap().clone();
+
+            let dc6dcn = dc6dcn.unwrap();
+            let dc6dq = dc6dq.unwrap();
+
+            // parallelise this loop
+            for iat in 0..mol.n_atoms {
+                let izp = mol.id[iat];
+                for jat in 0..iat {
+                    let jzp = mol.id[jat];
+                    let rrij = 3.0*r4r2[izp]*r4r2[jzp];
+                    let r0ij = self.a1 * rrij.sqrt() + self.a2;
+                    let c6ij = c6[[iat, jat]];
+                    for jtr in 0..trans.len_of(Axis(0)) {
+                        let vec: Array1<f64> = &mol.positions.slice(s![iat, ..])
+                                             - &mol.positions.slice(s![jat, ..])
+                                             + &trans.slice(s![jtr, ..]);
+                        let r2 = vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2];
+                        if r2 > cutoff2 || r2 < EPSILON {
+                            continue;
+                        }
+
+                        let t6 = 1.0/(r2.powi(3) + r0ij.powi(6));
+                        let t8 = 1.0/(r2.powi(4) + r0ij.powi(8));
+
+                        let d6 = -6.0 * (r2.powi(2)) * (t6.powi(2));
+                        let d8 = -8.0 * (r2.powi(3)) * (t8.powi(2));
+
+                        let edisp = self.s6*t6 + self.s8*rrij*t8;
+                        let gdisp = self.s6*d6 + self.s8*rrij*d8;
+
+                        let dE = -c6ij*edisp*0.5;
+                        let dG: Array1<f64> = -c6ij * gdisp * &vec;
+                        let dS: Array2<f64> = spread(&dG, 1, 3) * spread(&vec, 0, 3) * 0.5;
+
+                        energy[iat] = energy[iat] + dE;
+                        dEdcn[iat] = dEdcn[iat] - dc6dcn[[jat, iat]] * edisp;
+                        dEdq[iat] = dEdq[iat] - dc6dq[[jat, iat]] * edisp;
+                        sigma += &dS;
+                        if iat != jat {
+                            energy[jat] = energy[jat] + dE;
+                            dEdcn[jat] = dEdcn[jat] - dc6dcn[[iat, jat]] * edisp;
+                            dEdq[jat] = dEdq[jat] - dc6dq[[iat, jat]] * edisp;
+                            gradient.slice_mut(s![iat, ..]).add_assign(&dG);
+                            gradient.slice_mut(s![jat, ..]).add_assign(&(-dG));
+                            sigma += &dS;
+                        }
+                    }
+                }
+            }
+
+            let res = AtmDispersionGradientsResult {
+                energy: energy,
+                dEdcn: Some(dEdcn),
+                dEdq: Some(dEdq),
+                gradient: Some(gradient),
+                sigma: Some(sigma),
+            };
+            res
+        } else {
+            let mut energy: Array1<f64> = energy_in.clone();
+
+            // parallelise this loop
+            for iat in 0..mol.n_atoms {
+                let izp = mol.id[iat];
+                for jat in 0..iat {
+                    let jzp = mol.id[jat];
+                    let rrij = 3.0*r4r2[izp]*r4r2[jzp];
+                    let r0ij = self.a1 * rrij.sqrt() + self.a2;
+                    let c6ij = c6[[iat, jat]];
+                    for jtr in 0..trans.len_of(Axis(0)) {
+                        let vec: Array1<f64> = &mol.positions.slice(s![iat, ..])
+                            - &mol.positions.slice(s![jat, ..])
+                            + &trans.slice(s![jtr, ..]);
+                        let r2 = vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2];
+                        if r2 > cutoff2 || r2 < EPSILON {
+                            continue;
+                        }
+
+                        let t6 = 1.0/(r2.powi(3) + r0ij.powi(6));
+                        let t8 = 1.0/(r2.powi(4) + r0ij.powi(8));
+
+                        let edisp = self.s6*t6 + self.s8*rrij*t8;
+
+                        let dE = -c6ij*edisp*0.5;
+
+                        energy[iat] = energy[iat] + dE;
+                        if iat != jat {
+                            energy[jat] = energy[jat] + dE;
+                        }
+                    }
+                }
+            }
+
+            let res = AtmDispersionGradientsResult {
+                energy: energy,
+                dEdcn: None,
+                dEdq: None,
+                gradient: None,
+                sigma: None,
+            };
+            res
+        }
+    }
+
+    pub fn get_dispersion3(
+        &self,
+        mol: &Molecule, // molecular structure data
+        trans: ArrayView2<f64>, // lattice points
+        cutoff: f64, // real space cutoff
+        r4r2: ArrayView1<f64>, // expectation values for r4 over r4 operator
+        c6: ArrayView2<f64>, // C6 coefficients for all atom pairs
+        dc6dcn: Option<ArrayView2<f64>>, // derivative of the C6 w.r.t. the coordination number
+        dc6dq: Option<ArrayView2<f64>>, // derivative of the C6 w.r.t. the partial charges
+        energy_in: Array1<f64>, // dispersion energy input
+        dEdcn_in: Option<Array1<f64>>, // derivative of the energy w.r.t the coordination number
+        dEdq_in: Option<Array1<f64>>, // derivative of the energy w.r.t the partial charges
+        gradient_in: Option<Array2<f64>>, // dispersion gradient
+        sigma_in: Option<Array2<f64>>, // dispersion virial
+    )-> AtmDispersionGradientsResult {
+        get_atm_dispersion(
+            mol,
+            trans,
+            cutoff,
+            self.s9,
+            self.a1,
+            self.a2,
+            self.alp,
+            r4r2,
+            c6,
+            dc6dcn,
+            dc6dq,
+            energy_in,
+            dEdcn_in,
+            dEdq_in,
+            gradient_in,
+            sigma_in,
+        )
+    }
 }
