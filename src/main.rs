@@ -274,10 +274,6 @@ fn main() {
             );
             drop(molecule_timer);
 
-            println!(" ");
-            println!("FMO gradients {}", gradients);
-            println!(" ");
-
             let mut mol: Molecule = Molecule::new(
                 atomic_numbers.clone(),
                 positions,
@@ -305,6 +301,12 @@ fn main() {
 
             let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
             let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());
+            let numerical_gradient_ridders:Array1<f64> = fmo_numerical_gradient_new(&atomic_numbers,&coords,config.clone());
+            println!("Numerical gradient fmo ridders method {}",numerical_gradient_ridders);
+            println!(" ");
+
+            println!("FMO gradients {}", gradients);
+            println!(" ");
 
             println!("Numerical gradient fmo {}",numerical_gradient);
             println!(" ");
