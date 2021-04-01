@@ -736,35 +736,6 @@ pub fn fmo_calculate_pairwise_single(
 
                 // do scc routine for pair if mininmal distance is below threshold
                 if (min_dist / vdw_radii_sum) < 2.0 {
-                    let mut gamma_frag: Array2<f64> = Array2::zeros((
-                        molecule_a.n_atoms + molecule_b.n_atoms,
-                        molecule_a.n_atoms + molecule_b.n_atoms,
-                    ));
-                    gamma_frag
-                        .slice_mut(s![0..molecule_a.n_atoms, 0..molecule_a.n_atoms])
-                        .assign(&gamma_total.slice(s![
-                            indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
-                            indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms
-                        ]));
-                    gamma_frag
-                        .slice_mut(s![0..molecule_a.n_atoms, molecule_a.n_atoms..])
-                        .assign(&gamma_total.slice(s![
-                            indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
-                            indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
-                        ]));
-                    gamma_frag
-                        .slice_mut(s![molecule_a.n_atoms.., 0..molecule_a.n_atoms])
-                        .assign(&gamma_total.slice(s![
-                            indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
-                            indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms
-                        ]));
-                    gamma_frag
-                        .slice_mut(s![molecule_a.n_atoms.., molecule_a.n_atoms..])
-                        .assign(&gamma_total.slice(s![
-                            indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
-                            indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
-                        ]));
-
                     // println!("New gamma {}",gamma_frag);
 
                     let mut pair: Molecule = Molecule::new(
@@ -783,7 +754,7 @@ pub fn fmo_calculate_pairwise_single(
                         Some(distance_frag),
                         Some(dir_frag),
                         Some(prox_frag),
-                        Some(gamma_frag),
+                        None,
                     );
                     // println!("old gamma {}",pair.g0);
                     // assert!(gamma_frag.abs_diff_eq(&pair.g0,1e-10),"Gamma is wroooooooooooooooooooooooooooooooooooooooooooooooooooooooooong!!!!!");

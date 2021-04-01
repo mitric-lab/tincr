@@ -107,28 +107,15 @@ impl Molecule {
         }
         let calculator: DFTBCalculator = calculator_opt.unwrap();
 
-        let mut gamma_opt: Option<Array2<f64>> = None;
-        let mut g_ao_opt: Option<Array2<f64>> = None;
-
-        if saved_gamma.is_none(){
-            let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-                &atomic_numbers,
-                atomic_numbers.len(),
-                calculator.n_orbs,
-                distance_mat.view(),
-                &calculator.hubbard_u,
-                &calculator.valorbs,
-                Some(0.0),
-            );
-            gamma_opt = Some(g0);
-            g_ao_opt = Some(g0_a0);
-        }
-        else{
-            gamma_opt = saved_gamma;
-            g_ao_opt = Some(Array2::zeros((calculator.n_orbs,calculator.n_orbs)));
-        }
-        let g0:Array2<f64> = gamma_opt.unwrap();
-        let g0_a0:Array2<f64> = g_ao_opt.unwrap();
+        let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
+            &atomic_numbers,
+            atomic_numbers.len(),
+            calculator.n_orbs,
+            distance_mat.view(),
+            &calculator.hubbard_u,
+            &calculator.valorbs,
+            Some(0.0),
+        );
 
         let mut g0_lr: Array2<f64> = Array::zeros((g0.dim().0, g0.dim().1));
         let mut g0_lr_a0: Array2<f64> = Array::zeros((g0_a0.dim().0, g0_a0.dim().1));

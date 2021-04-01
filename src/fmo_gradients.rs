@@ -70,6 +70,7 @@ pub fn fmo_gs_gradients(
 
     for (pair_index, pair) in pair_results.iter().enumerate() {
         if pair.energy_pair.is_some() {
+
             let dimer_gradient_e0: Array1<f64> = pair.grad_e0.clone().unwrap();
             let dimer_gradient_vrep: Array1<f64> = pair.grad_vrep.clone().unwrap();
 
@@ -212,13 +213,12 @@ pub fn fmo_gs_gradients(
                                 let index:usize = 3 * a+dir_xyz;
                                 term_1[index] = fragments[ind_k].final_charges[a] * dgamma_ac.slice(s![index,..,a]).dot(&ddq_arr);
 
-                                let tmp_1:f64 = w_mat_b.slice(s![index,..,..]).dot(&frag_grad_results[ind_k].s.t()).trace().unwrap();
+                                let tmp_1:f64 = w_mat_k.slice(s![index,..,..]).dot(&frag_grad_results[ind_k].s.t()).trace().unwrap();
                                 let tmp_2:f64 = fragments[ind_k].final_p_matrix.dot(&frag_grad_results[ind_k].grad_s.slice(s![index,..,..]).t()).trace().unwrap();
                                 term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![..,a]).dot(&ddq_arr);
                             }
                         }
                         let embedding_part_2: Array1<f64> = term_1 + term_2;
-
                         // let term_1: Array1<f64> = dgamma_ac
                         //     .clone()
                         //     .into_shape((3 * pair_atoms * pair_atoms, mol_k.n_atoms))
@@ -433,34 +433,43 @@ pub fn fmo_gs_gradients(
             grad_total_dimers
                 .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
                 .add_assign(
-                    &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-                        - &frag_grad_results[index_a].grad_e0));
+                    &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+                );
             grad_total_dimers
                 .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
                 .add_assign(
-                    &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
-                        - &frag_grad_results[index_b].grad_e0));
+                    &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
+                    ));
         }
-
-
-
-        // grad_total_dimers
+        //grad_total_dimers
         //    .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
         //    .add_assign(
-        //        &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
-        //    );
-        // grad_total_dimers
+        //        &(&dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+        //            - &(&frag_grad_results[index_a].grad_e0+&frag_grad_results[index_a].grad_vrep)));
+        //grad_total_dimers
         //    .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
         //    .add_assign(
-        //        &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
-        //        ));
+        //        &(&dimer_gradients[index_pair].slice(s![3 * atoms_a..])
+        //            - &(&frag_grad_results[index_b].grad_e0+&frag_grad_results[index_b].grad_vrep)));
+
+
+        //grad_total_dimers
+        //   .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+        //   .add_assign(
+        //       &dimer_gradients[index_pair].slice(s![0..3 * atoms_a])
+        //   );
+        //grad_total_dimers
+        //   .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+        //   .add_assign(
+        //       &dimer_gradients[index_pair].slice(s![3 * atoms_a..]
+        //       ));
     }
 
     for embed in embedding_gradients.iter() {
         //println!("Embed {}",embed.clone());
         grad_total_dimers.add_assign(embed);
     }
-    let total_gradient: Array1<f64> = grad_total_dimers+ grad_total_frags;
+    let total_gradient: Array1<f64> = grad_total_frags + grad_total_dimers;
 
     return total_gradient;
 }
@@ -721,35 +730,6 @@ pub fn fmo_calculate_pairwise_gradients(
                 let mut pair_s: Option<Array2<f64>> = None;
                 let mut pair_density: Option<Array2<f64>> = None;
 
-                let mut gamma_frag: Array2<f64> = Array2::zeros((
-                    molecule_a.n_atoms + molecule_b.n_atoms,
-                    molecule_a.n_atoms + molecule_b.n_atoms,
-                ));
-                gamma_frag
-                    .slice_mut(s![0..molecule_a.n_atoms, 0..molecule_a.n_atoms])
-                    .assign(&gamma_total.slice(s![
-                        indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
-                        indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms
-                    ]));
-                gamma_frag
-                    .slice_mut(s![0..molecule_a.n_atoms, molecule_a.n_atoms..])
-                    .assign(&gamma_total.slice(s![
-                        indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
-                        indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
-                    ]));
-                gamma_frag
-                    .slice_mut(s![molecule_a.n_atoms.., 0..molecule_a.n_atoms])
-                    .assign(&gamma_total.slice(s![
-                        indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
-                        indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms
-                    ]));
-                gamma_frag
-                    .slice_mut(s![molecule_a.n_atoms.., molecule_a.n_atoms..])
-                    .assign(&gamma_total.slice(s![
-                        indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
-                        indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
-                    ]));
-
                 let mut pair: Molecule = Molecule::new(
                     atomic_numbers,
                     positions,
@@ -766,7 +746,7 @@ pub fn fmo_calculate_pairwise_gradients(
                     Some(distance_frag),
                     Some(dir_frag),
                     Some(prox_frag),
-                    Some(gamma_frag),
+                    None,
                 );
 
                 //let mut pair: Molecule = Molecule::new(
