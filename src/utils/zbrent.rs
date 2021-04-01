@@ -65,7 +65,7 @@ pub fn zbrent<F: Fn(f64) -> f64>(func: F, x1: f64, x2: f64, tol: f64, maxiter: u
         if e.abs() >= tol1 && fa.abs() > fb.abs() {
             // attempt inverse quadratic interpolation
             s = fb / fa;
-            if a == c {
+            if (a - c).abs() < eps {
                 p = 2.0 * xm * s;
                 q = 1.0 - s;
             } else {

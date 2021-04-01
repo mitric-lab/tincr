@@ -1,6 +1,6 @@
-use ndarray::{ArrayView2, ArrayView3, ArrayView1, Array2, Array4, Axis, Array1, Array, Array3};
+use ndarray::prelude::*;
 use ndarray_einsum_beta::tensordot;
-use rayon::iter::IntoParallelIterator;
+use rayon::prelude::*;
 
 
 pub fn get_orbital_en_diff(

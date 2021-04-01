@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use chemfiles::Frame;
 use crate::io::frame_to_coordinates;
+use rand::rngs::StdRng;
 
 
 #[derive(Clone)]
@@ -139,10 +140,12 @@ impl Molecule {
     }
 
     pub fn dimer_from_monomers(m1: &Molecule, m2: &Molecule) -> Molecule {
-        let numbers: Vec<u8> = [&m1.atomic_numbers.unwrap()[..], &m2.atomic_numbers.unwrap()[..]].concat();
-        let repr: String = [&m1.repr.unwrap()[..], &m2.repr.unwrap()[..]].concat();
+        let mut numbers : Vec<u8> = Vec::with_capacity(m1.atomic_numbers.as_ref().unwrap().len() + m2.atomic_numbers.as_ref().unwrap().len());
+        numbers.extend_from_slice(&m1.atomic_numbers.as_ref().unwrap());
+        numbers.extend_from_slice(&m2.atomic_numbers.as_ref().unwrap());
+        let mut repr: String = format!("{}{}", m1.repr.as_ref().unwrap().clone(), m2.repr.as_ref().unwrap().clone());;
         let positions: Array2<f64> =
-            concatenate![Axis(0), m1.positions.view(), m2.positions.view()];
+            stack![Axis(0), m1.positions.as_ref().unwrap().view(), m2.positions.as_ref().unwrap().view()];
         let (dist_matrix, dir_matrix, prox_matrix): (
             Array2<f64>,
             Array3<f64>,
@@ -176,11 +179,11 @@ impl Molecule {
         // H0, S, gamma, gamma_LRC is needed for SCC routine
         // get H0 and overlap matrix
         let (h0, s): (Array2<f64>, Array2<f64>) = h0_and_s(
-            &self.atomic_numbers.unwrap(),
-            self.positions.unwrap().view(),
+            self.atomic_numbers.as_ref().unwrap(),
+            self.positions.as_ref().unwrap().view(),
             n_orbs,
             valorbs,
-            self.proximity_matrix.unwrap().view(),
+            self.proximity_matrix.as_ref().unwrap().view(),
             skt,
             orbital_energies,
         );
@@ -188,10 +191,10 @@ impl Molecule {
         self.electronic_structure.set_s(Some(s));
         // get gamma
         let (gm, gm_ao): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-            &self.atomic_numbers.unwrap(),
-            self.atomic_numbers.unwrap().len(),
+            &self.atomic_numbers.as_ref().unwrap(),
+            self.atomic_numbers.as_ref().unwrap().len(),
             n_orbs,
-            self.distance_matrix.unwrap().view(),
+            self.distance_matrix.as_ref().unwrap().view(),
             &hubbard_u,
             &valorbs,
             Some(0.0),
@@ -201,10 +204,10 @@ impl Molecule {
         if r_lr.is_some() {
             // get gamma lrc
             let (gm_lrc, gm_lrc_ao): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
-                &self.atomic_numbers.unwrap(),
-                self.atomic_numbers.unwrap().len(),
+                &self.atomic_numbers.as_ref().unwrap(),
+                self.atomic_numbers.as_ref().unwrap().len(),
                 n_orbs,
-                self.distance_matrix.unwrap().view(),
+                self.distance_matrix.as_ref().unwrap().view(),
                 &hubbard_u,
                 &valorbs,
                 r_lr,

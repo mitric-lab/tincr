@@ -1,4 +1,4 @@
-use ndarray::{ArrayView3, ArrayView2, ArrayView1, Array3, Array1, Array2};
+use ndarray::prelude::*;
 use crate::excited_states::a_and_b::{build_a_matrix, build_b_matrix};
 use ndarray_linalg::{SymmetricSqrt, Eigh, Solve, UPLO, Norm};
 use crate::utils::ToOwnedF;

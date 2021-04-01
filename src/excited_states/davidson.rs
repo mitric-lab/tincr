@@ -1,4 +1,4 @@
-use ndarray::{ArrayView2, ArrayView3, ArrayView1, Array1, Array3, Array2, Array, Axis};
+use ndarray::prelude::*;
 use ndarray_einsum_beta::tensordot;
 use ndarray_linalg::{Eigh, UPLO, SymmetricSqrt, QR};
 use crate::excited_states::helpers::{initial_expansion_vectors, norm_special, matrix_v_product, matrix_v_product_fortran, reorder_vectors_lambda2};

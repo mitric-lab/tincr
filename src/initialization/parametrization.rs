@@ -167,8 +167,7 @@ pub fn lambda2_calc_oia(
     active_virt: &Vec<usize>,
     qtrans_oo: &Array3<f64>,
     qtrans_vv: &Array3<f64>,
-) -> (Array2<f64>) {
-    let n_at: usize = molecule.n_atoms;
+) -> (Array2<f64>) { ;
     let dim_o: usize = active_occ.len();
     let dim_v: usize = active_virt.len();
     let mut o_ia: Array2<f64> = Array::zeros((dim_o, dim_v));

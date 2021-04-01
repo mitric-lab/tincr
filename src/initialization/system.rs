@@ -30,11 +30,11 @@ impl System {
 
         let mut parameters: HashMap<String, Parametrization> = HashMap::new();
         for mol in molecules.iter() {
-            let smiles: String = mol.repr.unwrap().clone();
+            let smiles: String = mol.repr.as_ref().unwrap().clone();
             if !parameters.contains_key(&smiles) {
                 parameters.insert(
                     smiles,
-                    Parametrization::new(&mol.atomic_numbers.unwrap(), None),
+                    Parametrization::new(mol.atomic_numbers.as_ref().unwrap(), None),
                 );
             }
         }

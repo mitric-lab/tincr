@@ -179,10 +179,10 @@ pub fn construct_h1(atomic_numbers: &[u8], n_orbs: usize, valorbs: &HashMap<u8, 
     let mut mu: usize = 0;
     let mut nu: usize;
     for (i, z_i) in atomic_numbers.iter().enumerate() {
-        for _ in valorbs[z_i] {
+        for _ in valorbs[z_i].iter() {
             nu = 0;
             for (j, z_j) in atomic_numbers.iter().enumerate() {
-                for _ in valorbs[z_j] {
+                for _ in valorbs[z_j].iter() {
                     h1[[mu, nu]] = 0.5 * (e_stat_pot[i] + e_stat_pot[j]);
                     nu = nu + 1;
                 }

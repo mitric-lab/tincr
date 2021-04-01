@@ -6,6 +6,7 @@ use peroxide::special::function::beta;
 use std::cmp::{max, min};
 use std::iter::FromIterator;
 use crate::defaults;
+use crate::scc::mixer::Mixer;
 
 /// Modified Broyden mixer
 ///
@@ -78,9 +79,11 @@ impl BroydenMixer {
         self.iter += 1;
         return q_result;
     }
+}
 
-    // Does the real work for the Broyden mixer
-    fn get_approximation(
+impl Mixer for BroydenMixer {
+    /// Mixes dq from current diagonalization and the difference to the last iteration
+    fn mix(
         &mut self,
         q_inp_result: Array1<f64>,
         q_diff: Array1<f64>,
@@ -151,9 +154,9 @@ impl BroydenMixer {
             for i in 0..nn_1 {
                 q_inp_result = q_inp_result
                     - self
-                        .uu
-                        .slice(s![.., i])
-                        .mapv(|x| x * self.ww[i] * gamma[[0, i]]);
+                    .uu
+                    .slice(s![.., i])
+                    .mapv(|x| x * self.ww[i] * gamma[[0, i]]);
             }
 
             q_inp_result = q_inp_result - &df_uu.mapv(|x| x * self.ww[nn_1] * gamma[[0, nn_1]]);
@@ -164,4 +167,6 @@ impl BroydenMixer {
 
         return q_inp_result;
     }
+
 }
+

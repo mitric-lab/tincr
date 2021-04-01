@@ -1,4 +1,4 @@
-use ndarray::{Array, Array1, Axis, Array2, Array3, ArrayView1, ArrayView3, ArrayView2};
+use ndarray::{Array, Array1, Axis, Array2, Array3, ArrayView1, ArrayView3, ArrayView2, Ix2, Ix3};
 use ndarray_einsum_beta::tensordot;
 use crate::excited_states::a_and_b::{get_apbv_fortran, get_apbv_fortran_no_lc};
 use ndarray_linalg::{Solve, QR};

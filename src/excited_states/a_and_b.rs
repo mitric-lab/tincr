@@ -1,4 +1,4 @@
-use ndarray::{ArrayView2, ArrayView3, ArrayView1, Array2, Array4, Axis, Array3, Array, Array1};
+use ndarray::prelude::*;
 use ndarray_einsum_beta::tensordot;
 use rayon::prelude::*;
 

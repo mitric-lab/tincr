@@ -1,3 +1,4 @@
+#![allow(clippy::if_same_then_else)]
 use crate::h0_and_s::h0_and_s;
 use crate::initialization::parameters::*;
 use crate::{constants, defaults};
@@ -5,7 +6,7 @@ use approx::AbsDiffEq;
 use log::{debug, error, info, trace, warn};
 use ndarray::prelude::*;
 #[macro_use]
-use ndarray;
+use ndarray::stack;
 use ndarray_linalg::Norm;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -153,7 +154,7 @@ impl ElectronicStructure {
     }
 
     pub fn set_dq_from_monomers(&mut self, dq1: ArrayView1<f64>, dq2: ArrayView1<f64>) {
-        self.set_dq(Some(ndarray::concatenate![Axis(0), &dq1, &dq2]));
+        self.set_dq(Some(stack![Axis(0), dq1, dq2]));
     }
 
     pub fn set_density_matrix_from_monomers(&mut self, p1: ArrayView2<f64>, p2: ArrayView2<f64>) {

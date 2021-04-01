@@ -11,9 +11,9 @@ edition = "2018"
 
 [dependencies]
 chemfiles = "0.10"
-ndarray = {version = "0.15.1", features = ["serde-1", "approx", "rayon"]}
+ndarray = {version = "0.13", features = ["serde-1", "approx", "rayon"]}
 approx = "0.3.2"
-ndarray-linalg = { version = "0.13.1", features = ["intel-mkl"]}
+ndarray-linalg = { version = "0.12.1", features = ["intel-mkl"]}
 ndarray-stats = "0.3"
 phf = { version = "0.8.0", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
