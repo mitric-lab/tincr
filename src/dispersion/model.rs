@@ -66,6 +66,18 @@ impl Molecule {
     }
 }
 
+pub struct ModelResult1  {
+    pub quantity: Array1<f64>, // wished quantity, can be weight_reference or C6
+    pub quantity_dcn: Option<Array1<f64>>, // derivative w.r.t the coordination number
+    pub quantity_dq: Option<Array1<f64>>, // derivative w.r.t the partial charges
+}
+
+pub struct ModelResult2  {
+    pub quantity: Array2<f64>, // wished quantity, can only be alpha
+    pub quantity_dcn: Option<Array2<f64>>, // derivative w.r.t the coordination number
+    pub quantity_dq: Option<Array2<f64>>, // derivative w.r.t the partial charges
+}
+
 pub struct D4Model {
     pub ga: f64,             // charge scaling height
     pub gc: f64,             // charge scaling steepness
@@ -169,8 +181,8 @@ impl D4Model {
                 let jzp = mol.num[jsp];
                 for iref in 0..ref_[isp] {
                     for jref in 0..ref_[isp] {
-                        let atmp: Array1<f64> = &aiw.slice(s![isp, iref, ..]).to_owned()
-                                                * &aiw.slice(s![jsp, jref, ..]).to_owned();
+                        let atmp: Array1<f64> = &aiw.slice(s![isp, iref, ..])
+                                                * &aiw.slice(s![jsp, jref, ..]);
                         let c6tmp: f64 = THOPI * trapzd(atmp);
                         c6[[isp, jsp, iref, jref]] = c6tmp;
                         c6[[jsp, isp, jref, iref]] = c6tmp;
@@ -199,237 +211,261 @@ impl D4Model {
         return model;
     }
 
-    // Calculate the weights of the reference system for later use.
-    pub fn weight_references(
-        &self,
-        mol: &Molecule,
-        cn: Array1<f64>,
-        q: Array1<f64>,
-    ) -> Array2<f64> {
-        let mut gwvec: Array2<f64> = Array::zeros((mol.n_atoms, MAX_NREF));
-
-        // parallelise this loop
-        for iat in 0..mol.n_atoms {
-            let izp = mol.id[iat] as usize;
-            let zi = self.zeff[izp];
-            let gi = self.eta[izp] * self.gc;
-            let mut norm = 0.0;
-            for iref in 0..self.ref_[izp] {
-                for igw in 0..self.ngw[[izp, iref]] {
-                    let wf = igw as f64 * self.wf;
-                    let gw = weight_cn(wf, cn[iat], self.cn[[izp, iref]]);
-                    norm = norm + gw;
-                }
-            }
-            norm = 1.0 / norm;
-            for iref in 0..self.ref_[izp] {
-                let mut expw = 0.0;
-                for igw in 0..self.ngw[[izp, iref]] {
-                    let wf = igw as f64 * self.wf;
-                    expw = expw + weight_cn(wf, cn[iat], self.cn[[izp, iref]]);
-                }
-                let mut gwk = expw * norm;
-                if !gwk.is_finite() {
-                    if (self.cn.slice(s![izp, ..self.ref_[izp]]))
-                        .iter()
-                        .cloned()
-                        .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
-                        .unwrap()
-                        == self.cn[[izp, iref]]
-                    {
-                        gwk = 1.0;
-                    } else {
-                        gwk = 0.0;
-                    }
-                }
-                gwvec[[iat, iref]] = gwk * zeta(self.ga, gi, self.q[[izp, iref]] + zi, q[iat] + zi);
-            }
-        }
-        return gwvec;
-    }
-
-    // Calculate the weights of the reference system and the derivatives w.r.t.
-    // coordination number for later use.
+    /// Calculate the weights of the reference system and the derivatives w.r.t.
+    /// coordination number for later use.
     pub fn weight_references_derivatives(
         &self,
         mol: &Molecule,
         cn: Array1<f64>,
         q: Array1<f64>,
-    ) -> (Array2<f64>, Array2<f64>, Array2<f64>) {
-        let mut gwvec: Array2<f64> = Array::zeros((mol.n_atoms, MAX_NREF));
-        let mut gwdcn: Array2<f64> = Array::zeros((mol.n_atoms, MAX_NREF));
-        let mut gwdq: Array2<f64> = Array::zeros((mol.n_atoms, MAX_NREF));
+        derivative: bool,
+    ) -> ModelResult2 {
+        if derivative {
+            let mut gwvec: Array2<f64> = Array::zeros((mol.n_atoms, MAX_NREF));
+            let mut gwdcn: Array2<f64> = Array::zeros((mol.n_atoms, MAX_NREF));
+            let mut gwdq: Array2<f64> = Array::zeros((mol.n_atoms, MAX_NREF));
 
-        // parallelise this loop
-        for iat in 0..mol.n_atoms {
-            let izp = mol.id[iat] as usize;
-            let zi = self.zeff[izp];
-            let gi = self.eta[izp] * self.gc;
-            let mut norm = 0.0;
-            let mut dnorm = 0.0;
-            for iref in 0..self.ref_[izp] {
-                for igw in 0..self.ngw[[izp, iref]] {
-                    let wf = igw as f64 * self.wf;
-                    let gw = weight_cn(wf, cn[iat], self.cn[[izp, iref]]);
-                    norm = norm + gw;
-                    dnorm = dnorm + 2.0 * wf * (self.cn[[izp, iref]] - cn[iat]) * gw;
-                }
-            }
-            norm = 1.0 / norm;
-            for iref in 0..self.ref_[izp] {
-                let mut expw = 0.0;
-                let mut expd = 0.0;
-                for igw in 0..self.ngw[[izp, iref]] {
-                    let wf = igw as f64 * self.wf;
-                    let gw = weight_cn(wf, cn[iat], self.cn[[izp, iref]]);
-                    expw = expw + gw;
-                    expd = expd + 2.0 * wf * (self.cn[[izp, iref]] - cn[iat]) * gw;
-                }
-                let mut gwk = expw * norm;
-                if !gwk.is_finite() {
-                    if (self.cn.slice(s![izp, ..self.ref_[izp]]))
-                        .iter()
-                        .cloned()
-                        .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
-                        .unwrap()
-                        == self.cn[[izp, iref]]
-                    {
-                        gwk = 1.0;
-                    } else {
-                        gwk = 0.0;
-                    }
-                }
-                gwvec[[iat, iref]] = gwk * zeta(self.ga, gi, self.q[[izp, iref]] + zi, q[iat] + zi);
-                gwdq[[iat, iref]] = gwk * dzeta(self.ga, gi, self.q[[izp, iref]] + zi, q[iat] + zi);
-
-                let mut dgwk = norm * (expd - expw * dnorm * norm);
-                if !dgwk.is_finite() {
-                    dgwk = 0.0;
-                }
-                gwdcn[[iat, iref]] =
-                    dgwk * zeta(self.ga, gi, self.q[[izp, iref]] + zi, q[iat] + zi);
-            }
-        }
-        return (gwvec, gwdcn, gwdq);
-    }
-
-    // Calculate atomic dispersion coefficients.
-    pub fn get_atomic_c6(&self, mol: &Molecule, gwvec: Array2<f64>) -> Array2<f64> {
-        let mut c6: Array2<f64> = Array::zeros((mol.n_atoms, mol.n_atoms));
-
-        // paralellise this loop
-        for iat in 0..mol.n_atoms {
-            let izp = mol.id[iat] as usize;
-            for jat in 0..iat {
-                let jzp = mol.id[jat] as usize;
-                let mut dc6 = 0.0;
+            // parallelise this loop
+            for iat in 0..mol.n_atoms {
+                let izp = mol.id[iat] as usize;
+                let zi = self.zeff[izp];
+                let gi = self.eta[izp] * self.gc;
+                let mut norm = 0.0;
+                let mut dnorm = 0.0;
                 for iref in 0..self.ref_[izp] {
-                    for jref in 0..self.ref_[jzp] {
-                        let refc6 = self.c6[[jzp, izp, jref, iref]];
-                        dc6 = dc6 + gwvec[[iat, iref]] * gwvec[[jat, jref]] * refc6;
+                    for igw in 0..self.ngw[[izp, iref]] {
+                        let wf = igw as f64 * self.wf;
+                        let gw = weight_cn(wf, cn[iat], self.cn[[izp, iref]]);
+                        norm = norm + gw;
+                        dnorm = dnorm + 2.0 * wf * (self.cn[[izp, iref]] - cn[iat]) * gw;
                     }
                 }
-                c6[[jat, iat]] = dc6;
-                c6[[iat, jat]] = dc6;
+                norm = 1.0 / norm;
+                for iref in 0..self.ref_[izp] {
+                    let mut expw = 0.0;
+                    let mut expd = 0.0;
+                    for igw in 0..self.ngw[[izp, iref]] {
+                        let wf = igw as f64 * self.wf;
+                        let gw = weight_cn(wf, cn[iat], self.cn[[izp, iref]]);
+                        expw = expw + gw;
+                        expd = expd + 2.0 * wf * (self.cn[[izp, iref]] - cn[iat]) * gw;
+                    }
+                    let mut gwk = expw * norm;
+                    if !gwk.is_finite() {
+                        if (self.cn.slice(s![izp, ..self.ref_[izp]]))
+                            .iter()
+                            .cloned()
+                            .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                            .unwrap()
+                            == self.cn[[izp, iref]]
+                        {
+                            gwk = 1.0;
+                        } else {
+                            gwk = 0.0;
+                        }
+                    }
+                    gwvec[[iat, iref]] = gwk * zeta(self.ga, gi, self.q[[izp, iref]] + zi, q[iat] + zi);
+                    gwdq[[iat, iref]] = gwk * dzeta(self.ga, gi, self.q[[izp, iref]] + zi, q[iat] + zi);
+
+                    let mut dgwk = norm * (expd - expw * dnorm * norm);
+                    if !dgwk.is_finite() {
+                        dgwk = 0.0;
+                    }
+                    gwdcn[[iat, iref]] =
+                        dgwk * zeta(self.ga, gi, self.q[[izp, iref]] + zi, q[iat] + zi);
+                }
+            }
+            ModelResult2 {
+                quantity: gwvec,
+                quantity_dcn: Some(gwdcn),
+                quantity_dq: Some(gwdq),
+            }
+        } else {
+            let mut gwvec: Array2<f64> = Array::zeros((mol.n_atoms, MAX_NREF));
+
+            // parallelise this loop
+            for iat in 0..mol.n_atoms {
+                let izp = mol.id[iat] as usize;
+                let zi = self.zeff[izp];
+                let gi = self.eta[izp] * self.gc;
+                let mut norm = 0.0;
+                for iref in 0..self.ref_[izp] {
+                    for igw in 0..self.ngw[[izp, iref]] {
+                        let wf = igw as f64 * self.wf;
+                        let gw = weight_cn(wf, cn[iat], self.cn[[izp, iref]]);
+                        norm = norm + gw;
+                    }
+                }
+                norm = 1.0 / norm;
+                for iref in 0..self.ref_[izp] {
+                    let mut expw = 0.0;
+                    for igw in 0..self.ngw[[izp, iref]] {
+                        let wf = igw as f64 * self.wf;
+                        expw = expw + weight_cn(wf, cn[iat], self.cn[[izp, iref]]);
+                    }
+                    let mut gwk = expw * norm;
+                    if !gwk.is_finite() {
+                        if (self.cn.slice(s![izp, ..self.ref_[izp]]))
+                            .iter()
+                            .cloned()
+                            .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                            .unwrap()
+                            == self.cn[[izp, iref]]
+                        {
+                            gwk = 1.0;
+                        } else {
+                            gwk = 0.0;
+                        }
+                    }
+                    gwvec[[iat, iref]] = gwk * zeta(self.ga, gi, self.q[[izp, iref]] + zi, q[iat] + zi);
+                }
+            }
+
+            ModelResult2 {
+                quantity: gwvec,
+                quantity_dcn: None,
+                quantity_dq: None,
             }
         }
-        return c6;
     }
 
-    // Calculate atomic dispersion coefficients and their derivatives w.r.t.
-    // the coordination numbers and atomic partial charges.
+    /// Calculate atomic dispersion coefficients and their derivatives w.r.t.
+    /// the coordination numbers and atomic partial charges.
     pub fn get_atomic_c6_derivatives(
         &self,
         mol: &Molecule,
-        gwvec: Array2<f64>,
-        gwdcn: Array2<f64>,
-        gwdq: Array2<f64>,
-    ) -> (Array2<f64>, Array2<f64>, Array2<f64>) {
-        let mut c6: Array2<f64> = Array::zeros((mol.n_atoms, mol.n_atoms));
-        let mut dc6dcn: Array2<f64> = Array::zeros((mol.n_atoms, mol.n_atoms));
-        let mut dc6dq: Array2<f64> = Array::zeros((mol.n_atoms, mol.n_atoms));
+        gw_inp: ModelResult2,
+    ) -> ModelResult2 {
+        if gw_inp.quantity_dcn.is_some() && gw_inp.quantity_dq.is_some() {
+            let gwvec: Array2<f64> = gw_inp.quantity;
+            let gwdcn: Array2<f64> = gw_inp.quantity_dcn.unwrap();
+            let gwdq: Array2<f64> = gw_inp.quantity_dq.unwrap();
 
-        // paralellise this loop
-        for iat in 0..mol.n_atoms {
-            let izp = mol.id[iat] as usize;
-            for jat in 0..iat {
-                let jzp = mol.id[jat] as usize;
-                let mut dc6 = 0.0;
-                let mut dc6dcni = 0.0;
-                let mut dc6dcnj = 0.0;
-                let mut dc6dqi = 0.0;
-                let mut dc6dqj = 0.0;
-                for iref in 0..self.ref_[izp] {
-                    for jref in 0..self.ref_[jzp] {
-                        let refc6 = self.c6[[jzp, izp, jref, iref]];
-                        dc6 = dc6 + gwvec[[iat, iref]] * gwvec[[jat, jref]] * refc6;
-                        dc6dcni = dc6dcni + gwdcn[[iat, iref]] * gwvec[[jat, jref]] * refc6;
-                        dc6dcnj = dc6dcnj + gwvec[[iat, iref]] * gwdcn[[jat, jref]] * refc6;
-                        dc6dqi = dc6dqi + gwdq[[iat, iref]] * gwvec[[jat, jref]] * refc6;
-                        dc6dqj = dc6dqj + gwvec[[iat, iref]] * gwdq[[jat, jref]] * refc6;
+            let mut c6: Array2<f64> = Array::zeros((mol.n_atoms, mol.n_atoms));
+            let mut dc6dcn: Array2<f64> = Array::zeros((mol.n_atoms, mol.n_atoms));
+            let mut dc6dq: Array2<f64> = Array::zeros((mol.n_atoms, mol.n_atoms));
+
+            // paralellise this loop
+            for iat in 0..mol.n_atoms {
+                let izp = mol.id[iat] as usize;
+                for jat in 0..iat {
+                    let jzp = mol.id[jat] as usize;
+                    let mut dc6 = 0.0;
+                    let mut dc6dcni = 0.0;
+                    let mut dc6dcnj = 0.0;
+                    let mut dc6dqi = 0.0;
+                    let mut dc6dqj = 0.0;
+                    for iref in 0..self.ref_[izp] {
+                        for jref in 0..self.ref_[jzp] {
+                            let refc6 = self.c6[[jzp, izp, jref, iref]];
+                            dc6 = dc6 + gwvec[[iat, iref]] * gwvec[[jat, jref]] * refc6;
+                            dc6dcni = dc6dcni + gwdcn[[iat, iref]] * gwvec[[jat, jref]] * refc6;
+                            dc6dcnj = dc6dcnj + gwvec[[iat, iref]] * gwdcn[[jat, jref]] * refc6;
+                            dc6dqi = dc6dqi + gwdq[[iat, iref]] * gwvec[[jat, jref]] * refc6;
+                            dc6dqj = dc6dqj + gwvec[[iat, iref]] * gwdq[[jat, jref]] * refc6;
+                        }
                     }
+                    c6[[jat, iat]] = dc6;
+                    c6[[iat, jat]] = dc6;
+                    dc6dcn[[jat, iat]] = dc6dcnj;
+                    dc6dcn[[iat, jat]] = dc6dcni;
+                    dc6dq[[jat, iat]] = dc6dqj;
+                    dc6dq[[iat, jat]] = dc6dqi;
                 }
-                c6[[jat, iat]] = dc6;
-                c6[[iat, jat]] = dc6;
-                dc6dcn[[jat, iat]] = dc6dcnj;
-                dc6dcn[[iat, jat]] = dc6dcni;
-                dc6dq[[jat, iat]] = dc6dqj;
-                dc6dq[[iat, jat]] = dc6dqi;
+            }
+
+            ModelResult2{
+                quantity: c6,
+                quantity_dcn: Some(dc6dcn),
+                quantity_dq: Some(dc6dq),
+            }
+        } else {
+            let gwvec: Array2<f64> = gw_inp.quantity;
+            let mut c6: Array2<f64> = Array::zeros((mol.n_atoms, mol.n_atoms));
+
+            // paralellise this loop
+            for iat in 0..mol.n_atoms {
+                let izp = mol.id[iat] as usize;
+                for jat in 0..iat {
+                    let jzp = mol.id[jat] as usize;
+                    let mut dc6 = 0.0;
+                    for iref in 0..self.ref_[izp] {
+                        for jref in 0..self.ref_[jzp] {
+                            let refc6 = self.c6[[jzp, izp, jref, iref]];
+                            dc6 = dc6 + gwvec[[iat, iref]] * gwvec[[jat, jref]] * refc6;
+                        }
+                    }
+                    c6[[jat, iat]] = dc6;
+                    c6[[iat, jat]] = dc6;
+                }
+            }
+
+            ModelResult2{
+                quantity: c6,
+                quantity_dcn: None,
+                quantity_dq: None,
             }
         }
-        return (c6, dc6dcn, dc6dq);
     }
 
-    // Calculate atomic polarizibilities.
-    pub fn get_polarizabilities(
-        &self,
-        mol: &Molecule,
-        gwvec: Array2<f64>,
-    ) -> Array1<f64> {
-        let mut alpha: Array1<f64> = Array::zeros(mol.n_atoms);
-
-        // parallelise this loop
-        for iat in 0..mol.n_atoms {
-            let izp = mol.id[iat] as usize;
-            let mut da = 0.0;
-            for iref in 0..self.ref_[izp] {
-                da = da + gwvec[[iat, iref]] * self.aiw[[izp, iref, 0]];
-            }
-            alpha[iat] = da;
-        }
-        return alpha;
-    }
-
-    // Calculate atomic polarizibilities and their derivatives w.r.t.
-    // the coordination numbers and atomic partial charges.
+    /// Calculate atomic polarizibilities and their derivatives w.r.t.
+    /// the coordination numbers and atomic partial charges.
     pub fn get_polarizabilities_derivatives(
         &self,
         mol: &Molecule,
-        gwvec: Array2<f64>,
-        gwdcn: Array2<f64>,
-        gwdq: Array2<f64>,
-    ) -> (Array1<f64>, Array1<f64>, Array1<f64>) {
-        let mut alpha: Array1<f64> = Array::zeros(mol.n_atoms);
-        let mut dadcn: Array1<f64> = Array::zeros(mol.n_atoms);
-        let mut dadq: Array1<f64> = Array::zeros(mol.n_atoms);
+        gw_inp: ModelResult2,
+    ) -> ModelResult1 {
+        if gw_inp.quantity_dcn.is_some() && gw_inp.quantity_dq.is_some() {
+            let gwvec: Array2<f64> = gw_inp.quantity;
+            let gwdcn: Array2<f64> = gw_inp.quantity_dcn.unwrap();
+            let gwdq: Array2<f64> = gw_inp.quantity_dq.unwrap();
 
-        // parallelise this loop
-        for iat in 0..mol.n_atoms {
-            let izp = mol.id[iat] as usize;
-            let mut da = 0.0;
-            let mut dadcni = 0.0;
-            let mut dadqi = 0.0;
-            for iref in 0..self.ref_[izp] {
-                let refa = self.aiw[[izp, iref, 0]];
-                da = da + gwvec[[iat, iref]] * refa;
-                dadcni = dadcni + gwdcn[[iat, iref]] * refa;
-                dadqi = dadqi + gwdq[[iat, iref]] * refa;
+            let mut alpha: Array1<f64> = Array::zeros(mol.n_atoms);
+            let mut dadcn: Array1<f64> = Array::zeros(mol.n_atoms);
+            let mut dadq: Array1<f64> = Array::zeros(mol.n_atoms);
+
+            // parallelise this loop
+            for iat in 0..mol.n_atoms {
+                let izp = mol.id[iat] as usize;
+                let mut da = 0.0;
+                let mut dadcni = 0.0;
+                let mut dadqi = 0.0;
+                for iref in 0..self.ref_[izp] {
+                    let refa = self.aiw[[izp, iref, 0]];
+                    da = da + gwvec[[iat, iref]] * refa;
+                    dadcni = dadcni + gwdcn[[iat, iref]] * refa;
+                    dadqi = dadqi + gwdq[[iat, iref]] * refa;
+                }
+                alpha[iat] = da;
+                dadcn[iat] = dadcni;
+                dadq[iat] = dadqi;
             }
-            alpha[iat] = da;
-            dadcn[iat] = dadcni;
-            dadq[iat] = dadqi;
+
+            ModelResult1{
+                quantity: alpha,
+                quantity_dcn: Some(dadcn),
+                quantity_dq: Some(dadq),
+            }
+        } else {
+            let gwvec: Array2<f64> = gw_inp.quantity;
+            let mut alpha: Array1<f64> = Array::zeros(mol.n_atoms);
+
+            // parallelise this loop
+            for iat in 0..mol.n_atoms {
+                let izp = mol.id[iat] as usize;
+                let mut da = 0.0;
+                for iref in 0..self.ref_[izp] {
+                    da = da + gwvec[[iat, iref]] * self.aiw[[izp, iref, 0]];
+                }
+                alpha[iat] = da;
+            }
+
+            ModelResult1{
+                quantity: alpha,
+                quantity_dcn: None,
+                quantity_dq: None,
+            }
         }
-        return (alpha, dadcn, dadq);
     }
 }
 

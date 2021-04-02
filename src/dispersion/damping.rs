@@ -277,6 +277,58 @@ fn spread(source: &Array1<f64>, axis: u8, copies: usize) -> Array2<f64> {
     }
 }
 
+pub struct RationalDampingParamBuilder {
+    pub s6: f64,
+    pub s8: f64,
+    pub s9: f64,
+    pub a1: f64,
+    pub a2: f64,
+    pub alp: f64,
+}
+
+impl RationalDampingParamBuilder {
+    pub fn new(
+        s8: f64,
+        a1: f64,
+        a2: f64,
+    ) -> RationalDampingParamBuilder {
+        RationalDampingParamBuilder {
+            s6: S6_DEFAULT,
+            s8: s8,
+            s9: S9_DEFAULT,
+            a1: a1,
+            a2: a2,
+            alp: ALP_DEFAULT,
+        }
+    }
+
+    pub fn set_s6(&mut self, s6: f64) -> &mut Self {
+        self.s6 = s6;
+        self
+    }
+
+    pub fn set_s9(&mut self, s9: f64) -> &mut Self {
+        self.s9 = s9;
+        self
+    }
+
+    pub fn set_alp(&mut self, alp: f64) -> &mut Self {
+        self.alp = alp;
+        self
+    }
+
+    pub fn build(&self) -> RationalDampingParam {
+        RationalDampingParam {
+            s6: self.s6,
+            s8: self.s8,
+            s9: self.s9,
+            a1: self.a1,
+            a2: self.a2,
+            alp: self.alp,
+        }
+    }
+}
+
 pub struct RationalDampingParam {
     pub s6: f64,
     pub s8: f64,
@@ -295,9 +347,9 @@ impl RationalDampingParam {
         a2: f64,
         alp: Option<f64>,
     ) -> RationalDampingParam {
-        let s6 = s6.unwrap();
-        let s9 = s9.unwrap();
-        let alp = alp.unwrap();
+        let s6 = s6.unwrap_or(S6_DEFAULT);
+        let s9 = s9.unwrap_or(S9_DEFAULT);
+        let alp = alp.unwrap_or(ALP_DEFAULT);
 
         let rdp = RationalDampingParam{s6, s8, s9, a1, a2, alp};
         return rdp;

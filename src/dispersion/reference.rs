@@ -95,8 +95,7 @@ fn new_aiw_from<F: Iterator<Item=f64>>(src: F) -> [f64; TRAPZD_POINTS] {
 }
 
 fn array_scalar_mult(a: [f64; TRAPZD_POINTS], scalar: f64) -> [f64; TRAPZD_POINTS] {
-    let b: [f64; TRAPZD_POINTS] = [scalar; TRAPZD_POINTS];
-    new_aiw_from(a.iter().zip(&b).map(|(a, b)| a * b))
+    new_aiw_from(a.iter().map(|a| a * scalar))
 }
 
 fn array_substraction(a: [f64; TRAPZD_POINTS], b: [f64; TRAPZD_POINTS]) -> [f64; TRAPZD_POINTS] {
@@ -104,6 +103,5 @@ fn array_substraction(a: [f64; TRAPZD_POINTS], b: [f64; TRAPZD_POINTS]) -> [f64;
 }
 
 fn array_scalar_comp(a: [f64; TRAPZD_POINTS], scalar: f64) -> [f64; TRAPZD_POINTS] {
-    let b: [f64; TRAPZD_POINTS] = [scalar; TRAPZD_POINTS];
-    new_aiw_from(a.iter().zip(&b).map(|(a, b)| a.max(*b)))
+    new_aiw_from(a.iter().map(|a| a.max(scalar)))
 }
