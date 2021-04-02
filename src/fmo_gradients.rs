@@ -97,7 +97,6 @@ pub fn fmo_gs_gradients(
 
             let index_pair_iter: usize = indices_frags[pair.frag_a_index];
             let ddq_arr: Array1<f64> = Array::from(ddq_vec);
-            // TODO:Reduce cloning by doing let ... = ...,clone() and using that expression
             let shape_orbs_dimer: usize = pair.grad_s.clone().unwrap().dim().1;
             let shape_orbs_a: usize = frag_grad_results[pair.frag_a_index].grad_s.dim().1;
             let shape_orbs_b: usize = frag_grad_results[pair.frag_b_index].grad_s.dim().1;
@@ -166,12 +165,20 @@ pub fn fmo_gs_gradients(
             let embedding_pot: Vec<Array1<f64>> = fragments
                 .iter()
                 .enumerate()
-                .filter_map(|(ind_k, mol_k)| {
+                .filter_map(|(ind_k, mol_k)|
                     if ind_k != pair.frag_a_index && ind_k != pair.frag_b_index {
                         let index_frag_iter: usize = indices_frags[ind_k];
                         let dgamma_ac: Array3<f64> = g1_total
                             .slice(s![
                                 index_pair_iter..index_pair_iter + 3 * pair_atoms,
+                                index_pair_iter..index_pair_iter + pair_atoms,
+                                index_frag_iter..index_frag_iter + mol_k.n_atoms
+                            ])
+                            .to_owned();
+
+                        let dgamma_ac_k: Array3<f64> = g1_total
+                            .slice(s![
+                                index_frag_iter..index_frag_iter + 3*mol_k.n_atoms,
                                 index_pair_iter..index_pair_iter + pair_atoms,
                                 index_frag_iter..index_frag_iter + mol_k.n_atoms
                             ])
@@ -211,7 +218,7 @@ pub fn fmo_gs_gradients(
                             let dir_xyz:usize = dir as usize;
                             for a in (0..fragments[ind_k].n_atoms).into_iter(){
                                 let index:usize = 3 * a+dir_xyz;
-                                term_1[index] = fragments[ind_k].final_charges[a] * dgamma_ac.slice(s![index,..,a]).dot(&ddq_arr);
+                                term_1[index] = fragments[ind_k].final_charges[a] * dgamma_ac_k.slice(s![index,..,a]).dot(&ddq_arr);
 
                                 let tmp_1:f64 = w_mat_k.slice(s![index,..,..]).dot(&frag_grad_results[ind_k].s.t()).trace().unwrap();
                                 let tmp_2:f64 = fragments[ind_k].final_p_matrix.dot(&frag_grad_results[ind_k].grad_s.slice(s![index,..,..]).t()).trace().unwrap();
@@ -315,8 +322,7 @@ pub fn fmo_gs_gradients(
                     } else {
                         None
                     }
-                })
-                .collect();
+                ).collect();
             let mut embedding_gradient: Array1<f64> = Array1::zeros(grad_e0_monomers.len());
             for grad in embedding_pot.iter() {
                 embedding_gradient.add_assign(grad);

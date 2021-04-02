@@ -63,9 +63,9 @@ pub fn fmo_numerical_gradient_new(atomic_numbers:&Vec<u8>,positions:&Array1<f64>
     // parameters for ridders' method
     let con:f64 = 1.4;
     let con_2:f64 = con.powi(2);
-    let ntab:usize = 10;
+    let ntab:usize = 20;
     let safe:f64 = 2.0;
-    let h:f64 = 1e-2;
+    let h:f64 = 5e-3;
     let big:f64 = 1e30;
 
     for ind in (0..positions.len()).into_iter(){
