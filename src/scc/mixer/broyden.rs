@@ -39,8 +39,8 @@ pub struct BroydenMixer {
     uu: Array2<f64>,
 }
 
-impl BroydenMixer {
-    pub fn new(n_atoms: usize) -> BroydenMixer {
+impl Mixer for BroydenMixer {
+    fn new(n_atoms: usize) -> BroydenMixer {
         BroydenMixer {
             iter: 0,
             miter: defaults::MAX_ITER,
@@ -58,7 +58,18 @@ impl BroydenMixer {
         }
     }
 
-    pub fn reset(&mut self, n_atoms: usize) {
+    fn next(&mut self, q_inp_result: Array1<f64>, q_diff: Array1<f64>) -> Array1<f64> {
+        assert!(
+            self.iter < self.miter,
+            "Broyden Mixer: Maximal nr. of steps exceeded"
+        );
+
+        let q_result: Array1<f64> = self.mix(q_inp_result, q_diff);
+        self.iter += 1;
+        return q_result;
+    }
+
+    fn reset(&mut self, n_atoms: usize) {
         self.iter = 0;
         self.ww = Array1::zeros([self.miter - 1]);
         self.a_mat = Array2::zeros([self.miter - 1, self.miter - 1]);
@@ -69,19 +80,6 @@ impl BroydenMixer {
         self.uu = Array2::zeros([n_atoms, defaults::MAX_ITER - 1]);
     }
 
-    pub fn next(&mut self, q_inp_result: Array1<f64>, q_diff: Array1<f64>) -> Array1<f64> {
-        assert!(
-            self.iter < self.miter,
-            "Broyden Mixer: Maximal nr. of steps exceeded"
-        );
-
-        let q_result: Array1<f64> = self.get_approximation(q_inp_result, q_diff);
-        self.iter += 1;
-        return q_result;
-    }
-}
-
-impl Mixer for BroydenMixer {
     /// Mixes dq from current diagonalization and the difference to the last iteration
     fn mix(
         &mut self,

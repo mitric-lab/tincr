@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 #[derive(Clone)]
-pub struct ElectronicStructure {
+pub struct ElectronicData {
     pub h0: Option<Array2<f64>>,
     pub s: Option<Array2<f64>>,
     pub dq: Option<Array1<f64>>,
@@ -27,9 +27,9 @@ pub struct ElectronicStructure {
     pub gamma_lrc_ao_wise_grad: Option<Array3<f64>>,
 }
 
-impl ElectronicStructure {
-    pub fn new() -> ElectronicStructure {
-        ElectronicStructure {
+impl ElectronicData {
+    pub fn new() -> Self {
+        ElectronicData {
             h0: None,
             s: None,
             dq: None,
@@ -108,11 +108,8 @@ impl ElectronicStructure {
         };
     }
 
-    pub fn set_gamma_ao_wise_grad(&mut self, set_gamma_ao_wise_grad: Option<Array3<f64>>) {
-        self.gamma_ao_wise_grad = match set_gamma_ao_wise_grad {
-            Some(x) => Some(x),
-            None => None,
-        };
+    pub fn set_gamma_ao_wise_grad(&mut self, gamma_ao_wise_grad: Option<Array3<f64>>) {
+        self.gamma_ao_wise_grad = gamma_ao_wise_grad;
     }
 
     pub fn set_gamma_lrc_atom_wise_grad(&mut self, gamma_lrc_atom_wise_grad: Option<Array3<f64>>) {
@@ -308,10 +305,10 @@ impl ElectronicStructure {
     }
 
     pub fn dimer_from_monomers(
-        e1: &ElectronicStructure,
-        e2: &ElectronicStructure,
+        e1: &ElectronicData,
+        e2: &ElectronicData,
     ) -> Self {
-        let mut es: ElectronicStructure = ElectronicStructure::new();
+        let mut es: ElectronicData = ElectronicData::new();
         if e1.is_some() && e2.is_some() {
             match (&e1.h0, &e2.h0) {
                 (Some(x), Some(y)) => es.set_h0_from_monomers(x.view(), y.view()),

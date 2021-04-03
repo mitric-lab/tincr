@@ -5,8 +5,11 @@ pub use geometry::*;
 mod fragmentation;
 pub mod parameters;
 mod molecule;
-mod properties;
+pub(crate) mod properties;
 mod geometry;
 mod system;
 mod parametrization;
+mod property;
+
+pub use properties::ElectronicData;
 

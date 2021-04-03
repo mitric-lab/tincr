@@ -21,10 +21,39 @@ use crate::scc::mulliken::mulliken;
 use crate::scc::level_shifting::LevelShifter;
 use crate::scc::helpers::density_matrix_ref;
 use crate::scc::mixer::*;
+use crate::io::SccConfig;
+use crate::utils::Timer;
+use crate::initialization::properties::ElectronicData;
 
-pub struct SCC<T: Mixer> {
+/// Trait that optimizes the Kohn-Sham orbitals iteratively by employing the
+/// self-consistent charge scheme to find the ground state energy
+pub trait SCCRoutine {
+    fn new(n_atoms: usize) -> Self;
+    fn run(&mut self) -> Result<f64, E, >;
+}
+
+/// Spin-restricted (spin-unpolarized) SCC Routine.
+/// Only one set of partial charges/charge differences is used.
+pub struct RestrictedSCC<'a, T: Mixer> {
+    config: &'a SccConfig,
+    data: &'a ElectronicData,
     mixer: T,
 
+}
+
+impl SCCRoutine for RestrictedSCC<T> {
+    fn new(n_atoms: usize) -> Self {
+        todo!()
+    }
+
+    /// Do the SCC Iteration until the charge differences and energy converges
+    fn run(&mut self) -> Result<f64, _> {
+        let timer: Timer = Timer::start();
+
+
+
+        info!({}, timer);
+    }
 }
 
 // This routine is very messy und should be rewritten in a clean form

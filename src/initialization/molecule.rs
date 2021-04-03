@@ -1,7 +1,7 @@
 use crate::h0_and_s::h0_and_s;
 use crate::initialization::parameters::*;
 use crate::initialization::geometry::*;
-use crate::initialization::properties::ElectronicStructure;
+use crate::initialization::properties::ElectronicData;
 use crate::initialization::parametrization::get_gamma_matrix;
 use crate::{constants, defaults};
 use approx::AbsDiffEq;
@@ -25,7 +25,7 @@ pub struct Molecule {
     pub distance_matrix: Option<Array2<f64>>,
     pub directions_matrix: Option<Array3<f64>>,
     // pub adjacency_matrix: Option<Array2<bool>>,
-    electronic_structure: ElectronicStructure,
+    electronic_structure: ElectronicData,
 }
 
 impl Molecule {
@@ -38,7 +38,7 @@ impl Molecule {
             distance_matrix: None,
             directions_matrix: None,
             // adjacency_matrix: None,
-            electronic_structure: ElectronicStructure::new(),
+            electronic_structure: ElectronicData::new(),
         }
     }
 
@@ -117,7 +117,7 @@ impl Molecule {
             distance_matrix: Some(dist_matrix),
             directions_matrix: Some(dir_matrix),
             // adjacency_matrix: Some(adj_matrix),
-            electronic_structure: ElectronicStructure::new(),
+            electronic_structure: ElectronicData::new(),
         }
     }
 
@@ -151,7 +151,7 @@ impl Molecule {
             Array3<f64>,
             Array2<bool>,
         ) = build_geometric_matrices_from_monomers(positions.view(), &m1, &m2, None);
-        let es: ElectronicStructure = ElectronicStructure::dimer_from_monomers(
+        let es: ElectronicData = ElectronicData::dimer_from_monomers(
             &m1.electronic_structure,
             &m2.electronic_structure,
         );
