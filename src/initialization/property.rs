@@ -8,7 +8,8 @@ use enum_as_inner::EnumAsInner;
 /// The functionality of the `Property` enum is expanded by the use of the `EnumAsInner` macro.
 /// This allows to get direct access to the inner values of the enum without doing
 /// case matching. As an example the inner fields can be accessed by using the methods `into_$name()`
-/// or `as_$name()`. e.g:
+/// or `as_$name()`. e.g: (see [Documentation of enum-as-inner](https://docs.rs/enum-as-inner/0.3.3/enum_as_inner/)
+/// for details).
 /// ## Basic example for Bool and Array1
 ///
 ///  ```rust

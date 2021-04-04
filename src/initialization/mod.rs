@@ -10,6 +10,7 @@ mod geometry;
 mod system;
 mod parametrization;
 mod property;
+mod properties2;
 
 pub use properties::ElectronicData;
 
