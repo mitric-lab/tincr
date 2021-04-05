@@ -11,6 +11,7 @@ mod system;
 mod parametrization;
 mod property;
 mod properties2;
+mod atom;
 
 pub use properties::ElectronicData;
 

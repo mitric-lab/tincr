@@ -12,8 +12,7 @@ use std::hash::Hash;
 /// Type that holds the atomic numbers and positions of a molecule.
 /// The distance, directions and proximity matrices are optional informations that are stored
 /// in this type.
-pub struct Geometry<'a> {
-    pub atomic_numbers: &'a [u8],
+pub struct Geometry {
     pub coordinates: Array2<f64>,
     pub distances: Some(Array2<f64>),
     pub directions: Some(Array2<f64>),
@@ -27,7 +26,6 @@ impl Geometry {
         let (dist, dir, prox): (Array2<f64>, Array3<f64>, Array2<bool>) =
             distance_matrices(coordinates.view(), None);
         Geometry {
-            atomic_numbers: numbers,
             coordinates: coordinates,
             distances: dist,
             directions: dir,

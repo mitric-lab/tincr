@@ -86,6 +86,30 @@ pub struct PseudoAtom {
     orbital_3d: Vec<f64>,
 }
 
+impl PseudoAtom {
+    pub fn free_atom(element: &str) -> PseudoAtom {
+        let path_prefix: String = get_path_prefix();
+        let filename: String = format!(
+            "{}/src/param/slaterkoster/free_pseudo_atom/{}.ron",
+            path_prefix, element.to_lowercase()
+        );
+        let path: &Path = Path::new(&filename);
+        let data: String = fs::read_to_string(path).expect("Unable to read file");
+        from_str(&data).expect("RON file was not well-formatted")
+    }
+
+    pub fn confined_atom(element: &str) -> PseudoAtom {
+        let path_prefix: String = get_path_prefix();
+        let filename: String = format!(
+            "{}/src/param/slaterkoster/confined_pseudo_atom/{}.ron",
+            path_prefix, element.to_lowercase()
+        );
+        let path: &Path = Path::new(&filename);
+        let data: String = fs::read_to_string(path).expect("Unable to read file");
+        from_str(&data).expect("RON file was not well-formatted")
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SlaterKosterTable {
     dipole: HashMap<(u8, u8, u8), Vec<f64>>,
@@ -132,19 +156,20 @@ impl SlaterKosterTable {
     }
 }
 
+
+/// RepulsivePotentialTable should be a struct with the following members
+///
+/// z1,z2: atomic numbers of atom pair
+/// d: Vec, distance between atoms
+/// vrep: repulsive potential on the grid d
+///
+/// smooth_decay controls whether vrep and its derivatives are set abruptly to
+/// 0 after the cutoff radius or whether a smoothing function is added.
+/// WARNING: the smoothing function can change the nuclear repulsion energy between
+/// atoms that are far apart. Therefore you should check visually the tails of
+/// the repulsive potential and check that the additional energy is not negligible.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RepulsivePotentialTable {
-    /// RepulsivePotentialTable should be a struct with the following members
-    ///
-    /// z1,z2: atomic numbers of atom pair
-    /// d: Vec, distance between atoms
-    /// vrep: repulsive potential on the grid d
-    ///
-    /// smooth_decay controls whether vrep and its derivatives are set abruptly to
-    /// 0 after the cutoff radius or whether a smoothing function is added.
-    /// WARNING: the smoothing function can change the nuclear repulsion energy between
-    /// atoms that are far apart. Therefore you should check visually the tails of
-    /// the repulsive potential and check that the additional energy is not negligible.
     vrep: Vec<f64>,
     z1: u8,
     z2: u8,
@@ -191,30 +216,6 @@ fn get_path_prefix() -> String {
         Ok(val) => val,
         Err(e) => panic!("The environment variable {} was not set", key),
     }
-}
-
-pub fn get_free_pseudo_atom(element: &str) -> PseudoAtom {
-    let path_prefix: String = get_path_prefix();
-    let filename: String = format!(
-        "{}/src/param/slaterkoster/free_pseudo_atom/{}.ron",
-        path_prefix, element
-    );
-    let path: &Path = Path::new(&filename);
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
-    return pseudo_atom;
-}
-
-pub fn get_confined_pseudo_atom(element: &str) -> PseudoAtom {
-    let path_prefix: String = get_path_prefix();
-    let filename: String = format!(
-        "{}/src/param/slaterkoster/confined_pseudo_atom/{}.ron",
-        path_prefix, element
-    );
-    let path: &Path = Path::new(&filename);
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
-    return pseudo_atom;
 }
 
 pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {

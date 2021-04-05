@@ -2,7 +2,7 @@ use crate::h0_and_s::h0_and_s;
 use crate::initialization::parameters::*;
 use crate::initialization::geometry::*;
 use crate::initialization::properties::ElectronicData;
-use crate::initialization::parametrization::get_gamma_matrix;
+use crate::initialization::parametrization::{get_gamma_matrix, Parametrization};
 use crate::{constants, defaults};
 use approx::AbsDiffEq;
 use log::{debug, error, info, trace, warn};
@@ -12,31 +12,35 @@ use ndarray_linalg::Norm;
 use std::collections::HashMap;
 use std::hash::Hash;
 use chemfiles::Frame;
-use crate::io::frame_to_coordinates;
+use crate::io::{frame_to_coordinates, Configuration};
 use rand::rngs::StdRng;
+use crate::initialization::properties2::Properties;
+use crate::initialization::atom::Atom;
 
-
-#[derive(Clone)]
-pub struct Molecule {
-    pub atomic_numbers: Option<Vec<u8>>,
-    pub positions: Option<Array2<f64>>,
-    pub repr: Option<String>,
-    pub proximity_matrix: Option<Array2<bool>>,
-    pub distance_matrix: Option<Array2<f64>>,
-    pub directions_matrix: Option<Array3<f64>>,
-    // pub adjacency_matrix: Option<Array2<bool>>,
-    electronic_structure: ElectronicData,
+/// Type that holds a molecular system that contains all data for the quantum chemical routines.
+/// This type is only used for non-FMO calculations. In the case of FMO based calculation
+/// the `FMO`, `Molecule` and `Pair` types are used instead.
+pub struct System<'a> {
+    pub config: Configuration,
+    /// Number of atoms
+    pub n_atoms: usize,
+    /// Number of atomic orbitals
+    pub n_orbs: usize,
+    /// Vector with references to the individual atoms that are stored as `Atom` type
+    pub atoms: Vec<&'a Atom>,
+    /// Vector that stores the data of the unique atoms in an `Atom` type
+    pub unique_atoms: Vec<Atom>,
+    /// Type that stores the  coordinates and matrices that depend on the position of the atoms
+    pub geometry: Geometry,
+    ///
+    pub properties: Properties,
+    pub params: Parametrization,
 }
 
-impl Molecule {
-    pub fn new() -> Molecule {
+impl System {
+    pub fn new() -> Self {
         Molecule {
             atomic_numbers: None,
-            positions: None,
-            repr: None,
-            proximity_matrix: None,
-            distance_matrix: None,
-            directions_matrix: None,
             // adjacency_matrix: None,
             electronic_structure: ElectronicData::new(),
         }
