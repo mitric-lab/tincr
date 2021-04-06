@@ -99,6 +99,8 @@ pub struct SlaterKosterTable {
     pub s_spline: HashMap<u8, (Vec<f64>, Vec<f64>, usize)>,
     #[serde(default = "init_hashmap")]
     pub h_spline: HashMap<u8, (Vec<f64>, Vec<f64>, usize)>,
+    #[serde(default = "get_nan_value")]
+    pub dmax: f64,
 }
 
 impl SlaterKosterTable {
@@ -151,6 +153,8 @@ pub struct RepulsivePotentialTable {
     d: Vec<f64>,
     #[serde(default = "init_none")]
     spline_rep: Option<(Vec<f64>, Vec<f64>, usize)>,
+    #[serde(default = "get_nan_value")]
+    dmax: f64
 }
 
 impl RepulsivePotentialTable {
@@ -173,13 +177,13 @@ impl RepulsivePotentialTable {
     }
     pub fn spline_eval(&self, x: f64) -> f64 {
         match &self.spline_rep {
-            Some((t, c, k)) => rusty_fitpack::splev_uniform(t, c, *k, x),
+            Some((t, c, k)) => if x <= self.dmax {rusty_fitpack::splev_uniform(t, c, *k, x)} else {0.0},
             None => panic!("No spline represantation available"),
         }
     }
     pub fn spline_deriv(&self, x: f64) -> f64 {
         match &self.spline_rep {
-            Some((t, c, k)) => rusty_fitpack::splder_uniform(t, c, *k, x, 1),
+            Some((t, c, k)) => if x <= self.dmax{rusty_fitpack::splder_uniform(t, c, *k, x, 1)} else {0.0},
             None => panic!("No spline represantation available"),
         }
     }
@@ -225,7 +229,8 @@ pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
     );
     let path: &Path = Path::new(&filename);
     let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
+    let mut slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
+    slako_table.dmax = slako_table.d[slako_table.d.len()-1];
     return slako_table;
 }
 
@@ -240,6 +245,7 @@ pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTab
     let mut reppot_table: RepulsivePotentialTable =
         from_str(&data).expect("RON file was not well-formatted");
     reppot_table.spline_rep();
+    reppot_table.dmax = reppot_table.d[reppot_table.d.len() -1];
     return reppot_table;
 }
 

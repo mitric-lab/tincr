@@ -55,6 +55,7 @@ use std::io::Write;
 use std::path::Path;
 use std::process;
 use toml;
+use approx::AbsDiffEq;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
@@ -201,6 +202,8 @@ fn main() {
             0
         }
         "fmo_grad" => {
+            println!("Atomic numbers {:?}",atomic_numbers.clone());
+            println!("Positions {}",positions);
             let (graph,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
                 create_fmo_graph(atomic_numbers.clone(), positions.clone());
             // let mut mol: Molecule = Molecule::new(
@@ -279,7 +282,7 @@ fn main() {
                 positions,
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
-                None,
+                Some(0.0),
                 None,
                 config.clone(),
                 None,
@@ -308,12 +311,30 @@ fn main() {
             println!("FMO gradients {}", gradients);
             println!(" ");
 
+            println!("Difference between FMO and ridders:");
+            let diff:Array1<f64> = (&gradients - &numerical_gradient_ridders).mapv(|val|val.abs());
+            println!("{}",diff);
+            let max_gradient: f64 = diff
+                .iter()
+                .cloned()
+                .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                .unwrap();
+            println!("Max deviation: {}",max_gradient);
+            println!(" ");
+
             println!("Numerical gradient fmo {}",numerical_gradient);
             println!(" ");
 
-            let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
+            let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+                Array1<f64>,
+                Array1<f64>,
+                Array1<f64>,
+                Array3<f64>,
+            ) = get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None, None);
 
-            println!("Normal Gradient {}",grad);
+            //let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
+
+            println!("Normal Gradient {}",grad_e0 + grad_vrep);
             0
         }
         "fmo" => {

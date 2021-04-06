@@ -14,9 +14,13 @@ pub fn get_h0_and_s_mu_nu(
     posj: ArrayView1<f64>,
 ) -> (f64, f64) {
     let (r, x, y, z): (f64, f64, f64, f64) = directional_cosines(posi, posj);
-    let s: f64 = slako_transformation(r, x, y, z, &skt.s_spline, li, mi, lj, mj);
-    let h: f64 = slako_transformation(r, x, y, z, &skt.h_spline, li, mi, lj, mj);
-    return (s, h);
+    if r > skt.dmax {
+        (0.0, 0.0)
+    } else {
+        let s: f64 = slako_transformation(r, x, y, z, &skt.s_spline, li, mi, lj, mj);
+        let h: f64 = slako_transformation(r, x, y, z, &skt.h_spline, li, mi, lj, mj);
+        (s, h)
+    }
 }
 
 /// compute directional cosines for the vector going from
