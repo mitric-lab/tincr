@@ -51,17 +51,12 @@ impl RealspaceCutoffBuilder {
     }
 }
 
-/// Generate lattice points from repeatitions
-fn get_lattice_points_rep_3d(
-    lat: &[[f64; 3]; 3],
+/// Generate lattice points from repetitions
+pub fn get_lattice_points_rep_3d(
+    lat: ArrayView2<f64>,
     rep: &[usize; 3],
     origin: bool,
 ) -> Array2<f64> {
-    let mut lat_a: Array2<f64> = Array::zeros((3, 3));
-    for i in 0..3 {
-        lat_a.slice_mut(s![i, ..]).assign(&Array::from((&lat[i]).to_vec()));
-    }
-
     let mut itr: usize = 0;
     if origin {
         let mut trans: Array2<f64> = Array::zeros(
@@ -74,9 +69,9 @@ fn get_lattice_points_rep_3d(
                         for jy in (mergei(-1, 1, iy > 0)..1+1).step_by(2).rev() {
                             for jz in (mergei(-1, 1, iz > 0)..1+1).step_by(2).rev() {
                                 trans.slice_mut(s![itr, ..]).assign(
-                                    &(&lat_a.slice(s![0, ..]) * (ix as f64) * (jx as f64)
-                                        + &lat_a.slice(s![1, ..]) * (iy as f64) * (jy as f64)
-                                        + &lat_a.slice(s![2, ..]) * (iz as f64) * (jz as f64)));
+                                    &(&lat.slice(s![0, ..]) * (ix as f64) * (jx as f64)
+                                        + &lat.slice(s![1, ..]) * (iy as f64) * (jy as f64)
+                                        + &lat.slice(s![2, ..]) * (iz as f64) * (jz as f64)));
                                 itr += 1;
                             }
                         }
@@ -99,9 +94,9 @@ fn get_lattice_points_rep_3d(
                         for jy in (mergei(-1, 1, iy > 0)..1+1).step_by(2).rev() {
                             for jz in (mergei(-1, 1, iz > 0)..1+1).step_by(2).rev() {
                                 trans.slice_mut(s![itr, ..]).assign(
-                                    &(&lat_a.slice(s![0, ..]) * (ix as f64) * (jx as f64)
-                                        + &lat_a.slice(s![1, ..]) * (iy as f64) * (jy as f64)
-                                        + &lat_a.slice(s![2, ..]) * (iz as f64) * (jz as f64)));
+                                    &(&lat.slice(s![0, ..]) * (ix as f64) * (jx as f64)
+                                        + &lat.slice(s![1, ..]) * (iy as f64) * (jy as f64)
+                                        + &lat.slice(s![2, ..]) * (iz as f64) * (jz as f64)));
                                 itr += 1;
                             }
                         }
@@ -124,7 +119,8 @@ fn get_lattice_points_cutoff(
         Array::zeros((1, 3))
     } else {
         let rep = get_translations(lat, rthr);
-        get_lattice_points_rep_3d(&lat, &rep, true)
+        let lat_a: Array2<f64> = lat_to_array(lat);
+        get_lattice_points_rep_3d(lat_a.view(), &rep, true)
     }
 }
 
@@ -193,4 +189,15 @@ fn new_3d_vec_from<F: Iterator<Item=f64>>(src: F) -> [f64; 3] {
         *rref = val;
     }
     result
+}
+
+fn lat_to_array(
+    lat: &[[f64; 3]; 3],
+) -> Array2<f64> {
+    let mut lat_a: Array2<f64> = Array::zeros((3, 3));
+    for i in 0..3 {
+        lat_a.slice_mut(s![i, ..]).assign(&Array::from((&lat[i]).to_vec()));
+    }
+
+    return lat_a;
 }
