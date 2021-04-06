@@ -12,6 +12,8 @@ mod parametrization;
 mod property;
 mod properties2;
 mod atom;
+pub use atom::{Atom, AtomRef, AtomRefMut, AtomSlice, AtomSliceMut, AtomVec};
+
 
 pub use properties::ElectronicData;
 

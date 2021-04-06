@@ -4,9 +4,29 @@ use crate::initialization::parameters::{
 use crate::param::elements::Element;
 use std::collections::HashMap;
 use std::ops::Neg;
+use soa_derive::StructOfArray;
 
 /// `Atom` type that contains basic information about the chemical element as well as the
-/// data used for the semiempirical parameters that are used in the DFTB calculations.
+/// data used for the semi-empirical parameters that are used in the DFTB calculations.
+/// The `StructofArray` macro automatically generates code that allows to replace Vec<`Atom`>
+/// with a struct of arrays. It will generate the `AtomVec` that looks like:
+///
+/// ```rust
+/// pub struct AtomVec {
+///     pub name: Vec<&'static str>,
+///     pub number: Vec<u8>,
+///     pub kind: Vec<Element>,
+///     pub hubbard: Vec<f64>,
+///     pub valorbs: Vec<Vec<AtomicOrbital>>,
+///     pub n_orbs: Vec<usize>,
+///     pub valorbs_occupation: Vec<Vec<f64>>,
+///     pub n_elec: Vec<usize>,
+/// }
+/// ```
+/// It will also generate the same functions that a `Vec<Atom>` would have, and a few helper structs:
+/// `AtomSlice`, `AtomSliceMut`, `AtomRef` and `AtomRefMut` corresponding respectively
+/// to `&[Atom]`, `&mut [Atom]`, `&Atom` and `&mut Atom`.
+#[derive(StructOfArray)]
 pub struct Atom {
     /// Name of the chemical element
     pub name: &'static str,
@@ -28,12 +48,11 @@ pub struct Atom {
     pub n_elec: usize,
 }
 
-impl Atom {
-    /// Create a new `Atom` from the atomic symbol (case insensitive). The parameterization from the
-    /// parameter files is loaded and the Hubbard parameter and the valence orbitals are stored in
-    /// this type.
-    pub fn new(symbol: &str) -> Self {
-        let element: Element = Element::from(symbol);
+impl From<Element> for Atom {
+    /// Create a new [Atom] from the chemical [Element](crate::initialization::elements::Element).
+    /// The parameterization from the parameter files is loaded and the Hubbard parameter
+    /// and the valence orbitals are stored in this type.
+    fn from (element: Element) -> Self {
         let symbol: &'static str = element.symbol();
         let confined_atom: PseudoAtom = PseudoAtom::confined_atom(symbol);
         let free_atom: PseudoAtom = PseudoAtom::free_atom(symbol);
@@ -62,6 +81,25 @@ impl Atom {
         }
     }
 }
+
+impl From<&str> for Atom {
+    /// Create a new [Atom] from the atomic symbol (case insensitive). The parameterization from the
+    /// parameter files is loaded and the Hubbard parameter and the valence orbitals are stored in
+    /// this type.
+    fn from(symbol: &str) -> Self {
+        Self::from(Element::from(symbol))
+    }
+}
+
+impl From<u8> for Atom {
+    /// Create a new [Atom] from the atomic number. The parameterization from the
+    /// parameter files is loaded and the Hubbard parameter and the valence orbitals are stored in
+    /// this type.
+    fn from(number: u8) -> Self {
+        Self::from(Element::from(number))
+    }
+}
+
 
 /// Type that specifies an atomic orbital by its three quantum numbers and holds its energy
 #[derive(Eq)]

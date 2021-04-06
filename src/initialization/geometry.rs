@@ -19,10 +19,10 @@ pub struct Geometry {
     pub proximities: Some(Array2<bool>),
 }
 
-impl Geometry {
-    /// Constructs a new Geometry from atomic numbers and coordinates.
+impl From<Array2<f64>> for Geometry {
+    /// Constructs a new [Geometry] from the coordinates (in atomic units).
     /// The distance, directions and proximity matrices will be computed and set.
-    pub fn from(numbers: &[u8], coordinates: Array2<f64>) -> Self {
+    fn from(coordinates: Array2<f64>) -> Self {
         let (dist, dir, prox): (Array2<f64>, Array3<f64>, Array2<bool>) =
             distance_matrices(coordinates.view(), None);
         Geometry {
@@ -32,7 +32,10 @@ impl Geometry {
             proximities: prox,
         }
     }
+}
 
+
+impl Geometry {
     /// Update the coordinates and the geometric matrices. The following matrices will
     /// be set to the struct: coordinates, distances, directions, proximities.
     pub fn update(&mut self, coordinates: Array2<f64>) {

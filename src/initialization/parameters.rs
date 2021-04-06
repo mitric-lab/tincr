@@ -1,5 +1,5 @@
 use crate::defaults;
-use approx::AbsDiffEq;
+use crate::param::Element;
 use ndarray::array;
 use ndarray::{Array, Array1, Array2};
 use ron::de::from_str;
@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
+use test::stats::Stats;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -31,7 +32,8 @@ fn init_hashmap() -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
     HashMap::new()
 }
 
-///
+/// A type that contains the atom-wise parameters for the DFTB calculation. The same `PseudoAtom`
+/// type is used for the free and the confined atoms. The data will be serialized from the Ron files.
 #[derive(Serialize, Deserialize)]
 pub struct PseudoAtom {
     z: u8,
@@ -91,7 +93,8 @@ impl PseudoAtom {
         let path_prefix: String = get_path_prefix();
         let filename: String = format!(
             "{}/src/param/slaterkoster/free_pseudo_atom/{}.ron",
-            path_prefix, element.to_lowercase()
+            path_prefix,
+            element.to_lowercase()
         );
         let path: &Path = Path::new(&filename);
         let data: String = fs::read_to_string(path).expect("Unable to read file");
@@ -102,7 +105,8 @@ impl PseudoAtom {
         let path_prefix: String = get_path_prefix();
         let filename: String = format!(
             "{}/src/param/slaterkoster/confined_pseudo_atom/{}.ron",
-            path_prefix, element.to_lowercase()
+            path_prefix,
+            element.to_lowercase()
         );
         let path: &Path = Path::new(&filename);
         let data: String = fs::read_to_string(path).expect("Unable to read file");
@@ -110,23 +114,83 @@ impl PseudoAtom {
     }
 }
 
+/// Type that holds the mapping between element pairs and their [SlaterKosterTable].
+/// This is basically a struct that allows to get the [SlaterKosterTable] without a strict
+/// order of the [Element] tuple.
+pub struct SlaterKoster<'a> {
+    map: HashMap<(&'a Element, &'a Element), SlaterKosterTable>,
+}
+
+impl SlaterKoster {
+    /// Create a new [SlaterKoster] type, that maps a tuple of [Element] s to a [SlaterKosterTable].
+    pub fn new() -> Self {
+        SlaterKoster {
+            map: HashMap::new(),
+        }
+    }
+
+    /// Add a new [SlaterKosterTable] from a tuple of two [Element]s. THe
+    pub fn add(&mut self, kind1: &Element, kind2: &Element) {
+        self.map
+            .insert((&kind1, &kind2), SlaterKosterTable::new(&kind1, &kind2));
+    }
+
+    pub fn get(&self, kind1: &Element, kind2: &Element) -> &SlaterKosterTable {
+        self.map
+            .get(&(kind1, kind2))
+            .unwrap_or(self.map.get(&(kind2, kind1)).unwrap())
+    }
+}
+
+/// Type that holds the pairwise atomic parameters for the Slater-Koster matrix elements
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SlaterKosterTable {
     dipole: HashMap<(u8, u8, u8), Vec<f64>>,
     h: HashMap<(u8, u8, u8), Vec<f64>>,
     s: HashMap<(u8, u8, u8), Vec<f64>>,
+    /// Atomic number of the first element of the atom pair
     z1: u8,
+    /// Atomic number of the second element of the atom pair
     z2: u8,
+    /// Grid with the atom-atom distances in bohr for which the H0 and overlap matrix elements
+    /// are tabulated
     d: Vec<f64>,
+    /// Maximal atom-atom distance of the grid. This is obtained by taking `d.max()`
+    /// `dmax` is only checked in
+    /// [get_h0_and_s_mu_nu](crate::param::slako_transformations::get_h0_and_s_mu_nu)
+    #[serde(default = "get_nan_value")]
+    pub dmax: f64,
     index_to_symbol: HashMap<u8, String>,
     #[serde(default = "init_hashmap")]
+    /// Spline representation for the overlap matrix elements
     pub s_spline: HashMap<u8, (Vec<f64>, Vec<f64>, usize)>,
+    /// Spline representation for the H0 matrix elements
     #[serde(default = "init_hashmap")]
     pub h_spline: HashMap<u8, (Vec<f64>, Vec<f64>, usize)>,
 }
 
 impl SlaterKosterTable {
-    pub fn spline_overlap(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
+    /// Creates a new [SlaterKosterTable] from two elements and splines the H0 and overlap
+    /// matrix elements
+    pub fn new(kind1: &Element, kind2: &Element) -> Self {
+        let path_prefix: String = get_path_prefix();
+        let filename: String = format!(
+            "{}/src/param/slaterkoster/slako_tables/{}_{}.ron",
+            path_prefix,
+            kind1.symbol().to_lowercase(),
+            kind2.symbol().to_lowercase()
+        );
+        let path: &Path = Path::new(&filename);
+        let data: String = fs::read_to_string(path).expect("Unable to read file");
+        let mut slako_table: SlaterKosterTable =
+            from_str(&data).expect("RON file was not well-formatted");
+        slako_table.dmax = slako_table.d.max();
+        slako_table.s_spline = slako_module.spline_overlap();
+        slako_table.h_spline = slako_module.spline_hamiltonian();
+        slako_table
+    }
+
+    fn spline_overlap(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
         let mut splines: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = HashMap::new();
         for ((l1, l2, i), value) in &self.s {
             let x: Vec<f64> = self.d.clone();
@@ -138,9 +202,10 @@ impl SlaterKosterTable {
                 ),
             );
         }
-        return splines;
+        splines
     }
-    pub fn spline_hamiltonian(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
+
+    fn spline_hamiltonian(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
         let mut splines: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = HashMap::new();
         for ((l1, l2, i), value) in &self.h {
             let x: Vec<f64> = self.d.clone();
@@ -152,34 +217,85 @@ impl SlaterKosterTable {
                 ),
             );
         }
-        return splines;
+        splines
     }
 }
 
+/// Type that holds the mapping between element pairs and their [RepulsivePotentialTable].
+/// This is basically a struct that allows to get the [RepulsivePotentialTable] without a s
+/// order of the [Element] tuple.
+pub struct RepulsivePotential<'a> {
+    map: HashMap<(&'a Element, &'a Element), RepulsivePotentialTable>,
+}
 
-/// RepulsivePotentialTable should be a struct with the following members
-///
-/// z1,z2: atomic numbers of atom pair
-/// d: Vec, distance between atoms
-/// vrep: repulsive potential on the grid d
-///
-/// smooth_decay controls whether vrep and its derivatives are set abruptly to
-/// 0 after the cutoff radius or whether a smoothing function is added.
-/// WARNING: the smoothing function can change the nuclear repulsion energy between
-/// atoms that are far apart. Therefore you should check visually the tails of
-/// the repulsive potential and check that the additional energy is not negligible.
+impl RepulsivePotential {
+    /// Create a new RepulsivePotential, to map the [Element] pairs to a [RepulsivePotentialTable]
+    pub fn new() -> Self {
+        RepulsivePotential {
+            map: HashMap::new(),
+        }
+    }
+
+    /// Add a [RepulsivePotentialTable] from a pair of two [Element]s
+    pub fn add(&mut self, kind1: &Element, kind2: &Element) {
+        self.map.insert(
+            (&kind1, &kind2),
+            RepulsivePotentialTable::new(&kind1, &kind2),
+        );
+    }
+
+    /// Return the [RepulsivePotentialTable] for the tuple of two [Element]s. The order of
+    /// the tuple does not play a role.
+    pub fn get(&self, kind1: &Element, kind2: &Element) -> &RepulsivePotentialTable {
+        self.map
+            .get(&(kind1, kind2))
+            .unwrap_or(self.map.get(&(kind2, kind1)).unwrap())
+    }
+}
+
+/// Type that contains the repulsive potential between a pair of atoms and their derivative as
+/// splines.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RepulsivePotentialTable {
+    /// Repulsive energy in Hartree on the grid `d`
     vrep: Vec<f64>,
+    /// Atomic number of first element of the pair
     z1: u8,
+    /// Atomic number of the second element of the pair
     z2: u8,
+    /// Grid for which the repulsive energies are tabulated in bohr.
     d: Vec<f64>,
+    /// Spline representation as a tuple of ticks, coefficients and the degree
     #[serde(default = "init_none")]
     spline_rep: Option<(Vec<f64>, Vec<f64>, usize)>,
+    /// Maximal atom-atom distance for which the repulsive energy is tabulated in the parameter file.
+    /// The value is set from d.max()
+    #[serde(default = "get_nan_value")]
+    dmax: f64,
 }
 
 impl RepulsivePotentialTable {
-    pub fn spline_rep(&mut self) {
+    /// Create a new [RepulsivePotentialTable] from two [Elements]. The parameter file will be read
+    /// and the repulsive energy will be splined and the spline representation will be stored.
+    pub fn new(kind1: &Element, kind2: &Element) -> Self {
+        let path_prefix: String = get_path_prefix();
+        let filename: String = format!(
+            "{}/src/param/repulsive_potential/reppot_tables/{}_{}.ron",
+            path_prefix,
+            kind1.symbol().to_lowercase(),
+            kind2.symbol().to_lowercase()
+        );
+        let path: &Path = Path::new(&filename);
+        let data: String = fs::read_to_string(path).expect("Unable to read file");
+        let mut reppot_table: RepulsivePotentialTable =
+            from_str(&data).expect("RON file was not well-formatted");
+        reppot_table.spline_rep();
+        reppot_table.dmax = reppot_table.d.max();
+        return reppot_table;
+    }
+
+    /// Create the spline representation by calling the [splrep](rusty_fitpack::splrep) Routine.
+    fn spline_rep(&mut self) {
         let spline: (Vec<f64>, Vec<f64>, usize) = rusty_fitpack::splrep(
             self.d.clone(),
             self.vrep.clone(),
@@ -196,166 +312,47 @@ impl RepulsivePotentialTable {
         );
         self.spline_rep = Some(spline);
     }
+
+    /// Evaluate the spline at the atom-atom distance `x`. The units of x are in bohr.
+    /// If `x` > `dmax` then 0 is returned, where `dmax` is the maximal atom-atom distance on the grid
+    /// for which the repulsive energy is reported
     pub fn spline_eval(&self, x: f64) -> f64 {
         match &self.spline_rep {
-            Some((t, c, k)) => rusty_fitpack::splev_uniform(t, c, *k, x),
-            None => panic!("No spline represantation available"),
+            Some((t, c, k)) => {
+                if x <= self.dmax {
+                    rusty_fitpack::splev_uniform(t, c, *k, x)
+                } else {
+                    0.0
+                }
+            }
+            None => panic!("No spline representation available"),
         }
     }
+    /// Evaluate the first derivate of the energy w.r.t. to the atomic displacements. The units
+    /// of the distance `x` are also in bohr.  If `x` > `dmax` then 0 is returned,
+    /// where `dmax` is the maximal atom-atom distance on the grid
+    /// for which the repulsive energy is reported
     pub fn spline_deriv(&self, x: f64) -> f64 {
         match &self.spline_rep {
-            Some((t, c, k)) => rusty_fitpack::splder_uniform(t, c, *k, x, 1),
-            None => panic!("No spline represantation available"),
+            Some((t, c, k)) => {
+                if x <= self.dmax {
+                    rusty_fitpack::splder_uniform(t, c, *k, x, 1)
+                } else {
+                    0.0
+                }
+            }
+            None => panic!("No spline representation available"),
         }
     }
 }
 
+/// Helper function that prepends the path of the `tincr` source directory to be able to
+/// use a relative path to the parameter files. The environment variable `TINCR_SRC_DIR` should be
+/// set, so that the parameter files can be found.
 fn get_path_prefix() -> String {
     let key: &str = defaults::SOURCE_DIR_VARIABLE;
     match env::var(key) {
         Ok(val) => val,
         Err(e) => panic!("The environment variable {} was not set", key),
     }
-}
-
-pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
-    let path_prefix: String = get_path_prefix();
-    let filename: String = format!(
-        "{}/src/param/slaterkoster/slako_tables/{}_{}.ron",
-        path_prefix, element1, element2
-    );
-    let path: &Path = Path::new(&filename);
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
-    return slako_table;
-}
-
-pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTable {
-    let path_prefix: String = get_path_prefix();
-    let filename: String = format!(
-        "{}/src/param/repulsive_potential/reppot_tables/{}_{}.ron",
-        path_prefix, element1, element2
-    );
-    let path: &Path = Path::new(&filename);
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let mut reppot_table: RepulsivePotentialTable =
-        from_str(&data).expect("RON file was not well-formatted");
-    reppot_table.spline_rep();
-    return reppot_table;
-}
-
-#[test]
-fn test_load_free_pseudo_atom() {
-    let path: &Path = Path::new("./src/param/slaterkoster/free_pseudo_atom/h.ron");
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
-    assert_eq! {pseudo_atom.z, 1};
-}
-
-#[test]
-fn test_load_confined_pseudo_atom() {
-    let path: &Path = Path::new("./src/param/slaterkoster/confined_pseudo_atom/h.ron");
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let pseudo_atom: PseudoAtom = from_str(&data).expect("RON file was not well-formatted");
-    assert_eq! {pseudo_atom.z, 1};
-}
-
-#[test]
-fn test_load_slako_tables() {
-    let path: &Path = Path::new("./src/param/slaterkoster/slako_tables/h_h.ron");
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
-    assert_eq! {slako_table.z1, 1};
-    assert_eq! {slako_table.z2, 1};
-}
-
-#[test]
-fn test_load_repulsive_potential_tables() {
-    let path: &Path = Path::new("./src/param/repulsive_potential/reppot_tables/h_h.ron");
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let reppot_table: RepulsivePotentialTable =
-        from_str(&data).expect("RON file was not well-formatted");
-    assert_eq! {reppot_table.z1, 1};
-    assert_eq! {reppot_table.z2, 1};
-}
-
-/// import numpy as np
-// from DFTB2 import DFTB2
-// import XYZ
-// import GammaApproximation
-// atomlist = XYZ.read_xyz("h2o.xyz")[0]
-// dftb = DFTB2(atomlist)
-// dftb.setGeometry(atomlist, charge=0)
-//
-// dftb.getEnergy()
-//
-// for key, value in dftb.SKT.items():
-//     print(key, value)
-// d = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4])
-// np.set_printoptions(16)
-// print(dftb.SKT[(1,1)].S_spl(0, d))
-#[test]
-fn test_spline_overlap_integrals() {
-    let path: &Path = Path::new("./src/param/slaterkoster/slako_tables/h_h.ron");
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
-    let spline: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = slako_table.spline_overlap();
-    let mut y_values: Vec<f64> = Vec::new();
-    let x_values: Vec<f64> = vec![
-        0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4,
-    ];
-    for x in x_values {
-        y_values.push(splev_uniform(&spline[&0].0, &spline[&0].1, spline[&0].2, x));
-    }
-    let y_values: Array1<f64> = Array::from_shape_vec((14), y_values).unwrap();
-    let y_values_ref: Array1<f64> = array![
-        0.9953396476468342,
-        0.9812384772492724,
-        0.9583521361528490,
-        0.9274743570042232,
-        0.8895949507497998,
-        0.8458257726181956,
-        0.7973774727029854,
-        0.7454487849069387,
-        0.6912337281934855,
-        0.6358463027455588,
-        0.5803233164667398,
-        0.5255800129748242,
-        0.4724037942538298,
-        0.4214524357395346
-    ];
-    assert!(y_values.abs_diff_eq(&y_values_ref, 1e-16));
-}
-
-#[test]
-fn test_spline_h0() {
-    let path: &Path = Path::new("./src/param/slaterkoster/slako_tables/h_h.ron");
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let slako_table: SlaterKosterTable = from_str(&data).expect("RON file was not well-formatted");
-    let spline: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = slako_table.spline_hamiltonian();
-    let mut y_values: Vec<f64> = Vec::new();
-    let x_values: Vec<f64> = vec![
-        0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4,
-    ];
-    for x in x_values {
-        y_values.push(splev_uniform(&spline[&0].0, &spline[&0].1, spline[&0].2, x));
-    }
-    let y_values: Array1<f64> = Array::from_shape_vec((14), y_values).unwrap();
-    let y_values_ref: Array1<f64> = array![
-        -0.7020075123394368,
-        -0.6827454396001111,
-        -0.6559933747633552,
-        -0.6249508412681278,
-        -0.5919398382976603,
-        -0.5585510127756821,
-        -0.5258067834653534,
-        -0.4942857974427148,
-        -0.4642429835387089,
-        -0.4357098171167648,
-        -0.4085694762270275,
-        -0.3826380560498423,
-        -0.3577041260543390,
-        -0.3335812815557643
-    ];
-    assert!(y_values.abs_diff_eq(&y_values_ref, 1e-16));
 }
