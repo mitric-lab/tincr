@@ -801,8 +801,6 @@ pub fn fmo_calculate_pairwise_gradients(
                    None,
                    None,
                 );
-                println!("Pair atomic numbers {:?}",pair.atomic_numbers.clone());
-                println!("Pair positions {}",pair.positions.clone());
 
                 if use_saved_calc == false {
                     saved_calculators.push(pair.calculator.clone());
@@ -829,6 +827,7 @@ pub fn fmo_calculate_pairwise_gradients(
                         Array2<f64>,
                         Vec<f64>,
                     ) = scc_routine::run_scc(&mut pair);
+                    println!("FMO pair energy {}",energy.clone());
                     energy_pair = Some(energy);
                     charges_pair = Some(pair.final_charges.clone());
                     pair_density = Some(pair.final_p_matrix.clone());

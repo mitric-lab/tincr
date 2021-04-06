@@ -202,8 +202,6 @@ fn main() {
             0
         }
         "fmo_grad" => {
-            println!("Atomic numbers {:?}",atomic_numbers.clone());
-            println!("Positions {}",positions);
             let (graph,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
                 create_fmo_graph(atomic_numbers.clone(), positions.clone());
             // let mut mol: Molecule = Molecule::new(
@@ -301,6 +299,8 @@ fn main() {
             let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
                 scc_routine::run_scc(&mut mol);
             mol.calculator.set_active_orbitals(f.to_vec());
+
+            println!("SCC Energy {}",energy);
 
             let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
             let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());

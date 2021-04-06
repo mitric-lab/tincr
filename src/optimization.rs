@@ -357,7 +357,7 @@ pub fn evaluate_step(
         // end of evaluation
     }
     // check if number of iteration is greater than maxiter
-    if iteration > 500 {
+    if iteration > 1000 {
         // sorted eigenvalues
         opt_failed = true
     }

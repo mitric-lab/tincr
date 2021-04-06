@@ -39,6 +39,10 @@ pub fn fmo_numerical_gradient(atomic_numbers:&Vec<u8>,positions:&Array1<f64>,con
     let (graph, graph_indexes, subgraph, connectivity_mat, dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>, Array2<bool>, Array2<f64>, Array3<f64>, Array2<bool>) =
         create_fmo_graph(atomic_numbers.clone(), coordinates.clone());
 
+    let energy:f64 = calculate_energy_for_coordinates(atomic_numbers,&coordinates,config.clone(),subgraph.clone());
+    println!("FMO Energy num gradient {}",energy);
+    println!("");
+
     for ind in (0..positions.len()).into_iter(){
         let energy_1:f64 = numerical_gradient_routine(&atomic_numbers,positions,config.clone(),subgraph.clone(),1e-5,ind);
         let energy_2:f64 = numerical_gradient_routine(&atomic_numbers,positions,config.clone(),subgraph.clone(),-1e-5,ind);
@@ -59,6 +63,10 @@ pub fn fmo_numerical_gradient_new(atomic_numbers:&Vec<u8>,positions:&Array1<f64>
     let coordinates:Array2<f64> = positions.clone().into_shape((positions_len,3)).unwrap();
     let (graph, graph_indexes, subgraph, connectivity_mat, dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>, Array2<bool>, Array2<f64>, Array3<f64>, Array2<bool>) =
         create_fmo_graph(atomic_numbers.clone(), coordinates.clone());
+
+    let energy:f64 = calculate_energy_for_coordinates(atomic_numbers,&coordinates,config.clone(),subgraph.clone());
+    println!("FMO Energy num gradient ridders {}",energy);
+    println!("");
 
     // parameters for ridders' method
     let con:f64 = 1.4;
@@ -89,17 +97,17 @@ pub fn fmo_numerical_gradient_new(atomic_numbers:&Vec<u8>,positions:&Array1<f64>
                 a_mat[[j,i]] = (a_mat[[j-1,i]]*fac - a_mat[[j-1,i-1]])/(fac-1.0);
                 fac = con_2 * fac;
                 let errt:f64 = (a_mat[[j,i]]-a_mat[[j-1,i]]).abs().max((a_mat[[j,i]]-a_mat[[j-1,i-1]]).abs());
-                println!("Errt {}",errt);
-                println!("Err {}",err);
+                // println!("Errt {}",errt);
+                // println!("Err {}",err);
 
                 if errt <= err{
                     err = errt;
                     ans = a_mat[[j,i]];
-                    println!("ans {}",ans);
+                    // println!("ans {}",ans);
                 }
             }
             if (a_mat[[i,i]]-a_mat[[i-1,i-1]]).abs() >= safe*err{
-                println!("Break at i = {}",i);
+                // println!("Break at i = {}",i);
                 break;
             }
         }
