@@ -314,15 +314,17 @@ fn main() {
             println!("Difference between FMO and ridders:");
             let diff:Array1<f64> = (&gradients - &numerical_gradient_ridders).mapv(|val|val.abs());
             println!("{}",diff);
-            let max_gradient: f64 = diff
+            let max_gradient: f64 = diff.clone()
                 .iter()
                 .cloned()
                 .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
                 .unwrap();
             println!("Max deviation: {}",max_gradient);
+            println!("Norm of difference {}",(&gradients - &numerical_gradient_ridders).norm());
             println!(" ");
 
             println!("Numerical gradient fmo {}",numerical_gradient);
+            println!("Norm of difference {}",(&gradients - &numerical_gradient).norm());
             println!(" ");
 
             let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (

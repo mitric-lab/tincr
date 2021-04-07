@@ -877,7 +877,6 @@ pub fn fmo_calculate_pairwise_gradients(
                         Array1<f64>,
                         Array3<f64>,
                     ) = get_gradients(&orbe, &orbs, &s, &pair, &None, &None, None, &None, None);
-                    println!("Grad pair {}",gradE0.clone()+grad_v_rep.clone());
 
                     grad_e0_pair = Some(gradE0);
                     grad_vrep_pair = Some(grad_v_rep);
