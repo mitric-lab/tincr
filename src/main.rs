@@ -23,7 +23,6 @@ use crate::io::{Configuration, write_header};
 
 mod constants;
 mod defaults;
-mod h0_and_s;
 mod io;
 //mod optimization;
 mod initialization;

@@ -2,6 +2,7 @@ use chemfiles::{Frame, Trajectory};
 use ndarray::{Array2};
 use crate::constants::{BOHR_TO_ANGS};
 
+/// Extract the atomic numbers and positions (in bohr) from a [Frame](chemfiles::frame)
 pub fn frame_to_coordinates(mut frame: Frame) -> (Vec<u8>, Array2<f64>) {
     let mut positions: Array2<f64> = Array2::from_shape_vec(
         (frame.size() as usize, 3),
@@ -26,6 +27,7 @@ pub fn frame_to_coordinates(mut frame: Frame) -> (Vec<u8>, Array2<f64>) {
     return (atomic_numbers, positions);
 }
 
+/// Read a xyz-geometry file like .xyz or .pdb and returns a [Frame](chemfiles::Frame)
 pub fn read_file_to_frame(filename: &str) -> Frame{
     // read the geometry file
     let mut trajectory = Trajectory::open(filename, 'r').unwrap();

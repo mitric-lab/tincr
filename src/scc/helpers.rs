@@ -1,7 +1,7 @@
 use ndarray::prelude::*;
 use ndarray_linalg::{Norm};
 use itertools::Itertools;
-use crate::initialization::Molecule;
+use crate::initialization::{Molecule, Atom};
 use std::collections::HashMap;
 use crate::initialization::parameters::RepulsivePotentialTable;
 use crate::defaults;
@@ -158,14 +158,14 @@ pub fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
 
 /// Construct reference density matrix
 /// all atoms should be neutral
-pub fn density_matrix_ref(atomic_numbers: &[u8], n_orbs: usize, valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, valorbs_occupation: &HashMap<u8, Vec<f64>>) -> Array2<f64> {
+pub fn density_matrix_ref(n_orbs: usize, atoms: &[&Atom]) -> Array2<f64> {
     let mut p0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
     // iterate over orbitals on center i
     let mut idx: usize = 0;
-    for zi in atomic_numbers.iter() {
+    for atomi in atoms.iter() {
         // how many electrons are put into the nl-shell
-        for (iv, _) in valorbs[zi].iter().enumerate() {
-            p0[[idx, idx]] = valorbs_occupation[zi][iv] as f64;
+        for occ in atomi.valorbs_occupation.iter() {
+            p0[[idx, idx]] = *occ;
             idx += 1;
         }
     }

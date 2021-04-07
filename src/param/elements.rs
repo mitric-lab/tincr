@@ -15,7 +15,7 @@ pub enum Element {
     Ac, Th, Pa, U,  Np, Pu, Am, Cm, Bk, Cf, Es, Fm, Md, No, Lr,
     Dummy,
 }
-/// Two elements are considered to be the same if they have the same atomic number
+// Two elements are considered to be the same if they have the same atomic number
 impl PartialEq for Element {
     fn eq(&self, other: &Self) -> bool {
         self.number() == other.number()
@@ -24,7 +24,7 @@ impl PartialEq for Element {
 
 impl Eq for Element {}
 
-/// The atomic number of the chemical element is used for the hashing
+// The atomic number of the chemical element is used for the hashing
 impl Hash for Element {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.number().hash(state);

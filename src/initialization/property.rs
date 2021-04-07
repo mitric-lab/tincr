@@ -33,6 +33,8 @@ pub enum Property {
     Double(f64),
     /// String property
     String(String),
+    /// Vector property
+    VecU8(Vec<u8>),
     /// Arraybase<f64, Ix1> property
     Array1(Array1<f64>),
     /// Arraybase<f64, Ix2> property
@@ -59,6 +61,10 @@ impl From<String> for Property {
     fn from(value: String) -> Self {
         Property::String(value)
     }
+}
+
+impl From<Vec<u8>> for Property {
+    fn from(value: Vec<u8>) -> Self {Property::VecU8(value)}
 }
 
 impl<'a> From<&'a str> for Property {

@@ -9,4 +9,6 @@ mod level_shifting;
 mod diis;
 mod mixer;
 mod scc_routine;
+pub mod h0_and_s;
+pub mod gamma_approximation;
 

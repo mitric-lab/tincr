@@ -23,60 +23,12 @@ const PI_SQRT: f64 = 1.7724538509055159;
 ///
 /// Here, this equation is solved for sigmaA, the decay constant
 /// of a gaussian.
-pub fn gaussian_decay(hubbard_u: &HashMap<u8, f64>) -> HashMap<u8, f64> {
-    let mut sigmas: HashMap<u8, f64> = HashMap::new();
-    for (z, u) in hubbard_u.iter() {
-        sigmas.insert(*z, 1.0 / (*u * PI_SQRT));
+pub fn gaussian_decay(unique_atoms: &[Atom]) -> HashMap<u8, f64> {
+    let mut sigmas: HashMap<u8, f64> = HashMap::with_capacity(unique_atoms.len());
+    for atom in unique_atoms.iter() {
+        sigmas.insert(atom.number, 1.0 / (atom.hubbard * PI_SQRT));
     }
     return sigmas;
-}
-
-// TODO: DO WE NEED THIS?
-enum SwitchingFunction {
-    // f(R) = erf(R/Rlr)
-    ErrorFunction,
-    // f(R) = erf(R/Rlr) - 2/(sqrt(pi)*Rlr) * R * exp(-1/3 * (R/Rlr)**2)
-    ErrorFunctionGaussian,
-    // f(R) = 0
-    NoSwitching,
-}
-
-impl SwitchingFunction {
-    fn eval(&self, r: f64, r_lr: f64) -> f64 {
-        let result: f64 = match *self {
-            SwitchingFunction::ErrorFunction => libm::erf(r / r_lr),
-            SwitchingFunction::ErrorFunctionGaussian => {
-                if r < 1.0e-8 {
-                    0.0
-                } else {
-                    libm::erf(r / r_lr) / r
-                        - 2.0 / (PI_SQRT * r_lr) * (-1.0 / 3.0 * (r / r_lr).powi(2)).exp()
-                }
-            }
-            SwitchingFunction::NoSwitching => 0.0,
-        };
-        return result;
-    }
-
-    fn eval_deriv(&self, r: f64, r_lr: f64) -> f64 {
-        let result: f64 = match *self {
-            SwitchingFunction::ErrorFunction => {
-                2.0 / (PI_SQRT * r_lr) * (-(r / r_lr).powi(2)).exp()
-            }
-            SwitchingFunction::ErrorFunctionGaussian => {
-                if r < 1.0e-8 {
-                    0.0
-                } else {
-                    let r2: f64 = (r / r_lr).powi(2);
-                    4.0 / (3.0 * PI_SQRT * r_lr.powi(3)) * (-r2 / 3.0).exp() * r
-                        + 2.0 / (PI_SQRT * r_lr) * -r2.exp() / r
-                        - libm::erf(r / r_lr) / r.powi(2)
-                }
-            }
-            SwitchingFunction::NoSwitching => 0.0,
-        };
-        return result;
-    }
 }
 
 /// ## Gamma Function
@@ -216,7 +168,7 @@ impl GammaFunction {
 }
 
 pub fn gamma_atomwise(
-    gamma_func: GammaFunction,
+    gamma_func: &GammaFunction,
     atomic_numbers: &[u8],
     n_atoms: usize,
     distances: ArrayView2<f64>,
@@ -237,7 +189,7 @@ pub fn gamma_atomwise(
 }
 
 fn gamma_gradients_atomwise(
-    gamma_func: GammaFunction,
+    gamma_func: &GammaFunction,
     atomic_numbers: &[u8],
     n_atoms: usize,
     distances: ArrayView2<f64>,
@@ -270,7 +222,7 @@ fn gamma_gradients_atomwise(
 }
 
 pub fn gamma_ao_wise(
-    gamma_func: GammaFunction,
+    gamma_func: &GammaFunction,
     atomic_numbers: &[u8],
     n_atoms: usize,
     n_orbs: usize,
@@ -297,7 +249,7 @@ pub fn gamma_ao_wise(
 }
 
 pub fn gamma_gradients_ao_wise(
-    gamma_func: GammaFunction,
+    gamma_func: &GammaFunction,
     atomic_numbers: &[u8],
     n_atoms: usize,
     n_orbs: usize,

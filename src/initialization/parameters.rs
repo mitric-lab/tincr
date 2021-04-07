@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
-use test::stats::Stats;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -184,7 +183,7 @@ impl SlaterKosterTable {
         let data: String = fs::read_to_string(path).expect("Unable to read file");
         let mut slako_table: SlaterKosterTable =
             from_str(&data).expect("RON file was not well-formatted");
-        slako_table.dmax = slako_table.d.max();
+        slako_table.dmax = slako_table.d[slako_table.d.len()-1];
         slako_table.s_spline = slako_module.spline_overlap();
         slako_table.h_spline = slako_module.spline_hamiltonian();
         slako_table
@@ -290,7 +289,7 @@ impl RepulsivePotentialTable {
         let mut reppot_table: RepulsivePotentialTable =
             from_str(&data).expect("RON file was not well-formatted");
         reppot_table.spline_rep();
-        reppot_table.dmax = reppot_table.d.max();
+        reppot_table.dmax = reppot_table.d[reppot_table.d.len()-1];
         return reppot_table;
     }
 

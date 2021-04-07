@@ -1,6 +1,6 @@
 use crate::constants::ATOM_NAMES;
 use crate::defaults;
-use crate::param::gamma_approximation;
+use crate::scc::gamma_approximation;
 use crate::initialization::Molecule;
 use crate::initialization::parameters::*;
 use itertools::Itertools;

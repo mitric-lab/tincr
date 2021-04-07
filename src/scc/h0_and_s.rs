@@ -1,7 +1,7 @@
 #[macro_use(array)]
 use ndarray::prelude::*;
 use crate::initialization::parameters::*;
-use crate::initialization::Molecule;
+use crate::initialization::{Atom, Geometry, Molecule};
 use crate::param::slako_transformations::*;
 use approx::AbsDiffEq;
 use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
@@ -20,9 +20,14 @@ use std::collections::HashMap;
 ///
 ///
 pub fn h0_and_s_ab(
-    atomic_numbers1: &[u8], atomic_numbers2: &[u8], positions1: ArrayView2<f64>,
-    positions2: ArrayView2<f64>, n_orbs1: usize, n_orbs2: usize,
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, proximity_matrix: ArrayView2<bool>,
+    atomic_numbers1: &[u8],
+    atomic_numbers2: &[u8],
+    positions1: ArrayView2<f64>,
+    positions2: ArrayView2<f64>,
+    n_orbs1: usize,
+    n_orbs2: usize,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
+    proximity_matrix: ArrayView2<bool>,
     skt: &HashMap<(u8, u8), SlaterKosterTable>,
     orbital_energies: &HashMap<u8, HashMap<(i8, i8), f64>>,
 ) -> (Array2<f64>, Array2<f64>) {
@@ -119,85 +124,59 @@ pub fn h0_and_s_ab(
     return (s, h0);
 }
 
+/// Computes the H0 and S matrix elements for a single molecule.
 pub fn h0_and_s(
-    atomic_numbers: &[u8], positions: ArrayView2<f64>, n_orbs: usize,
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, proximity_matrix: ArrayView2<bool>,
-    skt: &HashMap<(u8, u8), SlaterKosterTable>,
-    orbital_energies: &HashMap<u8, HashMap<(i8, i8), f64>>,
+    n_orbs: usize,
+    atoms: &[&Atom],
+    geometry: &Geometry,
+    skt: &SlaterKoster,
 ) -> (Array2<f64>, Array2<f64>) {
     let mut h0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
     let mut s: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
     // iterate over atoms
     let mut mu: usize = 0;
-    for (i, (zi, posi)) in atomic_numbers
+    for (i, (atomi, posi)) in atoms
         .iter()
-        .zip(positions.outer_iter())
+        .zip(geometry.coordinates.outer_iter())
         .enumerate()
     {
         // iterate over orbitals on center i
-        for (ni, li, mi) in &valorbs[zi] {
+        for orbi in atomi.valorbs.iter() {
             // iterate over atoms
             let mut nu: usize = 0;
-            for (j, (zj, posj)) in atomic_numbers
+            for (j, (atomj, posj)) in atoms
                 .iter()
-                .zip(positions.outer_iter())
+                .zip(geometry.coordinates.outer_iter())
                 .enumerate()
             {
                 // iterate over orbitals on center j
-                for (nj, lj, mj) in &valorbs[zj] {
-                    if proximity_matrix[[i, j]] {
+                for orbj in atomj.valorbs.iter() {
+                    if geometry.proximities.as_ref().unwrap()[[i, j]] {
                         if mu < nu {
-                            if zi <= zj {
-                                if i != j {
-                                    let (r, x, y, z): (f64, f64, f64, f64) =
-                                        directional_cosines(posi, posj);
-                                    s[[mu, nu]] = slako_transformation(
-                                        r,
-                                        x,
-                                        y,
-                                        z,
-                                        &skt[&(*zi, *zj)].s_spline,
-                                        *li,
-                                        *mi,
-                                        *lj,
-                                        *mj,
-                                    );
-                                    h0[[mu, nu]] = slako_transformation(
-                                        r,
-                                        x,
-                                        y,
-                                        z,
-                                        &skt[&(*zi, *zj)].h_spline,
-                                        *li,
-                                        *mi,
-                                        *lj,
-                                        *mj,
-                                    );
-                                }
-                            } else {
+                            if i != j {
                                 let (r, x, y, z): (f64, f64, f64, f64) =
-                                    directional_cosines(posj, posi);
+                                    directional_cosines(posi, posj);
                                 s[[mu, nu]] = slako_transformation(
                                     r,
                                     x,
                                     y,
                                     z,
-                                    &skt[&(*zj, *zi)].s_spline,
-                                    *lj,
-                                    *mj,
-                                    *li,
-                                    *mi,
+                                    &skt.get(&atomi.kind, &atomj.kind).s_spline,
+                                    orbi.l,
+                                    orbi.m,
+                                    orbj.l,
+                                    orbj.m,
                                 );
                                 h0[[mu, nu]] = slako_transformation(
                                     r,
                                     x,
                                     y,
                                     z,
-                                    &skt[&(*zj, *zi)].h_spline,
-                                    *lj,
-                                    *mj,
-                                    *li,
-                                    *mi,
+                                    &skt.get(&atomi.kind, &atomj.kind).h_spline,
+                                    orbi.l,
+                                    orbi.m,
+                                    orbj.l,
+                                    orbj.m,
                                 );
                             }
                         } else if mu == nu {
@@ -233,8 +212,11 @@ pub fn h0_and_s(
 ///
 ///
 pub fn h0_and_s_gradients(
-    atomic_numbers: &[u8], positions: ArrayView2<f64>, n_orbs: usize,
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, proximity_matrix: ArrayView2<bool>,
+    atomic_numbers: &[u8],
+    positions: ArrayView2<f64>,
+    n_orbs: usize,
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
+    proximity_matrix: ArrayView2<bool>,
     skt: &HashMap<(u8, u8), SlaterKosterTable>,
     orbital_energies: &HashMap<u8, HashMap<(i8, i8), f64>>,
 ) -> (Array3<f64>, Array3<f64>) {
@@ -349,4 +331,3 @@ pub fn h0_and_s_gradients(
     }
     return (grad_s, grad_h0);
 }
-

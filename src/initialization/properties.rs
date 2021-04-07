@@ -1,5 +1,5 @@
 #![allow(clippy::if_same_then_else)]
-use crate::h0_and_s::h0_and_s;
+use crate::scc::h0_and_s::h0_and_s;
 use crate::initialization::parameters::*;
 use crate::{constants, defaults};
 use approx::AbsDiffEq;

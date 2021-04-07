@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::initialization::property::Property;
 use ndarray::prelude::*;
-use crate::h0_and_s::h0_and_s;
+use crate::scc::h0_and_s::h0_and_s;
 
 pub struct Properties {
     map: HashMap<&'static str, Property>
@@ -12,87 +12,284 @@ impl Properties {
         Properties{map: HashMap::new()}
     }
 
-    pub fn get(&self, name: &'static str) -> &Property {
-        match self.map.get(name) {
-            Some(value) => value,
-            _ => None
-        }
+    pub fn get(&self, name: &'static str) -> Option<&Property> {
+        self.map.get(name)
+    }
+
+    /// Returns the Property without a reference and removes it from the dict
+    pub fn take(&mut self, name: &'static str) -> Option<Property> {
+        self.map.remove(name)
     }
 
     pub fn set(&mut self, name: &'static str, value: Property) {
         self.map.insert(name, value);
     }
 
+    pub fn contains_key(&self, name: &'static str) -> bool {
+        self.map.contains_key(name)
+    }
+
+    /// Takes the atomic numbers
+    pub fn take_atomic_numbers(&mut self) -> Option<Vec<u8>> {
+        match self.take("atomic_numbers") {
+            Some(value) => value.into_vec_u8(),
+            _=> None
+        }
+    }
+
+    /// Returns the reference density matrix
+    pub fn take_p_ref(&mut self) -> Option<Array2<f64>> {
+        match self.take("ref_density_matrix") {
+            Some(value) => value.into_array2(),
+            _=> None
+        }
+    }
+
     /// Returns the H0 matrix in AO basis.
-    pub fn h0(&self) -> Option<ArrayView2<f64>>{
-        self.get("H0").as_array2()
+    pub fn take_h0(&mut self) -> Option<Array2<f64>>{
+        match self.take("H0") {
+            Some(value) => value.into_array2(),
+            _=> None
+        }
     }
 
     /// Returns the overlap matrix in AO basis.
-    pub fn s(&self) -> Option<ArrayView2<f64>>{
-        self.get("S").as_array2()
+    pub fn take_s(&mut self) -> Option<Array2<f64>>{
+        match self.take("S") {
+            Some(value) => value.into_array2(),
+            _=> None
+        }
     }
 
-    /// Returns the gradient of the H0 matrix in AO basis.
-    pub fn grad_h0(&self) -> Option<ArrayView3<f64>>{
-        self.get("gradH0").as_array3()
+    /// Returns a reference to the gradient of the H0 matrix in AO basis.
+    pub fn take_grad_h0(&mut self) -> Option<Array3<f64>>{
+        match self.take("gradH0") {
+            Some(value) => value.into_array3(),
+            _=> None
+        }
     }
 
-    /// Returns the gradient of the overlap matrix in AO basis.
-    pub fn grad_s(&self) -> Option<ArrayView3<f64>>{
-        self.get("gradS").as_array3()
+    /// Returns a reference to the gradient of the overlap matrix in AO basis.
+    pub fn take_grad_s(&mut self) -> Option<Array3<f64>>{
+        match self.take("gradS") {
+            Some(value) => value.into_array3(),
+            _=> None
+        }
     }
 
     /// Returns the charge differences per atom.
-    pub fn dq(&self) -> Option<ArrayView1<f64>>{
-        self.get("dq").as_array2()
+    pub fn take_dq(&mut self) -> Option<Array1<f64>>{
+        match self.take("dq") {
+            Some(value) => value.into_array1(),
+            _=> None
+        }
     }
 
     /// Returns the density matrix in AO basis.
-    pub fn p(&self) -> Option<ArrayView2<f64>>{
-        self.get("P").as_array2()
+    pub fn take_p(&mut self) -> Option<Array2<f64>>{
+        match self.take("P") {
+            Some(value) => value.into_array2(),
+            _=> None
+        }
     }
 
     /// Returns the gamma matrix in atomic basis.
-    pub fn gamma(&self) -> Option<ArrayView2<f64>> {
-        self.get("gamma_atom_wise").as_array2()
+    pub fn take_gamma(&mut self) -> Option<Array2<f64>> {
+        match self.take("gamma_atom_wise") {
+            Some(value) => value.into_array2(),
+            _=> None
+        }
     }
 
     /// Returns the gamma matrix in AO basis.
-    pub fn gamma_ao(&self) -> Option<ArrayView2<f64>>{
-        self.get("gamma_ao_wise").as_array2()
+    pub fn take_gamma_ao(&mut self) -> Option<Array2<f64>>{
+        match self.take("gamma_ao_wise") {
+            Some(value) => value.into_array2(),
+            _=> None
+        }
     }
 
     /// Returns the long-range corrected gamma matrix in atomic basis.
-    pub fn gamma_lr(&self) -> Option<ArrayView2<f64>>{
-        self.get("gamma_lr_atom_wise").as_array2()
+    pub fn take_gamma_lr(&mut self) -> Option<Array2<f64>>{
+        match self.take("gamma_lr_atom_wise") {
+            Some(value) => value.into_array2(),
+            _=> None
+        }
     }
 
     /// Returns the long-range corrected gamma matrix in AO basis.
-    pub fn gamma_lr_ao(&self) -> Option<ArrayView2<f64>>{
-        self.get("gamma_lr_ao_wise").as_array2()
+    pub fn take_gamma_lr_ao(&mut self) -> Option<Array2<f64>>{
+        match self.take("gamma_lr_ao_wise") {
+            Some(value) => value.into_array2(),
+            _=> None
+        }
     }
 
     /// Returns the gradient of the gamma matrix in atomic basis.
-    pub fn grad_gamma(&self) -> Option<ArrayView3<f64>>{
-        self.get("gamma_atom_wise_gradient").as_array3()
+    pub fn take_grad_gamma(&mut self) -> Option<Array3<f64>>{
+        match self.take("gamma_atom_wise_gradient") {
+            Some(value) => value.into_array3(),
+            _=> None
+        }
     }
 
     /// Returns the gradient of the gamma matrix in AO basis.
-    pub fn grad_gamma_ao(&self) -> Option<ArrayView3<f64>>{
-        self.get("gamma_ao_wise_gradient").as_array3()
+    pub fn take_grad_gamma_ao(&mut self) -> Option<Array3<f64>>{
+        match self.take("gamma_ao_wise_gradient") {
+            Some(value) => value.into_array3(),
+            _=> None
+        }
     }
 
     /// Returns the gradient of the long-range corrected gamma matrix in atomic basis.
+    pub fn take_grad_gamma_lr(&mut self) -> Option<Array3<f64>>{
+        match self.take("gamma_lr_atom_wise_gradient"){
+            Some(value) => value.into_array3(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the long-range corrected gamma matrix in AO basis.
+    pub fn take_grad_gamma_lr_ao(&mut self) -> Option<Array3<f64>>{
+       match self.take("gamma_lr_ao_wise_gradient"){
+            Some(value) => value.into_array3(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference the atomic numbers
+    pub fn atomic_numbers(&self) -> Option<&[u8]> {
+        match self.get("atomic_numbers") {
+            Some(value) => value.as_vec_u8(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the reference density matrix
+    pub fn p_ref(&self) -> Option<ArrayView2<f64>> {
+        match self.get("ref_density_matrix") {
+            Some(value) => value.as_array2(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the H0 matrix in AO basis.
+    pub fn h0(&self) -> Option<ArrayView2<f64>>{
+        match self.get("H0") {
+            Some(value) => value.as_array2(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the overlap matrix in AO basis.
+    pub fn s(&self) -> Option<ArrayView2<f64>>{
+        match self.get("S") {
+            Some(value) => value.as_array2(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the H0 matrix in AO basis.
+    pub fn grad_h0(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gradH0") {
+            Some(value) => value.as_array3(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the overlap matrix in AO basis.
+    pub fn grad_s(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gradS") {
+            Some(value) => value.as_array3(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the charge differences per atom.
+    pub fn dq(&self) -> Option<ArrayView1<f64>>{
+        match self.get("dq") {
+            Some(value) => value.as_array1(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the density matrix in AO basis.
+    pub fn p(&self) -> Option<ArrayView2<f64>>{
+        match self.get("P") {
+            Some(value) => value.as_array2(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gamma matrix in atomic basis.
+    pub fn gamma(&self) -> Option<ArrayView2<f64>> {
+        match self.get("gamma_atom_wise") {
+            Some(value) => value.as_array2(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gamma matrix in AO basis.
+    pub fn gamma_ao(&self) -> Option<ArrayView2<f64>>{
+        match self.get("gamma_ao_wise") {
+            Some(value) => value.as_array2(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the long-range corrected gamma matrix in atomic basis.
+    pub fn gamma_lr(&self) -> Option<ArrayView2<f64>>{
+        match self.get("gamma_lr_atom_wise") {
+            Some(value) => value.as_array2(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the long-range corrected gamma matrix in AO basis.
+    pub fn gamma_lr_ao(&self) -> Option<ArrayView2<f64>>{
+        match self.get("gamma_lr_ao_wise") {
+            Some(value) => value.as_array2(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the gamma matrix in atomic basis.
+    pub fn grad_gamma(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gamma_atom_wise_gradient") {
+            Some(value) => value.as_array3(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the gamma matrix in AO basis.
+    pub fn grad_gamma_ao(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gamma_ao_wise_gradient") {
+            Some(value) => value.as_array3(),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the long-range corrected gamma matrix in atomic basis.
     pub fn grad_gamma_lr(&self) -> Option<ArrayView3<f64>>{
-        self.get("gamma_lr_atom_wise_gradient").as_array3()
+        match self.get("gamma_lr_atom_wise_gradient"){
+            Some(value) => value.as_array3(),
+            _=> None
+        }
     }
 
-    /// Returns the gradient of the long-range corrected gamma matrix in AO basis.
+    /// Returns a reference to the gradient of the long-range corrected gamma matrix in AO basis.
     pub fn grad_gamma_lr_ao(&self) -> Option<ArrayView3<f64>>{
-       self.get("gamma_lr_ao_wise_gradient").as_array3()
+        match self.get("gamma_lr_ao_wise_gradient"){
+            Some(value) => value.as_array3(),
+            _=> None
+        }
     }
 
+    /// Set the atomic numbers
+    pub fn set_atomic_numbers(&mut self, atomic_numbers: Vec<u8>) {self.set("atomic_numbers", Property::from(atomic_numbers))}
+
+    /// Set the reference density matrix
+    pub fn set_p_ref(&mut self, ref_p: Array2<f64>) {self.set("ref_density_matrix", Property::from(ref_p))}
 
     /// Set the H0 matrix in AO basis.
     pub fn set_h0(&mut self, h0: Array2<f64>) {

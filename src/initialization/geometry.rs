@@ -14,9 +14,9 @@ use std::hash::Hash;
 /// in this type.
 pub struct Geometry {
     pub coordinates: Array2<f64>,
-    pub distances: Some(Array2<f64>),
-    pub directions: Some(Array2<f64>),
-    pub proximities: Some(Array2<bool>),
+    pub distances: Option<Array2<f64>>,
+    pub directions: Option<Array3<f64>>,
+    pub proximities: Option<Array2<bool>>,
 }
 
 impl From<Array2<f64>> for Geometry {
@@ -27,9 +27,9 @@ impl From<Array2<f64>> for Geometry {
             distance_matrices(coordinates.view(), None);
         Geometry {
             coordinates: coordinates,
-            distances: dist,
-            directions: dir,
-            proximities: prox,
+            distances: Some(dist),
+            directions: Some(dir),
+            proximities: Some(prox),
         }
     }
 }
