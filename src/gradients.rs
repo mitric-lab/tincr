@@ -3,7 +3,7 @@ use ndarray::prelude::*;
 use crate::calculator::get_gamma_gradient_matrix;
 use crate::calculator::*;
 use crate::constants::ATOM_NAMES;
-use crate::defaults;
+use crate::{defaults, scc_routine};
 use crate::h0_and_s::h0_and_s_gradients;
 use crate::io::GeneralConfig;
 use crate::molecule::{distance_matrix, Molecule};
@@ -13,6 +13,7 @@ use crate::slako_transformations::*;
 use crate::solver::*;
 use crate::test::get_water_molecule;
 use crate::transition_charges::trans_charges;
+use crate::molecule::*;
 use approx::AbsDiffEq;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::Data;
@@ -40,6 +41,32 @@ where
         tmp.assign(self);
         tmp
     }
+}
+
+pub fn dftb_numerical_gradients(molecule:&mut Molecule)->Array1<f64>{
+    let positions:Array2<f64> = molecule.positions.clone();
+    let mut gradient:Array1<f64> = Array1::zeros(positions.dim().0*3);
+    let h:f64 = 1.0e-5;
+
+    for (ind,coord) in positions.iter().enumerate(){
+        let mut ei:Array1<f64> = Array1::zeros(positions.dim().0*3);
+        ei[ind] = 1.0;
+        let ei:Array2<f64> = ei.into_shape(positions.raw_dim()).unwrap();
+        let positions_1:Array2<f64> = &positions + &(h *&ei);
+        let positions_2:Array2<f64> = &positions + &(-h *&ei);
+
+        molecule.update_geometry(positions_1);
+        let (energy_1, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+            scc_routine::run_scc(molecule);
+
+        molecule.update_geometry(positions_2);
+        let (energy_2, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+            scc_routine::run_scc(molecule);
+
+        let grad_temp:f64 = (energy_1 - energy_2)/(2.0*h);
+        gradient[ind] = grad_temp;
+    }
+    return gradient;
 }
 
 pub fn get_gradients(

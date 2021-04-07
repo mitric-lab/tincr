@@ -164,6 +164,10 @@ fn main() {
             println!("gradE0 {}",grad_e0);
             println!("gradtotal {}",grad_e0+ grad_vrep);
 
+            let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
+
+            println!("numerical dftb gradient {}",num_grad);
+
             //mol.calculator.set_active_orbitals(f.to_vec());
             //let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
             //    get_exc_energies(&f, &mol, Some(4), &s, &orbe, &orbs, false, None);
