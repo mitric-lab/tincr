@@ -194,13 +194,32 @@ pub fn fmo_gs_gradients(
                         let mut term_2:Array1<f64> = Array1::zeros(3 * pair_atoms);
                         for dir in (0..3).into_iter(){
                             let dir_xyz:usize = dir as usize;
+                            let mut diag_ind:usize = 0;
                             for a in (0..pair_atoms).into_iter(){
                                 let index:usize = 3 * a+dir_xyz;
                                 term_1[index] = ddq_arr[a] * dgamma_ac.slice(s![index,a,..]).dot(&mol_k.final_charges);
 
-                                let tmp_1:f64 = dw_dimer.slice(s![index,..,..]).dot(&pair_smat.t()).trace().unwrap();
-                                let tmp_2:f64 = dp_dimer.dot(&pair_grads.slice(s![index,..,..]).t()).trace().unwrap();
-                                term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![a,..]).dot(&fragments[ind_k].final_charges);
+                                let mut atom_type:u8 = 0;
+                                let mut norbs_a:usize = 0;
+
+                                if a < pair.frag_a_atoms {
+                                    atom_type =  fragments[pair.frag_a_index].atomic_numbers[a];
+                                    norbs_a = fragments[pair.frag_a_index].calculator.valorbs[&atom_type].len();
+                                } else {
+                                    atom_type =  fragments[pair.frag_b_index].atomic_numbers[a-pair.frag_a_atoms];
+                                    norbs_a = fragments[pair.frag_b_index].calculator.valorbs[&atom_type].len();
+                                }
+
+                                let tmp_1:Array2<f64> = dw_dimer.slice(s![index,..,..]).dot(&pair_smat.t());
+                                let tmp_2:Array2<f64> = dp_dimer.dot(&pair_grads.slice(s![index,..,..]).t());
+                                let sum:Array2<f64> = tmp_1 + tmp_2;
+
+                                let diag:f64 = sum.diag().slice(s![diag_ind..diag_ind+norbs_a]).to_owned().sum();
+                                diag_ind += norbs_a;
+                                // let tmp_1:f64 = dw_dimer.slice(s![index,..,..]).dot(&pair_smat.t()).trace().unwrap();
+                                // let tmp_2:f64 = dp_dimer.dot(&pair_grads.slice(s![index,..,..]).t()).trace().unwrap();
+                                // term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![a,..]).dot(&fragments[ind_k].final_charges);
+                                term_2[index] = diag * g0_ab.slice(s![a,..]).dot(&fragments[ind_k].final_charges);
                             }
                         }
                         let embedding_part_1: Array1<f64> = term_1 + term_2;
@@ -216,13 +235,25 @@ pub fn fmo_gs_gradients(
                         let mut term_2:Array1<f64> = Array1::zeros(3 * fragments[ind_k].n_atoms);
                         for dir in (0..3).into_iter(){
                             let dir_xyz:usize = dir as usize;
+                            let mut diag_ind:usize = 0;
                             for a in (0..fragments[ind_k].n_atoms).into_iter(){
                                 let index:usize = 3 * a+dir_xyz;
                                 term_1[index] = fragments[ind_k].final_charges[a] * dgamma_ac_k.slice(s![index,..,a]).dot(&ddq_arr);
 
-                                let tmp_1:f64 = w_mat_k.slice(s![index,..,..]).dot(&frag_grad_results[ind_k].s.t()).trace().unwrap();
-                                let tmp_2:f64 = fragments[ind_k].final_p_matrix.dot(&frag_grad_results[ind_k].grad_s.slice(s![index,..,..]).t()).trace().unwrap();
-                                term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![..,a]).dot(&ddq_arr);
+                                let atom_type:u8 = fragments[ind_k].atomic_numbers[a];
+                                let norbs_k:usize = fragments[ind_k].calculator.valorbs[&atom_type].len();
+
+                                let tmp_1:Array2<f64> = w_mat_k.slice(s![index,..,..]).dot(&frag_grad_results[ind_k].s.t());
+                                let tmp_2:Array2<f64> = fragments[ind_k].final_p_matrix.dot(&frag_grad_results[ind_k].grad_s.slice(s![index,..,..]).t());
+
+                                let sum:Array2<f64> = tmp_1 + tmp_2;
+
+                                let diag:f64 = sum.diag().slice(s![diag_ind..diag_ind+norbs_k]).to_owned().sum();
+                                diag_ind += norbs_k;
+                                // let tmp_1:f64 = w_mat_k.slice(s![index,..,..]).dot(&frag_grad_results[ind_k].s.t()).trace().unwrap();
+                                // let tmp_2:f64 = fragments[ind_k].final_p_matrix.dot(&frag_grad_results[ind_k].grad_s.slice(s![index,..,..]).t()).trace().unwrap();
+                                // term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![..,a]).dot(&ddq_arr);
+                                term_2[index] = diag * g0_ab.slice(s![..,a]).dot(&ddq_arr);
                             }
                         }
                         let embedding_part_2: Array1<f64> = term_1 + term_2;

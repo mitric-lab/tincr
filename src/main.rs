@@ -154,6 +154,16 @@ fn main() {
             );
             drop(molecule_timer);
 
+            mol.calculator.set_active_orbitals(f.to_vec());
+            let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+                Array1<f64>,
+                Array1<f64>,
+                Array1<f64>,
+                Array3<f64>,
+            ) = get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None, None);
+            println!("gradE0 {}",grad_e0);
+            println!("gradtotal {}",grad_e0+ grad_vrep);
+
             //mol.calculator.set_active_orbitals(f.to_vec());
             //let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
             //    get_exc_energies(&f, &mol, Some(4), &s, &orbe, &orbs, false, None);
@@ -166,7 +176,7 @@ fn main() {
                 positions,
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
-                None,
+                Some(0.0),
                 None,
                 config,
                 None,
