@@ -794,43 +794,43 @@ pub fn fmo_calculate_pairwise_gradients(
                 let mut pair_s: Option<Array2<f64>> = None;
                 let mut pair_density: Option<Array2<f64>> = None;
 
-                // let mut pair: Molecule = Molecule::new(
-                //     atomic_numbers,
-                //     positions,
-                //     Some(config.mol.charge),
-                //     Some(config.mol.multiplicity),
-                //     Some(0.0),
-                //     None,
-                //     config.clone(),
-                //     saved_calc,
-                //     Some(connectivity_matrix),
-                //     Some(graph_new),
-                //     Some(graph_indexes),
-                //     Some(subgraph),
-                //     Some(distance_frag),
-                //     Some(dir_frag),
-                //     Some(prox_frag),
-                //     None,
-                // );
-
                 let mut pair: Molecule = Molecule::new(
-                   atomic_numbers,
-                   positions,
-                   Some(config.mol.charge),
-                   Some(config.mol.multiplicity),
-                   Some(0.0),
-                   None,
-                   config.clone(),
-                   None,
-                   None,
-                   None,
-                   None,
-                   None,
-                   None,
-                   None,
-                   None,
-                   None,
+                    atomic_numbers,
+                    positions,
+                    Some(config.mol.charge),
+                    Some(config.mol.multiplicity),
+                    Some(0.0),
+                    None,
+                    config.clone(),
+                    saved_calc,
+                    Some(connectivity_matrix),
+                    Some(graph_new),
+                    Some(graph_indexes),
+                    Some(subgraph),
+                    Some(distance_frag),
+                    Some(dir_frag),
+                    Some(prox_frag),
+                    None,
                 );
+
+                // let mut pair: Molecule = Molecule::new(
+                //    atomic_numbers,
+                //    positions,
+                //    Some(config.mol.charge),
+                //    Some(config.mol.multiplicity),
+                //    Some(0.0),
+                //    None,
+                //    config.clone(),
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                //    None,
+                // );
 
                 if use_saved_calc == false {
                     saved_calculators.push(pair.calculator.clone());
@@ -857,7 +857,7 @@ pub fn fmo_calculate_pairwise_gradients(
                         Array2<f64>,
                         Vec<f64>,
                     ) = scc_routine::run_scc(&mut pair);
-                    println!("FMO pair energy {}",energy.clone());
+                    // println!("FMO pair energy {}",energy.clone());
                     energy_pair = Some(energy);
                     charges_pair = Some(pair.final_charges.clone());
                     pair_density = Some(pair.final_p_matrix.clone());
