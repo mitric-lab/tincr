@@ -1,4 +1,5 @@
 use crate::dispersion::model::Molecule;
+use crate::dispersion::auxliary_functions::spread;
 use ndarray::prelude::*;
 use std::ops::AddAssign;
 
@@ -64,7 +65,7 @@ pub fn get_atm_dispersion(
         // parallelise this loop
         for iat in 0..mol.n_atoms {
             let izp = mol.id[iat];
-            for jat in 0..iat {
+            for jat in 0..iat+1 {
                 let jzp = mol.id[jat];
                 let c6ij = c6[[iat, jat]];
                 let r0ij = a1 * (3.0*r4r2[jzp]*r4r2[izp]).sqrt() + a2;
@@ -173,7 +174,7 @@ pub fn get_atm_dispersion(
         // parallelise this loop
         for iat in 0..mol.n_atoms {
             let izp = mol.id[iat];
-            for jat in 0..iat {
+            for jat in 0..iat+1 {
                 let jzp = mol.id[jat];
                 let c6ij = c6[[iat, jat]];
                 let r0ij = a1 * (3.0*r4r2[jzp]*r4r2[izp]).sqrt() + a2;
@@ -262,18 +263,6 @@ fn triple_scale(ii: usize, jj: usize, kk: usize) -> f64 {
             // i,j,j' and i,j,i' -> 1/2
             0.5
         }
-    }
-}
-
-fn spread(source: &Array1<f64>, axis: u8, copies: usize) -> Array2<f64> {
-    let mut a: Array2<f64> = Array::zeros((copies, source.len()));
-    for i in 0..copies {
-        a.slice_mut(s![i, ..]).assign(&source);
-    }
-    if axis == 0 {
-        a.reversed_axes()
-    } else {
-        a
     }
 }
 
@@ -399,7 +388,7 @@ impl RationalDampingParam {
             // parallelise this loop
             for iat in 0..mol.n_atoms {
                 let izp = mol.id[iat];
-                for jat in 0..iat {
+                for jat in 0..iat+1 {
                     let jzp = mol.id[jat];
                     let rrij = 3.0*r4r2[izp]*r4r2[jzp];
                     let r0ij = self.a1 * rrij.sqrt() + self.a2;
@@ -456,7 +445,7 @@ impl RationalDampingParam {
             // parallelise this loop
             for iat in 0..mol.n_atoms {
                 let izp = mol.id[iat];
-                for jat in 0..iat {
+                for jat in 0..iat+1 {
                     let jzp = mol.id[jat];
                     let rrij = 3.0*r4r2[izp]*r4r2[jzp];
                     let r0ij = self.a1 * rrij.sqrt() + self.a2;

@@ -23,6 +23,8 @@ pub struct Molecule {
     pub positions: Array2<f64>,
     pub charge: i8,
     pub multiplicity: u8,
+    pub periodic: [bool; 3],
+    pub lattice: [[f64; 3]; 3],
     pub n_atoms: usize,
     pub nid: usize,           // number of unique atoms
     pub id: Array1<usize>,    // identifier of atoms
@@ -35,6 +37,8 @@ impl Molecule {
         positions: Array2<f64>,
         charge: Option<i8>,
         multiplicity: Option<u8>,
+        periodic: Option<[bool; 3]>,
+        lattice: Option<[[f64; 3]; 3]>,
     ) -> Molecule {
         let n_atoms: usize = atomic_numbers.len();
         let charge: i8 = charge.unwrap_or(0);
@@ -52,11 +56,29 @@ impl Molecule {
             id[iat] = nid - 1;
         }
 
+        let periodic = if periodic.is_some() {
+            periodic.unwrap()
+        } else {
+            if lattice.is_some() {
+                [true; 3]
+            } else {
+                [false; 3]
+            }
+        };
+
+        let lattice = if lattice.is_some() {
+            lattice.unwrap()
+        } else {
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        };
+
         let mol = Molecule {
             atomic_numbers,
             positions,
             charge,
             multiplicity,
+            periodic,
+            lattice,
             n_atoms,
             nid,
             id,
@@ -348,7 +370,7 @@ impl D4Model {
             // paralellise this loop
             for iat in 0..mol.n_atoms {
                 let izp = mol.id[iat] as usize;
-                for jat in 0..iat {
+                for jat in 0..iat+1 {
                     let jzp = mol.id[jat] as usize;
                     let mut dc6 = 0.0;
                     let mut dc6dcni = 0.0;
@@ -386,7 +408,7 @@ impl D4Model {
             // paralellise this loop
             for iat in 0..mol.n_atoms {
                 let izp = mol.id[iat] as usize;
-                for jat in 0..iat {
+                for jat in 0..iat+1 {
                     let jzp = mol.id[jat] as usize;
                     let mut dc6 = 0.0;
                     for iref in 0..self.ref_[izp] {

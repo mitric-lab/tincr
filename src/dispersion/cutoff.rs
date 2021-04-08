@@ -1,4 +1,5 @@
 use ndarray::{s, Array, Array1, Array2, ArrayView2};
+use crate::dispersion::auxliary_functions::{crossproduct, dot, norm2, mergei, lat_to_array};
 
 const CN_DEFAULT: f64 = 30.0; // Coordination number cutoff
 const DISP2_DEFAULT: f64 = 60.0; // Two-body interaction cutoff
@@ -110,7 +111,7 @@ pub fn get_lattice_points_rep_3d(
 
 /// Create lattice points within a given cutoff
 /// returns variable trans
-fn get_lattice_points_cutoff(
+pub fn get_lattice_points_cutoff(
     periodic: &[bool; 3],
     lat: &[[f64; 3]; 3],
     rthr: f64,
@@ -153,51 +154,10 @@ fn get_translations(
     return rep;
 }
 
-/// Returns tsource if mask is true, elsewise fsource.
-/// Both sources should be isize.
-fn mergei(tsource: isize, fsource: isize, mask: bool) -> isize {
-    if mask {
-        tsource
-    } else {
-        fsource
-    }
-}
-
-/// Perform cross product of two 3D vectors.
-fn crossproduct(
-    a: &[f64; 3],
-    b: &[f64; 3]
-) -> [f64; 3] {
-    let mut c: [f64; 3] = [0.0; 3];
-    c[0] = a[1]*b[2] - b[1]*a[2];
-    c[1] = a[2]*b[0] - b[2]*a[0];
-    c[2] = a[0]*b[1] - b[0]*a[1];
-    return c;
-}
-
-fn norm2(a: &[f64]) -> f64 {
-    a.iter().map(|a| a.powi(2)).sum::<f64>().sqrt()
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b.iter()).map(|(a, b)| a * b).sum()
-}
-
 fn new_3d_vec_from<F: Iterator<Item=f64>>(src: F) -> [f64; 3] {
     let mut result = [0.0; 3];
     for (rref, val) in result.iter_mut().zip(src) {
         *rref = val;
     }
     result
-}
-
-fn lat_to_array(
-    lat: &[[f64; 3]; 3],
-) -> Array2<f64> {
-    let mut lat_a: Array2<f64> = Array::zeros((3, 3));
-    for i in 0..3 {
-        lat_a.slice_mut(s![i, ..]).assign(&Array::from((&lat[i]).to_vec()));
-    }
-
-    return lat_a;
 }
