@@ -59,7 +59,7 @@ use approx::AbsDiffEq;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(8)
         .build_global()
         .unwrap();
 
@@ -261,7 +261,7 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let fragments_data: Vec<frag_grad_result> = fmo_calculate_fragment_gradients(&mut fragments);
+            let fragments_data: Vec<frag_grad_result> = fmo_calculate_fragment_gradients_par(&mut fragments);
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -272,7 +272,7 @@ fn main() {
             let molecule_timer: Instant = Instant::now();
 
             let (pairs_data): (Vec<pair_grad_result>) =
-                fmo_calculate_pairwise_gradients(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&gamma_total);
+                fmo_calculate_pairwise_gradients_par(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&gamma_total);
 
             println!(
                 "{:>68} {:>8.2} s",
