@@ -73,7 +73,7 @@ pub fn get_gradients(
     orbe: &Array1<f64>,
     orbs: &Array2<f64>,
     s: &Array2<f64>,
-    molecule: &Molecule,
+    molecule: &mut Molecule,
     XmY: &Option<Array3<f64>>,
     XpY: &Option<Array3<f64>>,
     exc_state: Option<usize>,
@@ -149,7 +149,7 @@ pub fn get_gradients(
             Array3<f64>,
             Array3<f64>,
             Array3<f64>,
-        ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
+        ) = gradient_lc_gs(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
 
         // set values for return of the gradients
         grad_e0 = gradE0;
@@ -282,7 +282,7 @@ pub fn get_gradients(
             Array3<f64>,
             Array3<f64>,
             Array3<f64>,
-        ) = gradient_lc_gs(&molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
+        ) = gradient_lc_gs(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
 
         // set values for return of the gradients
         grad_e0 = gradE0;
@@ -413,7 +413,7 @@ pub fn get_gradients(
 
 // only ground state
 pub fn gradient_lc_gs(
-    molecule: &Molecule,
+    molecule: &mut Molecule,
     orbe_occ: &Array1<f64>,
     orbe_virt: &Array1<f64>,
     orbs_occ: &Array2<f64>,
@@ -473,6 +473,7 @@ pub fn gradient_lc_gs(
         &molecule.calculator.skt,
         &molecule.calculator.orbital_energies,
     );
+    molecule.set_h0_and_s_gradients(&grad_h0,&grad_s);
 
     info!(
         "{:>65} {:>8.3} s",

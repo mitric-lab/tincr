@@ -160,7 +160,7 @@ fn main() {
                 Array1<f64>,
                 Array1<f64>,
                 Array3<f64>,
-            ) = get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None, None);
+            ) = get_gradients(&orbe, &orbs, &s, &mut mol, &None, &None, None, &None, None);
             println!("gradE0 {}",grad_e0);
             println!("");
             println!("gradtotal {}",&grad_e0+ &grad_vrep);

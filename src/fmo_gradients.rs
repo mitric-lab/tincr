@@ -906,22 +906,22 @@ pub fn fmo_calculate_pairwise_gradients(
                         Array1<f64>,
                         Array1<f64>,
                         Array3<f64>,
-                    ) = get_gradients(&orbe, &orbs, &s, &pair, &None, &None, None, &None, None);
+                    ) = get_gradients(&orbe, &orbs, &s, &mut pair, &None, &None, None, &None, None);
 
                     grad_e0_pair = Some(gradE0);
                     grad_vrep_pair = Some(grad_v_rep);
 
-                    let (grad_s, grad_h0): (Array3<f64>, Array3<f64>) = h0_and_s_gradients(
-                        &pair.atomic_numbers,
-                        pair.positions.view(),
-                        pair.calculator.n_orbs,
-                        &pair.calculator.valorbs,
-                        pair.proximity_matrix.view(),
-                        &pair.calculator.skt,
-                        &pair.calculator.orbital_energies,
-                    );
+                    // let (grad_s, grad_h0): (Array3<f64>, Array3<f64>) = h0_and_s_gradients(
+                    //     &pair.atomic_numbers,
+                    //     pair.positions.view(),
+                    //     pair.calculator.n_orbs,
+                    //     &pair.calculator.valorbs,
+                    //     pair.proximity_matrix.view(),
+                    //     &pair.calculator.skt,
+                    //     &pair.calculator.orbital_energies,
+                    // );
                     pair_s = Some(s);
-                    pair_grad_s = Some(grad_s)
+                    pair_grad_s = pair.s_grad;
                 }
 
                 let pair_res: pair_grad_result = pair_grad_result::new(
@@ -978,7 +978,7 @@ pub fn fmo_calculate_fragment_gradients(fragments: &mut Vec<Molecule>) -> (Vec<f
             Array3<f64>,
             Array3<f64>,
             Array3<f64>,
-        ) = gradient_lc_gs(&frag, &orbe_occ, &orbe_virt, &orbs_occ, &s, Some(0.0));
+        ) = gradient_lc_gs(frag, &orbe_occ, &orbe_virt, &orbs_occ, &s, Some(0.0));
 
         let frag_result: frag_grad_result =
             frag_grad_result::new(energy, gradE0, grad_v_rep, grad_s, s);

@@ -833,7 +833,7 @@ pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, 
         Array1<f64>,
         Array1<f64>,
         Array3<f64>,
-    ) = get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None, None);
+    ) = get_gradients(&orbe, &orbs, &s, mol, &None, &None, None, &None, None);
 
     // println!("Enegies and gradient");
     // println!("Energy: {}", &energy);
@@ -878,7 +878,7 @@ pub fn get_energies_and_gradient(
         &orbe,
         &orbs,
         &s,
-        &mol,
+        mol,
         &Some(tmp.2),
         &Some(tmp.3),
         Some(ex_state),
