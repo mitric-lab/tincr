@@ -361,7 +361,6 @@ pub fn fmo_gs_gradients(
             embedding_gradients.push(embedding_gradient);
             dimer_gradients.push(dimer_gradient_e0 + dimer_gradient_vrep);
         } else {
-            println!("ES-DIM Approximation");
             let dimer_natoms: usize =
                 fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
             let dimer_gradient: Array1<f64> = Array::zeros(dimer_natoms * 3);
