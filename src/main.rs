@@ -291,68 +291,68 @@ fn main() {
             );
             drop(molecule_timer);
 
-            let mut mol: Molecule = Molecule::new(
-                atomic_numbers.clone(),
-                positions,
-                Some(config.mol.charge),
-                Some(config.mol.multiplicity),
-                Some(0.0),
-                None,
-                config.clone(),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None
-            );
-
-            println!(" ");
-
-            let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-                scc_routine::run_scc(&mut mol);
-            mol.calculator.set_active_orbitals(f.to_vec());
-
-            println!("SCC Energy {}",energy);
-
-            let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
-            let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());
-            let numerical_gradient_ridders:Array1<f64> = fmo_numerical_gradient_new(&atomic_numbers,&coords,config.clone());
-            println!("Numerical gradient fmo ridders method {}",numerical_gradient_ridders);
-            println!(" ");
+            // let mut mol: Molecule = Molecule::new(
+            //     atomic_numbers.clone(),
+            //     positions,
+            //     Some(config.mol.charge),
+            //     Some(config.mol.multiplicity),
+            //     Some(0.0),
+            //     None,
+            //     config.clone(),
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None
+            // );
+            //
+            // println!(" ");
+            //
+            // let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+            //     scc_routine::run_scc(&mut mol);
+            // mol.calculator.set_active_orbitals(f.to_vec());
+            //
+            // println!("SCC Energy {}",energy);
+            //
+            // let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+            // let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());
+            // let numerical_gradient_ridders:Array1<f64> = fmo_numerical_gradient_new(&atomic_numbers,&coords,config.clone());
+            // println!("Numerical gradient fmo ridders method {}",numerical_gradient_ridders);
+            // println!(" ");
 
             println!("FMO gradients {}", gradients);
             println!(" ");
 
-            // println!("Difference between FMO and ridders:");
-            let diff:Array1<f64> = (&gradients - &numerical_gradient_ridders).mapv(|val|val.abs());
-            // println!("{}",diff);
-            let max_gradient: f64 = diff.clone()
-                .iter()
-                .cloned()
-                .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
-                .unwrap();
-            println!("Max deviation: {}",max_gradient);
-            println!("Norm of difference {}",(&gradients - &numerical_gradient_ridders).norm());
-            println!(" ");
+            // // println!("Difference between FMO and ridders:");
+            // let diff:Array1<f64> = (&gradients - &numerical_gradient_ridders).mapv(|val|val.abs());
+            // // println!("{}",diff);
+            // let max_gradient: f64 = diff.clone()
+            //     .iter()
+            //     .cloned()
+            //     .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+            //     .unwrap();
+            // println!("Max deviation: {}",max_gradient);
+            // println!("Norm of difference {}",(&gradients - &numerical_gradient_ridders).norm());
+            // println!(" ");
 
             // println!("Numerical gradient fmo {}",numerical_gradient);
             // println!("Norm of difference {}",(&gradients - &numerical_gradient).norm());
             // println!(" ");
 
-            let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
-                Array1<f64>,
-                Array1<f64>,
-                Array1<f64>,
-                Array3<f64>,
-            ) = get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None, None);
+            // let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+            //     Array1<f64>,
+            //     Array1<f64>,
+            //     Array1<f64>,
+            //     Array3<f64>,
+            // ) = get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None, None);
 
             //let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
 
-            println!("DFTB Gradient {}",&grad_e0 + &grad_vrep);
+            // println!("DFTB Gradient {}",&grad_e0 + &grad_vrep);
             // let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
             // println!("");
             // println!("numerical dftb gradient {}",num_grad);
