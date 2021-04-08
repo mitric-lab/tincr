@@ -1,6 +1,7 @@
 use std::hash::{Hash, Hasher};
 
 #[rustfmt::skip]
+#[derive(Clone)]
 /// Type that contains the kind of a chemical element.
 pub enum Element {
     H,                                                                                   He,

@@ -1,32 +1,33 @@
 use approx::AbsDiffEq;
 use ndarray::{array, Array, Array1, Array2, ArrayView2};
+use crate::initialization::Atom;
 
-// Mulliken Charges
+/// Calculate the Mulliken charges from the density matrix and the overlap integrals
 pub fn mulliken(
     p: ArrayView2<f64>,
     p0: ArrayView2<f64>,
     s: ArrayView2<f64>,
-    orbs_per_atom: &[usize],
-    n_atom: usize,
+    atoms: &[&Atom],
+    n_atoms: usize,
 ) -> (Array1<f64>, Array1<f64>) {
     let dp = &p - &p0;
 
-    let mut q: Array1<f64> = Array1::<f64>::zeros(n_atom);
-    let mut dq: Array1<f64> = Array1::<f64>::zeros(n_atom);
+    let mut q: Array1<f64> = Array1::<f64>::zeros(n_atoms);
+    let mut dq: Array1<f64> = Array1::<f64>::zeros(n_atoms);
 
     // iterate over atoms A
     let mut mu = 0;
     // inside the loop
-    for a in 0..n_atom {
+    for (i, atomi) in atoms.iter().enumerate() {
         // iterate over orbitals on atom A
-        for _mu_a in 0..orbs_per_atom[a] {
+        for _ in 0..atomi.n_orbs {
             let mut nu = 0;
             // iterate over atoms B
-            for b in 0..n_atom {
+            for (j, atomj) in atoms.iter().enumerate() {
                 // iterate over orbitals on atom B
-                for _nu_b in 0..orbs_per_atom[b] {
-                    q[a] = q[a] + (&p[[mu, nu]] * &s[[mu, nu]]);
-                    dq[a] = dq[a] + (&dp[[mu, nu]] * &s[[mu, nu]]);
+                for _ in 0..atomj.n_orbs {
+                    q[i] = q[i] + (&p[[mu, nu]] * &s[[mu, nu]]);
+                    dq[i] = dq[i] + (&dp[[mu, nu]] * &s[[mu, nu]]);
                     nu += 1;
                 }
             }

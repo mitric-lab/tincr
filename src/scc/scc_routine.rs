@@ -1,14 +1,14 @@
 use crate::initialization::molecule::System;
 use crate::initialization::properties::ElectronicData;
 use crate::io::SccConfig;
-use crate::scc::broyden::BroydenMixer;
-use crate::scc::gamma_approximation::gamma_atomwise;
+use crate::scc::mixer::BroydenMixer;
+use crate::scc::gamma_approximation::{gamma_atomwise, gamma_ao_wise};
 use crate::scc::h0_and_s::h0_and_s;
 use crate::scc::helpers::density_matrix_ref;
 use crate::scc::level_shifting::LevelShifter;
 use crate::scc::mixer::*;
 use crate::scc::mulliken::mulliken;
-use crate::scc::{fermi_occupation, get_repulsive_energy};
+use crate::scc::{fermi_occupation, get_repulsive_energy, construct_h1, density_matrix, enable_level_shifting, get_electronic_energy, lc_exact_exchange, get_frontier_orbitals};
 use crate::utils::Timer;
 use approx::AbsDiffEq;
 use itertools::Itertools;
@@ -23,34 +23,42 @@ use std::fmt;
 use std::iter::FromIterator;
 use std::ops::Deref;
 use std::time::Instant;
-use tincr::constants::*;
-use tincr::defaults;
-use tincr::h0_and_s::h0_and_s;
-use tincr::io::*;
+
 
 #[derive(Debug, Clone)]
 pub struct SCCError {
-    pub iteration: usize,
-    pub energy_diff: f64,
-    pub charge_diff: f64,
+    pub message: String,
+    iteration: usize,
+    energy_diff: f64,
+    charge_diff: f64,
+}
+
+impl SCCError{
+    pub fn new(iter: usize, energy_diff: f64, charge_diff:f64) -> Self {
+        let message: String = format! {"SCC-Routine failed in Iteration: {}. The charge\
+                                        difference at the last iteration was {} and the energy\
+                                        difference was {}",
+                                       iter,
+                                       charge_diff,
+                                       charge_diff};
+        Self {
+            message,
+            iteration: iter,
+            energy_diff: energy_diff,
+            charge_diff: charge_diff,
+        }
+    }
 }
 
 impl fmt::Display for SCCError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write! {f, "SCC-Routine failed in Iteration: {}. The charge difference at the last\
-            iteration was {} and the energy difference was {}",
-        self.iteration, self.charge_diff, self.charge_diff}
+        write! {f, "{}", self.message.as_str()}
     }
 }
 
 impl std::error::Error for SCCError {
     fn description(&self) -> &str {
-        (format! {"SCC-Routine failed in Iteration: {}. The charge difference at the last\
-          iteration was {} and the energy difference was {}",
-        self.iteration,
-        self.charge_diff,
-        self.charge_diff})
-        .as_str()
+        self.message.as_str()
     }
 }
 
@@ -62,7 +70,7 @@ pub trait RestrictedSCC {
     fn run_scc(&mut self) -> Result<f64, SCCError>;
 }
 
-impl RestrictedSCC for System {
+impl<'a> RestrictedSCC for System<'a> {
     ///  To run the SCC calculation the following properties in the molecule need to be set:
     /// - H0
     /// - S: overlap matrix in AO basis
@@ -73,7 +81,7 @@ impl RestrictedSCC for System {
     fn prepare_scc(&mut self) {
         // get H0 and S
         let (h0, s): (Array2<f64>, Array2<f64>) =
-            h0_and_s(self.n_orbs, &self.atoms, &self.geometry, &self.skt);
+            h0_and_s(self.n_orbs, &self.atoms, &self.geometry, &self.slako);
         // and save it in the molecule properties
         self.properties.set_h0(h0);
         self.properties.set_s(s);
@@ -89,9 +97,20 @@ impl RestrictedSCC for System {
         );
         // and save it as a `Property`
         self.properties.set_gamma(gamma);
-        // TODO: Check if LRC is requested and set gamma LC matrix, maybe we dont need to check this
-        // here. We could set an Option<GammaFunction> in the System class and if this is set,
-        // then we calculate the gamma_lr matrix
+
+        // if the system contains a long-range corrected Gammafunction the gamma matrix will be computed
+        if self.gammafunction_lc.is_some() {
+            let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                self.properties.atomic_numbers().unwrap(),
+                &self.atoms,
+                self.n_atoms,
+                self.n_orbs,
+                self.geometry.distances.as_ref().unwrap().view(),
+            );
+            self.properties.set_gamma_lr(gamma_lr);
+            self.properties.set_gamma_lr_ao(gamma_lr_ao);
+        }
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
         if !self.properties.contains_key("dq") {
@@ -119,14 +138,17 @@ impl RestrictedSCC for System {
         let scf_charge_conv: f64 = self.config.scf.scf_charge_conv;
         let scf_energy_conv: f64 = self.config.scf.scf_energy_conv;
 
-        // molecular properties, we take all properties that are needed from the Properties type
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
-
         // the properties that are changed during the SCC routine are taken
         // and will be inserted at the end of the SCC routine
         let mut p: Array2<f64> = self.properties.take_p().unwrap();
         let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
+        let mut q: Array1<f64> = Array1::from_shape_vec((self.n_atoms), self.atoms.iter().map(|atom| atom.n_elec as f64).collect()).unwrap();
+
+        // molecular properties, we take all properties that are needed from the Properties type
+        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
+        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
 
         // the orbital energies and coefficients can be safely reset, since the
         // Hamiltonian does not depends on the charge differences and not on the orbital coefficients
@@ -135,288 +157,48 @@ impl RestrictedSCC for System {
         // orbital occupation numbers
         let mut f: Vec<f64> = vec![0.0; self.n_orbs];
 
-
+        // variables that are updated during the iterations
         let mut last_energy: f64 = 0.0;
-        let mut total_energy: f64 = 0.0;
-        let mut delta_dq: f64 = 0.0;
-
-        let mut level_shift_flag: bool = false;
-        let mut level_shifter: LevelShifter = LevelShifter::empty();
-
-        // charge guess TODO: from where we get the charges
-        let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
-
-
-
-        let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
-
-        let mut converged: bool = false;
-
-        // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
-        // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
-        let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
-
-        // add nuclear energy to the total scf energy
-        let rep_energy: f64 = get_repulsive_energy(&molecule);
-
-        info!("{:^80}", "");
-        info!("{: ^80}", "SCC-Routine");
-        info!("{:-^80}", "");
-        //info!("{: <25} {}", "convergence criterium:", scf_conv);
-        info!("{: <25} {}", "max. iterations:", max_iter);
-        info!("{: <25} {} K", "electronic temperature:", temperature);
-        info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
-        info!("{:^80}", "");
-        info!(
-            "{: <45} ",
-            "SCC Iterations: all quantities are in atomic units"
-        );
-        info!("{:-^75} ", "");
-        info!(
-            "{: <5} {: >18} {: >18} {: >18} {: >12}",
-            "Iter.", "SCC Energy", "Energy diff.", "dq diff.", "Lvl. shift"
-        );
-        info!("{:-^75} ", "");
-
-        'scf_loop: for i in 0..max_iter {
-            let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
-            let h_coul: Array2<f64> = h1 * s.view();
-            let mut h: Array2<f64> = h_coul + h0.view();
-
-            //let mut prev_h_X:Array2<f64>
-            if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
-                let h_x: Array2<f64> =
-                    lc_exact_exchange(&s, &molecule.g0_lr_ao, &p0, &p, h.dim().0);
-                h = h + h_x;
-            }
-
-            if level_shift_flag {
-                if level_shifter.is_empty() {
-                    level_shifter = LevelShifter::new(
-                        molecule.calculator.n_orbs,
-                        get_frontier_orbitals(molecule.calculator.n_elec).1,
-                    );
-                } else {
-                    if charge_diff < (1.0e5 * scf_charge_conv) {
-                        level_shifter.reduce_weight();
-                    }
-                    if charge_diff < (1.0e3 * scf_charge_conv) {
-                        level_shift_flag == false;
-                        level_shifter.turn_off();
-                    }
-                }
-                let shift: Array2<f64> = level_shifter.shift(orbs.view());
-                h = h + shift;
-            }
-
-            // H' = X^t.H.X
-            h = x.t().dot(&h).dot(&x);
-            let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
-            orbe = tmp.0;
-            orbs = x.dot(&tmp.1);
-
-            // construct density matrix
-            let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
-                orbe.view(),
-                molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
-                molecule.calculator.nr_unpaired_electrons,
-                temperature,
-            );
-            let mu: f64 = tmp.0;
-            f = tmp.1;
-
-            if level_shift_flag == false {
-                level_shift_flag = enable_level_shifting(orbe.view(), molecule.calculator.n_elec);
-            }
-
-            // calculate the density matrix
-            p = density_matrix(orbs.view(), &f[..]);
-            //println!("P {}", p);
-            //println!("F {:?}", f);
-            // update partial charges using Mulliken analysis
-            let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
-                p.view(),
-                p0.view(),
-                s.view(),
-                &molecule.calculator.orbs_per_atom,
-                molecule.n_atoms,
-            );
-            // charge difference to previous iteration
-            let dq_diff: Array1<f64> = &new_dq - &dq;
-
-            charge_diff = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
-
-            if log_enabled!(Level::Trace) {
-                print_orbital_information(orbe.view(), &f);
-            }
-            // check if charge difference to the previous iteration is lower then 1e-5
-            if (&charge_diff < &scf_charge_conv)
-                && &(energy_old - scf_energy).abs() < &scf_energy_conv
-            {
-                converged = true;
-            }
-            // Broyden mixing of partial charges # changed new_dq to dq
-            dq = broyden_mixer.next(dq, dq_diff);
-            q = new_q;
-            debug!("");
-            debug!("{: <35} ", "atomic charges and partial charges");
-            debug!("{:-^35}", "");
-            if log_enabled!(Level::Debug) {
-                for (idx, (qi, dqi)) in q.iter().zip(dq.iter()).enumerate() {
-                    debug!("Atom {: >4} q: {:>18.14} dq: {:>18.14}", idx + 1, qi, dqi);
-                }
-            }
-            debug!("{:-^55}", "");
-            // compute electronic energy
-            scf_energy = get_electronic_energy(
-                &molecule,
-                p.view(),
-                &p0,
-                &s,
-                h0.view(),
-                dq.view(),
-                (&molecule.g0).deref().view(),
-                &molecule.g0_lr_ao,
-            );
-            if i == 0 {
-                info!(
-                    "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>12.4}",
-                    i + 1,
-                    scf_energy + rep_energy,
-                    0.0,
-                    charge_diff,
-                    level_shifter.weight
-                );
-            } else {
-                info!(
-                    "{: >5} {:>18.10e} {:>18.10e} {:>18.10e} {:>12.4}",
-                    i + 1,
-                    scf_energy + rep_energy,
-                    energy_old - scf_energy,
-                    charge_diff,
-                    level_shifter.weight
-                );
-            }
-            energy_old = scf_energy;
-
-            assert_ne!(i + 1, max_iter, "SCF not converged");
-
-            if converged {
-                break 'scf_loop;
-                molecule.set_final_charges(dq);
-            }
-        }
-        info!("{:-^75} ", "");
-        info!("{: ^75}", "SCC converged");
-        info!("{:^80} ", "");
-        info!("final energy: {:18.14} Hartree", scf_energy + rep_energy);
-        info!("{:-<80} ", "");
-        info!("{}", timer);
-        if molecule.config.jobtype == "sp" {
-            print_orbital_information(orbe.view(), &f);
-        }
-        return (scf_energy + rep_energy, orbs, orbe, s, f);
-    }
-    }
-}
-
-// This routine is very messy und should be rewritten in a clean form
-impl Molecule {
-    pub fn run_scc(&mut self) -> (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) {
-        let scc_timer: Instant = Instant::now();
-
-        let temperature: f64 = molecule.config.scf.electronic_temperature;
-        let max_iter: usize = molecule.config.scf.scf_max_cycles;
-        let scf_charge_conv: f64 = molecule.config.scf.scf_charge_conv;
-        let scf_energy_conv: f64 = molecule.config.scf.scf_energy_conv;
-
-        let mut level_shift_flag: bool = false;
-        let mut level_shifter: LevelShifter = LevelShifter::empty();
-        // construct reference density matrix
-        let p0: Array2<f64> = density_matrix_ref(&molecule.atomic_numbers.unwrap());
-        let mut p: Array2<f64> = p0.clone();
-        // charge guess
-        let mut dq: Array1<f64> = molecule.final_charges.clone();
-        let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
-        let mut energy_old: f64 = 0.0;
+        let mut total_energy: Result<f64, SCCError> = Ok(0.0);
+        let mut delta_dq_max: f64 = 0.0;
         let mut scf_energy: f64 = 0.0;
-        let mut charge_diff: f64 = 0.0;
-        let mut orbs: Array2<f64> =
-            Array2::zeros([molecule.calculator.n_orbs, molecule.calculator.n_orbs]);
-        let mut orbe: Array1<f64> = Array1::zeros([molecule.calculator.n_orbs]);
-        let mut f: Vec<f64> = Array1::zeros([molecule.calculator.n_orbs]).to_vec();
-        let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
-            &molecule.atomic_numbers,
-            molecule.positions.view(),
-            molecule.calculator.n_orbs,
-            &molecule.calculator.valorbs,
-            molecule.proximity_matrix.view(),
-            &molecule.calculator.skt,
-            &molecule.calculator.orbital_energies,
-        );
-
-        let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
-
         let mut converged: bool = false;
+        // add nuclear energy to the total scf energy
+        let rep_energy: f64 = get_repulsive_energy(&self.atoms, self.geometry.coordinates.view(), self.n_atoms, &self.vrep);
 
-        //  compute A = S^(-1/2)
-        // 1. diagonalize S
-        //let (w, v): (Array1<f64>, Array2<f64>) = s.eigh(UPLO::Upper).unwrap();
-        // 2. compute inverse square root of the eigenvalues
-        //let w12: Array2<f64> = Array2::from_diag(&w.map(|x| x.pow(-0.5)));
-        // 3. and transform back
-        //let a: Array2<f64> = v.dot(&w12.dot(&v.t()));
+        // initialize the charge mixer
+        let mut broyden_mixer: BroydenMixer = BroydenMixer::new(self.n_atoms);
+        // initialize the orbital level shifter
+        let mut level_shifter: LevelShifter = LevelShifter::default();
 
+        if log_enabled!(Level::Info) {
+            print_scc_init(max_iter, temperature, rep_energy);
+        }
         // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
         // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
 
-        // add nuclear energy to the total scf energy
-        let rep_energy: f64 = get_repulsive_energy(&molecule);
-
-        info!("{:^80}", "");
-        info!("{: ^80}", "SCC-Routine");
-        info!("{:-^80}", "");
-        //info!("{: <25} {}", "convergence criterium:", scf_conv);
-        info!("{: <25} {}", "max. iterations:", max_iter);
-        info!("{: <25} {} K", "electronic temperature:", temperature);
-        info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
-        info!("{:^80}", "");
-        info!(
-            "{: <45} ",
-            "SCC Iterations: all quantities are in atomic units"
-        );
-        info!("{:-^75} ", "");
-        info!(
-            "{: <5} {: >18} {: >18} {: >18} {: >12}",
-            "Iter.", "SCC Energy", "Energy diff.", "dq diff.", "Lvl. shift"
-        );
-        info!("{:-^75} ", "");
-
         'scf_loop: for i in 0..max_iter {
-            let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
-            let h_coul: Array2<f64> = h1 * s.view();
+            let h_coul: Array2<f64> = construct_h1(self.n_orbs, &self.atoms, gamma.view(), dq.view()) * s.view();
             let mut h: Array2<f64> = h_coul + h0.view();
 
-            //let mut prev_h_X:Array2<f64>
-            if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
+            if self.gammafunction_lc.is_some() {
                 let h_x: Array2<f64> =
-                    lc_exact_exchange(&s, &molecule.g0_lr_ao, &p0, &p, h.dim().0);
+                    lc_exact_exchange(s.view(), self.properties.gamma_lr_ao().unwrap(), p0.view(), p.view(), h.dim().0);
                 h = h + h_x;
             }
 
-            if level_shift_flag {
+            if level_shifter.is_on {
                 if level_shifter.is_empty() {
                     level_shifter = LevelShifter::new(
-                        molecule.calculator.n_orbs,
-                        get_frontier_orbitals(molecule.calculator.n_elec).1,
+                        self.n_orbs,
+                        get_frontier_orbitals(self.n_elec).1,
                     );
                 } else {
-                    if charge_diff < (1.0e5 * scf_charge_conv) {
+                    if delta_dq_max < (1.0e5 * scf_charge_conv) {
                         level_shifter.reduce_weight();
                     }
-                    if charge_diff < (1.0e3 * scf_charge_conv) {
-                        level_shift_flag == false;
+                    if delta_dq_max < (1.0e3 * scf_charge_conv) {
                         level_shifter.turn_off();
                     }
                 }
@@ -428,116 +210,154 @@ impl Molecule {
             h = x.t().dot(&h).dot(&x);
             let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
             orbe = tmp.0;
+            // C = X.C'
             orbs = x.dot(&tmp.1);
 
-            // construct density matrix
+            // compute the fermi orbital occupation
             let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
                 orbe.view(),
-                molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
-                molecule.calculator.nr_unpaired_electrons,
+                self.n_elec,
+                self.n_unpaired,
                 temperature,
             );
             let mu: f64 = tmp.0;
             f = tmp.1;
 
-            if level_shift_flag == false {
-                level_shift_flag = enable_level_shifting(orbe.view(), molecule.calculator.n_elec);
+            if !level_shifter.is_on {
+                level_shifter.is_on = enable_level_shifting(orbe.view(), self.n_elec);
             }
 
             // calculate the density matrix
             p = density_matrix(orbs.view(), &f[..]);
-            //println!("P {}", p);
-            //println!("F {:?}", f);
+
             // update partial charges using Mulliken analysis
             let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
                 p.view(),
                 p0.view(),
                 s.view(),
-                &molecule.calculator.orbs_per_atom,
-                molecule.n_atoms,
+                &self.atoms,
+                self.n_atoms,
             );
-            // charge difference to previous iteration
-            let dq_diff: Array1<f64> = &new_dq - &dq;
 
-            charge_diff = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+            // charge difference to previous iteration
+            let delta_dq: Array1<f64> = &new_dq - &dq;
+
+            delta_dq_max = *delta_dq.map(|x| x.abs()).max().unwrap();
 
             if log_enabled!(Level::Trace) {
                 print_orbital_information(orbe.view(), &f);
             }
-            // check if charge difference to the previous iteration is lower then 1e-5
-            if (&charge_diff < &scf_charge_conv)
-                && &(energy_old - scf_energy).abs() < &scf_energy_conv
+
+            // check if charge difference to the previous iteration is lower than 1e-5
+            if (delta_dq_max < scf_charge_conv)
+                && (last_energy - scf_energy).abs() < scf_energy_conv
             {
                 converged = true;
             }
+
             // Broyden mixing of partial charges # changed new_dq to dq
-            dq = broyden_mixer.next(dq, dq_diff);
+            dq = broyden_mixer.next(dq, delta_dq);
             q = new_q;
-            debug!("");
-            debug!("{: <35} ", "atomic charges and partial charges");
-            debug!("{:-^35}", "");
+
             if log_enabled!(Level::Debug) {
-                for (idx, (qi, dqi)) in q.iter().zip(dq.iter()).enumerate() {
-                    debug!("Atom {: >4} q: {:>18.14} dq: {:>18.14}", idx + 1, qi, dqi);
-                }
+                print_charges(q.view(), dq.view());
             }
-            debug!("{:-^55}", "");
+
             // compute electronic energy
             scf_energy = get_electronic_energy(
-                &molecule,
                 p.view(),
-                &p0,
-                &s,
+                p0.view(),
+                s.view(),
                 h0.view(),
                 dq.view(),
-                (&molecule.g0).deref().view(),
-                &molecule.g0_lr_ao,
+                gamma.view(),
+                self.properties.gamma_lr_ao(),
             );
-            if i == 0 {
-                info!(
-                    "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>12.4}",
-                    i + 1,
-                    scf_energy + rep_energy,
-                    0.0,
-                    charge_diff,
-                    level_shifter.weight
-                );
-            } else {
-                info!(
-                    "{: >5} {:>18.10e} {:>18.10e} {:>18.10e} {:>12.4}",
-                    i + 1,
-                    scf_energy + rep_energy,
-                    energy_old - scf_energy,
-                    charge_diff,
-                    level_shifter.weight
-                );
-            }
-            energy_old = scf_energy;
 
-            assert_ne!(i + 1, max_iter, "SCF not converged");
+            if log_enabled!(Level::Info) {
+                print_energies_at_iteration(i, scf_energy, rep_energy, last_energy, delta_dq_max, level_shifter.weight)
+            }
 
             if converged {
+                total_energy = Ok(scf_energy + rep_energy);
                 break 'scf_loop;
-                molecule.set_final_charges(dq);
             }
+            total_energy = Err(SCCError::new(i,last_energy - scf_energy,delta_dq_max));
+            // save the scf energy from the current iteration
+            last_energy = scf_energy;
         }
-        info!("{:-^75} ", "");
-        info!("{: ^75}", "SCC converged");
-        info!("{:^80} ", "");
-        info!("final energy: {:18.14} Hartree", scf_energy + rep_energy);
-        info!("{:-<80} ", "");
-        info!(
-            "{:>68} {:>8.2} s",
-            "elapsed time:",
-            scc_timer.elapsed().as_secs_f32()
-        );
-        drop(scc_timer);
-        if molecule.config.jobtype == "sp" {
-            print_orbital_information(orbe.view(), &f);
+        if log_enabled!(Level::Info) {
+            print_scc_end(timer, self.config.jobtype.as_str(), scf_energy, rep_energy, orbe.view(), &f);
         }
-        return (scf_energy + rep_energy, orbs, orbe, s, f);
+        return total_energy;
     }
 }
+
+fn print_scc_init(max_iter: usize, temperature: f64, rep_energy: f64) {
+    info!("{:^80}", "");
+    info!("{: ^80}", "SCC-Routine");
+    info!("{:-^80}", "");
+    //info!("{: <25} {}", "convergence criterium:", scf_conv);
+    info!("{: <25} {}", "max. iterations:", max_iter);
+    info!("{: <25} {} K", "electronic temperature:", temperature);
+    info!("{: <25} {:.14} Hartree", "repulsive energy:", rep_energy);
+    info!("{:^80}", "");
+    info!(
+        "{: <45} ",
+        "SCC Iterations: all quantities are in atomic units"
+    );
+    info!("{:-^75} ", "");
+    info!(
+        "{: <5} {: >18} {: >18} {: >18} {: >12}",
+        "Iter.", "SCC Energy", "Energy diff.", "dq diff.", "Lvl. shift"
+    );
+    info!("{:-^75} ", "");
+}
+
+fn print_charges(q: ArrayView1<f64>, dq: ArrayView1<f64>) {
+    debug!("");
+    debug!("{: <35} ", "atomic charges and partial charges");
+    debug!("{:-^35}", "");
+    for (idx, (qi, dqi)) in q.iter().zip(dq.iter()).enumerate() {
+        debug!("Atom {: >4} q: {:>18.14} dq: {:>18.14}", idx + 1, qi, dqi);
+    }
+    debug!("{:-^55}", "");
+}
+
+fn print_energies_at_iteration(iter: usize, scf_energy: f64, rep_energy: f64, energy_old: f64, dq_diff_max:f64, ls_weight: f64) {
+    if iter == 0 {
+        info!(
+            "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>12.4}",
+            iter + 1,
+            scf_energy + rep_energy,
+            0.0,
+            dq_diff_max,
+            ls_weight
+        );
+    } else {
+        info!(
+            "{: >5} {:>18.10e} {:>18.10e} {:>18.10e} {:>12.4}",
+            iter + 1,
+            scf_energy + rep_energy,
+            energy_old - scf_energy,
+            dq_diff_max,
+            ls_weight
+        );
+    }
+}
+
+fn print_scc_end(timer: Timer, jobtype: &str, scf_energy: f64, rep_energy: f64, orbe: ArrayView1<f64>, f: &[f64]) {
+    info!("{:-^75} ", "");
+    info!("{: ^75}", "SCC converged");
+    info!("{:^80} ", "");
+    info!("final energy: {:18.14} Hartree", scf_energy + rep_energy);
+    info!("{:-<80} ", "");
+    info!("{}", timer);
+    if jobtype == "sp" {
+        print_orbital_information(orbe.view(), &f);
+    }
+}
+
 
 fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) -> () {
     info!("{:^80} ", "");

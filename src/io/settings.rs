@@ -4,7 +4,6 @@
 use clap::crate_version;
 use crate::constants::BOHR_TO_ANGS;
 use crate::defaults::*;
-use crate::initialization::Molecule;
 use chemfiles::{Frame, Trajectory};
 use clap::App;
 use log::{debug, error, info, trace, warn};

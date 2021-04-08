@@ -1,5 +1,4 @@
 use crate::constants::BOND_THRESHOLD;
-use crate::initialization::molecule::Molecule;
 use crate::initialization::parameters::*;
 use crate::{constants, defaults};
 use approx::AbsDiffEq;
@@ -125,16 +124,15 @@ pub fn distance_matrix_pair(
     let cutoff: f64 = cutoff.unwrap_or(defaults::PROXIMITY_CUTOFF);
     let n_atoms_i: usize = coordinates_i.nrows();
     let n_atoms_j: usize = coordinates_j.nrows();
-    let n_atoms: usize = n_at_1 + n_at_2;
+    let n_atoms: usize = n_atoms_i + n_atoms_j;
     let mut dist_matrix: Array2<f64> = Array::zeros((n_atoms_i, n_atoms_j));
     let mut directions_matrix: Array3<f64> = Array::zeros((n_atoms_i, n_atoms_j, 3));
     let mut prox_matrix: Array2<bool> = Array::from_elem((n_atoms_i, n_atoms_j), false);
-    for (i, pos_a) in coordinates
-        .slice(s![..n_atoms_i, ..])
+    for (i, pos_a) in coordinates_i
         .outer_iter()
         .enumerate()
     {
-        for (j, pos_b) in coordinates.slice(s![n_at_1.., ..]).outer_iter().enumerate() {
+        for (j, pos_b) in coordinates_j.outer_iter().enumerate() {
             let r: Array1<f64> = &pos_a - &pos_b;
             let r_ij: f64 = r.norm();
             if i != j {

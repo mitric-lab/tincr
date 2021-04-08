@@ -45,6 +45,12 @@ pub enum Property {
     Array2Bool(Array2<bool>)
 }
 
+impl Default for Property {
+    fn default() -> Self {
+       { Property::Bool(false) }
+    }
+}
+
 impl From<bool> for Property {
     fn from(value: bool) -> Self {
         Property::Bool(value)
@@ -67,21 +73,21 @@ impl From<Vec<u8>> for Property {
     fn from(value: Vec<u8>) -> Self {Property::VecU8(value)}
 }
 
-impl<'a> From<&'a str> for Property {
-    fn from(value: &'a str) -> Self {
+impl<'a> From<&'_ str> for Property {
+    fn from(value: &'_ str) -> Self {
         Property::String(value.into())
     }
 }
 
 impl From<Array1<f64>> for Property {
     fn from(value: Array1<f64>) -> Self {
-        Property::ArrayD(value)
+        Property::Array1(value)
     }
 }
 
-impl From<ArrayView1<f64>> for Property {
-    fn from(value: ArrayView1<f64>) -> Self {
-        Property::ArrayD(value.to_owned())
+impl From<ArrayView1<'_, f64>> for Property {
+    fn from(value: ArrayView1<'_, f64>) -> Self {
+        Property::Array1(value.to_owned())
     }
 }
 
@@ -91,8 +97,8 @@ impl From<Array2<f64>> for Property {
     }
 }
 
-impl From<ArrayView2<f64>> for Property {
-    fn from(value: ArrayView2<f64>) -> Self {
+impl From<ArrayView2<'_, f64>> for Property {
+    fn from(value: ArrayView2<'_, f64>) -> Self {
         Property::Array2(value.to_owned())
     }
 }
@@ -103,8 +109,8 @@ impl From<Array3<f64>> for Property {
     }
 }
 
-impl From<ArrayView3<f64>> for Property {
-    fn from(value: ArrayView3<f64>) -> Self {
+impl From<ArrayView3<'_, f64>> for Property {
+    fn from(value: ArrayView3<'_, f64>) -> Self {
         Property::Array3(value.to_owned())
     }
 }
@@ -116,8 +122,8 @@ impl From<Array2<bool>> for Property {
     }
 }
 
-impl From<ArrayView2<bool>> for Property {
-    fn from(value: ArrayView2<bool>) -> Self {
+impl From<ArrayView2<'_, bool>> for Property {
+    fn from(value: ArrayView2<'_, bool>) -> Self {
         Property::Array2Bool(value.to_owned())
     }
 }

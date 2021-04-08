@@ -1,9 +1,9 @@
 use ndarray::prelude::*;
 use ndarray_linalg::{Norm};
 use itertools::Itertools;
-use crate::initialization::{Molecule, Atom};
+use crate::initialization::{Atom};
 use std::collections::HashMap;
-use crate::initialization::parameters::RepulsivePotentialTable;
+use crate::initialization::parameters::{RepulsivePotentialTable, RepulsivePotential};
 use crate::defaults;
 use log::{error, warn, info, debug, trace};
 
@@ -33,9 +33,9 @@ pub fn get_homo_lumo_gap(orbe: ArrayView1<f64>, homo_lumo_idx: (usize, usize)) -
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
-pub fn get_repulsive_energy(atomic_numbers: &[u8], positions: ArrayView2<f64>, n_atoms: usize, v_rep: &HashMap<(u8, u8), RepulsivePotentialTable>) -> f64 {
+pub fn get_repulsive_energy<'a>(atoms: &[&'a Atom], positions: ArrayView2<f64>, n_atoms: usize, v_rep: &RepulsivePotential<'a>) -> f64 {
     let mut e_nuc: f64 = 0.0;
-    for (i, (z_i, posi)) in atomic_numbers[1..n_atoms]
+    for (i, (atomi, posi)) in atoms[1..n_atoms]
         .iter()
         .zip(
             positions
@@ -44,22 +44,13 @@ pub fn get_repulsive_energy(atomic_numbers: &[u8], positions: ArrayView2<f64>, n
         )
         .enumerate()
     {
-        for (z_j, posj) in atomic_numbers[0..i + 1]
+        for (atomj, posj) in atoms[0..i + 1]
             .iter()
             .zip(positions.slice(s![0..(i + 1), ..]).outer_iter())
         {
-            let z_1: u8;
-            let z_2: u8;
-            if z_i > z_j {
-                z_1 = *z_j;
-                z_2 = *z_i;
-            } else {
-                z_1 = *z_i;
-                z_2 = *z_j;
-            }
             let r: f64 = (&posi - &posj).norm();
             // nucleus-nucleus and core-electron repulsion
-            e_nuc += v_rep[&(z_1, z_2)].spline_eval(r);
+            e_nuc += v_rep.get(&atomi.kind, &atomj.kind).spline_eval(r);
         }
     }
     return e_nuc;
@@ -71,40 +62,38 @@ fn get_nuclear_energy() {}
 
 /// Compute electronic energies
 pub fn get_electronic_energy(
-    mol: &Molecule,
     p: ArrayView2<f64>,
-    p0: &Array2<f64>,
-    s: &Array2<f64>,
+    p0: ArrayView2<f64>,
+    s: ArrayView2<f64>,
     h0: ArrayView2<f64>,
     dq: ArrayView1<f64>,
     gamma: ArrayView2<f64>,
-    g0_lr_ao: &Array2<f64>,
-    lc: bool,
+    g0_lr_ao: Option<ArrayView2<f64>>,
 ) -> f64 {
-    //println!("P {}", p);
     // band structure energy
     let e_band_structure: f64 = (&p * &h0).sum();
+
     // Coulomb energy from monopoles
     let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
+
     // electronic energy as sum of band structure energy and Coulomb energy
-    //println!("E BS {} E COUL {} dQ {}", e_band_structure, e_coulomb, dq);
     let mut e_elec: f64 = e_band_structure + e_coulomb;
-    // add lc exchange to electronic energy
-    if lc {
-        let e_hf_x: f64 = lc_exchange_energy(s, g0_lr_ao, p0, &p.to_owned());
+
+    // add lc exchange to electronic energy if lrc is requested
+    if g0_lr_ao.is_some() {
+        let e_hf_x: f64 = lc_exchange_energy(s, g0_lr_ao.unwrap(), p0, p);
         e_elec += e_hf_x;
     }
-    // long-range Hartree-Fock exchange
-    // if ....Iteration {} =>
-    //println!("               E_bs = {:.7}  E_coulomb = {:.7}", e_band_structure, e_coulomb);
+
     return e_elec;
 }
 
+
 pub fn lc_exact_exchange(
-    s: &Array2<f64>,
-    g0_lr_ao: &Array2<f64>,
-    p0: &Array2<f64>,
-    p: &Array2<f64>,
+    s: ArrayView2<f64>,
+    g0_lr_ao: ArrayView2<f64>,
+    p0: ArrayView2<f64>,
+    p: ArrayView2<f64>,
     dim: usize,
 ) -> (Array2<f64>) {
     // construct part of the Hamiltonian matrix corresponding to long range
@@ -113,27 +102,26 @@ pub fn lc_exact_exchange(
     // The Coulomb potential in the electron integral is replaced by
     // 1/r ----> erf(r/R_lr)/r
     let mut hx: Array2<f64> = Array::zeros((dim, dim));
-    let dp: Array2<f64> = p - p0;
+    let dp: Array2<f64> = &p - &p0;
 
-    hx = hx + (g0_lr_ao * &s.dot(&dp)).dot(s);
-    hx = hx + g0_lr_ao * &(s.dot(&dp)).dot(s);
-    hx = hx + (s.dot(&(&dp * g0_lr_ao))).dot(s);
-    hx = hx + s.dot(&(g0_lr_ao * &dp.dot(s)));
+    hx = hx + (&g0_lr_ao * &s.dot(&dp)).dot(&s);
+    hx = hx + &(s.dot(&dp)).dot(&s);
+    hx = hx + (s.dot(&(&dp * &g0_lr_ao))).dot(&s);
+    hx = hx + s.dot(&(&g0_lr_ao * &dp.dot(&s)));
     hx = hx * (-0.125);
     return hx;
 }
 
 pub fn lc_exchange_energy(
-    s: &Array2<f64>,
-    g0_lr_ao: &Array2<f64>,
-    p0: &Array2<f64>,
-    p: &Array2<f64>,
+    s: ArrayView2<f64>,
+    g0_lr_ao: ArrayView2<f64>,
+    p0: ArrayView2<f64>,
+    p: ArrayView2<f64>,
 ) -> f64 {
-    let dp: Array2<f64> = p - p0;
+    let dp: Array2<f64> = &p - &p0;
     let mut e_hf_x: f64 = 0.0;
-
-    e_hf_x += ((s.dot(&dp.dot(s))) * &dp * g0_lr_ao).sum();
-    e_hf_x += (s.dot(&dp) * dp.dot(s) * g0_lr_ao).sum();
+    e_hf_x += ((s.dot(&dp.dot(&s))) * &dp * &g0_lr_ao).sum();
+    e_hf_x += (s.dot(&dp) * dp.dot(&s) * &g0_lr_ao).sum();
     e_hf_x *= (-0.125);
     return e_hf_x;
 }
@@ -172,17 +160,16 @@ pub fn density_matrix_ref(n_orbs: usize, atoms: &[&Atom]) -> Array2<f64> {
     return p0;
 }
 
-pub fn construct_h1(atomic_numbers: &[u8], n_orbs: usize, valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>, valorbs_occupation: &HashMap<u8, Vec<f64>>, gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
+pub fn construct_h1(n_orbs: usize, atoms: &[&Atom], gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
     let mut h1: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
-
     let mut mu: usize = 0;
     let mut nu: usize;
-    for (i, z_i) in atomic_numbers.iter().enumerate() {
-        for _ in valorbs[z_i].iter() {
+    for (i, atomi) in atoms.iter().enumerate() {
+        for _ in 0..(atomi.n_orbs) {
             nu = 0;
-            for (j, z_j) in atomic_numbers.iter().enumerate() {
-                for _ in valorbs[z_j].iter() {
+            for (j, atomj) in atoms.iter().enumerate() {
+                for _ in 0..(atomj.n_orbs) {
                     h1[[mu, nu]] = 0.5 * (e_stat_pot[i] + e_stat_pot[j]);
                     nu = nu + 1;
                 }
@@ -193,7 +180,7 @@ pub fn construct_h1(atomic_numbers: &[u8], n_orbs: usize, valorbs: &HashMap<u8, 
     return h1;
 }
 
-fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> bool {
+pub(crate) fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> bool {
     let hl_idxs: (usize, usize) = get_frontier_orbitals(n_elec);
     let gap: f64 = get_homo_lumo_gap(orbe.view(), hl_idxs);
     debug!("HOMO - LUMO gap:          {:>18.14}", gap);

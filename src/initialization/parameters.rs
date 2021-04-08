@@ -120,7 +120,7 @@ pub struct SlaterKoster<'a> {
     map: HashMap<(&'a Element, &'a Element), SlaterKosterTable>,
 }
 
-impl SlaterKoster {
+impl<'a> SlaterKoster<'a> {
     /// Create a new [SlaterKoster] type, that maps a tuple of [Element] s to a [SlaterKosterTable].
     pub fn new() -> Self {
         SlaterKoster {
@@ -129,12 +129,12 @@ impl SlaterKoster {
     }
 
     /// Add a new [SlaterKosterTable] from a tuple of two [Element]s. THe
-    pub fn add(&mut self, kind1: &Element, kind2: &Element) {
+    pub fn add(&mut self, kind1: &'a Element, kind2: &'a Element) {
         self.map
             .insert((&kind1, &kind2), SlaterKosterTable::new(&kind1, &kind2));
     }
 
-    pub fn get(&self, kind1: &Element, kind2: &Element) -> &SlaterKosterTable {
+    pub fn get(&self, kind1: &'a Element, kind2: &'a Element) -> &SlaterKosterTable {
         self.map
             .get(&(kind1, kind2))
             .unwrap_or(self.map.get(&(kind2, kind1)).unwrap())
@@ -184,12 +184,12 @@ impl SlaterKosterTable {
         let mut slako_table: SlaterKosterTable =
             from_str(&data).expect("RON file was not well-formatted");
         slako_table.dmax = slako_table.d[slako_table.d.len()-1];
-        slako_table.s_spline = slako_module.spline_overlap();
-        slako_table.h_spline = slako_module.spline_hamiltonian();
+        slako_table.s_spline = slako_table.spline_overlap();
+        slako_table.h_spline = slako_table.spline_hamiltonian();
         slako_table
     }
 
-    fn spline_overlap(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
+    pub(crate) fn spline_overlap(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
         let mut splines: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = HashMap::new();
         for ((l1, l2, i), value) in &self.s {
             let x: Vec<f64> = self.d.clone();
@@ -204,7 +204,7 @@ impl SlaterKosterTable {
         splines
     }
 
-    fn spline_hamiltonian(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
+    pub(crate) fn spline_hamiltonian(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
         let mut splines: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = HashMap::new();
         for ((l1, l2, i), value) in &self.h {
             let x: Vec<f64> = self.d.clone();
@@ -227,7 +227,7 @@ pub struct RepulsivePotential<'a> {
     map: HashMap<(&'a Element, &'a Element), RepulsivePotentialTable>,
 }
 
-impl RepulsivePotential {
+impl<'a> RepulsivePotential<'a> {
     /// Create a new RepulsivePotential, to map the [Element] pairs to a [RepulsivePotentialTable]
     pub fn new() -> Self {
         RepulsivePotential {
@@ -236,7 +236,7 @@ impl RepulsivePotential {
     }
 
     /// Add a [RepulsivePotentialTable] from a pair of two [Element]s
-    pub fn add(&mut self, kind1: &Element, kind2: &Element) {
+    pub fn add(&mut self, kind1: &'a Element, kind2: &'a Element) {
         self.map.insert(
             (&kind1, &kind2),
             RepulsivePotentialTable::new(&kind1, &kind2),
@@ -245,7 +245,7 @@ impl RepulsivePotential {
 
     /// Return the [RepulsivePotentialTable] for the tuple of two [Element]s. The order of
     /// the tuple does not play a role.
-    pub fn get(&self, kind1: &Element, kind2: &Element) -> &RepulsivePotentialTable {
+    pub fn get(&self, kind1: &'a Element, kind2: &'a Element) -> &RepulsivePotentialTable {
         self.map
             .get(&(kind1, kind2))
             .unwrap_or(self.map.get(&(kind2, kind1)).unwrap())

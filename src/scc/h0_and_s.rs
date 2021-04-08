@@ -1,7 +1,7 @@
 #[macro_use(array)]
 use ndarray::prelude::*;
 use crate::initialization::parameters::*;
-use crate::initialization::{Atom, Geometry, Molecule};
+use crate::initialization::{Atom, Geometry};
 use crate::param::slako_transformations::*;
 use approx::AbsDiffEq;
 use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
@@ -125,9 +125,9 @@ pub fn h0_and_s_ab(
 }
 
 /// Computes the H0 and S matrix elements for a single molecule.
-pub fn h0_and_s(
+pub fn h0_and_s<'a>(
     n_orbs: usize,
-    atoms: &[&Atom],
+    atoms: &[&'a Atom],
     geometry: &Geometry,
     skt: &SlaterKoster,
 ) -> (Array2<f64>, Array2<f64>) {
@@ -180,8 +180,8 @@ pub fn h0_and_s(
                                 );
                             }
                         } else if mu == nu {
-                            assert_eq!(zi, zj);
-                            h0[[mu, nu]] = orbital_energies[zi][&(*ni, *li)];
+                            assert_eq!(atomi.number, atomj.number);
+                            h0[[mu, nu]] = orbi.energy;
                             s[[mu, nu]] = 1.0;
                         } else {
                             s[[mu, nu]] = s[[nu, mu]];

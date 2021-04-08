@@ -5,20 +5,21 @@ pub struct LevelShifter {
     shift_value: f64,
     pub(crate) weight: f64,
     vv_block: Array2<f64>,
-    activated: bool,
+    pub is_on: bool,
 }
 
-impl LevelShifter {
-    pub fn empty() -> LevelShifter {
-        let empty_2d_array: Array2<f64> = Array2::zeros([1, 1]);
+impl Default for LevelShifter {
+    fn default() -> Self {
         LevelShifter {
             shift_value: 0.0,
             weight: 0.0,
-            vv_block: empty_2d_array,
-            activated: false,
+            vv_block: Array2::zeros([1, 1]),
+            is_on: false,
         }
     }
+}
 
+impl LevelShifter {
     pub fn new(n_orb: usize, lumo_idx: usize) -> LevelShifter {
         let mut vv_block: Array2<f64> = Array2::zeros([n_orb, n_orb]);
         let n_virts = n_orb - lumo_idx;
@@ -30,24 +31,27 @@ impl LevelShifter {
             shift_value: defaults::HOMO_LUMO_SHIFT,
             weight: 1.0,
             vv_block: vv_block,
-            activated: true,
+            is_on: true,
         }
     }
 
-    fn shift(&mut self, orbs: ArrayView2<f64>) -> Array2<f64> {
+    pub(crate) fn shift(&mut self, orbs: ArrayView2<f64>) -> Array2<f64> {
         orbs.dot(&(self.weight * self.shift_value * &self.vv_block).dot(&orbs.t()))
     }
 
-    fn reduce_weight(&mut self) {
+    pub(crate) fn reduce_weight(&mut self) {
         self.weight *= 0.5;
     }
 
-    fn turn_off(&mut self) {
-        self.weight = 0.0;
-        self.activated = false;
+    pub(crate) fn turn_off(&mut self) {
+        self.is_on = false;
     }
 
-    fn is_empty(&self) -> bool {
+    fn turn_on(&mut self) {
+        self.is_on = true;
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
         self.shift_value == 0.0
     }
 }

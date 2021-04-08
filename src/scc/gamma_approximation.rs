@@ -4,7 +4,6 @@ use ndarray::prelude::*;
 use ndarray::{array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
-use crate::initialization::Molecule;
 use crate::initialization::*;
 
 const PI_SQRT: f64 = 1.7724538509055159;
@@ -224,20 +223,20 @@ fn gamma_gradients_atomwise(
 pub fn gamma_ao_wise(
     gamma_func: &GammaFunction,
     atomic_numbers: &[u8],
+    atoms: &[&Atom],
     n_atoms: usize,
     n_orbs: usize,
     distances: ArrayView2<f64>,
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
 ) -> (Array2<f64>, Array2<f64>) {
     let g0: Array2<f64> = gamma_atomwise(gamma_func, atomic_numbers, n_atoms, distances);
     let mut g0_a0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
     let mut mu: usize = 0;
     let mut nu: usize;
-    for (i, z_i) in atomic_numbers.iter().enumerate() {
-        for _ in &valorbs[z_i] {
+    for (i, atomi) in atoms.iter().enumerate() {
+        for _ in 0..atomi.n_orbs {
             nu = 0;
-            for (j, z_j) in atomic_numbers.iter().enumerate() {
-                for _ in &valorbs[z_j] {
+            for (j, atomj) in atoms.iter().enumerate() {
+                for _ in 0..atomj.n_orbs {
                     g0_a0[[mu, nu]] = g0[[i, j]];
                     nu = nu + 1;
                 }

@@ -1,5 +1,5 @@
 use crate::initialization::parameters::{
-    get_confined_pseudo_atom, get_free_pseudo_atom, PseudoAtom,
+    PseudoAtom,
 };
 use crate::param::elements::Element;
 use std::collections::HashMap;
@@ -65,17 +65,18 @@ impl From<Element> for Atom {
             let energy: f64 = free_atom.energies[i as usize];
             for m in l.neg()..(l + 1) {
                 valorbs.push(AtomicOrbital::from(((n - 1, l, m), energy)));
-                occupation.push(atom.orbital_occupation[i as usize] as f64 / (2 * l + 1) as f64);
+                occupation.push(confined_atom.orbital_occupation[i as usize] as f64 / (2 * l + 1) as f64);
             }
-            n_elec += confined_atom.orbital_occupation[i as usize];
+            n_elec += confined_atom.orbital_occupation[i as usize] as usize;
         }
+        let n_orbs: usize = valorbs.len()
         Atom {
             name: symbol,
             number: element.number(),
             kind: element,
             hubbard: confined_atom.hubbard_u,
             valorbs: valorbs,
-            n_orbs: valorbs.len(),
+            n_orbs: n_orbs,
             valorbs_occupation: occupation,
             n_elec: n_elec,
         }
@@ -102,7 +103,6 @@ impl From<u8> for Atom {
 
 
 /// Type that specifies an atomic orbital by its three quantum numbers and holds its energy
-#[derive(Eq)]
 pub struct AtomicOrbital {
     pub n: i8,
     pub m: i8,
@@ -131,3 +131,11 @@ impl From<((i8, i8, i8), f64)> for AtomicOrbital {
         }
     }
 }
+
+impl PartialEq for AtomicOrbital {
+    fn eq(&self, other: &Self) -> bool {
+        self.n == other.n && self.m == other.m && self.l == other.l
+    }
+}
+
+impl Eq for AtomicOrbital {}
