@@ -847,6 +847,7 @@ pub fn fmo_calculate_pairwise_gradients(
                     &pair.calculator.valorbs,
                     Some(0.0),
                 );
+                pair.set_g1_gradients(&g1,&g1_ao);
 
                 // do scc routine for pair if mininmal distance is below threshold
                 if (min_dist / vdw_radii_sum) < 2.0 {

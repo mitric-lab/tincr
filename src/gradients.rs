@@ -432,16 +432,26 @@ pub fn gradient_lc_gs(
     Array3<f64>,
 ) {
     let grad_timer = Instant::now();
-    let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
-        &molecule.atomic_numbers,
-        molecule.n_atoms,
-        molecule.calculator.n_orbs,
-        molecule.distance_matrix.view(),
-        molecule.directions_matrix.view(),
-        &molecule.calculator.hubbard_u,
-        &molecule.calculator.valorbs,
-        Some(0.0),
-    );
+    let mut g1:Array3<f64> = Array3::zeros((molecule.n_atoms*3,molecule.n_atoms,molecule.n_atoms));
+    let mut g1_ao:Array3<f64> = Array3::zeros((molecule.n_atoms*3,molecule.calculator.n_orbs,molecule.calculator.n_orbs));
+    if molecule.g1.is_some(){
+        g1 = molecule.g1.clone().unwrap();
+        g1_ao = molecule.g1_ao.clone().unwrap();
+    }
+    else{
+        let (g1_tmp, g1_ao_tmp): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
+            &molecule.atomic_numbers,
+            molecule.n_atoms,
+            molecule.calculator.n_orbs,
+            molecule.distance_matrix.view(),
+            molecule.directions_matrix.view(),
+            &molecule.calculator.hubbard_u,
+            &molecule.calculator.valorbs,
+            Some(0.0),
+        );
+        g1 = g1_tmp;
+        g1_ao = g1_ao_tmp;
+    }
 
     let (g1lr, g1lr_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
         &molecule.atomic_numbers,
