@@ -5,6 +5,7 @@ use crate::param::elements::Element;
 use std::collections::HashMap;
 use std::ops::Neg;
 use soa_derive::StructOfArray;
+use std::cmp::Ordering;
 
 /// `Atom` type that contains basic information about the chemical element as well as the
 /// data used for the semi-empirical parameters that are used in the DFTB calculations.
@@ -26,7 +27,7 @@ use soa_derive::StructOfArray;
 /// It will also generate the same functions that a `Vec<Atom>` would have, and a few helper structs:
 /// `AtomSlice`, `AtomSliceMut`, `AtomRef` and `AtomRefMut` corresponding respectively
 /// to `&[Atom]`, `&mut [Atom]`, `&Atom` and `&mut Atom`.
-#[derive(StructOfArray)]
+#[derive(StructOfArray, Clone)]
 pub struct Atom {
     /// Name of the chemical element
     pub name: &'static str,
@@ -59,17 +60,17 @@ impl From<Element> for Atom {
         let mut valorbs: Vec<AtomicOrbital> = Vec::new();
         let mut occupation: Vec<f64> = Vec::new();
         let mut n_elec: usize = 0;
-        for i in confined_atom.valence_orbitals {
-            let n: i8 = confined_atom.nshell[i as usize];
-            let l: i8 = confined_atom.angular_momenta[i as usize];
-            let energy: f64 = free_atom.energies[i as usize];
+        for (i, j) in confined_atom.valence_orbitals.iter().zip(free_atom.valence_orbitals.iter()) {
+            let n: i8 = confined_atom.nshell[*i as usize];
+            let l: i8 = confined_atom.angular_momenta[*i as usize];
+            let energy: f64 = free_atom.energies[*j as usize];
             for m in l.neg()..(l + 1) {
                 valorbs.push(AtomicOrbital::from(((n - 1, l, m), energy)));
-                occupation.push(confined_atom.orbital_occupation[i as usize] as f64 / (2 * l + 1) as f64);
+                occupation.push(confined_atom.orbital_occupation[*i as usize] as f64 / (2 * l + 1) as f64);
             }
-            n_elec += confined_atom.orbital_occupation[i as usize] as usize;
+            n_elec += confined_atom.orbital_occupation[*i as usize] as usize;
         }
-        let n_orbs: usize = valorbs.len()
+        let n_orbs: usize = valorbs.len();
         Atom {
             name: symbol,
             number: element.number(),
@@ -100,13 +101,27 @@ impl From<u8> for Atom {
         Self::from(Element::from(number))
     }
 }
+impl PartialEq for Atom {
+    fn eq(&self, other: &Self) -> bool {
+        self.number == other.number
+    }
+}
+
+impl Eq for Atom {}
+
+impl PartialOrd for Atom {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.number.partial_cmp(&other.number)
+    }
+}
 
 
 /// Type that specifies an atomic orbital by its three quantum numbers and holds its energy
+#[derive(Copy, Clone)]
 pub struct AtomicOrbital {
     pub n: i8,
-    pub m: i8,
     pub l: i8,
+    pub m: i8,
     pub energy: f64,
 }
 
@@ -114,8 +129,8 @@ impl From<(i8, i8, i8)> for AtomicOrbital {
     fn from(qnumber: (i8, i8, i8)) -> Self {
         Self {
             n: qnumber.0,
-            m: qnumber.1,
-            l: qnumber.2,
+            l: qnumber.1,
+            m: qnumber.2,
             energy: 0.0,
         }
     }
@@ -125,8 +140,8 @@ impl From<((i8, i8, i8), f64)> for AtomicOrbital {
     fn from(numbers_energy: ((i8, i8, i8), f64)) -> Self {
         Self {
             n: numbers_energy.0 .0,
-            m: numbers_energy.0 .1,
-            l: numbers_energy.0 .2,
+            l: numbers_energy.0 .1,
+            m: numbers_energy.0 .2,
             energy: numbers_energy.1,
         }
     }

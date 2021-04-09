@@ -14,12 +14,11 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use crate::scc::gamma_approximation::GammaFunction;
 use crate::scc::gamma_approximation;
-use owning_ref::VecRef;
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
 /// This type is only used for non-FMO calculations. In the case of FMO based calculation
 /// the `FMO`, `Molecule` and `Pair` types are used instead.
-pub struct System<'a> {
+pub struct System {
     /// Type that holds all the input settings from the user.
     pub config: Configuration,
     /// Number of atoms
@@ -30,27 +29,32 @@ pub struct System<'a> {
     pub n_elec: usize,
     /// Number of unpaired electrons (singlet -> 0, doublet -> 1, triplet -> 2)
     pub n_unpaired: usize,
-    /// Vector with references to the individual atoms that are stored as `Atom` type
-    pub atoms: Vec<&'a Atom>,
-    /// Vector that stores the data of the unique atoms in an `Atom` type
-    pub unique_atoms: Vec<Atom>,
+    /// Vector with the data of the individual atoms that are stored as [Atom] type. This is not an
+    /// efficient solution because there are only a few [Atom] types and they are copied for each
+    /// atom in the molecule. However, to the best of the authors knowledge the self referential
+    /// structs are not trivial to implement in Rust. There are ways to do this by using crates like
+    /// `owning_ref`, `rental`, or `ouroboros` or by using the [Pin](std::marker::Pin) type. The other
+    /// crates does not fit exactly to our purpose and the [Pin](std::marker::Pin) requires a lot of
+    /// extra effort. The computational cost for the clones was measured to be on the order of
+    /// ~ 0.003 seconds (on a mac mini with M1) and to consume about 9 MB of memory for 20.000 [Atoms]
+    pub atoms: Vec<Atom>,
     /// Type that stores the  coordinates and matrices that depend on the position of the atoms
     pub geometry: Geometry,
     /// Type that holds the calculated properties e.g. gamma matrix, overlap matrix and so on.
     pub properties: Properties,
     /// Repulsive potential type. Type that contains the repulsion energy and its derivative
     /// w.r.t. d/dR for each unique pair of atoms as a spline.
-    pub vrep: RepulsivePotential<'a>,
+    pub vrep: RepulsivePotential,
     /// Slater-Koster parameters for the H0 and overlap matrix elements. For each unique atom pair
     /// the matrix elements and their derivatives can be splined.
-    pub slako: SlaterKoster<'a>,
+    pub slako: SlaterKoster,
     /// Type of Gamma function. This can be either `Gaussian` or `Slater` type.
     pub gammafunction: GammaFunction,
     /// Gamma function for the long-range correction. Only used if long-range correction is requested
     pub gammafunction_lc: Option<GammaFunction>,
 }
 
-impl<'a> From<(Vec<u8>, Array2<f64>, Configuration)> for System<'a> {
+impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
     /// Creates a new [System] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
     fn from(molecule: (Vec<u8>, Array2<f64>, Configuration)) -> Self {
@@ -63,14 +67,14 @@ impl<'a> From<(Vec<u8>, Array2<f64>, Configuration)> for System<'a> {
             .iter()
             .map(|number| Atom::from(*number))
             .collect();
-        let mut num_to_atom: HashMap<&u8, &Atom> = HashMap::with_capacity(unique_numbers.len());
+        let mut num_to_atom: HashMap<&u8, Atom> = HashMap::with_capacity(unique_numbers.len());
         // insert the atomic numbers and the reference to atoms in the HashMap
-        unique_numbers
-            .iter()
-            .zip(unique_atoms.iter())
-            .map(|(num, atom)| num_to_atom.insert(num, atom));
-        // get all references to the Atom's from the HashMap
-        let atoms: Vec<&Atom> = molecule.0.iter().map(|num| num_to_atom[num]).collect();
+        for (num, atom) in unique_numbers.iter().zip(unique_atoms.clone().into_iter()) {
+            num_to_atom.insert(num, atom);
+        }
+        // get all the Atom's from the HashMap
+        let mut atoms: Vec<Atom> = Vec::with_capacity(molecule.0.len());
+        molecule.0.iter().for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
         // get the number of unpaired electrons from the input option
@@ -92,9 +96,9 @@ impl<'a> From<(Vec<u8>, Array2<f64>, Configuration)> for System<'a> {
         let mut vrep: RepulsivePotential = RepulsivePotential::new();
         // add all unique element pairs
         let element_iter = unique_numbers.iter().map(|num| Element::from(*num));
-        for (kind1, kind2) in element_iter.cartesian_product(element_iter.clone()) {
-            slako.add(&kind1, &kind2);
-            vrep.add(&kind1, &kind2);
+        for (kind1, kind2) in element_iter.clone().cartesian_product(element_iter) {
+            slako.add(kind1, kind2);
+            vrep.add(kind1, kind2);
         }
         // initialize the gamma function
         // TODO: Check which Gamma function is specified in the input
@@ -119,7 +123,6 @@ impl<'a> From<(Vec<u8>, Array2<f64>, Configuration)> for System<'a> {
             n_elec: n_elec,
             n_unpaired: n_unpaired,
             atoms: atoms,
-            unique_atoms: unique_atoms,
             geometry: geom,
             properties: properties,
             vrep: vrep,
@@ -130,7 +133,7 @@ impl<'a> From<(Vec<u8>, Array2<f64>, Configuration)> for System<'a> {
     }
 }
 
-impl From<(Frame, Configuration)> for System<'_> {
+impl From<(Frame, Configuration)> for System {
     /// Creates a new [System] from a [Frame](chemfiles::Frame) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
     fn from(frame: (Frame, Configuration)) -> Self {

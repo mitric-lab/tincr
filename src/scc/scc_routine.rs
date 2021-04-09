@@ -70,7 +70,7 @@ pub trait RestrictedSCC {
     fn run_scc(&mut self) -> Result<f64, SCCError>;
 }
 
-impl<'a> RestrictedSCC for System<'a> {
+impl<'a> RestrictedSCC for System {
     ///  To run the SCC calculation the following properties in the molecule need to be set:
     /// - H0
     /// - S: overlap matrix in AO basis
@@ -80,7 +80,7 @@ impl<'a> RestrictedSCC for System<'a> {
     /// - the density matrix and reference density matrix
     fn prepare_scc(&mut self) {
         // get H0 and S
-        let (h0, s): (Array2<f64>, Array2<f64>) =
+        let (s, h0): (Array2<f64>, Array2<f64>) =
             h0_and_s(self.n_orbs, &self.atoms, &self.geometry, &self.slako);
         // and save it in the molecule properties
         self.properties.set_h0(h0);
@@ -119,12 +119,12 @@ impl<'a> RestrictedSCC for System<'a> {
 
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
-            self.properties.set_p(density_matrix_ref(self.n_orbs, &self.atoms));
+            self.properties.set_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
         }
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
         if !self.properties.contains_key("P") {
-            self.properties.set_p(self.properties.p().unwrap().to_owned());
+            self.properties.set_p(self.properties.p_ref().unwrap().to_owned());
         }
     }
 

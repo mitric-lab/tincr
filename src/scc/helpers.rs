@@ -33,7 +33,7 @@ pub fn get_homo_lumo_gap(orbe: ArrayView1<f64>, homo_lumo_idx: (usize, usize)) -
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
-pub fn get_repulsive_energy<'a>(atoms: &[&'a Atom], positions: ArrayView2<f64>, n_atoms: usize, v_rep: &RepulsivePotential<'a>) -> f64 {
+pub fn get_repulsive_energy(atoms: &[Atom], positions: ArrayView2<f64>, n_atoms: usize, v_rep: &RepulsivePotential) -> f64 {
     let mut e_nuc: f64 = 0.0;
     for (i, (atomi, posi)) in atoms[1..n_atoms]
         .iter()
@@ -50,7 +50,7 @@ pub fn get_repulsive_energy<'a>(atoms: &[&'a Atom], positions: ArrayView2<f64>, 
         {
             let r: f64 = (&posi - &posj).norm();
             // nucleus-nucleus and core-electron repulsion
-            e_nuc += v_rep.get(&atomi.kind, &atomj.kind).spline_eval(r);
+            e_nuc += v_rep.get(atomi.kind, atomj.kind).spline_eval(r);
         }
     }
     return e_nuc;
@@ -146,7 +146,7 @@ pub fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
 
 /// Construct reference density matrix
 /// all atoms should be neutral
-pub fn density_matrix_ref(n_orbs: usize, atoms: &[&Atom]) -> Array2<f64> {
+pub fn density_matrix_ref(n_orbs: usize, atoms: &[Atom]) -> Array2<f64> {
     let mut p0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
     // iterate over orbitals on center i
     let mut idx: usize = 0;
@@ -160,7 +160,7 @@ pub fn density_matrix_ref(n_orbs: usize, atoms: &[&Atom]) -> Array2<f64> {
     return p0;
 }
 
-pub fn construct_h1(n_orbs: usize, atoms: &[&Atom], gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
+pub fn construct_h1(n_orbs: usize, atoms: &[Atom], gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
     let mut h1: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
     let mut mu: usize = 0;

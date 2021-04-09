@@ -125,9 +125,9 @@ pub fn h0_and_s_ab(
 }
 
 /// Computes the H0 and S matrix elements for a single molecule.
-pub fn h0_and_s<'a>(
+pub fn h0_and_s(
     n_orbs: usize,
-    atoms: &[&'a Atom],
+    atoms: &[Atom],
     geometry: &Geometry,
     skt: &SlaterKoster,
 ) -> (Array2<f64>, Array2<f64>) {
@@ -154,6 +154,7 @@ pub fn h0_and_s<'a>(
                     if geometry.proximities.as_ref().unwrap()[[i, j]] {
                         if mu < nu {
                             if i != j {
+                                let (orba, orbb) = if atomi <= atomj {(orbi, orbj)} else {(orbj, orbi)};
                                 let (r, x, y, z): (f64, f64, f64, f64) =
                                     directional_cosines(posi, posj);
                                 s[[mu, nu]] = slako_transformation(
@@ -161,22 +162,22 @@ pub fn h0_and_s<'a>(
                                     x,
                                     y,
                                     z,
-                                    &skt.get(&atomi.kind, &atomj.kind).s_spline,
-                                    orbi.l,
-                                    orbi.m,
-                                    orbj.l,
-                                    orbj.m,
+                                    &skt.get(atomi.kind, atomj.kind).s_spline,
+                                    orba.l,
+                                    orba.m,
+                                    orbb.l,
+                                    orbb.m,
                                 );
                                 h0[[mu, nu]] = slako_transformation(
                                     r,
                                     x,
                                     y,
                                     z,
-                                    &skt.get(&atomi.kind, &atomj.kind).h_spline,
-                                    orbi.l,
-                                    orbi.m,
-                                    orbj.l,
-                                    orbj.m,
+                                    &skt.get(atomi.kind, atomj.kind).h_spline,
+                                    orba.l,
+                                    orba.m,
+                                    orbb.l,
+                                    orbb.m,
                                 );
                             }
                         } else if mu == nu {

@@ -7,7 +7,7 @@ pub fn mulliken(
     p: ArrayView2<f64>,
     p0: ArrayView2<f64>,
     s: ArrayView2<f64>,
-    atoms: &[&Atom],
+    atoms: &[Atom],
     n_atoms: usize,
 ) -> (Array1<f64>, Array1<f64>) {
     let dp = &p - &p0;

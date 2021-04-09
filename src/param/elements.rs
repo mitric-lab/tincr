@@ -1,7 +1,8 @@
 use std::hash::{Hash, Hasher};
+use std::cmp::Ordering;
 
 #[rustfmt::skip]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 /// Type that contains the kind of a chemical element.
 pub enum Element {
     H,                                                                                   He,
@@ -24,6 +25,13 @@ impl PartialEq for Element {
 }
 
 impl Eq for Element {}
+
+// Two elements are compared by their atomic numbers
+impl PartialOrd for Element {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.number().partial_cmp(&other.number())
+    }
+}
 
 // The atomic number of the chemical element is used for the hashing
 impl Hash for Element {

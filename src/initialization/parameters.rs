@@ -116,11 +116,11 @@ impl PseudoAtom {
 /// Type that holds the mapping between element pairs and their [SlaterKosterTable].
 /// This is basically a struct that allows to get the [SlaterKosterTable] without a strict
 /// order of the [Element] tuple.
-pub struct SlaterKoster<'a> {
-    map: HashMap<(&'a Element, &'a Element), SlaterKosterTable>,
+pub struct SlaterKoster{
+    map: HashMap<(Element, Element), SlaterKosterTable>,
 }
 
-impl<'a> SlaterKoster<'a> {
+impl SlaterKoster {
     /// Create a new [SlaterKoster] type, that maps a tuple of [Element] s to a [SlaterKosterTable].
     pub fn new() -> Self {
         SlaterKoster {
@@ -129,12 +129,12 @@ impl<'a> SlaterKoster<'a> {
     }
 
     /// Add a new [SlaterKosterTable] from a tuple of two [Element]s. THe
-    pub fn add(&mut self, kind1: &'a Element, kind2: &'a Element) {
+    pub fn add(&mut self, kind1: Element, kind2: Element) {
         self.map
-            .insert((&kind1, &kind2), SlaterKosterTable::new(&kind1, &kind2));
+            .insert((kind1, kind2), SlaterKosterTable::new(kind1, kind2));
     }
 
-    pub fn get(&self, kind1: &'a Element, kind2: &'a Element) -> &SlaterKosterTable {
+    pub fn get(&self, kind1: Element, kind2: Element) -> &SlaterKosterTable {
         self.map
             .get(&(kind1, kind2))
             .unwrap_or(self.map.get(&(kind2, kind1)).unwrap())
@@ -171,8 +171,13 @@ pub struct SlaterKosterTable {
 impl SlaterKosterTable {
     /// Creates a new [SlaterKosterTable] from two elements and splines the H0 and overlap
     /// matrix elements
-    pub fn new(kind1: &Element, kind2: &Element) -> Self {
+    pub fn new(kind1: Element, kind2: Element) -> Self {
         let path_prefix: String = get_path_prefix();
+        let (kind1, kind2) = if kind1 > kind2 {
+            (kind2, kind1)
+        } else{
+            (kind1, kind2)
+        };
         let filename: String = format!(
             "{}/src/param/slaterkoster/slako_tables/{}_{}.ron",
             path_prefix,
@@ -180,7 +185,7 @@ impl SlaterKosterTable {
             kind2.symbol().to_lowercase()
         );
         let path: &Path = Path::new(&filename);
-        let data: String = fs::read_to_string(path).expect("Unable to read file");
+        let data: String = fs::read_to_string(path).expect(&*format! {"Unable to read file {}", &filename});
         let mut slako_table: SlaterKosterTable =
             from_str(&data).expect("RON file was not well-formatted");
         slako_table.dmax = slako_table.d[slako_table.d.len()-1];
@@ -191,7 +196,7 @@ impl SlaterKosterTable {
 
     pub(crate) fn spline_overlap(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
         let mut splines: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = HashMap::new();
-        for ((l1, l2, i), value) in &self.s {
+        for ((_l1, _l2, i), value) in &self.s {
             let x: Vec<f64> = self.d.clone();
             let y: Vec<f64> = value.clone();
             splines.insert(
@@ -206,7 +211,7 @@ impl SlaterKosterTable {
 
     pub(crate) fn spline_hamiltonian(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
         let mut splines: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = HashMap::new();
-        for ((l1, l2, i), value) in &self.h {
+        for ((_l1, _l2, i), value) in &self.h {
             let x: Vec<f64> = self.d.clone();
             let y: Vec<f64> = value.clone();
             splines.insert(
@@ -223,11 +228,11 @@ impl SlaterKosterTable {
 /// Type that holds the mapping between element pairs and their [RepulsivePotentialTable].
 /// This is basically a struct that allows to get the [RepulsivePotentialTable] without a s
 /// order of the [Element] tuple.
-pub struct RepulsivePotential<'a> {
-    map: HashMap<(&'a Element, &'a Element), RepulsivePotentialTable>,
+pub struct RepulsivePotential {
+    map: HashMap<(Element, Element), RepulsivePotentialTable>,
 }
 
-impl<'a> RepulsivePotential<'a> {
+impl RepulsivePotential {
     /// Create a new RepulsivePotential, to map the [Element] pairs to a [RepulsivePotentialTable]
     pub fn new() -> Self {
         RepulsivePotential {
@@ -236,16 +241,16 @@ impl<'a> RepulsivePotential<'a> {
     }
 
     /// Add a [RepulsivePotentialTable] from a pair of two [Element]s
-    pub fn add(&mut self, kind1: &'a Element, kind2: &'a Element) {
+    pub fn add(&mut self, kind1: Element, kind2: Element) {
         self.map.insert(
-            (&kind1, &kind2),
-            RepulsivePotentialTable::new(&kind1, &kind2),
+            (kind1, kind2),
+            RepulsivePotentialTable::new(kind1, kind2),
         );
     }
 
     /// Return the [RepulsivePotentialTable] for the tuple of two [Element]s. The order of
     /// the tuple does not play a role.
-    pub fn get(&self, kind1: &'a Element, kind2: &'a Element) -> &RepulsivePotentialTable {
+    pub fn get(&self, kind1: Element, kind2: Element) -> &RepulsivePotentialTable {
         self.map
             .get(&(kind1, kind2))
             .unwrap_or(self.map.get(&(kind2, kind1)).unwrap())
@@ -276,8 +281,13 @@ pub struct RepulsivePotentialTable {
 impl RepulsivePotentialTable {
     /// Create a new [RepulsivePotentialTable] from two [Elements]. The parameter file will be read
     /// and the repulsive energy will be splined and the spline representation will be stored.
-    pub fn new(kind1: &Element, kind2: &Element) -> Self {
+    pub fn new(kind1: Element, kind2: Element) -> Self {
         let path_prefix: String = get_path_prefix();
+        let (kind1, kind2) = if kind1 > kind2 {
+            (kind2, kind1)
+        } else{
+            (kind1, kind2)
+        };
         let filename: String = format!(
             "{}/src/param/repulsive_potential/reppot_tables/{}_{}.ron",
             path_prefix,

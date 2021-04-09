@@ -223,7 +223,7 @@ fn gamma_gradients_atomwise(
 pub fn gamma_ao_wise(
     gamma_func: &GammaFunction,
     atomic_numbers: &[u8],
-    atoms: &[&Atom],
+    atoms: &[Atom],
     n_atoms: usize,
     n_orbs: usize,
     distances: ArrayView2<f64>,
