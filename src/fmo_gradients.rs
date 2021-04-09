@@ -72,6 +72,10 @@ pub fn fmo_gs_gradients(
     // let gamma_tmp: Array2<f64> = 1.0 * gamma_total;
     let mut dimer_gradients: Vec<Array1<f64>> = Vec::new();
     let mut embedding_gradients: Vec<Array1<f64>> = Vec::new();
+    let mut pair_scc_hash:HashMap<usize,usize> = HashMap::new();
+    let mut pair_esdim_hash:HashMap<usize,usize> = HashMap::new();
+    let mut scc_iter:usize = 0;
+    let mut esdim_iter:usize = 0;
 
     let grad_total_frags: Array1<f64> = &grad_e0_monomers + &grad_vrep_monomers;
 
@@ -79,6 +83,8 @@ pub fn fmo_gs_gradients(
         if pair.energy_pair.is_some() {
             let dimer_gradient_e0: Array1<f64> = pair.grad_e0.clone().unwrap();
             let dimer_gradient_vrep: Array1<f64> = pair.grad_vrep.clone().unwrap();
+            pair_scc_hash.insert(pair_index,scc_iter);
+            scc_iter+=1;
 
             let dimer_pmat: Array2<f64> = pair.p_mat.clone().unwrap();
 
@@ -509,6 +515,10 @@ pub fn fmo_gs_gradients(
             }
             embedding_gradients.push(embedding_gradient);
             dimer_gradients.push(dimer_gradient_e0 + dimer_gradient_vrep);
+        }
+        else{
+            pair_esdim_hash.insert(pair_index,esdim_iter);
+            esdim_iter+=1;
         }
     }
     let grad_es_dim:Vec<Array1<f64>> = pair_results.par_iter().enumerate().filter_map(|(pair_index,pair)|if pair.energy_pair.is_none(){
@@ -1456,7 +1466,7 @@ pub fn fmo_gs_gradients(
     //     Array::from(grad_e0_monomers) + Array::from(grad_vrep_monomers);
     let mut grad_total_dimers: Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
 
-    for (index_pair, pair) in pair_results.iter().enumerate() {
+    for (index, pair) in pair_results.iter().enumerate() {
         let index_a: usize = pair.frag_a_index;
         let index_b: usize = pair.frag_b_index;
         let atoms_a: usize = fragments[index_a].n_atoms;
@@ -1465,6 +1475,7 @@ pub fn fmo_gs_gradients(
         let index_frag_b: usize = indices_frags[index_b];
 
         if pair.energy_pair.is_some() {
+            let index_pair = pair_scc_hash[&index];
             grad_total_dimers
                 .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
                 .add_assign(
@@ -1480,6 +1491,7 @@ pub fn fmo_gs_gradients(
                             + &frag_grad_results[index_b].grad_vrep)),
                 );
         } else {
+            let index_pair = pair_esdim_hash[&index];
             grad_total_dimers
                 .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
                 .add_assign(&grad_es_dim[index_pair].slice(s![0..3 * atoms_a]));
