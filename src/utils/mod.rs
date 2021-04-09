@@ -1,11 +1,14 @@
 mod zbrent;
 mod array_helper;
+mod tests;
 
 pub use array_helper::ToOwnedF;
 pub use zbrent::zbrent;
 use std::time::Instant;
-use std::fmt;
+use std::{fmt, env};
 
+pub use tests::*;
+use crate::defaults;
 
 pub enum Calculation {
     Converged,
@@ -32,5 +35,16 @@ impl fmt::Display for Timer {
             "elapsed time:",
             self.time.elapsed().as_secs_f32()
         )
+    }
+}
+
+/// Helper function that prepends the path of the `tincr` source directory to be able to
+/// use a relative path to the parameter files. The environment variable `TINCR_SRC_DIR` should be
+/// set, so that the parameter files can be found.
+pub fn get_path_prefix() -> String {
+    let key: &str = defaults::SOURCE_DIR_VARIABLE;
+    match env::var(key) {
+        Ok(val) => val,
+        Err(e) => panic!("The environment variable {} was not set", key),
     }
 }

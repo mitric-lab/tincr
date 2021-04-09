@@ -1,412 +1,364 @@
-#![allow(clippy::if_same_then_else)]
-use crate::scc::h0_and_s::h0_and_s;
-use crate::initialization::parameters::*;
-use crate::{constants, defaults};
-use approx::AbsDiffEq;
-use log::{debug, error, info, trace, warn};
-use ndarray::prelude::*;
-#[macro_use]
-use ndarray::stack;
-use ndarray_linalg::Norm;
 use std::collections::HashMap;
-use std::hash::Hash;
+use crate::initialization::property::Property;
+use ndarray::prelude::*;
+use crate::scc::h0_and_s::h0_and_s;
 
-#[derive(Clone)]
-pub struct ElectronicData {
-    pub h0: Option<Array2<f64>>,
-    pub s: Option<Array2<f64>>,
-    pub dq: Option<Array1<f64>>,
-    pub p: Option<Array2<f64>>,
-    pub gamma_atom_wise: Option<Array2<f64>>,
-    pub gamma_ao_wise: Option<Array2<f64>>,
-    pub gamma_lrc_atom_wise: Option<Array2<f64>>,
-    pub gamma_lrc_ao_wise: Option<Array2<f64>>,
-    pub gamma_atom_wise_grad: Option<Array3<f64>>,
-    pub gamma_ao_wise_grad: Option<Array3<f64>>,
-    pub gamma_lrc_atom_wise_grad: Option<Array3<f64>>,
-    pub gamma_lrc_ao_wise_grad: Option<Array3<f64>>,
+pub struct Properties {
+    map: HashMap<&'static str, Property>
 }
 
-impl ElectronicData {
+impl Properties {
     pub fn new() -> Self {
-        ElectronicData {
-            h0: None,
-            s: None,
-            dq: None,
-            p: None,
-            gamma_atom_wise: None,
-            gamma_ao_wise: None,
-            gamma_lrc_atom_wise: None,
-            gamma_lrc_ao_wise: None,
-            gamma_atom_wise_grad: None,
-            gamma_ao_wise_grad: None,
-            gamma_lrc_atom_wise_grad: None,
-            gamma_lrc_ao_wise_grad: None,
+        Properties{map: HashMap::new()}
+    }
+
+    pub fn get(&self, name: &'static str) -> Option<&Property> {
+        self.map.get(name)
+    }
+
+    /// Returns the Property without a reference and removes it from the dict
+    pub fn take(&mut self, name: &'static str) -> Option<Property> {
+        self.map.remove(name)
+    }
+
+    pub fn set(&mut self, name: &'static str, value: Property) {
+        self.map.insert(name, value);
+    }
+
+    pub fn contains_key(&self, name: &'static str) -> bool {
+        self.map.contains_key(name)
+    }
+
+    /// Takes the atomic numbers
+    pub fn take_atomic_numbers(&mut self) -> Result<Vec<u8>, Property> {
+        match self.take("atomic_numbers") {
+            Some(value) => value.into_vec_u8(),
+            _=> Err(Property::default())
         }
     }
 
-    pub fn set_h0(&mut self, h0: Option<Array2<f64>>) {
-        self.h0 = match h0 {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_s(&mut self, overlap: Option<Array2<f64>>) {
-        self.s = match overlap {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_dq(&mut self, dq: Option<Array1<f64>>) {
-        self.dq = match dq {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_p(&mut self, p: Option<Array2<f64>>) {
-        self.p = match p {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_gamma_atom_wise(&mut self, gamma_atom_wise: Option<Array2<f64>>) {
-        self.gamma_atom_wise = match gamma_atom_wise {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_gamma_ao_wise(&mut self, gamma_ao_wise: Option<Array2<f64>>) {
-        self.gamma_ao_wise = match gamma_ao_wise {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_gamma_lrc_atom_wise(&mut self, gamma_lrc_atom_wise: Option<Array2<f64>>) {
-        self.gamma_lrc_atom_wise = match gamma_lrc_atom_wise {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_gamma_lrc_ao_wise(&mut self, gamma_lrc_atom_wise: Option<Array2<f64>>) {
-        self.gamma_lrc_atom_wise = match gamma_lrc_atom_wise {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_gamma_atom_wise_grad(&mut self, gamma_atom_wise_grad: Option<Array3<f64>>) {
-        self.gamma_atom_wise_grad = match gamma_atom_wise_grad {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_gamma_ao_wise_grad(&mut self, gamma_ao_wise_grad: Option<Array3<f64>>) {
-        self.gamma_ao_wise_grad = gamma_ao_wise_grad;
-    }
-
-    pub fn set_gamma_lrc_atom_wise_grad(&mut self, gamma_lrc_atom_wise_grad: Option<Array3<f64>>) {
-        self.gamma_lrc_atom_wise_grad = match gamma_lrc_atom_wise_grad {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_gamma_lrc_ao_wise_grad(&mut self, gamma_lrc_ao_wise_grad: Option<Array3<f64>>) {
-        self.gamma_lrc_ao_wise_grad = match gamma_lrc_ao_wise_grad {
-            Some(x) => Some(x),
-            None => None,
-        };
-    }
-
-    pub fn set_dq_to_zeros(&mut self, n_atoms: usize) {
-        self.set_dq(Some(Array::zeros([n_atoms])));
-    }
-
-    pub fn set_h0_from_monomers(&mut self, h0_1: ArrayView2<f64>, h0_2: ArrayView2<f64>) {
-        let n_orb_1: usize = h0_1.ncols();
-        let n_orb_2: usize = h0_2.ncols();
-        let n_orbs: usize = n_orb_1 + n_orb_2;
-        let mut h0: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
-        h0.slice_mut(s![..n_orb_1, ..n_orb_1]).assign(&h0_1);
-        h0.slice_mut(s![n_orb_1.., n_orb_1..]).assign(&h0_2);
-        self.set_h0(Some(h0));
-    }
-
-    pub fn set_overlap_from_monomers(&mut self, s1: ArrayView2<f64>, s2: ArrayView2<f64>) {
-        let n_orb_1: usize = s1.ncols();
-        let n_orb_2: usize = s2.ncols();
-        let n_orbs: usize = n_orb_1 + n_orb_2;
-        let mut overlap: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
-        overlap.slice_mut(s![..n_orb_1, ..n_orb_1]).assign(&s1);
-        overlap.slice_mut(s![n_orb_1.., n_orb_1..]).assign(&s2);
-        self.set_s(Some(overlap));
-    }
-
-    pub fn set_dq_from_monomers(&mut self, dq1: ArrayView1<f64>, dq2: ArrayView1<f64>) {
-        self.set_dq(Some(stack![Axis(0), dq1, dq2]));
-    }
-
-    pub fn set_density_matrix_from_monomers(&mut self, p1: ArrayView2<f64>, p2: ArrayView2<f64>) {
-        let n_orb_1: usize = p1.ncols();
-        let n_orb_2: usize = p2.ncols();
-        let n_orbs: usize = n_orb_1 + n_orb_2;
-        let mut density_matrix: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
-        density_matrix
-            .slice_mut(s![..n_orb_1, ..n_orb_1])
-            .assign(&p1);
-        density_matrix
-            .slice_mut(s![n_orb_1.., n_orb_1..])
-            .assign(&p2);
-        self.set_p(Some(density_matrix));
-    }
-
-    pub fn set_gamma_atom_wise_from_monomers(&mut self, g1: ArrayView2<f64>, g2: ArrayView2<f64>) {
-        let n_at_1: usize = g1.ncols();
-        let n_at_2: usize = g2.ncols();
-        let n_atoms: usize = n_at_1 + n_at_2;
-        let mut gamma_atom_wise: Array2<f64> = Array2::zeros([n_atoms, n_atoms]);
-        gamma_atom_wise
-            .slice_mut(s![..n_at_1, ..n_at_1])
-            .assign(&g1);
-        gamma_atom_wise
-            .slice_mut(s![n_at_1.., n_at_1..])
-            .assign(&g2);
-        self.set_gamma_atom_wise(Some(gamma_atom_wise));
-    }
-
-    pub fn set_gamma_ao_wise_from_monomers(&mut self, g1: ArrayView2<f64>, g2: ArrayView2<f64>) {
-        let n_orb_1: usize = g1.ncols();
-        let n_orb_2: usize = g2.ncols();
-        let n_orbs: usize = n_orb_1 + n_orb_2;
-        let mut gamma_ao_wise: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
-        gamma_ao_wise
-            .slice_mut(s![..n_orb_1, ..n_orb_1])
-            .assign(&g1);
-        gamma_ao_wise
-            .slice_mut(s![n_orb_1.., n_orb_1..])
-            .assign(&g2);
-        self.set_gamma_ao_wise(Some(gamma_ao_wise));
-    }
-
-    pub fn set_gamma_lrc_atom_wise_from_monomers(
-        &mut self,
-        g1: ArrayView2<f64>,
-        g2: ArrayView2<f64>,
-    ) {
-        let n_at_1: usize = g1.ncols();
-        let n_at_2: usize = g2.ncols();
-        let n_atoms: usize = n_at_1 + n_at_2;
-        let mut gamma_lrc_atom_wise: Array2<f64> = Array2::zeros([n_atoms, n_atoms]);
-        gamma_lrc_atom_wise
-            .slice_mut(s![..n_at_1, ..n_at_1])
-            .assign(&g1);
-        gamma_lrc_atom_wise
-            .slice_mut(s![n_at_1.., n_at_1..])
-            .assign(&g2);
-        self.set_gamma_lrc_atom_wise(Some(gamma_lrc_atom_wise));
-    }
-
-    pub fn set_gamma_lrc_ao_wise_from_monomers(
-        &mut self,
-        g1: ArrayView2<f64>,
-        g2: ArrayView2<f64>,
-    ) {
-        let n_orb_1: usize = g1.ncols();
-        let n_orb_2: usize = g2.ncols();
-        let n_orbs: usize = n_orb_1 + n_orb_2;
-        let mut gamma_lrc_ao_wise: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
-        gamma_lrc_ao_wise
-            .slice_mut(s![..n_orb_1, ..n_orb_1])
-            .assign(&g1);
-        gamma_lrc_ao_wise
-            .slice_mut(s![n_orb_1.., n_orb_1..])
-            .assign(&g2);
-        self.set_gamma_lrc_ao_wise(Some(gamma_lrc_ao_wise));
-    }
-
-    pub fn set_gamma_atom_wise_grad_from_monomers(
-        &mut self,
-        g1_grad: ArrayView3<f64>,
-        g2_grad: ArrayView3<f64>,
-    ) {
-        let (f1, n_at_1, _): (usize, usize, usize) = g1_grad.dim();
-        let (f2, n_at_2, _): (usize, usize, usize) = g2_grad.dim();
-        let n_atoms: usize = n_at_1 + n_at_2;
-        let mut gamma_atom_wise_grad: Array3<f64> = Array3::zeros([f1 + f2, n_atoms, n_atoms]);
-        gamma_atom_wise_grad
-            .slice_mut(s![..f1, ..n_at_1, ..n_at_1])
-            .assign(&g1_grad);
-        gamma_atom_wise_grad
-            .slice_mut(s![f1.., n_at_1.., n_at_1..])
-            .assign(&g2_grad);
-        self.set_gamma_atom_wise_grad(Some(gamma_atom_wise_grad));
-    }
-
-    pub fn set_gamma_ao_wise_grad_from_monomers(
-        &mut self,
-        g1_grad: ArrayView3<f64>,
-        g2_grad: ArrayView3<f64>,
-    ) {
-        let (f1, n_orb_1, _): (usize, usize, usize) = g1_grad.dim();
-        let (f2, n_orb_2, _): (usize, usize, usize) = g2_grad.dim();
-        let n_orbs: usize = n_orb_1 + n_orb_2;
-        let mut gamma_ao_wise_grad: Array3<f64> = Array3::zeros([f1 + f2, n_orbs, n_orbs]);
-        gamma_ao_wise_grad
-            .slice_mut(s![..f1, ..n_orb_1, ..n_orb_1])
-            .assign(&g1_grad);
-        gamma_ao_wise_grad
-            .slice_mut(s![f1.., n_orb_1.., n_orb_1..])
-            .assign(&g2_grad);
-        self.set_gamma_ao_wise_grad(Some(gamma_ao_wise_grad));
-    }
-
-    pub fn set_gamma_lrc_atom_wise_grad_from_monomers(
-        &mut self,
-        g1_grad: ArrayView3<f64>,
-        g2_grad: ArrayView3<f64>,
-    ) {
-        let (f1, n_at_1, _): (usize, usize, usize) = g1_grad.dim();
-        let (f2, n_at_2, _): (usize, usize, usize) = g2_grad.dim();
-        let n_atoms: usize = n_at_1 + n_at_2;
-        let mut gamma_lrc_atom_wise_grad: Array3<f64> = Array3::zeros([f1 + f2, n_atoms, n_atoms]);
-        gamma_lrc_atom_wise_grad
-            .slice_mut(s![..f1, ..n_at_1, ..n_at_1])
-            .assign(&g1_grad);
-        gamma_lrc_atom_wise_grad
-            .slice_mut(s![f1.., n_at_1.., n_at_1..])
-            .assign(&g2_grad);
-        self.set_gamma_lrc_atom_wise_grad(Some(gamma_lrc_atom_wise_grad));
-    }
-
-    pub fn set_gamma_lrc_ao_wise_grad_from_monomers(
-        &mut self,
-        g1_grad: ArrayView3<f64>,
-        g2_grad: ArrayView3<f64>,
-    ) {
-        let (f1, n_orb_1, _): (usize, usize, usize) = g1_grad.dim();
-        let (f2, n_orb_2, _): (usize, usize, usize) = g2_grad.dim();
-        let n_orbs: usize = n_orb_1 + n_orb_2;
-        let mut gamma_lrc_ao_wise_grad: Array3<f64> = Array3::zeros([f1 + f2, n_orbs, n_orbs]);
-        gamma_lrc_ao_wise_grad
-            .slice_mut(s![..f1, ..n_orb_1, ..n_orb_1])
-            .assign(&g1_grad);
-        gamma_lrc_ao_wise_grad
-            .slice_mut(s![f1.., n_orb_1.., n_orb_1..])
-            .assign(&g2_grad);
-        self.set_gamma_lrc_ao_wise_grad(Some(gamma_lrc_ao_wise_grad));
-    }
-
-    pub fn dimer_from_monomers(
-        e1: &ElectronicData,
-        e2: &ElectronicData,
-    ) -> Self {
-        let mut es: ElectronicData = ElectronicData::new();
-        if e1.is_some() && e2.is_some() {
-            match (&e1.h0, &e2.h0) {
-                (Some(x), Some(y)) => es.set_h0_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.s, &e2.s) {
-                (Some(x), Some(y)) => es.set_overlap_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.dq, &e2.dq) {
-                (Some(x), Some(y)) => es.set_dq_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.p, &e2.p) {
-                (Some(x), Some(y)) => es.set_density_matrix_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.gamma_atom_wise, &e2.gamma_atom_wise) {
-                (Some(x), Some(y)) => es.set_gamma_atom_wise_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.gamma_ao_wise, &e2.gamma_ao_wise) {
-                (Some(x), Some(y)) => es.set_gamma_ao_wise_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.gamma_lrc_atom_wise, &e2.gamma_lrc_atom_wise) {
-                (Some(x), Some(y)) => es.set_gamma_lrc_atom_wise_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.gamma_lrc_ao_wise, &e2.gamma_lrc_ao_wise) {
-                (Some(x), Some(y)) => es.set_gamma_lrc_ao_wise_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.gamma_atom_wise_grad, &e2.gamma_atom_wise_grad) {
-                (Some(x), Some(y)) => es.set_gamma_atom_wise_grad_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.gamma_ao_wise_grad, &e2.gamma_ao_wise_grad) {
-                (Some(x), Some(y)) => es.set_gamma_ao_wise_grad_from_monomers(x.view(), y.view()),
-                _ => (),
-            };
-            match (&e1.gamma_lrc_atom_wise_grad, &e2.gamma_lrc_atom_wise_grad) {
-                (Some(x), Some(y)) => {
-                    es.set_gamma_lrc_atom_wise_grad_from_monomers(x.view(), y.view())
-                }
-                _ => (),
-            };
-            match (&e1.gamma_lrc_ao_wise_grad, &e2.gamma_lrc_ao_wise_grad) {
-                (Some(x), Some(y)) => {
-                    es.set_gamma_lrc_ao_wise_grad_from_monomers(x.view(), y.view())
-                }
-                _ => (),
-            };
+    /// Returns the reference density matrix
+    pub fn take_p_ref(&mut self) -> Result<Array2<f64>, Property> {
+        match self.take("ref_density_matrix") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
         }
-        return es;
     }
 
-    pub fn reset(&mut self) {
-        self.h0 = None;
-        self.s = None;
-        self.p = None;
-        self.gamma_atom_wise = None;
-        self.gamma_ao_wise = None;
-        self.gamma_lrc_atom_wise = None;
-        self.gamma_lrc_ao_wise = None;
-        self.gamma_atom_wise_grad = None;
-        self.gamma_ao_wise_grad = None;
-        self.gamma_lrc_atom_wise_grad = None;
-        self.gamma_lrc_ao_wise_grad = None;
-    }
-
-    pub fn is_some(&self) -> bool {
-        if self.h0.is_some() {
-            true
-        } else if self.s.is_some() {
-            true
-        } else if self.dq.is_some() {
-            true
-        } else if self.p.is_some() {
-            true
-        } else if self.gamma_atom_wise.is_some() {
-            true
-        } else if self.gamma_ao_wise.is_some() {
-            true
-        } else if self.gamma_lrc_atom_wise.is_some() {
-            true
-        } else if self.gamma_lrc_ao_wise.is_some() {
-            true
-        } else if self.gamma_atom_wise_grad.is_some() {
-            true
-        } else if self.gamma_ao_wise_grad.is_some() {
-            true
-        } else if self.gamma_lrc_atom_wise_grad.is_some() {
-            true
-        } else if self.gamma_lrc_ao_wise_grad.is_some() {
-            true
-        } else {
-            false
+    /// Returns the H0 matrix in AO basis.
+    pub fn take_h0(&mut self) -> Result<Array2<f64>, Property>{
+        match self.take("H0") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
         }
+    }
+
+    /// Returns the overlap matrix in AO basis.
+    pub fn take_s(&mut self) -> Result<Array2<f64>, Property>{
+        match self.take("S") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns a reference to the gradient of the H0 matrix in AO basis.
+    pub fn take_grad_h0(&mut self) -> Result<Array3<f64>, Property>{
+        match self.take("gradH0") {
+            Some(value) => value.into_array3(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns a reference to the gradient of the overlap matrix in AO basis.
+    pub fn take_grad_s(&mut self) -> Result<Array3<f64>, Property>{
+        match self.take("gradS") {
+            Some(value) => value.into_array3(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the charge differences per atom.
+    pub fn take_dq(&mut self) -> Result<Array1<f64>, Property>{
+        match self.take("dq") {
+            Some(value) => value.into_array1(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the density matrix in AO basis.
+    pub fn take_p(&mut self) -> Result<Array2<f64>, Property>{
+        match self.take("P") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the gamma matrix in atomic basis.
+    pub fn take_gamma(&mut self) -> Result<Array2<f64>, Property> {
+        match self.take("gamma_atom_wise") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the gamma matrix in AO basis.
+    pub fn take_gamma_ao(&mut self) -> Result<Array2<f64>, Property>{
+        match self.take("gamma_ao_wise") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the long-range corrected gamma matrix in atomic basis.
+    pub fn take_gamma_lr(&mut self) -> Result<Array2<f64>, Property>{
+        match self.take("gamma_lr_atom_wise") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the long-range corrected gamma matrix in AO basis.
+    pub fn take_gamma_lr_ao(&mut self) -> Result<Array2<f64>, Property>{
+        match self.take("gamma_lr_ao_wise") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the gradient of the gamma matrix in atomic basis.
+    pub fn take_grad_gamma(&mut self) -> Result<Array3<f64>, Property>{
+        match self.take("gamma_atom_wise_gradient") {
+            Some(value) => value.into_array3(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the gradient of the gamma matrix in AO basis.
+    pub fn take_grad_gamma_ao(&mut self) -> Result<Array3<f64>, Property>{
+        match self.take("gamma_ao_wise_gradient") {
+            Some(value) => value.into_array3(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the gradient of the long-range corrected gamma matrix in atomic basis.
+    pub fn take_grad_gamma_lr(&mut self) -> Result<Array3<f64>, Property>{
+        match self.take("gamma_lr_atom_wise_gradient"){
+            Some(value) => value.into_array3(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns a reference to the gradient of the long-range corrected gamma matrix in AO basis.
+    pub fn take_grad_gamma_lr_ao(&mut self) -> Result<Array3<f64>, Property>{
+       match self.take("gamma_lr_ao_wise_gradient"){
+            Some(value) => value.into_array3(),
+           _=> Err(Property::default())
+        }
+    }
+
+    /// Returns a reference the atomic numbers
+    pub fn atomic_numbers(&self) -> Option<&[u8]> {
+        match self.get("atomic_numbers") {
+            Some(value) => Some(value.as_vec_u8().unwrap()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the reference density matrix
+    pub fn p_ref(&self) -> Option<ArrayView2<f64>> {
+        match self.get("ref_density_matrix") {
+            Some(value) =>Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the H0 matrix in AO basis.
+    pub fn h0(&self) -> Option<ArrayView2<f64>>{
+        match self.get("H0") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the overlap matrix in AO basis.
+    pub fn s(&self) -> Option<ArrayView2<f64>>{
+        match self.get("S") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the H0 matrix in AO basis.
+    pub fn grad_h0(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gradH0") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the overlap matrix in AO basis.
+    pub fn grad_s(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gradS") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the charge differences per atom.
+    pub fn dq(&self) -> Option<ArrayView1<f64>>{
+        match self.get("dq") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the density matrix in AO basis.
+    pub fn p(&self) -> Option<ArrayView2<f64>>{
+        match self.get("P") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gamma matrix in atomic basis.
+    pub fn gamma(&self) -> Option<ArrayView2<f64>> {
+        match self.get("gamma_atom_wise") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gamma matrix in AO basis.
+    pub fn gamma_ao(&self) -> Option<ArrayView2<f64>>{
+        match self.get("gamma_ao_wise") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the long-range corrected gamma matrix in atomic basis.
+    pub fn gamma_lr(&self) -> Option<ArrayView2<f64>>{
+        match self.get("gamma_lr_atom_wise") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the long-range corrected gamma matrix in AO basis.
+    pub fn gamma_lr_ao(&self) -> Option<ArrayView2<f64>>{
+        match self.get("gamma_lr_ao_wise") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the gamma matrix in atomic basis.
+    pub fn grad_gamma(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gamma_atom_wise_gradient") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the gamma matrix in AO basis.
+    pub fn grad_gamma_ao(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gamma_ao_wise_gradient") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the long-range corrected gamma matrix in atomic basis.
+    pub fn grad_gamma_lr(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gamma_lr_atom_wise_gradient"){
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the gradient of the long-range corrected gamma matrix in AO basis.
+    pub fn grad_gamma_lr_ao(&self) -> Option<ArrayView3<f64>>{
+        match self.get("gamma_lr_ao_wise_gradient") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Set the atomic numbers
+    pub fn set_atomic_numbers(&mut self, atomic_numbers: Vec<u8>) {self.set("atomic_numbers", Property::from(atomic_numbers))}
+
+    /// Set the reference density matrix
+    pub fn set_p_ref(&mut self, ref_p: Array2<f64>) {self.set("ref_density_matrix", Property::from(ref_p))}
+
+    /// Set the H0 matrix in AO basis.
+    pub fn set_h0(&mut self, h0: Array2<f64>) {
+        self.set("H0", Property::from(h0));
+    }
+
+    /// Set the overlap matrix in AO basis.
+    pub fn set_s(&mut self, s: Array2<f64>) {
+        self.set("S", Property::from(s));
+    }
+
+    /// Set the gradient of the H0 matrix in AO basis.
+    pub fn set_grad_h0(&mut self, grad_h0: Array3<f64>) {
+        self.set("gradH0", Property::from(grad_h0));
+    }
+
+    /// Set the gradient of the overlap matrix in AO basis.
+    pub fn set_grad_s(&mut self, grad_s: Array3<f64>) {
+        self.set("gradS", Property::from(grad_s));
+    }
+
+    /// Set the charge differences per atom.
+    pub fn set_dq(&mut self, dq: Array1<f64>){
+        self.set("dq", Property::from(dq));
+    }
+
+    /// Set the density matrix in AO basis.
+    pub fn set_p(&mut self, p: Array2<f64>) {
+        self.set("P", Property::from(p));
+    }
+
+    /// Set the gamma matrix in atomic basis.
+    pub fn set_gamma(&mut self, gamma: Array2<f64>) {
+        self.set("gamma_atom_wise", Property::from(gamma));
+    }
+
+    /// Set the gamma matrix in AO basis.
+    pub fn set_gamma_ao(&mut self, gamma_ao: Array2<f64>){
+        self.set("gamma_ao_wise", Property::from(gamma_ao));
+    }
+
+    /// Set the long-range corrected gamma matrix in atomic basis.
+    pub fn set_gamma_lr(&mut self, gamma_lr: Array2<f64>) {
+        self.set("gamma_lr_atom_wise", Property::from(gamma_lr));
+    }
+
+    /// Set the long-range corrected gamma matrix in AO basis.
+    pub fn set_gamma_lr_ao(&mut self, gamma_lr_ao: Array2<f64>){
+        self.set("gamma_lr_ao_wise", Property::from(gamma_lr_ao));
+    }
+
+    /// Set the gradient of the gamma matrix in atomic basis.
+    pub fn set_grad_gamma(&mut self, grad_gamma: Array3<f64>){
+        self.set("gamma_atom_wise_gradient", Property::from(grad_gamma));
+    }
+
+    /// Set the gradient of the gamma matrix in AO basis.
+    pub fn set_grad_gamma_ao(&mut self, grad_gamma_ao: Array3<f64>){
+        self.set("gamma_ao_wise_gradient", Property::from(grad_gamma_ao));
+    }
+
+    /// Set the gradient of the long-range corrected gamma matrix in atomic basis.
+    pub fn set_grad_gamma_lr(&mut self, grad_gamma_lr: Array3<f64>) {
+        self.set("gamma_lr_atom_wise_gradient", Property::from(grad_gamma_lr));
+    }
+
+    /// Set the gradient of the long-range corrected gamma matrix in AO basis.
+    pub fn set_grad_gamma_lr_ao(&mut self, grad_gamma_lr_ao: Array3<f64>) {
+        self.set("gamma_lr_ao_wise_gradient", Property::from(grad_gamma_lr_ao));
     }
 }
+

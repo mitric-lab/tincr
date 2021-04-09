@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
+use crate::utils::get_path_prefix;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -355,13 +356,3 @@ impl RepulsivePotentialTable {
     }
 }
 
-/// Helper function that prepends the path of the `tincr` source directory to be able to
-/// use a relative path to the parameter files. The environment variable `TINCR_SRC_DIR` should be
-/// set, so that the parameter files can be found.
-fn get_path_prefix() -> String {
-    let key: &str = defaults::SOURCE_DIR_VARIABLE;
-    match env::var(key) {
-        Ok(val) => val,
-        Err(e) => panic!("The environment variable {} was not set", key),
-    }
-}
