@@ -60,7 +60,7 @@ use std::collections::HashMap;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(4)
+        .num_threads(1)
         .build_global()
         .unwrap();
 
@@ -155,22 +155,22 @@ fn main() {
             );
             drop(molecule_timer);
 
-            mol.calculator.set_active_orbitals(f.to_vec());
-            let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
-                Array1<f64>,
-                Array1<f64>,
-                Array1<f64>,
-                Array3<f64>,
-            ) = get_gradients(&orbe, &orbs, &s, &mut mol, &None, &None, None, &None, None);
-            println!("gradE0 {}",grad_e0);
-            println!("");
-            println!("gradtotal {}",&grad_e0+ &grad_vrep);
-            println!("");
-            let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
-
-            println!("numerical dftb gradient {}",num_grad);
-            println!("");
-            println!("Norm of difference: {}", (grad_e0+ grad_vrep-num_grad).norm());
+            // mol.calculator.set_active_orbitals(f.to_vec());
+            // let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+            //     Array1<f64>,
+            //     Array1<f64>,
+            //     Array1<f64>,
+            //     Array3<f64>,
+            // ) = get_gradients(&orbe, &orbs, &s, &mut mol, &None, &None, None, &None, None);
+            // println!("gradE0 {}",grad_e0);
+            // println!("");
+            // println!("gradtotal {}",&grad_e0+ &grad_vrep);
+            // println!("");
+            // let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
+            //
+            // println!("numerical dftb gradient {}",num_grad);
+            // println!("");
+            // println!("Norm of difference: {}", (grad_e0+ grad_vrep-num_grad).norm());
             //mol.calculator.set_active_orbitals(f.to_vec());
             //let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
             //    get_exc_energies(&f, &mol, Some(4), &s, &orbe, &orbs, false, None);
