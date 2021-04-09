@@ -1,4 +1,4 @@
-use crate::calculator::get_gamma_gradient_matrix_atom_wise_outer_diagonal;
+use crate::calculator::{get_gamma_gradient_matrix_atom_wise_outer_diagonal, get_gamma_matrix_atomwise_outer_diagonal};
 use crate::calculator::{
     get_gamma_gradient_matrix, get_gamma_matrix, get_only_gamma_matrix_atomwise,
     import_pseudo_atom, Calculator, DFTBCalculator,
@@ -41,8 +41,8 @@ pub fn fmo_gs_gradients(
     frag_grad_results: &Vec<frag_grad_result>,
     pair_results: &Vec<pair_grad_result>,
     indices_frags: &Vec<usize>,
-    gamma_total: Array2<f64>,
-    prox_mat: Array2<bool>,
+    // gamma_total: Array2<f64>,
+    // prox_mat: Array2<bool>,
     dist_mat: &Array2<f64>,
     directions: &Array3<f64>,
     full_hubbard: &HashMap<u8, f64>,
@@ -61,13 +61,13 @@ pub fn fmo_gs_gradients(
     let mut pair_energies: f64 = 0.0;
     let mut embedding_potential: f64 = 0.0;
 
-    let proximity_zeros: Array1<f64> = prox_mat
-        .iter()
-        .filter_map(|&item| if item == true { Some(1.0) } else { Some(0.0) })
-        .collect();
-    let gamma_zeros: Array2<f64> = proximity_zeros.into_shape((prox_mat.raw_dim())).unwrap();
+    // let proximity_zeros: Array1<f64> = prox_mat
+    //     .iter()
+    //     .filter_map(|&item| if item == true { Some(1.0) } else { Some(0.0) })
+    //     .collect();
+    // let gamma_zeros: Array2<f64> = proximity_zeros.into_shape((prox_mat.raw_dim())).unwrap();
     //let gamma_tmp: Array2<f64> = gamma_zeros * gamma_total;
-    let gamma_tmp: Array2<f64> = 1.0 * gamma_total;
+    // let gamma_tmp: Array2<f64> = 1.0 * gamma_total;
     let mut dimer_gradients: Vec<Array1<f64>> = Vec::new();
     let mut embedding_gradients: Vec<Array1<f64>> = Vec::new();
 
@@ -238,6 +238,15 @@ pub fn fmo_gs_gradients(
                             Some(0.0),
                         );
 
+                        let g0_trimer_ak:Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
+                            &dimer_atomic_numbers,
+                            &mol_k.atomic_numbers,
+                            pair_atoms,
+                            mol_k.n_atoms,
+                            trimer_distances,
+                            full_hubbard,
+                            Some(0.0));
+
                         let trimer_distances: ArrayView2<f64> = dist_mat.slice(s![
                             index_frag_iter..index_frag_iter + mol_k.n_atoms,
                             index_pair_iter..index_pair_iter + pair_atoms
@@ -273,10 +282,15 @@ pub fn fmo_gs_gradients(
                         //     "Gamma matrices are NOT equal!!!!"
                         // );
 
-                        let g0_ab: ArrayView2<f64> = gamma_tmp.slice(s![
-                            index_pair_iter..index_pair_iter + pair_atoms,
-                            index_frag_iter..index_frag_iter + mol_k.n_atoms
-                        ]);
+                        // let g0_ab: ArrayView2<f64> = gamma_tmp.slice(s![
+                        //     index_pair_iter..index_pair_iter + pair_atoms,
+                        //     index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        // ]);
+                        //
+                        // assert!(
+                        //     g0_ab.abs_diff_eq(&g0_trimer_ak, 1e-12),
+                        //     "Gamma matrices are NOT equal!!!!"
+                        // );
 
                         let mut term_1: Array1<f64> = Array1::zeros(3 * pair_atoms);
                         let mut term_2: Array1<f64> = Array1::zeros(3 * pair_atoms);
@@ -318,8 +332,10 @@ pub fn fmo_gs_gradients(
                                 // let tmp_1:f64 = dw_dimer.slice(s![index,..,..]).dot(&pair_smat.t()).trace().unwrap();
                                 // let tmp_2:f64 = dp_dimer.dot(&pair_grads.slice(s![index,..,..]).t()).trace().unwrap();
                                 // term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![a,..]).dot(&fragments[ind_k].final_charges);
+                                // term_2[index] = diag
+                                //     * g0_ab.slice(s![a, ..]).dot(&fragments[ind_k].final_charges);
                                 term_2[index] = diag
-                                    * g0_ab.slice(s![a, ..]).dot(&fragments[ind_k].final_charges);
+                                    * g0_trimer_ak.slice(s![a, ..]).dot(&fragments[ind_k].final_charges);
                             }
                         }
                         let embedding_part_1: Array1<f64> = term_1 + term_2;
@@ -373,7 +389,8 @@ pub fn fmo_gs_gradients(
                                 // let tmp_1:f64 = w_mat_k.slice(s![index,..,..]).dot(&frag_grad_results[ind_k].s.t()).trace().unwrap();
                                 // let tmp_2:f64 = fragments[ind_k].final_p_matrix.dot(&frag_grad_results[ind_k].grad_s.slice(s![index,..,..]).t()).trace().unwrap();
                                 // term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![..,a]).dot(&ddq_arr);
-                                term_2[index] = diag * g0_ab.slice(s![.., a]).dot(&ddq_arr);
+                                // term_2[index] = diag * g0_ab.slice(s![.., a]).dot(&ddq_arr);
+                                term_2[index] = diag * g0_trimer_ak.slice(s![.., a]).dot(&ddq_arr);
                             }
                         }
                         let embedding_part_2: Array1<f64> = term_1 + term_2;
@@ -499,23 +516,84 @@ pub fn fmo_gs_gradients(
             let index_pair_a: usize = indices_frags[pair.frag_a_index];
             let index_pair_b: usize = indices_frags[pair.frag_b_index];
 
-            let g1_ab:Array3<f64> = pair_results[pair_index]
-                .g1
-                .slice(s![
-                    0..3 * fragments[pair.frag_a_index].n_atoms,
-                    0..fragments[pair.frag_a_index].n_atoms,
-                    fragments[pair.frag_a_index].n_atoms..
-                ])
-                .to_owned();
+            // let g1_ab:Array3<f64> = pair_results[pair_index]
+            //     .g1
+            //     .slice(s![
+            //         0..3 * fragments[pair.frag_a_index].n_atoms,
+            //         0..fragments[pair.frag_a_index].n_atoms,
+            //         fragments[pair.frag_a_index].n_atoms..
+            //     ])
+            //     .to_owned();
+            //
+            // let g1_ab_2:Array3<f64> = pair_results[pair_index]
+            //     .g1
+            //     .slice(s![
+            //         3 * fragments[pair.frag_a_index].n_atoms..,
+            //         fragments[pair.frag_a_index].n_atoms..,
+            //         ..fragments[pair.frag_a_index].n_atoms
+            //     ])
+            //     .to_owned();
 
-            let g1_ab_2:Array3<f64> = pair_results[pair_index]
-                .g1
-                .slice(s![
-                    3 * fragments[pair.frag_a_index].n_atoms..,
-                    fragments[pair.frag_a_index].n_atoms..,
-                    ..fragments[pair.frag_a_index].n_atoms
-                ])
-                .to_owned();
+            // calculate g1 matrix for each dimer
+            let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![
+                            index_pair_a..index_pair_a + fragments[pair.frag_a_index].n_atoms,
+                            index_pair_b..index_pair_b + fragments[pair.frag_b_index].n_atoms
+                        ]);
+
+            let dimer_directions: ArrayView3<f64> = directions.slice(s![
+                            index_pair_a..index_pair_a + fragments[pair.frag_a_index].n_atoms,
+                            index_pair_b..index_pair_b + fragments[pair.frag_b_index].n_atoms,
+                            ..
+                        ]);
+            let g1_dimer_ab: Array3<f64> = get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+                &fragments[pair.frag_a_index].atomic_numbers,
+                &fragments[pair.frag_b_index].atomic_numbers,
+                fragments[pair.frag_a_index].n_atoms,
+                fragments[pair.frag_b_index].n_atoms,
+                dimer_distances,
+                dimer_directions,
+                full_hubbard,
+                Some(0.0),
+            );
+
+            let g0_dimer_ab:Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
+                &fragments[pair.frag_a_index].atomic_numbers,
+                &fragments[pair.frag_b_index].atomic_numbers,
+                fragments[pair.frag_a_index].n_atoms,
+                fragments[pair.frag_b_index].n_atoms,
+                dimer_distances,full_hubbard,
+                Some(0.0));
+
+            let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![
+                            index_pair_b..index_pair_b + fragments[pair.frag_b_index].n_atoms,
+                            index_pair_a..index_pair_a + fragments[pair.frag_a_index].n_atoms
+                        ]);
+
+            let dimer_directions: ArrayView3<f64> = directions.slice(s![
+                            index_pair_b..index_pair_b + fragments[pair.frag_b_index].n_atoms,
+                            index_pair_a..index_pair_a + fragments[pair.frag_a_index].n_atoms,
+                            ..
+                        ]);
+
+            let g1_dimer_ba: Array3<f64> = get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+                &fragments[pair.frag_b_index].atomic_numbers,
+                &fragments[pair.frag_a_index].atomic_numbers,
+                fragments[pair.frag_b_index].n_atoms,
+                fragments[pair.frag_a_index].n_atoms,
+                dimer_distances,
+                dimer_directions,
+                full_hubbard,
+                Some(0.0),
+            );
+
+            // assert!(
+            //     g1_ab.abs_diff_eq(&g1_dimer_ab, 1e-12),
+            //     "Gamma matrices are NOT equal!!!!"
+            // );
+            // assert!(
+            //     g1_ab_2.abs_diff_eq(&g1_dimer_ba, 1e-12),
+            //     "Gamma matrices are NOT equal!!!!"
+            // );
 
             // let g0_ab:Array2<f64> = pair_results[pair_index]
             //     .g0
@@ -524,10 +602,15 @@ pub fn fmo_gs_gradients(
             //             fragments[pair.frag_a_index].n_atoms..
             //         ]).to_owned();
 
-            let g0_ab: ArrayView2<f64> = gamma_tmp.slice(s![
-                index_pair_a..index_pair_a + fragments[pair.frag_a_index].n_atoms,
-                index_pair_b..index_pair_b + fragments[pair.frag_b_index].n_atoms
-            ]);
+            // let g0_ab: ArrayView2<f64> = gamma_tmp.slice(s![
+            //     index_pair_a..index_pair_a + fragments[pair.frag_a_index].n_atoms,
+            //     index_pair_b..index_pair_b + fragments[pair.frag_b_index].n_atoms
+            // ]);
+
+            // assert!(
+            //     g0_ab.abs_diff_eq(&g0_dimer_ab, 1e-12),
+            //     "Gamma matrices are NOT equal!!!!"
+            // );
 
             let mut w_mat_a: Array3<f64> = Array3::zeros((
                 3 * fragments[pair.frag_a_index].n_atoms,
@@ -570,10 +653,14 @@ pub fn fmo_gs_gradients(
                 let mut diag_ind: usize = 0;
                 for a in (0..fragments[pair.frag_a_index].n_atoms).into_iter() {
                     let index: usize = 3 * a + dir_xyz;
+                    // term_1[index] = fragments[pair.frag_a_index].final_charges[a]
+                    //     * g1_ab
+                    //         .slice(s![index, a, ..])
+                    //         .dot(&fragments[pair.frag_b_index].final_charges);
                     term_1[index] = fragments[pair.frag_a_index].final_charges[a]
-                        * g1_ab
-                            .slice(s![index, a, ..])
-                            .dot(&fragments[pair.frag_b_index].final_charges);
+                        * g1_dimer_ab
+                        .slice(s![index, a, ..])
+                        .dot(&fragments[pair.frag_b_index].final_charges);
 
                     let atom_type: u8 = fragments[pair.frag_a_index].atomic_numbers[a];
                     let norbs_a: usize =
@@ -597,10 +684,14 @@ pub fn fmo_gs_gradients(
                     // let tmp_1:f64 = w_mat_a.slice(s![index,..,..]).dot(&frag_grad_results[pair.frag_a_index].s.t()).trace().unwrap();
                     // let tmp_2:f64 = fragments[pair.frag_a_index].final_p_matrix.dot(&frag_grad_results[pair.frag_a_index].grad_s.slice(s![index,..,..]).t()).trace().unwrap();
                     // term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![a,..]).dot(&fragments[pair.frag_b_index].final_charges);
+                    // term_2[index] = diag
+                    //     * g0_ab
+                    //         .slice(s![a, ..])
+                    //         .dot(&fragments[pair.frag_b_index].final_charges);
                     term_2[index] = diag
-                        * g0_ab
-                            .slice(s![a, ..])
-                            .dot(&fragments[pair.frag_b_index].final_charges);
+                        * g0_dimer_ab
+                        .slice(s![a, ..])
+                        .dot(&fragments[pair.frag_b_index].final_charges);
                 }
             }
             let gradient_frag_a: Array1<f64> = term_1 + term_2;
@@ -612,10 +703,14 @@ pub fn fmo_gs_gradients(
                 let mut diag_ind: usize = 0;
                 for a in (0..fragments[pair.frag_b_index].n_atoms).into_iter() {
                     let index: usize = 3 * a + dir_xyz;
+                    // term_1[index] = fragments[pair.frag_b_index].final_charges[a]
+                    //     * g1_ab_2
+                    //         .slice(s![index, a, ..])
+                    //         .dot(&fragments[pair.frag_a_index].final_charges);
                     term_1[index] = fragments[pair.frag_b_index].final_charges[a]
-                        * g1_ab_2
-                            .slice(s![index, a, ..])
-                            .dot(&fragments[pair.frag_a_index].final_charges);
+                        * g1_dimer_ba
+                        .slice(s![index, a, ..])
+                        .dot(&fragments[pair.frag_a_index].final_charges);
 
                     let atom_type: u8 = fragments[pair.frag_b_index].atomic_numbers[a];
                     let norbs_b: usize =
@@ -640,10 +735,14 @@ pub fn fmo_gs_gradients(
                     // let tmp_1:f64 = w_mat_b.slice(s![index,..,..]).dot(&frag_grad_results[pair.frag_b_index].s.t()).trace().unwrap();
                     // let tmp_2:f64 = fragments[pair.frag_b_index].final_p_matrix.dot(&frag_grad_results[pair.frag_b_index].grad_s.slice(s![index,..,..]).t()).trace().unwrap();
                     // term_2[index] = (tmp_1 + tmp_2) * g0_ab.slice(s![..,a]).dot(&fragments[pair.frag_a_index].final_charges);
+                    // term_2[index] = diag
+                    //     * g0_ab
+                    //         .slice(s![.., a])
+                    //         .dot(&fragments[pair.frag_a_index].final_charges);
                     term_2[index] = diag
-                        * g0_ab
-                            .slice(s![.., a])
-                            .dot(&fragments[pair.frag_a_index].final_charges);
+                        * g0_dimer_ab
+                        .slice(s![.., a])
+                        .dot(&fragments[pair.frag_a_index].final_charges);
                 }
             }
             let gradient_frag_b: Array1<f64> = term_1 + term_2;
@@ -986,44 +1085,67 @@ pub fn fmo_calculate_pairwise_gradients(
                 let mut pair_s: Option<Array2<f64>> = None;
                 let mut pair_density: Option<Array2<f64>> = None;
 
-                let mut pair: Molecule = Molecule::new(
-                    atomic_numbers,
-                    positions,
-                    Some(config.mol.charge),
-                    Some(config.mol.multiplicity),
-                    Some(0.0),
-                    None,
-                    config.clone(),
-                    saved_calc,
-                    Some(connectivity_matrix),
-                    Some(graph_new),
-                    Some(graph_indexes),
-                    Some(subgraph),
-                    Some(distance_frag),
-                    Some(dir_frag),
-                    Some(prox_frag),
-                    None,
-                );
+                // let mut pair: Molecule = Molecule::new(
+                //     atomic_numbers,
+                //     positions,
+                //     Some(config.mol.charge),
+                //     Some(config.mol.multiplicity),
+                //     Some(0.0),
+                //     None,
+                //     config.clone(),
+                //     saved_calc,
+                //     Some(connectivity_matrix),
+                //     Some(graph_new),
+                //     Some(graph_indexes),
+                //     Some(subgraph),
+                //     Some(distance_frag),
+                //     Some(dir_frag),
+                //     Some(prox_frag),
+                //     None,
+                // );
+                //
+                // if use_saved_calc == false {
+                //     saved_calculators.push(pair.calculator.clone());
+                //     saved_graphs.push(graph.clone());
+                // }
 
-                if use_saved_calc == false {
-                    saved_calculators.push(pair.calculator.clone());
-                    saved_graphs.push(graph.clone());
-                }
-
-                let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
-                    &pair.atomic_numbers,
-                    pair.n_atoms,
-                    pair.calculator.n_orbs,
-                    pair.distance_matrix.view(),
-                    pair.directions_matrix.view(),
-                    &pair.calculator.hubbard_u,
-                    &pair.calculator.valorbs,
-                    Some(0.0),
-                );
-                pair.set_g1_gradients(&g1, &g1_ao);
+                // let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
+                //     &pair.atomic_numbers,
+                //     pair.n_atoms,
+                //     pair.calculator.n_orbs,
+                //     pair.distance_matrix.view(),
+                //     pair.directions_matrix.view(),
+                //     &pair.calculator.hubbard_u,
+                //     &pair.calculator.valorbs,
+                //     Some(0.0),
+                // );
+                // pair.set_g1_gradients(&g1, &g1_ao);
 
                 // do scc routine for pair if mininmal distance is below threshold
                 if (min_dist / vdw_radii_sum) < 2.0 {
+                    let mut pair: Molecule = Molecule::new(
+                        atomic_numbers,
+                        positions,
+                        Some(config.mol.charge),
+                        Some(config.mol.multiplicity),
+                        Some(0.0),
+                        None,
+                        config.clone(),
+                        saved_calc,
+                        Some(connectivity_matrix),
+                        Some(graph_new),
+                        Some(graph_indexes),
+                        Some(subgraph),
+                        Some(distance_frag),
+                        Some(dir_frag),
+                        Some(prox_frag),
+                        None,
+                    );
+
+                    if use_saved_calc == false {
+                        saved_calculators.push(pair.calculator.clone());
+                        saved_graphs.push(graph.clone());
+                    }
                     let (energy, orbs, orbe, s, f): (
                         f64,
                         Array2<f64>,
@@ -1098,36 +1220,36 @@ pub fn fmo_calculate_pairwise_gradients(
                     pair_grad_s = pair.s_grad;
                 }
 
-                let pair_res: pair_grad_result = pair_grad_result::new(
-                    charges_pair,
-                    energy_pair,
-                    ind1,
-                    ind2,
-                    molecule_a.n_atoms,
-                    molecule_b.n_atoms,
-                    grad_e0_pair,
-                    grad_vrep_pair,
-                    pair.g0,
-                    g1,
-                    pair_s,
-                    pair_grad_s,
-                    pair_density,
-                );
+                // let pair_res: pair_grad_result = pair_grad_result::new(
+                //     charges_pair,
+                //     energy_pair,
+                //     ind1,
+                //     ind2,
+                //     molecule_a.n_atoms,
+                //     molecule_b.n_atoms,
+                //     grad_e0_pair,
+                //     grad_vrep_pair,
+                //     pair.g0,
+                //     g1,
+                //     pair_s,
+                //     pair_grad_s,
+                //     pair_density,
+                // );
 
-                //// removed g0 and g1
-                //let pair_res: pair_grad_result = pair_grad_result::new(
-                //    charges_pair,
-                //    energy_pair,
-                //    ind1,
-                //    ind2,
-                //    molecule_a.n_atoms,
-                //    molecule_b.n_atoms,
-                //    grad_e0_pair,
-                //    grad_vrep_pair,
-                //    pair_s,
-                //    pair_grad_s,
-                //    pair_density,
-                //);
+                // removed g0 and g1
+                let pair_res: pair_grad_result = pair_grad_result::new(
+                   charges_pair,
+                   energy_pair,
+                   ind1,
+                   ind2,
+                   molecule_a.n_atoms,
+                   molecule_b.n_atoms,
+                   grad_e0_pair,
+                   grad_vrep_pair,
+                   pair_s,
+                   pair_grad_s,
+                   pair_density,
+                );
 
                 vec_pair_result.push(pair_res);
             }
@@ -1144,7 +1266,7 @@ pub fn fmo_calculate_pairwise_gradients_par(
     direct_mat: &Array3<f64>,
     prox_mat: &Array2<bool>,
     indices_frags: &Vec<usize>,
-    gamma_total: &Array2<f64>,
+    // gamma_total: &Array2<f64>,
 ) -> (Vec<pair_grad_result>) {
     // construct a first graph in case all monomers are the same
     let mol_a = fragments[0].clone();
@@ -1178,12 +1300,6 @@ pub fn fmo_calculate_pairwise_gradients_par(
             0..mol_a.n_atoms + mol_b.n_atoms
         ])
         .to_owned();
-    let ga_frag: Array2<f64> = gamma_total
-        .slice(s![
-            0..mol_a.n_atoms + mol_b.n_atoms,
-            0..mol_a.n_atoms + mol_b.n_atoms
-        ])
-        .to_owned();
     let connectivity_matrix: Array2<bool> =
         build_connectivity_matrix(atomic_numbers.len(), &distance_frag, &atomic_numbers);
     let (graph_new, graph_indexes, subgraph): (
@@ -1210,7 +1326,7 @@ pub fn fmo_calculate_pairwise_gradients_par(
         Some(distance_frag),
         Some(dir_frag),
         Some(prox_frag),
-        Some(ga_frag),
+        None,
     );
     let first_calc: DFTBCalculator = first_pair.calculator.clone();
 
@@ -1401,43 +1517,65 @@ pub fn fmo_calculate_pairwise_gradients_par(
                     let mut pair_s: Option<Array2<f64>> = None;
                     let mut pair_density: Option<Array2<f64>> = None;
 
-                    let mut pair: Molecule = Molecule::new(
-                        atomic_numbers,
-                        positions,
-                        Some(config.mol.charge),
-                        Some(config.mol.multiplicity),
-                        Some(0.0),
-                        None,
-                        config.clone(),
-                        saved_calc,
-                        Some(connectivity_matrix),
-                        Some(graph_new),
-                        Some(graph_indexes),
-                        Some(subgraph),
-                        Some(distance_frag),
-                        Some(dir_frag),
-                        Some(prox_frag),
-                        None,
-                    );
-                    if use_saved_calc == false {
-                        saved_calculators.push(pair.calculator.clone());
-                        saved_graphs.push(graph.clone());
-                    }
+                    // let mut pair: Molecule = Molecule::new(
+                    //     atomic_numbers,
+                    //     positions,
+                    //     Some(config.mol.charge),
+                    //     Some(config.mol.multiplicity),
+                    //     Some(0.0),
+                    //     None,
+                    //     config.clone(),
+                    //     saved_calc,
+                    //     Some(connectivity_matrix),
+                    //     Some(graph_new),
+                    //     Some(graph_indexes),
+                    //     Some(subgraph),
+                    //     Some(distance_frag),
+                    //     Some(dir_frag),
+                    //     Some(prox_frag),
+                    //     None,
+                    // );
+                    // if use_saved_calc == false {
+                    //     saved_calculators.push(pair.calculator.clone());
+                    //     saved_graphs.push(graph.clone());
+                    // }
 
-                    let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
-                        &pair.atomic_numbers,
-                        pair.n_atoms,
-                        pair.calculator.n_orbs,
-                        pair.distance_matrix.view(),
-                        pair.directions_matrix.view(),
-                        &pair.calculator.hubbard_u,
-                        &pair.calculator.valorbs,
-                        Some(0.0),
-                    );
-                    pair.set_g1_gradients(&g1, &g1_ao);
+                    // let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
+                    //     &pair.atomic_numbers,
+                    //     pair.n_atoms,
+                    //     pair.calculator.n_orbs,
+                    //     pair.distance_matrix.view(),
+                    //     pair.directions_matrix.view(),
+                    //     &pair.calculator.hubbard_u,
+                    //     &pair.calculator.valorbs,
+                    //     Some(0.0),
+                    // );
+                    // pair.set_g1_gradients(&g1, &g1_ao);
 
                     // do scc routine for pair if mininmal distance is below threshold
                     if (min_dist / vdw_radii_sum) < 2.0 {
+                        let mut pair: Molecule = Molecule::new(
+                            atomic_numbers,
+                            positions,
+                            Some(config.mol.charge),
+                            Some(config.mol.multiplicity),
+                            Some(0.0),
+                            None,
+                            config.clone(),
+                            saved_calc,
+                            Some(connectivity_matrix),
+                            Some(graph_new),
+                            Some(graph_indexes),
+                            Some(subgraph),
+                            Some(distance_frag),
+                            Some(dir_frag),
+                            Some(prox_frag),
+                            None,
+                        );
+                        if use_saved_calc == false {
+                            saved_calculators.push(pair.calculator.clone());
+                            saved_graphs.push(graph.clone());
+                        }
                         let (energy, orbs, orbe, s, f): (
                             f64,
                             Array2<f64>,
@@ -1477,6 +1615,22 @@ pub fn fmo_calculate_pairwise_gradients_par(
                         pair_grad_s = pair.s_grad;
                     }
 
+                    // let pair_res: pair_grad_result = pair_grad_result::new(
+                    //     charges_pair,
+                    //     energy_pair,
+                    //     ind1,
+                    //     ind2,
+                    //     molecule_a.n_atoms,
+                    //     molecule_b.n_atoms,
+                    //     grad_e0_pair,
+                    //     grad_vrep_pair,
+                    //     pair.g0,
+                    //     g1,
+                    //     pair_s,
+                    //     pair_grad_s,
+                    //     pair_density,
+                    // );
+
                     let pair_res: pair_grad_result = pair_grad_result::new(
                         charges_pair,
                         energy_pair,
@@ -1486,12 +1640,11 @@ pub fn fmo_calculate_pairwise_gradients_par(
                         molecule_b.n_atoms,
                         grad_e0_pair,
                         grad_vrep_pair,
-                        pair.g0,
-                        g1,
                         pair_s,
                         pair_grad_s,
                         pair_density,
                     );
+
                     vec_pair_result.push(pair_res);
                 }
             }
@@ -1598,7 +1751,7 @@ pub fn reorder_molecule_gradients(
     shape_positions: Ix2,
 ) -> (
     Vec<usize>,
-    Array2<f64>,
+    // Array2<f64>,
     Array2<bool>,
     Array2<f64>,
     Array3<f64>,
@@ -1656,7 +1809,7 @@ pub fn reorder_molecule_gradients(
 
     return (
         indices_vector,
-        new_mol.g0,
+        // new_mol.g0,
         new_mol.proximity_matrix,
         new_mol.distance_matrix,
         new_mol.directions_matrix,
@@ -1700,8 +1853,8 @@ pub struct pair_grad_result {
     frag_b_atoms: usize,
     grad_e0: Option<Array1<f64>>,
     grad_vrep: Option<Array1<f64>>,
-    g0: Array2<f64>,
-    g1: Array3<f64>,
+    // g0: Array2<f64>,
+    // g1: Array3<f64>,
     s: Option<Array2<f64>>,
     grad_s: Option<Array3<f64>>,
     p_mat: Option<Array2<f64>>,
@@ -1717,8 +1870,8 @@ impl pair_grad_result {
         frag_b_atoms: usize,
         grad_e0: Option<Array1<f64>>,
         grad_vrep: Option<Array1<f64>>,
-        g0: Array2<f64>,
-        g1: Array3<f64>,
+        // g0: Array2<f64>,
+        // g1: Array3<f64>,
         s: Option<Array2<f64>>,
         grad_s: Option<Array3<f64>>,
         p_mat: Option<Array2<f64>>,
@@ -1732,8 +1885,8 @@ impl pair_grad_result {
             frag_b_atoms: frag_b_atoms,
             grad_e0: grad_e0,
             grad_vrep: grad_vrep,
-            g0: g0,
-            g1: g1,
+            // g0: g0,
+            // g1: g1,
             s: s,
             grad_s: grad_s,
             p_mat: p_mat,

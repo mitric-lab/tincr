@@ -251,7 +251,7 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let (indices_frags, gamma_total,prox_mat,dist_mat,direct_mat,full_hubbard): (Vec<usize>, Array2<f64>, Array2<bool>,Array2<f64>, Array3<f64>,HashMap<u8,f64>) =
+            let (indices_frags,prox_mat,dist_mat,direct_mat,full_hubbard): (Vec<usize>, Array2<bool>,Array2<f64>, Array3<f64>,HashMap<u8,f64>) =
                 reorder_molecule_gradients(&fragments, config.clone(), positions.raw_dim());
 
             println!(
@@ -273,7 +273,7 @@ fn main() {
             let molecule_timer: Instant = Instant::now();
 
             let (pairs_data): (Vec<pair_grad_result>) =
-                fmo_calculate_pairwise_gradients_par(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&gamma_total);
+                fmo_calculate_pairwise_gradients_par(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags);
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -283,7 +283,7 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,gamma_total,prox_matrix,&dist_mat,&direct_mat,&full_hubbard);
+            let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,&dist_mat,&direct_mat,&full_hubbard);
 
             println!(
                 "{:>68} {:>8.2} s",

@@ -269,6 +269,23 @@ pub fn gamma_gradients_atomwise(
     return g1;
 }
 
+pub fn gamma_atomwise_outer_diagonal(
+    gamma_func: GammaFunction,
+    atomic_numbers_a: &[u8],
+    atomic_numbers_b: &[u8],
+    n_atoms_a: usize,
+    n_atoms_b: usize,
+    distances: ArrayView2<f64>,
+) -> (Array2<f64>) {
+    let mut g0 = Array2::zeros((n_atoms_a, n_atoms_b));
+    for (i, z_i) in atomic_numbers_a.iter().enumerate() {
+        for (j, z_j) in atomic_numbers_b.iter().enumerate() {
+            g0[[i, j]] = gamma_func.eval(distances[[i, j]], *z_i, *z_j);
+        }
+    }
+    return g0;
+}
+
 pub fn gamma_gradients_atomwise_outer_diagonal(
     gamma_func: GammaFunction,
     atomic_numbers_dimer: &[u8],
