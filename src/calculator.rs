@@ -281,6 +281,27 @@ pub fn get_only_gamma_matrix_atomwise(
     return g0;
 }
 
+pub fn get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+    atomic_numbers_dimer: &[u8],
+    atomic_numbers_frag:&[u8],
+    n_atoms_dimer: usize,
+    n_atoms_frag:usize,
+    distances: ArrayView2<f64>,
+    directions: ArrayView3<f64>,
+    hubbard_u: &HashMap<u8, f64>,
+    r_lr: Option<f64>,
+) -> Array3<f64> {
+    // initialize gamma matrix
+    let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(hubbard_u);
+    let mut c: HashMap<(u8, u8), f64> = HashMap::new();
+    let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
+    let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
+    gf.initialize();
+    let g1:Array3<f64> = gamma_approximation::gamma_gradients_atomwise_outer_diagonal(gf, atomic_numbers_dimer, atomic_numbers_frag,n_atoms_dimer,n_atoms_frag, distances,directions);
+
+    return g1;
+}
+
 pub fn get_gamma_gradient_matrix(
     atomic_numbers: &[u8],
     n_atoms: usize,

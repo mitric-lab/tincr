@@ -236,7 +236,7 @@ pub fn gamma_atomwise(
     return g0;
 }
 
-fn gamma_gradients_atomwise(
+pub fn gamma_gradients_atomwise(
     gamma_func: GammaFunction,
     atomic_numbers: &[u8],
     n_atoms: usize,
@@ -264,6 +264,29 @@ fn gamma_gradients_atomwise(
                 g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
                     .assign(&(&e_ij * g1_val[[i, j]]));
             }
+        }
+    }
+    return g1;
+}
+
+pub fn gamma_gradients_atomwise_outer_diagonal(
+    gamma_func: GammaFunction,
+    atomic_numbers_dimer: &[u8],
+    atomic_numbers_frag: &[u8],
+    n_atoms_dimer: usize,
+    n_atoms_frag:usize,
+    distances: ArrayView2<f64>,
+    directions: ArrayView3<f64>,
+) -> (Array3<f64>) {
+    let mut g1_val: Array2<f64> = Array2::zeros((n_atoms_dimer, n_atoms_frag));
+    let mut g1: Array3<f64> = Array3::zeros((3 * n_atoms_dimer, n_atoms_dimer, n_atoms_frag));
+    for (i, z_i) in atomic_numbers_dimer.iter().enumerate() {
+        for (j, z_j) in atomic_numbers_frag.iter().enumerate() {
+            let r_ij: f64 = distances[[i, j]];
+            let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
+            g1_val[[i, j]] = gamma_func.deriv(r_ij, *z_i, *z_j);
+            g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
+                .assign(&(&e_ij * g1_val[[i, j]]));
         }
     }
     return g1;

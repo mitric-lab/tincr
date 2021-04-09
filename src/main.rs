@@ -56,10 +56,11 @@ use std::path::Path;
 use std::process;
 use toml;
 use approx::AbsDiffEq;
+use std::collections::HashMap;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(16)
+        .num_threads(4)
         .build_global()
         .unwrap();
 
@@ -250,7 +251,7 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let (indices_frags, gamma_total,g1_total,prox_mat,dist_mat,direct_mat): (Vec<usize>, Array2<f64>,Array3<f64>, Array2<bool>,Array2<f64>, Array3<f64>) =
+            let (indices_frags, gamma_total,prox_mat,dist_mat,direct_mat,full_hubbard): (Vec<usize>, Array2<f64>, Array2<bool>,Array2<f64>, Array3<f64>,HashMap<u8,f64>) =
                 reorder_molecule_gradients(&fragments, config.clone(), positions.raw_dim());
 
             println!(
@@ -282,7 +283,7 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,gamma_total,g1_total,prox_matrix);
+            let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,gamma_total,prox_matrix,&dist_mat,&direct_mat,&full_hubbard);
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -323,10 +324,10 @@ fn main() {
             // let numerical_gradient_ridders:Array1<f64> = fmo_numerical_gradient_new(&atomic_numbers,&coords,config.clone());
             // println!("Numerical gradient fmo ridders method {}",numerical_gradient_ridders);
             // println!(" ");
-
+            //
             println!("FMO gradients {}", gradients);
             println!(" ");
-
+            //
             // // println!("Difference between FMO and ridders:");
             // let diff:Array1<f64> = (&gradients - &numerical_gradient_ridders).mapv(|val|val.abs());
             // // println!("{}",diff);
@@ -338,20 +339,20 @@ fn main() {
             // println!("Max deviation: {}",max_gradient);
             // println!("Norm of difference {}",(&gradients - &numerical_gradient_ridders).norm());
             // println!(" ");
-
+            //
             // println!("Numerical gradient fmo {}",numerical_gradient);
             // println!("Norm of difference {}",(&gradients - &numerical_gradient).norm());
             // println!(" ");
-
+            //
             // let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
             //     Array1<f64>,
             //     Array1<f64>,
             //     Array1<f64>,
             //     Array3<f64>,
-            // ) = get_gradients(&orbe, &orbs, &s, &mol, &None, &None, None, &None, None);
-
-            //let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
-
+            // ) = get_gradients(&orbe, &orbs, &s, &mut mol, &None, &None, None, &None, None);
+            //
+            // let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
+            //
             // println!("DFTB Gradient {}",&grad_e0 + &grad_vrep);
             // let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
             // println!("");
