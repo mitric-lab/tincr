@@ -79,6 +79,8 @@ pub fn fmo_gs_gradients(
 
     let grad_total_frags: Array1<f64> = &grad_e0_monomers + &grad_vrep_monomers;
 
+    let molecule_timer: Instant = Instant::now();
+
     for (pair_index, pair) in pair_results.iter().enumerate() {
         if pair.energy_pair.is_some() {
             let dimer_gradient_e0: Array1<f64> = pair.grad_e0.clone().unwrap();
@@ -587,6 +589,14 @@ pub fn fmo_gs_gradients(
             esdim_iter+=1;
         }
     }
+    println!(
+        "{:>68} {:>8.10} s",
+        "elapsed time embedding:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+    let molecule_timer: Instant = Instant::now();
+
     let grad_es_dim:Vec<Array1<f64>> = pair_results.par_iter().enumerate().filter_map(|(pair_index,pair)|if pair.energy_pair.is_none(){
         let dimer_natoms: usize =
             fragments[pair.frag_a_index].n_atoms + fragments[pair.frag_b_index].n_atoms;
@@ -856,6 +866,14 @@ pub fn fmo_gs_gradients(
     else{
         None
     }).collect();
+
+    println!(
+        "{:>68} {:>8.10} s",
+        "elapsed time ESDIM:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+
         // if pair.energy_pair.is_some() {
         //     let dimer_gradient_e0: Array1<f64> = pair.grad_e0.clone().unwrap();
         //     let dimer_gradient_vrep: Array1<f64> = pair.grad_vrep.clone().unwrap();
