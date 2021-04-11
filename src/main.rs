@@ -60,7 +60,7 @@ use std::collections::HashMap;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(16)
         .build_global()
         .unwrap();
 

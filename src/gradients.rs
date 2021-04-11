@@ -483,7 +483,6 @@ pub fn gradient_lc_gs(
         &molecule.calculator.skt,
         &molecule.calculator.orbital_energies,
     );
-    molecule.set_h0_and_s_gradients(&grad_h0,&grad_s);
 
     info!(
         "{:>65} {:>8.3} s",

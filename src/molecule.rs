@@ -46,8 +46,6 @@ pub struct Molecule {
     pub g0_lr: Array2<f64>,
     pub g0_ao: Array2<f64>,
     pub g0_lr_ao: Array2<f64>,
-    pub h0_grad:Option<Array3<f64>>,
-    pub s_grad:Option<Array3<f64>>,
     pub g1:Option<Array3<f64>>,
     pub g1_ao:Option<Array3<f64>>
 }
@@ -176,10 +174,6 @@ impl Molecule {
             r_lr.unwrap_or(LONG_RANGE_RADIUS)
         );
         info!("{:-^80}", "");
-
-        let h0_grad:Option<Array3<f64>> = None;
-        let s_grad:Option<Array3<f64>> = None;
-
         let g1:Option<Array3<f64>> = None;
         let g1_ao:Option<Array3<f64>> = None;
 
@@ -205,8 +199,6 @@ impl Molecule {
             g0_lr: g0_lr,
             g0_ao: g0_a0,
             g0_lr_ao: g0_lr_a0,
-            h0_grad:h0_grad,
-            s_grad:s_grad,
             g1:g1,
             g1_ao:g1_ao
         };
@@ -274,10 +266,7 @@ impl Molecule {
         self.final_charges = dq;
     }
     pub fn set_final_p_mat(&mut self, p:Array2<f64>) {self.final_p_matrix = p;}
-    pub fn set_h0_and_s_gradients(&mut self, h0_grad:&Array3<f64>,s_grad:&Array3<f64>) {
-        self.h0_grad = Some(h0_grad.clone());
-        self.s_grad = Some(s_grad.clone());
-    }
+
     pub fn set_g1_gradients(&mut self, g1:&Array3<f64>,g1_ao:&Array3<f64>) {
         self.g1 = Some(g1.clone());
         self.g1_ao = Some(g1_ao.clone());
