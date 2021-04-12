@@ -2583,11 +2583,11 @@ pub fn fmo_calculate_pairs_embedding_esdim(
     let first_calc: DFTBCalculator = first_pair.calculator.clone();
     drop(first_pair);
 
-    let mut result: Vec<Vec<pair_grad_result>> = fragments
+    let mut result: Vec<Vec<pair_gradients_result>> = fragments
         .par_iter()
         .enumerate()
         .map(|(ind1, molecule_a)| {
-            let mut vec_pair_result: Vec<pair_grad_result> = Vec::new();
+            let mut vec_pair_result: Vec<pair_gradients_result> = Vec::new();
             let mut saved_calculators: Vec<DFTBCalculator> = Vec::new();
             let mut saved_graphs: Vec<Graph<u8, f64, Undirected>> = Vec::new();
 
@@ -3362,23 +3362,12 @@ pub fn fmo_calculate_pairs_embedding_esdim(
                         pair_gradient = Some(dimer_gradient);
                     }
 
-                    let pair_res: pair_grad_result = pair_grad_result::new(
-                        charges_pair,
+                    let pair_res: pair_gradients_result = pair_gradients_result::new(
                         energy_pair,
                         ind1,
                         ind2,
                         molecule_a.n_atoms,
                         molecule_b.n_atoms,
-                        grad_e0_pair,
-                        grad_vrep_pair,
-                        pair_s,
-                        // pair_grad_s,
-                        pair_density,
-                        pair_n_orbs,
-                        pair_valorbs,
-                        pair_skt,
-                        pair_orbital_energies,
-                        pair_proximity,
                         pair_embedding_gradient,
                         pair_gradient,
                     );
@@ -3390,10 +3379,11 @@ pub fn fmo_calculate_pairs_embedding_esdim(
         })
         .collect();
 
-    let mut pair_result: Vec<pair_grad_result> = Vec::new();
+    let mut pair_result: Vec<pair_gradients_result> = Vec::new();
     for pair in result.iter_mut() {
         pair_result.append(pair);
     }
+    drop(result);
     let mut grad_total_dimers: Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
 
     for (index, pair) in pair_result.iter().enumerate() {
@@ -3686,6 +3676,40 @@ impl pair_grad_result {
             pair_skt:pair_skt,
             pair_orbital_energies:pair_orbital_energies,
             pair_proximity:pair_proximity,
+            embedding_gradient:embedding_gradient,
+            dimer_gradient:dimer_gradient,
+        };
+        return result;
+    }
+}
+
+pub struct pair_gradients_result {
+    energy_pair: Option<f64>,
+    frag_a_index: usize,
+    frag_b_index: usize,
+    frag_a_atoms: usize,
+    frag_b_atoms: usize,
+    embedding_gradient:Option<Array1<f64>>,
+    dimer_gradient:Option<Array1<f64>>
+}
+
+impl pair_gradients_result {
+    pub(crate) fn new(
+        energy: Option<f64>,
+        frag_a_index: usize,
+        frag_b_index: usize,
+        frag_a_atoms: usize,
+        frag_b_atoms: usize,
+        embedding_gradient:Option<Array1<f64>>,
+        dimer_gradient:Option<Array1<f64>>
+
+    ) -> (pair_gradients_result) {
+        let result = pair_gradients_result {
+            energy_pair: energy,
+            frag_a_index: frag_a_index,
+            frag_b_index: frag_b_index,
+            frag_a_atoms: frag_a_atoms,
+            frag_b_atoms: frag_b_atoms,
             embedding_gradient:embedding_gradient,
             dimer_gradient:dimer_gradient,
         };
