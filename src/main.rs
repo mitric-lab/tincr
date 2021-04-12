@@ -272,18 +272,18 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let (pairs_data): (Vec<pair_grad_result>) =
-                fmo_calculate_pairwise_gradients_par(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags);
+            // let (pairs_data): (Vec<pair_grad_result>) =
+            //     fmo_calculate_pairwise_gradients_par(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags);
+            //
+            // println!(
+            //     "{:>68} {:>8.2} s",
+            //     "elapsed time calculate gradients dimers",
+            //     molecule_timer.elapsed().as_secs_f32()
+            // );
+            // drop(molecule_timer);
+            // let molecule_timer: Instant = Instant::now();
 
-            println!(
-                "{:>68} {:>8.2} s",
-                "elapsed time calculate gradients dimers",
-                molecule_timer.elapsed().as_secs_f32()
-            );
-            drop(molecule_timer);
-            let molecule_timer: Instant = Instant::now();
-
-            let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,&dist_mat,&direct_mat,&full_hubbard);
+            let gradients:Array1<f64> = fmo_calculate_pairs_embedding_esdim(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard);
 
             println!(
                 "{:>68} {:>8.2} s",
