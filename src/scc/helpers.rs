@@ -186,3 +186,34 @@ pub(crate) fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> boo
     debug!("HOMO - LUMO gap:          {:>18.14}", gap);
     gap < defaults::HOMO_LUMO_TOL
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::*;
+    use crate::initialization::Properties;
+    use crate::initialization::System;
+    use approx::AbsDiffEq;
+
+    pub const EPSILON: f64 = 1e-15;
+
+    fn test_repulsive_energy(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let E_rep: f64 = get_repulsive_energy(&molecule.atoms, molecule.geometry.coordinates.view(), molecule.n_atoms, &molecule.vrep);
+        let E_rep_ref: f64 = props.get("E_rep").unwrap().as_array1().unwrap()[0];
+        assert!(E_rep_ref.abs_diff_eq(&E_rep, EPSILON), "Molecule: {}, E_rep (ref): {}  E_rep: {}", name, E_rep_ref, E_rep);
+    }
+
+    #[test]
+    fn repulsive_energy() {
+        test_repulsive_energy(get_molecule("h2", "no_lc_gs"));
+        test_repulsive_energy(get_molecule("h2o", "no_lc_gs"));
+        test_repulsive_energy(get_molecule("benzene", "no_lc_gs"));
+        test_repulsive_energy(get_molecule("ammonia", "no_lc_gs"));
+        test_repulsive_energy(get_molecule("uracil", "no_lc_gs"));
+    }
+
+}
+
