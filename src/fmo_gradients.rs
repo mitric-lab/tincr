@@ -23,7 +23,7 @@ use approx::AbsDiffEq;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
 use ndarray::Data;
-use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3};
+use ndarray::{Array2, Array4, ArrayView1, ArrayView2, ArrayView3,stack};
 use ndarray_einsum_beta::*;
 use ndarray_linalg::*;
 use peroxide::prelude::*;
@@ -2897,7 +2897,8 @@ pub fn fmo_calculate_pairs_embedding_esdim(
                             })
                             .collect();
 
-                        let index_pair_iter: usize = indices_frags[ind1];
+                        let index_pair_a: usize = indices_frags[ind1];
+                        let index_pair_b: usize = indices_frags[ind2];
                         let ddq_arr: Array1<f64> = Array::from(ddq_vec);
                         let shape_orbs_dimer: usize = pair.calculator.n_orbs;
                         let dimer_atomic_numbers:Vec<u8> = pair.atomic_numbers.clone();
@@ -2997,23 +2998,33 @@ pub fn fmo_calculate_pairs_embedding_esdim(
                                 if ind_k != ind1 && ind_k != ind2 {
                                     let index_frag_iter: usize = indices_frags[ind_k];
 
-                                    let trimer_distances: ArrayView2<f64> = dist_mat.slice(s![
-                                        index_pair_iter..index_pair_iter + pair_atoms,
+                                    let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
+                                        index_pair_a..index_pair_a + frag_a_atoms,
                                         index_frag_iter..index_frag_iter + mol_k.n_atoms
                                     ]);
-
-                                    let trimer_directions: ArrayView3<f64> = direct_mat.slice(s![
-                                        index_pair_iter..index_pair_iter + pair_atoms,
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                        ..
+                                    let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
+                                        index_pair_b..index_pair_b + frag_b_atoms,
+                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
                                     ]);
+                                    let trimer_distances:Array2<f64> = stack(Axis(0),&[trimer_distances_a,trimer_distances_b]).unwrap();
+
+                                    let trimer_directions_a: ArrayView3<f64> = direct_mat.slice(s![
+                                        index_pair_a..index_pair_a + frag_a_atoms,
+                                        index_frag_iter..index_frag_iter + mol_k.n_atoms, ..
+                                    ]);
+                                    let trimer_directions_b: ArrayView3<f64> = direct_mat.slice(s![
+                                        index_pair_b..index_pair_b + frag_b_atoms,
+                                        index_frag_iter..index_frag_iter + mol_k.n_atoms, ..
+                                    ]);
+                                    let trimer_directions:Array3<f64> = stack(Axis(0),&[trimer_directions_a,trimer_directions_b]).unwrap();
+
                                     let g1_trimer_ak: Array3<f64> = get_gamma_gradient_matrix_atom_wise_outer_diagonal(
                                         &dimer_atomic_numbers,
                                         &mol_k.atomic_numbers,
                                         pair_atoms,
                                         mol_k.n_atoms,
-                                        trimer_distances,
-                                        trimer_directions,
+                                        trimer_distances.view(),
+                                        trimer_directions.view(),
                                         full_hubbard,
                                         Some(0.0),
                                     );
@@ -3023,28 +3034,37 @@ pub fn fmo_calculate_pairs_embedding_esdim(
                                         &mol_k.atomic_numbers,
                                         pair_atoms,
                                         mol_k.n_atoms,
-                                        trimer_distances,
+                                        trimer_distances.view(),
                                         full_hubbard,
                                         Some(0.0));
 
-                                    let trimer_distances: ArrayView2<f64> = dist_mat.slice(s![
+                                    let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
                                         index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                        index_pair_iter..index_pair_iter + pair_atoms
+                                        index_pair_a..index_pair_a + frag_a_atoms,
                                     ]);
+                                    let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
+                                        index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                                        index_pair_b..index_pair_b + frag_b_atoms,
+                                    ]);
+                                    let trimer_distances:Array2<f64> = stack(Axis(1),&[trimer_distances_a,trimer_distances_b]).unwrap();
 
-                                    let trimer_directions: ArrayView3<f64> = direct_mat.slice(s![
+                                    let trimer_directions_a: ArrayView3<f64> = direct_mat.slice(s![
                                         index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                        index_pair_iter..index_pair_iter + pair_atoms,
-                                        ..
+                                        index_pair_a..index_pair_a + frag_a_atoms, ..
                                     ]);
+                                    let trimer_directions_b: ArrayView3<f64> = direct_mat.slice(s![
+                                        index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                                        index_pair_b..index_pair_b + frag_b_atoms,..
+                                    ]);
+                                    let trimer_directions:Array3<f64> = stack(Axis(1),&[trimer_directions_a,trimer_directions_b]).unwrap();
 
                                     let g1_trimer_ka: Array3<f64> = get_gamma_gradient_matrix_atom_wise_outer_diagonal(
                                         &mol_k.atomic_numbers,
                                         &dimer_atomic_numbers,
                                         mol_k.n_atoms,
                                         pair_atoms,
-                                        trimer_distances,
-                                        trimer_directions,
+                                        trimer_distances.view(),
+                                        trimer_directions.view(),
                                         full_hubbard,
                                         Some(0.0),
                                     );

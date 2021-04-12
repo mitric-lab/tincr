@@ -174,7 +174,7 @@ impl GammaFunction {
                 ref c,
                 ref r_lr,
             } => {
-                assert!(r > 0.0);
+                assert!(r > 0.0,"r has the value {}",r);
                 let c_v: f64 = c[&(z_a, z_b)];
                 2.0 * c_v / PI_SQRT * (-(c_v * r).powi(2)).exp() / r
                     - libm::erf(c_v * r) / r.powi(2)
