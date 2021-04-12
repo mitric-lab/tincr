@@ -2877,8 +2877,8 @@ pub fn fmo_calculate_pairs_embedding_esdim(
                         // pair_proximity = Some(pair.proximity_matrix);
 
                         let pair_atoms: usize = pair.n_atoms;
-                        let pair_charges:Array1<f64> = pair.final_charges;
-                        let dimer_pmat:Array2<f64> = pair.final_p_matrix;
+                        let pair_charges:Array1<f64> = pair.final_charges.clone();
+                        let dimer_pmat:Array2<f64> = pair.final_p_matrix.clone();
                         let pair_smat: Array2<f64> = s;
                         let frag_a_atoms:usize = fragments[ind1].n_atoms;
                         let frag_b_atoms:usize = fragments[ind2].n_atoms;
@@ -2900,6 +2900,8 @@ pub fn fmo_calculate_pairs_embedding_esdim(
                         let index_pair_iter: usize = indices_frags[ind1];
                         let ddq_arr: Array1<f64> = Array::from(ddq_vec);
                         let shape_orbs_dimer: usize = pair.calculator.n_orbs;
+                        let dimer_atomic_numbers:Vec<u8> = pair.atomic_numbers.clone();
+                        drop(pair);
                         let shape_orbs_a: usize = fragments[ind1].calculator.n_orbs;
                         let shape_orbs_b: usize = fragments[ind2].calculator.n_orbs;
 
@@ -2987,9 +2989,6 @@ pub fn fmo_calculate_pairs_embedding_esdim(
                         let dw_dimer: Array3<f64> = Array::from(dw_dimer_vec_flat)
                             .into_shape((3 * pair_atoms, w_dimer_dim, w_dimer_dim))
                             .unwrap();
-
-                        // let molecule_timer: Instant = Instant::now();
-                        let dimer_atomic_numbers:Vec<u8> = pair.atomic_numbers;
 
                         let embedding_pot: Vec<Array1<f64>> = fragments
                             .par_iter()
