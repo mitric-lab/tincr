@@ -1,11 +1,11 @@
-use ndarray::prelude::*;
-use ndarray_linalg::{Norm};
-use itertools::Itertools;
-use crate::initialization::{Atom};
-use std::collections::HashMap;
-use crate::initialization::parameters::{RepulsivePotentialTable, RepulsivePotential};
 use crate::defaults;
-use log::{error, warn, info, debug, trace};
+use crate::initialization::parameters::{RepulsivePotential, RepulsivePotentialTable};
+use crate::initialization::Atom;
+use itertools::Itertools;
+use log::{debug, error, info, trace, warn};
+use ndarray::prelude::*;
+use ndarray_linalg::Norm;
+use std::collections::HashMap;
 
 // find indeces of HOMO and LUMO orbitals (starting from 0)
 pub fn get_frontier_orbitals(n_elec: usize) -> (usize, usize) {
@@ -33,15 +33,16 @@ pub fn get_homo_lumo_gap(orbe: ArrayView1<f64>, homo_lumo_idx: (usize, usize)) -
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
-pub fn get_repulsive_energy(atoms: &[Atom], positions: ArrayView2<f64>, n_atoms: usize, v_rep: &RepulsivePotential) -> f64 {
+pub fn get_repulsive_energy(
+    atoms: &[Atom],
+    positions: ArrayView2<f64>,
+    n_atoms: usize,
+    v_rep: &RepulsivePotential,
+) -> f64 {
     let mut e_nuc: f64 = 0.0;
     for (i, (atomi, posi)) in atoms[1..n_atoms]
         .iter()
-        .zip(
-            positions
-                .slice(s![1..n_atoms, ..])
-                .outer_iter(),
-        )
+        .zip(positions.slice(s![1..n_atoms, ..]).outer_iter())
         .enumerate()
     {
         for (atomj, posj) in atoms[0..i + 1]
@@ -88,24 +89,20 @@ pub fn get_electronic_energy(
     return e_elec;
 }
 
-
+/// Construct part of the Hamiltonian corresponding to long range
+/// Hartree-Fock exchange
+/// H^x_mn = -1/2 sum_ab (P_ab-P0_ab) (ma|bn)_lr
+/// The Coulomb potential in the electron integral is replaced by
+/// 1/r ----> erf(r/R_lr)/r
 pub fn lc_exact_exchange(
     s: ArrayView2<f64>,
     g0_lr_ao: ArrayView2<f64>,
     p0: ArrayView2<f64>,
     p: ArrayView2<f64>,
-    dim: usize,
 ) -> (Array2<f64>) {
-    // construct part of the Hamiltonian matrix corresponding to long range
-    // Hartree-Fock exchange
-    // H^x_mn = -1/2 sum_ab (P_ab-P0_ab) (ma|bn)_lr
-    // The Coulomb potential in the electron integral is replaced by
-    // 1/r ----> erf(r/R_lr)/r
-    let mut hx: Array2<f64> = Array::zeros((dim, dim));
     let dp: Array2<f64> = &p - &p0;
-
-    hx = hx + (&g0_lr_ao * &s.dot(&dp)).dot(&s);
-    hx = hx + &(s.dot(&dp)).dot(&s);
+    let mut hx: Array2<f64> = (&g0_lr_ao * &s.dot(&dp)).dot(&s);
+    hx = hx + &g0_lr_ao * &(s.dot(&dp)).dot(&s);
     hx = hx + (s.dot(&(&dp * &g0_lr_ao))).dot(&s);
     hx = hx + s.dot(&(&g0_lr_ao * &dp.dot(&s)));
     hx = hx * (-0.125);
@@ -160,7 +157,12 @@ pub fn density_matrix_ref(n_orbs: usize, atoms: &[Atom]) -> Array2<f64> {
     return p0;
 }
 
-pub fn construct_h1(n_orbs: usize, atoms: &[Atom], gamma: ArrayView2<f64>, dq: ArrayView1<f64>) -> Array2<f64> {
+pub fn construct_h1(
+    n_orbs: usize,
+    atoms: &[Atom],
+    gamma: ArrayView2<f64>,
+    dq: ArrayView1<f64>,
+) -> Array2<f64> {
     let e_stat_pot: Array1<f64> = gamma.dot(&dq);
     let mut h1: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
     let mut mu: usize = 0;
@@ -190,30 +192,169 @@ pub(crate) fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> boo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::*;
     use crate::initialization::Properties;
     use crate::initialization::System;
+    use crate::utils::*;
     use approx::AbsDiffEq;
 
     pub const EPSILON: f64 = 1e-15;
 
+
+    /// Compares the repulsive energy for a whole molecule with the one from DFTBaby. The values
+    /// depend on the parameters. Thus, it is necessary that the same set of parameters for the
+    /// repulsive potentials for computation of both data sets.
     fn test_repulsive_energy(molecule_and_properties: (&str, System, Properties)) {
         let name = molecule_and_properties.0;
         let molecule = molecule_and_properties.1;
         let props = molecule_and_properties.2;
-        let E_rep: f64 = get_repulsive_energy(&molecule.atoms, molecule.geometry.coordinates.view(), molecule.n_atoms, &molecule.vrep);
-        let E_rep_ref: f64 = props.get("E_rep").unwrap().as_array1().unwrap()[0];
-        assert!(E_rep_ref.abs_diff_eq(&E_rep, EPSILON), "Molecule: {}, E_rep (ref): {}  E_rep: {}", name, E_rep_ref, E_rep);
+        let e_rep: f64 = get_repulsive_energy(
+            &molecule.atoms,
+            molecule.geometry.coordinates.view(),
+            molecule.n_atoms,
+            &molecule.vrep,
+        );
+        let e_rep_ref: f64 = props.get("E_rep").unwrap().as_array1().unwrap()[0];
+        assert!(
+            e_rep_ref.abs_diff_eq(&e_rep, EPSILON),
+            "Molecule: {}, E_rep (ref): {}  E_rep: {}",
+            name,
+            e_rep_ref,
+            e_rep
+        );
+    }
+
+    fn test_h1_construction(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let dq_from_dftbaby: Array1<f64> = props.get("dq_after_scc").unwrap().as_array1().unwrap().to_owned();
+        let gamma_from_dftbaby: Array2<f64> = props.get("gamma_atomwise").unwrap().as_array2().unwrap().to_owned();
+        let h1: Array2<f64> = construct_h1(molecule.n_orbs, &molecule.atoms, gamma_from_dftbaby.view(), dq_from_dftbaby.view());
+        let h1_ref: Array2<f64> = props.get("H1_after_scc").unwrap().as_array2().unwrap().to_owned();
+        assert!(
+            h1_ref.abs_diff_eq(&h1, EPSILON),
+            "Molecule: {}, h1 (ref): {}  h1: {}",
+            name,
+            h1_ref,
+            h1
+        );
+    }
+
+    fn test_density_matrix_ref(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let p0_ref: Array2<f64> = props.get("P0").unwrap().as_array2().unwrap().to_owned();
+        let p0: Array2<f64> = density_matrix_ref(molecule.n_orbs, &molecule.atoms);
+        assert!(
+            p0_ref.abs_diff_eq(&p0, EPSILON),
+            "Molecule: {}, p0 (ref): {}  p0: {}",
+            name,
+            p0_ref,
+            p0
+        );
+    }
+
+    fn test_density_matrix(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let props = molecule_and_properties.2;
+        let orbs: Array2<f64> = props.get("orbs_after_scc").unwrap().as_array2().unwrap().to_owned();
+        let f: Array1<f64> = props.get("occupation").unwrap().as_array1().unwrap().to_owned();
+        let p: Array2<f64> = density_matrix(orbs.view(), f.as_slice().unwrap());
+        let p_ref: Array2<f64> = props.get("P_after_scc").unwrap().as_array2().unwrap().to_owned();
+        assert!(
+            p_ref.abs_diff_eq(&p, EPSILON),
+            "Molecule: {}, p0 (ref): {}  p0: {}",
+            name,
+            p_ref,
+            p
+        );
+    }
+
+    fn test_lc_exchange_energy(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let s: Array2<f64> = props.get("S").unwrap().as_array2().unwrap().to_owned();
+        let g0_lr_ao: Array2<f64> = props.get("g0_lr_ao").unwrap().as_array2().unwrap().to_owned();
+        let p_ref: Array2<f64> = props.get("P_after_scc").unwrap().as_array2().unwrap().to_owned();
+        let p0_ref: Array2<f64> = props.get("P0").unwrap().as_array2().unwrap().to_owned();
+        let lc_energy: f64 = lc_exchange_energy(s.view(), g0_lr_ao.view(), p0_ref.view(), p_ref.view());
+        let lc_energy_ref: f64 =  props.get("lc_exchange_energy").unwrap().as_array1().unwrap()[0];
+        assert!(
+            lc_energy_ref.abs_diff_eq(&lc_energy, EPSILON),
+            "Molecule: {}, LC Energy (ref): {}  LC Energy: {}",
+            name,
+            lc_energy_ref,
+            lc_energy
+        );
+    }
+
+    fn test_lc_exact_exchange(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let s: Array2<f64> = props.get("S").unwrap().as_array2().unwrap().to_owned();
+        let g0_lr_ao: Array2<f64> = props.get("g0_lr_ao").unwrap().as_array2().unwrap().to_owned();
+        let p_ref: Array2<f64> = props.get("P_after_scc").unwrap().as_array2().unwrap().to_owned();
+        let p0_ref: Array2<f64> = props.get("P0").unwrap().as_array2().unwrap().to_owned();
+        let lc_exchange: Array2<f64> = lc_exact_exchange(s.view(), g0_lr_ao.view(), p0_ref.view(), p_ref.view());
+        let lc_exchange_ref: Array2<f64> = props.get("lc_exact_exchange").unwrap().as_array2().unwrap().to_owned();
+        assert!(
+            lc_exchange_ref.abs_diff_eq(&lc_exchange, EPSILON),
+            "Molecule: {}, LC Exchange (ref): {}  LC Exchange: {}",
+            name,
+            lc_exchange_ref,
+            lc_exchange
+        );
     }
 
     #[test]
     fn repulsive_energy() {
-        test_repulsive_energy(get_molecule("h2", "no_lc_gs"));
-        test_repulsive_energy(get_molecule("h2o", "no_lc_gs"));
-        test_repulsive_energy(get_molecule("benzene", "no_lc_gs"));
-        test_repulsive_energy(get_molecule("ammonia", "no_lc_gs"));
-        test_repulsive_energy(get_molecule("uracil", "no_lc_gs"));
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_repulsive_energy(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn build_h1() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_h1_construction(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn reference_density_matrix() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_density_matrix_ref(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn get_density_matrix() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_density_matrix(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn exchange_energy() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_lc_exchange_energy(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn lc_exchange() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_lc_exact_exchange(get_molecule(molecule, "no_lc_gs"));
+        }
     }
 
 }
-

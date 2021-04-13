@@ -9,6 +9,8 @@ use std::path::Path;
 use std::fs;
 use data_reader::reader::{ReaderParams, Delimiter, load_txt_f64};
 
+pub const AVAILAIBLE_MOLECULES: [&'static str; 5] = ["h2", "h2o", "benzene",  "ammonia", "uracil"];
+
 fn get_config() -> Configuration {
     let mut config_string: String = String::from("");
     let config: Configuration = toml::from_str(&config_string).unwrap();
@@ -69,15 +71,17 @@ fn load_2d(filename: &str) -> Array2<f64>{
 fn get_properties(mol: &str, name: &str) -> Properties {
     let mut properties: Properties = Properties::new();
     let path: String = format!("{}/{}", get_test_path_prefix(), mol);
-    let props2d: [&str; 6] = ["H0_before_scc", "P0", "P_after_scc", "S_before_scc",
-                            "distance_matrix", "gamma_atomwise"];
-    let props1d: [&str; 6] = ["orbs_per_atom", "q_after_scc", "dq_after_scc", "E_band_structure",
-                              "E_coulomb_after_scc", "E_rep"];
+    let props2d = ["H0", "P0", "P_after_scc", "S", "g0_lr_ao", "lc_exact_exchange",
+                            "distance_matrix", "gamma_atomwise", "H1_after_scc", "orbs_after_scc"];
+    let props1d = ["orbs_per_atom", "q_after_scc", "dq_after_scc", "E_band_structure",
+                              "E_coulomb_after_scc", "E_rep", "occupation", "lc_exchange_energy"];
     for property_name in props1d.iter() {
+        println!("{}", property_name);
         let tmp: Property = Property::from(load_1d(&format!("{}/{}.dat",path, property_name)));
         properties.set(property_name, tmp);
     }
     for property_name in props2d.iter() {
+        println!("{}", property_name);
         let tmp: Property = Property::from(load_2d(&format!("{}/{}.dat",path, property_name)));
         properties.set(property_name, tmp);
     }
@@ -90,40 +94,6 @@ pub fn get_molecule(molecule_name: &'static str, calculation_type: &str) -> (&'s
     return (molecule_name, system, properties);
 }
 
-pub fn get_h2_molecule(calculation_type: &str) -> (System, Properties) {
-    let molname: &str = "h2";
-    let system: System = get_system(molname);
-    let properties: Properties = get_properties(molname, calculation_type);
-    return (system, properties);
-}
-
-pub fn get_h2o_molecule(calculation_type: &str) -> (System, Properties) {
-    let molname: &str = "h2o";
-    let system: System = get_system(molname);
-    let properties: Properties = get_properties(molname, calculation_type);
-    return (system, properties);
-}
-
-pub fn get_benzene_molecule(calculation_type: &str) -> (System, Properties) {
-    let molname: &str = "benzene";
-    let system: System = get_system(molname);
-    let properties: Properties = get_properties(molname, calculation_type);
-    return (system, properties);
-}
-
-pub fn get_ammonia_molecule(calculation_type: &str) -> (System, Properties) {
-    let molname: &str = "ammonia";
-    let system: System = get_system(molname);
-    let properties: Properties = get_properties(molname, calculation_type);
-    return (system, properties);
-}
-
-pub fn get_uracil_molecule(calculation_type: &str) -> (System, Properties) {
-    let molname: &str = "uracil";
-    let system: System = get_system(molname);
-    let properties: Properties = get_properties(molname, calculation_type);
-    return (system, properties);
-}
 
 
 
