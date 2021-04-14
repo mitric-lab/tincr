@@ -61,7 +61,7 @@ use std::collections::HashMap;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(8)
+        .num_threads(1)
         .build_global()
         .unwrap();
 
@@ -410,6 +410,7 @@ fn main() {
             let molecule_timer: Instant = Instant::now();
 
             let (frag_energies,s_matrices):(Array1<f64>,Vec<Array2<f64>>) = fmo_calculate_fragments_ncc(&mut fragments,gamma_total.view(),&indices_frags);
+            println!("Monomer energy sum {}",frag_energies.sum());
 
             println!(
                 "{:>68} {:>8.2} s",

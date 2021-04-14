@@ -165,6 +165,7 @@ pub fn fmo_gs_energy(
 ) -> (f64) {
     // sum over all monomer energies
     let energy_monomers: f64 = cluster_results.energy.sum();
+    println!("Monomer energies old {}",energy_monomers);
 
     // get energy term for pairs
     let mut iter: usize = 0;
