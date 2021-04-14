@@ -60,7 +60,7 @@ use std::collections::HashMap;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(16)
+        .num_threads(8)
         .build_global()
         .unwrap();
 
@@ -219,8 +219,7 @@ fn main() {
             0
         }
         "fmo_grad" => {
-            let (graph,graph_indexes, subgraph,connectivity_mat,dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>,Array2<bool>,Array2<f64>, Array3<f64>, Array2<bool>) =
-                create_fmo_graph(atomic_numbers.clone(), positions.clone());
+            let subgraph:Vec<StableUnGraph<u8, f64>> =create_fmo_graph(atomic_numbers.clone(), positions.clone());
             // let mut mol: Molecule = Molecule::new(
             //     atomic_numbers.clone(),
             //     positions.clone(),
@@ -367,8 +366,7 @@ fn main() {
             0
         }
         "fmo" => {
-            let (graph, graph_indexes, subgraph, connectivity_mat, dist_matrix, dir_matrix, prox_matrix): (StableUnGraph<u8, f64>, Vec<NodeIndex>, Vec<StableUnGraph<u8, f64>>, Array2<bool>, Array2<f64>, Array3<f64>, Array2<bool>) =
-                create_fmo_graph(atomic_numbers.clone(), positions.clone());
+            let subgraph:Vec<StableUnGraph<u8, f64>> =create_fmo_graph(atomic_numbers.clone(), positions.clone());
             // let mut mol: Molecule = Molecule::new(
             //     atomic_numbers.clone(),
             //     positions.clone(),
@@ -399,7 +397,6 @@ fn main() {
                 molecule_timer.elapsed().as_secs_f32()
             );
             drop(molecule_timer);
-
             let molecule_timer: Instant = Instant::now();
             let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
 
@@ -412,7 +409,7 @@ fn main() {
             let molecule_timer: Instant = Instant::now();
 
             let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
-                fmo_calculate_pairwise_single(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags, &gamma_total);
+                fmo_calculate_pairwise_par(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags);
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -435,9 +432,110 @@ fn main() {
                 molecule_timer.elapsed().as_secs_f32()
             );
             drop(molecule_timer);
+            drop(fragments);
+            drop(fragments_data);
+            drop(dist_mat);
+            drop(direct_mat);
+            drop(indices_frags);
 
             println!("FMO Energy {}", energy);
 
+            let molecule_timer: Instant = Instant::now();
+            let subgraph:Vec<StableUnGraph<u8, f64>> =create_fmo_graph(atomic_numbers.clone(), positions.clone());
+            // let mut mol: Molecule = Molecule::new(
+            //     atomic_numbers.clone(),
+            //     positions.clone(),
+            //     Some(config.mol.charge),
+            //     Some(config.mol.multiplicity),
+            //     Some(0.0),
+            //     None,
+            //     config.clone(),
+            // );
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time create_fmo_graph:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+            let mut fragments: Vec<Molecule> = create_fragment_molecules(
+                subgraph,
+                config.clone(),
+                atomic_numbers.clone(),
+                positions.clone(),
+            );
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time create fragment mols:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
+            let (indices_frags,prox_mat,dist_mat,direct_mat,full_hubbard): (Vec<usize>, Array2<bool>,Array2<f64>, Array3<f64>,HashMap<u8,f64>) =
+                reorder_molecule_gradients(&fragments, config.clone(), positions.raw_dim());
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time reorder mol gradients:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+            let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate monomers",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
+            let energy:f64 = fmo_calculate_pairs_esdim_embedding(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags,&full_hubbard);
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate dimers, embedding and esdim",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            println!("FMO Energy {}:",energy);
+
+            // let molecule_timer: Instant = Instant::now();
+            // let mut mol: Molecule = Molecule::new(
+            //     atomic_numbers,
+            //     positions,
+            //     Some(config.mol.charge),
+            //     Some(config.mol.multiplicity),
+            //     Some(0.0),
+            //     None,
+            //     config,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     None
+            // );
+            // println!(
+            //     "{:>68} {:>8.2} s",
+            //     "elapsed time:",
+            //     molecule_timer.elapsed().as_secs_f32()
+            // );
+            // drop(molecule_timer);
+            // let molecule_timer: Instant = Instant::now();
+            // let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+            //     scc_routine::run_scc(&mut mol);
+            // println!(
+            //     "{:>68} {:>8.2} s",
+            //     "elapsed time calculate energy:",
+            //     molecule_timer.elapsed().as_secs_f32()
+            // );
+            // drop(molecule_timer);
+            // println!("DFTB energy {}",energy);
             0
         }
         _ => {

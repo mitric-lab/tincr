@@ -3563,25 +3563,37 @@ pub fn reorder_molecule_gradients(
         indices_vector.push(prev_nat);
         prev_nat += molecule.n_atoms;
     }
+    let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
+        distance_matrix(positions.view(), None);
+    let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
+        get_atomtypes(atomic_numbers.clone());
 
-    let new_mol: Molecule = Molecule::new(
-        atomic_numbers,
-        positions,
-        Some(config.mol.charge),
-        Some(config.mol.multiplicity),
+    let calculator: DFTBCalculator = DFTBCalculator::new(
+        &atomic_numbers,
+        &atomtypes,
+        None,
+        &dist_matrix,
         Some(0.0),
-        None,
-        config.clone(),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
     );
+
+    // let new_mol: Molecule = Molecule::new(
+    //     atomic_numbers,
+    //     positions,
+    //     Some(config.mol.charge),
+    //     Some(config.mol.multiplicity),
+    //     Some(0.0),
+    //     None,
+    //     config.clone(),
+    //     None,
+    //     None,
+    //     None,
+    //     None,
+    //     None,
+    //     None,
+    //     None,
+    //     None,
+    //     None,
+    // );
     // let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
     //     &new_mol.atomic_numbers,
     //     new_mol.n_atoms,
@@ -3593,13 +3605,20 @@ pub fn reorder_molecule_gradients(
     //     Some(0.0),
     // );
 
+    // return (
+    //     indices_vector,
+    //     // new_mol.g0,
+    //     new_mol.proximity_matrix,
+    //     new_mol.distance_matrix,
+    //     new_mol.directions_matrix,
+    //     new_mol.calculator.hubbard_u,
+    // );
     return (
         indices_vector,
-        // new_mol.g0,
-        new_mol.proximity_matrix,
-        new_mol.distance_matrix,
-        new_mol.directions_matrix,
-        new_mol.calculator.hubbard_u,
+        prox_matrix,
+        dist_matrix,
+        dir_matrix,
+        calculator.hubbard_u
     );
 }
 
