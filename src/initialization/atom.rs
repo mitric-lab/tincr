@@ -2,9 +2,10 @@ use crate::initialization::parameters::{
     PseudoAtom,
 };
 use crate::param::elements::Element;
-use std::ops::Neg;
+use std::ops::{Neg, Sub};
 use soa_derive::StructOfArray;
 use std::cmp::Ordering;
+use nalgebra::Vector3;
 
 /// `Atom` type that contains basic information about the chemical element as well as the
 /// data used for the semi-empirical parameters that are used in the DFTB calculations.
@@ -44,8 +45,10 @@ pub struct Atom {
     pub n_orbs: usize,
     /// Occupation number for each valence orbitals
     pub valorbs_occupation: Vec<f64>,
-    // Number of valence electrons
+    /// Number of valence electrons
     pub n_elec: usize,
+    /// Position of the atom in bohr
+    pub xyz: Vector3<f64> ,
 }
 
 impl From<Element> for Atom {
@@ -79,7 +82,14 @@ impl From<Element> for Atom {
             n_orbs: n_orbs,
             valorbs_occupation: occupation,
             n_elec: n_elec,
+            xyz: Vector3::<f64>::zeros(),
         }
+    }
+}
+
+impl Atom {
+    pub fn set_position(&mut self, position: &[f64]) {
+        self.xyz = Vector3::from_iterator(position.iter().cloned());
     }
 }
 
@@ -103,6 +113,22 @@ impl From<u8> for Atom {
 impl PartialEq for Atom {
     fn eq(&self, other: &Self) -> bool {
         self.number == other.number
+    }
+}
+
+impl Sub for Atom {
+    type Output = Vector3<f64>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.xyz - rhs.xyz
+    }
+}
+
+impl Sub for &Atom {
+    type Output = Vector3<f64>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.xyz - rhs.xyz
     }
 }
 

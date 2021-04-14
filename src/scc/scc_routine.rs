@@ -82,9 +82,8 @@ impl<'a> RestrictedSCC for System {
         // get the gamma matrix
         let gamma: Array2<f64> = gamma_atomwise(
             &self.gammafunction,
-            self.properties.atomic_numbers().unwrap(),
+            &self.atoms,
             self.n_atoms,
-            self.geometry.distances.as_ref().unwrap().view(),
         );
         // and save it as a `Property`
         self.properties.set_gamma(gamma);
@@ -93,11 +92,9 @@ impl<'a> RestrictedSCC for System {
         if self.gammafunction_lc.is_some() {
             let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
                 self.gammafunction_lc.as_ref().unwrap(),
-                self.properties.atomic_numbers().unwrap(),
                 &self.atoms,
                 self.n_atoms,
                 self.n_orbs,
-                self.geometry.distances.as_ref().unwrap().view(),
             );
             self.properties.set_gamma_lr(gamma_lr);
             self.properties.set_gamma_lr_ao(gamma_lr_ao);

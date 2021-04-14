@@ -3,6 +3,8 @@ use libm;
 use ndarray::prelude::*;
 use std::collections::HashMap;
 use std::f64::consts::PI;
+use nalgebra::Vector3;
+use std::iter::FromIterator;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -166,17 +168,16 @@ impl GammaFunction {
 
 pub fn gamma_atomwise(
     gamma_func: &GammaFunction,
-    atomic_numbers: &[u8],
+    atoms: &[Atom],
     n_atoms: usize,
-    distances: ArrayView2<f64>,
 ) -> Array2<f64> {
     let mut g0 = Array2::zeros((n_atoms, n_atoms));
-    for (i, z_i) in atomic_numbers.iter().enumerate() {
-        for (j, z_j) in atomic_numbers.iter().enumerate() {
+    for (i, atomi) in atoms.iter().enumerate() {
+        for (j, atomj) in atoms.iter().enumerate() {
             if i == j {
-                g0[[i, j]] = gamma_func.eval_limit0(*z_i);
+                g0[[i, j]] = gamma_func.eval_limit0(atomi.number);
             } else if i < j {
-                g0[[i, j]] = gamma_func.eval(distances[[i, j]], *z_i, *z_j);
+                g0[[i, j]] = gamma_func.eval((atomi-atomj).norm(), atomi.number, atomj.number);
             } else {
                 g0[[i, j]] = g0[[j, i]];
             }
@@ -187,31 +188,25 @@ pub fn gamma_atomwise(
 
 fn gamma_gradients_atomwise(
     gamma_func: &GammaFunction,
-    atomic_numbers: &[u8],
+    atoms: &[Atom],
     n_atoms: usize,
-    distances: ArrayView2<f64>,
-    directions: ArrayView3<f64>,
 ) -> Array3<f64> {
     let mut g0: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1_val: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1: Array3<f64> = Array3::zeros((3 * n_atoms, n_atoms, n_atoms));
-    for (i, z_i) in atomic_numbers.iter().enumerate() {
-        for (j, z_j) in atomic_numbers.iter().enumerate() {
-            if i == j {
-                g0[[i, j]] = gamma_func.eval_limit0(*z_i);
-            } else if i < j {
-                let r_ij: f64 = distances[[i, j]];
-                let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
-                g0[[i, j]] = gamma_func.eval(r_ij, *z_i, *z_j);
-                g1_val[[i, j]] = gamma_func.deriv(r_ij, *z_i, *z_j);
+    for (i, atomi) in atoms.iter().enumerate() {
+        for (j, atomj) in atoms.iter().enumerate() {
+            if i < j {
+                let r_ij: f64 = (atomi - atomj).norm();
+                let e_ij: Vector3<f64> = atomi - atomj;
+                g1_val[[i, j]] = gamma_func.deriv(r_ij, atomi.number, atomj.number);
                 g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
-                    .assign(&(&e_ij * g1_val[[i, j]]));
+                    .assign(&Array1::from_iter( (e_ij * g1_val[[i, j]]).iter().cloned()));
             } else {
                 g1_val[[i, j]] = g1_val[[j, i]];
-                let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
-                g0[[i, j]] = g0[[j, i]];
+                let e_ij: Vector3<f64> = atomi - atomj;
                 g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
-                    .assign(&(&e_ij * g1_val[[i, j]]));
+                    .assign(&Array::from_iter( (e_ij * g1_val[[i, j]]).iter().cloned()));
             }
         }
     }
@@ -220,13 +215,11 @@ fn gamma_gradients_atomwise(
 
 pub fn gamma_ao_wise(
     gamma_func: &GammaFunction,
-    atomic_numbers: &[u8],
     atoms: &[Atom],
     n_atoms: usize,
     n_orbs: usize,
-    distances: ArrayView2<f64>,
 ) -> (Array2<f64>, Array2<f64>) {
-    let g0: Array2<f64> = gamma_atomwise(gamma_func, atomic_numbers, n_atoms, distances);
+    let g0: Array2<f64> = gamma_atomwise(gamma_func, &atoms, n_atoms);
     let mut g0_a0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
     let mut mu: usize = 0;
     let mut nu: usize;
@@ -247,23 +240,20 @@ pub fn gamma_ao_wise(
 
 pub fn gamma_gradients_ao_wise(
     gamma_func: &GammaFunction,
-    atomic_numbers: &[u8],
+    atoms: &[Atom],
     n_atoms: usize,
     n_orbs: usize,
-    distances: ArrayView2<f64>,
-    directions: ArrayView3<f64>,
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
 ) -> (Array3<f64>, Array3<f64>) {
     let g1: Array3<f64> =
-        gamma_gradients_atomwise(gamma_func, atomic_numbers, n_atoms, distances, directions);
+        gamma_gradients_atomwise(gamma_func, &atoms, n_atoms);
     let mut g1_a0: Array3<f64> = Array3::zeros((3 * n_atoms, n_orbs, n_orbs));
     let mut mu: usize = 0;
     let mut nu: usize;
-    for (i, z_i) in atomic_numbers.iter().enumerate() {
-        for _ in &valorbs[z_i] {
+    for (i, atomi) in atoms.iter().enumerate() {
+        for _ in 0..atomi.n_orbs {
             nu = 0;
-            for (j, z_j) in atomic_numbers.iter().enumerate() {
-                for _ in &valorbs[z_j] {
+            for (j, atomj) in atoms.iter().enumerate() {
+                for _ in 0..atomj.n_orbs {
                     if i != j {
                         g1_a0
                             .slice_mut(s![(3 * i)..(3 * i + 3), mu, nu])
@@ -298,9 +288,8 @@ mod tests {
         let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
         let gamma: Array2<f64> = gamma_atomwise(
             &molecule.gammafunction,
-            &atomic_numbers,
+            &molecule.atoms,
             molecule.n_atoms,
-            molecule.geometry.distances.unwrap().view(),
         );
         let gamma_ref: Array2<f64> = props
             .get("gamma_atomwise")
@@ -325,9 +314,8 @@ mod tests {
         let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
         let gamma: Array2<f64> = gamma_atomwise(
             &molecule.gammafunction_lc.unwrap(),
-            &atomic_numbers,
+            &molecule.atoms,
             molecule.n_atoms,
-            molecule.geometry.distances.unwrap().view(),
         );
         let gamma_ref: Array2<f64> = props
             .get("gamma_atomwise_lc")
@@ -352,11 +340,9 @@ mod tests {
         let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
         let (g0, g0_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
             &molecule.gammafunction,
-            &atomic_numbers,
             &molecule.atoms,
             molecule.n_atoms,
-            molecule.n_orbs,
-            molecule.geometry.distances.unwrap().view(),
+             molecule.n_orbs,
         );
         let g0_ref: Array2<f64> = props
             .get("gamma_atomwise")
@@ -393,11 +379,9 @@ mod tests {
         let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
         let (g0, g0_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
             &molecule.gammafunction_lc.unwrap(),
-            &atomic_numbers,
             &molecule.atoms,
             molecule.n_atoms,
             molecule.n_orbs,
-            molecule.geometry.distances.unwrap().view(),
         );
         let g0_ref: Array2<f64> = props
             .get("gamma_atomwise_lc")

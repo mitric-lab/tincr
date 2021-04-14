@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-// #![allow(warnings)]
+#![allow(warnings)]
 
 use std::{env, fs};
 use std::io::Write;
@@ -27,6 +27,7 @@ mod io;
 mod initialization;
 mod scc;
 mod utils;
+mod fmo;
 //mod gradients;
 mod param;
 mod excited_states;

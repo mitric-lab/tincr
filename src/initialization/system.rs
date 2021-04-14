@@ -25,6 +25,14 @@ pub struct System {
     pub n_elec: usize,
     /// Number of unpaired electrons (singlet -> 0, doublet -> 1, triplet -> 2)
     pub n_unpaired: usize,
+    /// Indices of occupied orbitals starting from zero
+    pub occ_indices: Vec<usize>,
+    /// Indices of virtual orbitals
+    pub virt_indices: Vec<usize>,
+    /// List index of first active occupied orbital
+    pub first_active_occ: usize,
+    /// List index of last of active virtual orbital
+    pub last_active_virt: usize,
     /// Vector with the data of the individual atoms that are stored as [Atom] type. This is not an
     /// efficient solution because there are only a few [Atom] types and they are copied for each
     /// atom in the molecule. However, to the best of the authors knowledge the self referential
@@ -71,6 +79,8 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         // get all the Atom's from the HashMap
         let mut atoms: Vec<Atom> = Vec::with_capacity(molecule.0.len());
         molecule.0.iter().for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
+        // set the positions for each atom
+        molecule.1.outer_iter().enumerate().for_each(|(idx, position)| atoms[idx].set_position(position.as_slice().unwrap()));
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
         // get the number of unpaired electrons from the input option
@@ -83,6 +93,14 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         // calculate the number of atomic orbitals for the whole system as the sum of the atomic
         // orbitals per atom
         let n_orbs: usize = atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
+        // get the indices of the occupied and virtual orbitals
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        (0..n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
+        assert!(molecule.2.excited.nr_active_occ <= occ_indices.len(), "The number of active occupied orbitals can not be greater \
+        than the number of occupied orbitals");
+        let first_active_occ = occ_indices.len() - molecule.2.excited.nr_active_occ;
+        let active_virt = molecule.2.excited.nr_active_virt;
         // Create the Geometry from the coordinates. At this point the coordinates have to be
         // transformed already in atomic units
         let geom: Geometry = Geometry::from(molecule.1);
@@ -97,7 +115,6 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
             vrep.add(kind1, kind2);
         }
         // initialize the gamma function
-        // TODO: Check which Gamma function is specified in the input
         let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(&unique_atoms);
         let c: HashMap<(u8, u8), f64> = HashMap::new();
         let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr: 0.0 };
@@ -112,12 +129,17 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         } else {
             None
         };
+
         Self{
             config: molecule.2,
             n_atoms: molecule.0.len(),
             n_orbs: n_orbs,
             n_elec: n_elec,
             n_unpaired: n_unpaired,
+            occ_indices: occ_indices,
+            virt_indices: virt_indices,
+            first_active_occ: first_active_occ,
+            last_active_virt: active_virt,
             atoms: atoms,
             geometry: geom,
             properties: properties,

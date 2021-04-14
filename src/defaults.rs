@@ -55,7 +55,7 @@ pub const BROYDEN_MIXING_PARAMETER: f64 = 0.35;
 pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
 
 // Number of active orbitals
-pub const ACTIVE_ORBITALS: (usize, usize) = (1000, 1000);
+pub const ACTIVE_ORBITALS: (usize, usize) = (0, 0);
 // Numver of excited states
 pub const EXCITED_STATES: usize = 1000;
 // DO RPA or Casida
