@@ -1,24 +1,23 @@
-use approx::AbsDiffEq;
 use ndarray::prelude::*;
 use ndarray::{Array1, Array2, Array3};
 use std::collections::HashMap;
 use std::ops::AddAssign;
+use crate::initialization::Atom;
 
 // computes the Mulliken transition charges between occupied-occupied
 // occupied-virtual and virtual-virtual molecular orbitals.
 // Point charge approximation of transition densities according to formula (14)
 // in Heringer, Niehaus  J Comput Chem 28: 2589-2601 (2007)
 pub fn trans_charges(
-    atomic_numbers: &[u8],
-    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
+    n_atoms: usize,
+    atoms: &[Atom],
     orbs: ArrayView2<f64>,
     s: ArrayView2<f64>,
-    active_occupied_orbs: &[usize],
-    active_virtual_orbs: &[usize],
+    occ_indeces: &[usize],
+    virt_indeces: &[usize],
 ) -> (Array3<f64>, Array3<f64>, Array3<f64>) {
-    let n_atoms: usize = atomic_numbers.len();
-    let dim_o: usize = active_occupied_orbs.len();
-    let dim_v: usize = active_virtual_orbs.len();
+    let dim_o: usize = occ_indeces.len();
+    let dim_v: usize = virt_indeces.len();
     // transition charges between occupied and virutal orbitals
     let mut q_trans_ov: Array3<f64> = Array3::zeros([n_atoms, dim_o, dim_v]);
     // transition charges between occupied and occupied orbitals
@@ -29,30 +28,30 @@ pub fn trans_charges(
     let s_c: Array2<f64> = s.dot(&orbs);
 
     let mut mu: usize = 0;
-    for (atom_a, z_a) in atomic_numbers.iter().enumerate() {
-        for _ in valorbs[z_a].iter() {
+    for (n, atom) in atoms.iter().enumerate() {
+        for _ in 0..(atom.n_orbs) {
             // occupied - virtuals
-            for (i, occi) in active_occupied_orbs.iter().enumerate() {
-                for (a, virta) in active_virtual_orbs.iter().enumerate() {
-                    q_trans_ov.slice_mut(s![atom_a, i, a]).add_assign(
+            for (i, occi) in occ_indeces.iter().enumerate() {
+                for (a, virta) in virt_indeces.iter().enumerate() {
+                    q_trans_ov.slice_mut(s![n, i, a]).add_assign(
                         0.5 * (orbs[[mu, *occi]] * s_c[[mu, *virta]]
                             + orbs[[mu, *virta]] * s_c[[mu, *occi]]),
                     );
                 }
             }
             // occupied - occupied
-            for (i, occi) in active_occupied_orbs.iter().enumerate() {
-                for (j, occj) in active_occupied_orbs.iter().enumerate() {
-                    q_trans_oo.slice_mut(s![atom_a, i, j]).add_assign(
+            for (i, occi) in occ_indeces.iter().enumerate() {
+                for (j, occj) in occ_indeces.iter().enumerate() {
+                    q_trans_oo.slice_mut(s![n, i, j]).add_assign(
                         0.5 * (orbs[[mu, *occi]] * s_c[[mu, *occj]]
                             + orbs[[mu, *occj]] * s_c[[mu, *occi]]),
                     );
                 }
             }
             // virtual - virtual
-            for (a, virta) in active_virtual_orbs.iter().enumerate() {
-                for (b, virtb) in active_virtual_orbs.iter().enumerate() {
-                    q_trans_vv.slice_mut(s![atom_a, a, b]).add_assign(
+            for (a, virta) in virt_indeces.iter().enumerate() {
+                for (b, virtb) in virt_indeces.iter().enumerate() {
+                    q_trans_vv.slice_mut(s![n, a, b]).add_assign(
                         0.5 * (orbs[[mu, *virta]] * s_c[[mu, *virtb]]
                             + orbs[[mu, *virtb]] * s_c[[mu, *virta]]),
                     );

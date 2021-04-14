@@ -2,7 +2,6 @@ use crate::initialization::parameters::{
     PseudoAtom,
 };
 use crate::param::elements::Element;
-use std::collections::HashMap;
 use std::ops::Neg;
 use soa_derive::StructOfArray;
 use std::cmp::Ordering;

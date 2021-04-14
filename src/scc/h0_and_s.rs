@@ -1,10 +1,7 @@
-#[macro_use(array)]
 use ndarray::prelude::*;
 use crate::initialization::parameters::*;
 use crate::initialization::{Atom, Geometry};
 use crate::param::slako_transformations::*;
-use approx::AbsDiffEq;
-use ndarray::{array, Array2, Array3, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 
 ///
@@ -271,8 +268,8 @@ pub fn h0_and_s_gradients(
                 // iterate over orbitals on center j
                 for (nj, lj, mj) in &valorbs[zj] {
                     if proximity_matrix[[i, j]] && mu != nu {
-                        let mut s_deriv: Array1<f64> = Array1::zeros((3));
-                        let mut h0_deriv: Array1<f64> = Array1::zeros((3));
+                        let mut s_deriv: Array1<f64> = Array1::zeros(3);
+                        let mut h0_deriv: Array1<f64> = Array1::zeros(3);
                         if zi <= zj {
                             if i != j {
                                 // the hardcoded Slater-Koster rules compute the gradient

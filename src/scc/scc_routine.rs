@@ -1,5 +1,4 @@
 use crate::initialization::system::System;
-use crate::io::SccConfig;
 use crate::scc::mixer::BroydenMixer;
 use crate::scc::gamma_approximation::{gamma_atomwise, gamma_ao_wise};
 use crate::scc::h0_and_s::h0_and_s;
@@ -10,19 +9,11 @@ use crate::scc::mulliken::mulliken;
 use crate::scc::logging::*;
 use crate::scc::{fermi_occupation, get_repulsive_energy, construct_h1, density_matrix, enable_level_shifting, get_electronic_energy, lc_exact_exchange, get_frontier_orbitals};
 use crate::utils::Timer;
-use approx::AbsDiffEq;
-use itertools::Itertools;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
-use ndarray::*;
 use ndarray_linalg::*;
 use ndarray_stats::QuantileExt;
-use peroxide::fuga::gamma;
-use std::cmp::max;
 use std::fmt;
-use std::iter::FromIterator;
-use std::ops::Deref;
-use std::time::Instant;
 
 
 #[derive(Debug, Clone)]
@@ -142,7 +133,7 @@ impl<'a> RestrictedSCC for System {
         // and will be inserted at the end of the SCC routine
         let mut p: Array2<f64> = self.properties.take_p().unwrap();
         let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
-        let mut q: Array1<f64> = Array1::from_shape_vec((self.n_atoms), self.atoms.iter().map(|atom| atom.n_elec as f64).collect()).unwrap();
+        let mut q: Array1<f64>;
 
         // molecular properties, we take all properties that are needed from the Properties type
         let s: ArrayView2<f64> = self.properties.s().unwrap();
@@ -220,7 +211,6 @@ impl<'a> RestrictedSCC for System {
                 self.n_unpaired,
                 temperature,
             );
-            let mu: f64 = tmp.0;
             f = tmp.1;
 
             if !level_shifter.is_on {

@@ -47,7 +47,7 @@ pub enum Property {
 
 impl Default for Property {
     fn default() -> Self {
-       { Property::Bool(false) }
+       Property::Bool(false)
     }
 }
 

@@ -1,13 +1,9 @@
-use crate::defaults;
 use crate::param::Element;
-use ndarray::array;
-use ndarray::{Array, Array1, Array2};
+use ndarray::prelude::*;
 use ron::de::from_str;
 use rusty_fitpack;
-use rusty_fitpack::splev_uniform;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::env;
 use std::fs;
 use std::path::Path;
 use crate::utils::get_path_prefix;

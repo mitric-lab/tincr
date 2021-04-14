@@ -1,12 +1,6 @@
-use crate::constants::BOND_THRESHOLD;
-use crate::initialization::parameters::*;
-use crate::{constants, defaults};
-use approx::AbsDiffEq;
+use crate::{defaults};
 use ndarray::prelude::*;
-use ndarray::*;
 use ndarray_linalg::Norm;
-use std::collections::HashMap;
-use std::hash::Hash;
 
 /// Type that holds the atomic numbers and positions of a molecule.
 /// The distance, directions and proximity matrices are optional informations that are stored

@@ -1,5 +1,4 @@
-use approx::AbsDiffEq;
-use ndarray::{array, Array, Array1, Array2, ArrayView2};
+use ndarray::prelude::*;
 use crate::initialization::Atom;
 
 /// Calculate the Mulliken charges from the density matrix and the overlap integrals
@@ -23,7 +22,7 @@ pub fn mulliken(
         for _ in 0..atomi.n_orbs {
             let mut nu = 0;
             // iterate over atoms B
-            for (j, atomj) in atoms.iter().enumerate() {
+            for (_, atomj) in atoms.iter().enumerate() {
                 // iterate over orbitals on atom B
                 for _ in 0..atomj.n_orbs {
                     q[i] = q[i] + (&p[[mu, nu]] * &s[[mu, nu]]);

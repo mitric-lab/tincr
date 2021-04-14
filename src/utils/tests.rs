@@ -5,14 +5,11 @@ use crate::io::settings::*;
 use crate::utils::get_path_prefix;
 use data_reader::reader::{load_txt_f64, Delimiter, ReaderParams};
 use ndarray::prelude::*;
-use ndarray::Array2;
-use std::fs;
-use std::path::Path;
 
 pub const AVAILAIBLE_MOLECULES: [&'static str; 5] = ["h2", "h2o", "benzene", "ammonia", "uracil"];
 
 fn get_config() -> Configuration {
-    let mut config_string: String = String::from("");
+    let config_string: String = String::from("");
     let config: Configuration = toml::from_str(&config_string).unwrap();
     config
 }
@@ -77,7 +74,7 @@ fn load_3d(filename: &str) -> Array3<f64> {
     return Array3::from_shape_vec(shape, results.results).unwrap();
 }
 
-fn get_properties(mol: &str, name: &str) -> Properties {
+fn get_properties(mol: &str, _name: &str) -> Properties {
     let mut properties: Properties = Properties::new();
     let path: String = format!("{}/{}", get_test_path_prefix(), mol);
     let props3d = [

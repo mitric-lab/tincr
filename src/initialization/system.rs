@@ -4,14 +4,10 @@ use crate::initialization::parameters::*;
 use crate::initialization::properties::Properties;
 use crate::io::{frame_to_coordinates, Configuration, read_file_to_frame};
 use crate::param::Element;
-use crate::{constants, defaults};
-use approx::AbsDiffEq;
 use chemfiles::Frame;
 use itertools::Itertools;
-use log::{debug, error, info, trace, warn};
 use ndarray::prelude::*;
 use std::collections::HashMap;
-use std::hash::Hash;
 use crate::scc::gamma_approximation::GammaFunction;
 use crate::scc::gamma_approximation;
 
@@ -103,13 +99,13 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         // initialize the gamma function
         // TODO: Check which Gamma function is specified in the input
         let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(&unique_atoms);
-        let mut c: HashMap<(u8, u8), f64> = HashMap::new();
+        let c: HashMap<(u8, u8), f64> = HashMap::new();
         let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr: 0.0 };
         gf.initialize();
         // initialize the gamma function for long-range correction if it is requested
-        let mut gf_lc: Option<GammaFunction> = if molecule.2.lc.long_range_correction {
+        let gf_lc: Option<GammaFunction> = if molecule.2.lc.long_range_correction {
             let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(&unique_atoms);
-            let mut c: HashMap<(u8, u8), f64> = HashMap::new();
+            let c: HashMap<(u8, u8), f64> = HashMap::new();
             let mut tmp = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr: molecule.2.lc.long_range_radius };
             tmp.initialize();
             Some(tmp)
@@ -147,7 +143,7 @@ impl From<(&str, Configuration)> for System {
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
     fn from(filename_and_config: (&str, Configuration)) -> Self {
         let frame: Frame = read_file_to_frame(filename_and_config.0);
-        let (numbers, coords) = frame_to_coordinates((frame));
+        let (numbers, coords) = frame_to_coordinates(frame);
         Self::from((numbers, coords, filename_and_config.1))
     }
 }

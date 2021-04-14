@@ -1,10 +1,5 @@
 use ndarray::*;
-use ndarray_linalg::krylov::qr;
-use ndarray_linalg::{Inverse, Norm, Solve};
-use ndarray_stats::QuantileExt;
-use peroxide::special::function::beta;
-use std::cmp::{max, min};
-use std::iter::FromIterator;
+use ndarray_linalg::{Inverse};
 use crate::defaults;
 use crate::scc::mixer::Mixer;
 
@@ -85,7 +80,7 @@ impl Mixer for BroydenMixer {
         &mut self,
         q_inp_result: Array1<f64>,
         q_diff: Array1<f64>,
-    ) -> (Array1<f64>) {
+    ) -> Array1<f64> {
         // In the first iteration the counter `self.iter` is 1
         // Therefore the that corresponds to the iterations should be lower by 1
         let mut q_inp_result: Array1<f64> = q_inp_result;

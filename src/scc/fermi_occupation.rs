@@ -1,6 +1,6 @@
 use crate::constants;
-use ndarray::{array, Array, Array1, ArrayView1, ArrayView2};
-use std::cmp::{max, min};
+use ndarray::prelude::*;
+use std::cmp::{max};
 use crate::utils::zbrent;
 
 /// Find the occupation of single-particle state a at finite temperature T
@@ -28,7 +28,7 @@ pub fn fermi_occupation(
     t: f64,
 ) -> (f64, Vec<f64>) {
     let mut fermi_occ: Vec<f64> = Vec::new();
-    let mut mu: f64 = 0.0;
+    let mu: f64;
     if t == 0.0 {
         let result: (f64, Vec<f64>) = fermi_occupation_t0(orbe, n_elec_paired, n_elec_unpaired);
         mu = result.0;

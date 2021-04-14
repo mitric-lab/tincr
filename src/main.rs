@@ -1,21 +1,17 @@
 #![allow(dead_code)]
-#![allow(warnings)]
+// #![allow(warnings)]
 
 use std::{env, fs};
 use std::io::Write;
 use std::path::Path;
 use std::process;
-use std::ptr::eq;
 use std::time::{Duration, Instant};
 
 use clap::{App, Arg};
 use env_logger::Builder;
-use log::{debug, error, info, Level, trace, warn};
+use log::{info};
 use log::LevelFilter;
-use ndarray::*;
-use ndarray_linalg::*;
 use petgraph::stable_graph::*;
-use ron::error::ErrorCode::TrailingCharacters;
 use toml;
 
 use crate::defaults::CONFIG_FILE_NAME;
@@ -33,7 +29,7 @@ mod scc;
 mod utils;
 //mod gradients;
 mod param;
-//mod excited_states;
+mod excited_states;
 
 #[macro_use]
 extern crate clap;

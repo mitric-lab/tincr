@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use ndarray::prelude::*;
-use ndarray::{Data, OwnedRepr};
+use ndarray::{Data};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;

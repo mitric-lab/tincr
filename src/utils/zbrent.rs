@@ -1,4 +1,3 @@
-use std::f64::consts::PI;
 
 /// In the original DFTBaby code the Fermi energy is searched using the bisection
 /// method, as it is necessary to find the root of (sum_a fa - n_elec).
@@ -11,7 +10,6 @@ use std::f64::consts::PI;
 /// S. A. Teukolsky, W. T. Vetterling, B. P. Flannery. Cambridge University Press 1992
 pub fn zbrent<F: Fn(f64) -> f64>(func: F, x1: f64, x2: f64, tol: f64, maxiter: usize) -> f64 {
     let eps: f64 = 2.220446049250313e-016_f64.sqrt();
-    let iter: usize;
     let mut a: f64 = x1;
     let mut b: f64 = x2;
     let mut c: f64 = x2;
@@ -37,8 +35,8 @@ pub fn zbrent<F: Fn(f64) -> f64>(func: F, x1: f64, x2: f64, tol: f64, maxiter: u
         "Root must be bracketed in zbrent"
     );
     fc = fb;
-    'main_loop: for iter in 0..maxiter {
-        if ((fb > 0.0 && fc > 0.0) || (fb < 0.0 && fc < 0.0)) {
+    'main_loop: for _iter in 0..maxiter {
+        if (fb > 0.0 && fc > 0.0) || (fb < 0.0 && fc < 0.0) {
             // rename a, b, c and adjust the bounding interval d
             c = a;
             fc = fa;
@@ -74,7 +72,7 @@ pub fn zbrent<F: Fn(f64) -> f64>(func: F, x1: f64, x2: f64, tol: f64, maxiter: u
                 p = s * (2.0 * xm * q * (q - r) - (b - a) * (r - 1.0));
                 q = (q - 1.0) * (r - 1.0) * (s - 1.0);
             }
-            if (p > 0.0) {
+            if p > 0.0 {
                 // check whether in bounds
                 q = -q;
             }

@@ -1,8 +1,6 @@
 use crate::initialization::*;
-use approx::AbsDiffEq;
 use libm;
 use ndarray::prelude::*;
-use ndarray::{array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
@@ -121,9 +119,9 @@ impl GammaFunction {
     fn deriv(&self, r: f64, z_a: u8, z_b: u8) -> f64 {
         let result: f64 = match *self {
             GammaFunction::Gaussian {
-                ref sigma,
-                ref c,
-                ref r_lr,
+                    ref sigma,
+                    ref c,
+                    ref r_lr,
             } => {
                 assert!(r > 0.0);
                 let c_v: f64 = c[&(z_a, z_b)];
@@ -171,7 +169,7 @@ pub fn gamma_atomwise(
     atomic_numbers: &[u8],
     n_atoms: usize,
     distances: ArrayView2<f64>,
-) -> (Array2<f64>) {
+) -> Array2<f64> {
     let mut g0 = Array2::zeros((n_atoms, n_atoms));
     for (i, z_i) in atomic_numbers.iter().enumerate() {
         for (j, z_j) in atomic_numbers.iter().enumerate() {
@@ -193,7 +191,7 @@ fn gamma_gradients_atomwise(
     n_atoms: usize,
     distances: ArrayView2<f64>,
     directions: ArrayView3<f64>,
-) -> (Array3<f64>) {
+) -> Array3<f64> {
     let mut g0: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1_val: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1: Array3<f64> = Array3::zeros((3 * n_atoms, n_atoms, n_atoms));

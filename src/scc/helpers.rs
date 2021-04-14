@@ -1,11 +1,10 @@
 use crate::defaults;
-use crate::initialization::parameters::{RepulsivePotential, RepulsivePotentialTable};
+use crate::initialization::parameters::{RepulsivePotential};
 use crate::initialization::Atom;
 use itertools::Itertools;
-use log::{debug, error, info, trace, warn};
+use log::{debug};
 use ndarray::prelude::*;
 use ndarray_linalg::Norm;
-use std::collections::HashMap;
 
 // find indeces of HOMO and LUMO orbitals (starting from 0)
 pub fn get_frontier_orbitals(n_elec: usize) -> (usize, usize) {
@@ -99,13 +98,13 @@ pub fn lc_exact_exchange(
     g0_lr_ao: ArrayView2<f64>,
     p0: ArrayView2<f64>,
     p: ArrayView2<f64>,
-) -> (Array2<f64>) {
+) -> Array2<f64> {
     let dp: Array2<f64> = &p - &p0;
     let mut hx: Array2<f64> = (&g0_lr_ao * &s.dot(&dp)).dot(&s);
     hx = hx + &g0_lr_ao * &(s.dot(&dp)).dot(&s);
     hx = hx + (s.dot(&(&dp * &g0_lr_ao))).dot(&s);
     hx = hx + s.dot(&(&g0_lr_ao * &dp.dot(&s)));
-    hx = hx * (-0.125);
+    hx = hx * -0.125;
     return hx;
 }
 
@@ -119,7 +118,7 @@ pub fn lc_exchange_energy(
     let mut e_hf_x: f64 = 0.0;
     e_hf_x += ((s.dot(&dp.dot(&s))) * &dp * &g0_lr_ao).sum();
     e_hf_x += (s.dot(&dp) * dp.dot(&s) * &g0_lr_ao).sum();
-    e_hf_x *= (-0.125);
+    e_hf_x *= -0.125;
     return e_hf_x;
 }
 
@@ -131,7 +130,7 @@ pub fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
     let f_occ: Vec<f64> = f.iter().filter(|&&x| x > 0.0).cloned().collect();
     // THIS IS NOT AN EFFICIENT WAY TO BUILD THE LEFT HAND SIDE
     let mut f_occ_mat: Vec<f64> = Vec::new();
-    for i in 0..occ_orbs.nrows() {
+    for _ in 0..occ_orbs.nrows() {
         for val in f_occ.iter() {
             f_occ_mat.push(*val);
         }

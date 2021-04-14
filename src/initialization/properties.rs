@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use crate::initialization::property::Property;
 use ndarray::prelude::*;
-use crate::scc::h0_and_s::h0_and_s;
 
 pub struct Properties {
     map: HashMap<&'static str, Property>

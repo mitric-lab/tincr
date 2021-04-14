@@ -45,6 +45,6 @@ pub fn get_path_prefix() -> String {
     let key: &str = defaults::SOURCE_DIR_VARIABLE;
     match env::var(key) {
         Ok(val) => val,
-        Err(e) => panic!("The environment variable {} was not set", key),
+        Err(_e) => panic!("The environment variable {} was not set", key),
     }
 }

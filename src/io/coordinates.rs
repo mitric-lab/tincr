@@ -3,7 +3,7 @@ use ndarray::{Array2};
 use crate::constants::{BOHR_TO_ANGS};
 
 /// Extract the atomic numbers and positions (in bohr) from a [Frame](chemfiles::frame)
-pub fn frame_to_coordinates(mut frame: Frame) -> (Vec<u8>, Array2<f64>) {
+pub fn frame_to_coordinates(frame: Frame) -> (Vec<u8>, Array2<f64>) {
     let mut positions: Array2<f64> = Array2::from_shape_vec(
         (frame.size() as usize, 3),
         frame

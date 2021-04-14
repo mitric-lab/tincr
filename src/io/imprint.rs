@@ -1,4 +1,3 @@
-#[macro_use]
 use log::{info};
 
 pub fn write_header() {
