@@ -1,10 +1,10 @@
+use crate::initialization::*;
 use approx::AbsDiffEq;
 use libm;
 use ndarray::prelude::*;
 use ndarray::{array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
-use crate::initialization::*;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -283,3 +283,181 @@ pub fn gamma_gradients_ao_wise(
     return (g1, g1_a0);
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::initialization::Properties;
+    use crate::initialization::System;
+    use crate::utils::*;
+    use approx::AbsDiffEq;
+
+    pub const EPSILON: f64 = 1e-15;
+
+    fn test_gamma_atomwise(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
+        let gamma: Array2<f64> = gamma_atomwise(
+            &molecule.gammafunction,
+            &atomic_numbers,
+            molecule.n_atoms,
+            molecule.geometry.distances.unwrap().view(),
+        );
+        let gamma_ref: Array2<f64> = props
+            .get("gamma_atomwise")
+            .unwrap()
+            .as_array2()
+            .unwrap()
+            .to_owned();
+
+        assert!(
+            gamma_ref.abs_diff_eq(&gamma, EPSILON),
+            "Molecule: {}, Gamma (ref): {}  Gamma: {}",
+            name,
+            gamma_ref,
+            gamma
+        );
+    }
+
+    fn test_gamma_atomwise_lc(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
+        let gamma: Array2<f64> = gamma_atomwise(
+            &molecule.gammafunction_lc.unwrap(),
+            &atomic_numbers,
+            molecule.n_atoms,
+            molecule.geometry.distances.unwrap().view(),
+        );
+        let gamma_ref: Array2<f64> = props
+            .get("gamma_atomwise_lc")
+            .unwrap()
+            .as_array2()
+            .unwrap()
+            .to_owned();
+
+        assert!(
+            gamma_ref.abs_diff_eq(&gamma, EPSILON),
+            "Molecule: {}, Gamma-LC (ref): {}  Gamma-LC: {}",
+            name,
+            gamma_ref,
+            gamma
+        );
+    }
+
+    fn test_gamma_ao_wise(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
+        let (g0, g0_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+            &molecule.gammafunction,
+            &atomic_numbers,
+            &molecule.atoms,
+            molecule.n_atoms,
+            molecule.n_orbs,
+            molecule.geometry.distances.unwrap().view(),
+        );
+        let g0_ref: Array2<f64> = props
+            .get("gamma_atomwise")
+            .unwrap()
+            .as_array2()
+            .unwrap()
+            .to_owned();
+        let g0_ao_ref: Array2<f64> = props
+            .get("gamma_ao_wise")
+            .unwrap()
+            .as_array2()
+            .unwrap()
+            .to_owned();
+        assert!(
+            g0_ref.abs_diff_eq(&g0, EPSILON),
+            "Molecule: {}, Gamma-LC (ref): {}  Gamma-LC: {}",
+            name,
+            g0_ref,
+            g0
+        );
+        assert!(
+            g0_ao_ref.abs_diff_eq(&g0_ao, EPSILON),
+            "Molecule: {}, Gamma-LC (ao basis) (ref): {}  Gamma-LC (ao basis): {}",
+            name,
+            g0_ao_ref,
+            g0_ao
+        );
+    }
+
+    fn test_gamma_ao_wise_lc(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
+        let (g0, g0_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+            &molecule.gammafunction_lc.unwrap(),
+            &atomic_numbers,
+            &molecule.atoms,
+            molecule.n_atoms,
+            molecule.n_orbs,
+            molecule.geometry.distances.unwrap().view(),
+        );
+        let g0_ref: Array2<f64> = props
+            .get("gamma_atomwise_lc")
+            .unwrap()
+            .as_array2()
+            .unwrap()
+            .to_owned();
+        let g0_ao_ref: Array2<f64> = props
+            .get("gamma_ao_wise_lc")
+            .unwrap()
+            .as_array2()
+            .unwrap()
+            .to_owned();
+        assert!(
+            g0_ref.abs_diff_eq(&g0, EPSILON),
+            "Molecule: {}, Gamma-LC (ref): {}  Gamma-LC: {}",
+            name,
+            g0_ref,
+            g0
+        );
+        assert!(
+            g0_ao_ref.abs_diff_eq(&g0_ao, EPSILON),
+            "Molecule: {}, Gamma-LC (ao basis) (ref): {}  Gamma-LC (ao basis): {}",
+            name,
+            g0_ao_ref,
+            g0_ao
+        );
+    }
+
+    #[test]
+    fn get_gamma_atomwise() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_gamma_atomwise(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn get_gamma_atomwise_lc() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_gamma_atomwise_lc(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn get_gamma_ao_wise() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_gamma_ao_wise(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn get_gamma_ao_wise_lc() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_gamma_ao_wise_lc(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+}

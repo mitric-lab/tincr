@@ -153,33 +153,60 @@ pub fn h0_and_s(
                 for orbj in atomj.valorbs.iter() {
                     if geometry.proximities.as_ref().unwrap()[[i, j]] {
                         if mu < nu {
-                            if i != j {
-                                let (orba, orbb) = if atomi <= atomj {(orbi, orbj)} else {(orbj, orbi)};
+                            if atomi <= atomj {
+                                if i != j {
+                                    let (r, x, y, z): (f64, f64, f64, f64) =
+                                        directional_cosines(posi, posj);
+                                    s[[mu, nu]] = slako_transformation(
+                                        r,
+                                        x,
+                                        y,
+                                        z,
+                                        &skt.get(atomi.kind, atomj.kind).s_spline,
+                                        orbi.l,
+                                        orbi.m,
+                                        orbj.l,
+                                        orbj.m,
+                                    );
+                                    h0[[mu, nu]] = slako_transformation(
+                                        r,
+                                        x,
+                                        y,
+                                        z,
+                                        &skt.get(atomi.kind, atomj.kind).h_spline,
+                                        orbi.l,
+                                        orbi.m,
+                                        orbj.l,
+                                        orbj.m,
+                                    );
+                                }
+                            } else {
                                 let (r, x, y, z): (f64, f64, f64, f64) =
-                                    directional_cosines(posi, posj);
+                                    directional_cosines(posj, posi);
                                 s[[mu, nu]] = slako_transformation(
                                     r,
                                     x,
                                     y,
                                     z,
-                                    &skt.get(atomi.kind, atomj.kind).s_spline,
-                                    orba.l,
-                                    orba.m,
-                                    orbb.l,
-                                    orbb.m,
+                                    &skt.get(atomj.kind, atomi.kind).s_spline,
+                                    orbj.l,
+                                    orbj.m,
+                                    orbi.l,
+                                    orbi.m,
                                 );
                                 h0[[mu, nu]] = slako_transformation(
                                     r,
                                     x,
                                     y,
                                     z,
-                                    &skt.get(atomi.kind, atomj.kind).h_spline,
-                                    orba.l,
-                                    orba.m,
-                                    orbb.l,
-                                    orbb.m,
+                                    &skt.get(atomj.kind, atomi.kind).h_spline,
+                                    orbj.l,
+                                    orbj.m,
+                                    orbi.l,
+                                    orbi.m,
                                 );
                             }
+
                         } else if mu == nu {
                             assert_eq!(atomi.number, atomj.number);
                             h0[[mu, nu]] = orbi.energy;
@@ -331,4 +358,50 @@ pub fn h0_and_s_gradients(
         }
     }
     return (grad_s, grad_h0);
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::initialization::Properties;
+    use crate::initialization::System;
+    use crate::utils::*;
+    use approx::AbsDiffEq;
+
+    pub const EPSILON: f64 = 1e-15;
+
+    fn test_h0_and_s(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
+        let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(molecule.n_orbs, &molecule.atoms, &molecule.geometry, &molecule.slako);
+        let s_ref: Array2<f64> = props.get("S").unwrap().as_array2().unwrap().to_owned();
+        let h0_ref: Array2<f64> = props.get("H0").unwrap().as_array2().unwrap().to_owned();
+
+        assert!(
+            s_ref.abs_diff_eq(&s, EPSILON),
+            "Molecule: {}, S (ref): {}  S: {}",
+            name,
+            s_ref,
+            s
+        );
+
+        assert!(
+            h0_ref.abs_diff_eq(&h0, EPSILON),
+            "Molecule: {}, H0 (ref): {}  H0: {}",
+            name,
+            h0_ref,
+            h0
+        );
+    }
+
+    #[test]
+    fn get_h0_and_s() {
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_h0_and_s(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
 }
