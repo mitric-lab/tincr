@@ -15,6 +15,7 @@ use crate::molecule::distance_matrix;
 use crate::molecule::get_atomtypes;
 use crate::parameters::*;
 use crate::scc_routine;
+use crate::fmo_ncc_routine::*;
 use crate::solver::get_exc_energies;
 use crate::Molecule;
 use approx::AbsDiffEq;
@@ -32,6 +33,7 @@ use petgraph::{Graph, Undirected};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::time::Instant;
+use ndarray_stats::QuantileExt;
 
 pub fn fmo_numerical_gradient(atomic_numbers:&Vec<u8>,positions:&Array1<f64>,config:GeneralConfig)->Array1<f64>{
     let mut gradient:Array1<f64> = Array1::zeros(positions.raw_dim());
@@ -2206,6 +2208,170 @@ pub fn reorder_molecule(
         new_mol.distance_matrix,
         new_mol.directions_matrix,
     );
+}
+
+pub fn reorder_molecule_v2(
+    fragments: &Vec<Molecule>,
+    config: GeneralConfig,
+    shape_positions: Ix2,
+) -> (
+    Vec<usize>,
+    Array2<f64>,
+    Array2<bool>,
+    Array2<f64>,
+    Array3<f64>,
+    HashMap<u8, f64>,
+) {
+    let mut atomic_numbers: Vec<u8> = Vec::new();
+    let mut positions: Array2<f64> = Array2::zeros(shape_positions);
+    let mut indices_vector: Vec<usize> = Vec::new();
+    let mut mut_fragments: Vec<Molecule> = fragments.clone();
+    let mut prev_nat: usize = 0;
+
+    for molecule in mut_fragments.iter_mut() {
+        //for (ind, atom) in molecule.atomic_numbers.iter().enumerate() {
+        //    atomic_numbers.push(*atom);
+        //    positions
+        //        .slice_mut(s![ind, ..])
+        //        .assign(&molecule.positions.slice(s![ind, ..]));
+        //}
+        atomic_numbers.append(&mut molecule.atomic_numbers);
+        positions
+            .slice_mut(s![prev_nat..prev_nat + molecule.n_atoms, ..])
+            .assign(&molecule.positions);
+        indices_vector.push(prev_nat);
+        prev_nat += molecule.n_atoms;
+    }
+    let (dist_matrix, dir_matrix, prox_matrix): (Array2<f64>, Array3<f64>, Array2<bool>) =
+        distance_matrix(positions.view(), None);
+    let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
+        get_atomtypes(atomic_numbers.clone());
+
+    let calculator: DFTBCalculator = DFTBCalculator::new(
+        &atomic_numbers,
+        &atomtypes,
+        None,
+        &dist_matrix,
+        Some(0.0),
+    );
+
+    let g0_total:Array2<f64> = get_only_gamma_matrix_atomwise(
+        &atomic_numbers,
+        atomic_numbers.len(),
+        dist_matrix.view(),
+        &calculator.hubbard_u,
+        Some(0.0));
+
+    return (
+        indices_vector,
+        g0_total,
+        prox_matrix,
+        dist_matrix,
+        dir_matrix,
+        calculator.hubbard_u
+    );
+}
+
+pub fn fmo_calculate_fragments_ncc(
+    fragments: &mut Vec<Molecule>,
+    g0_total:ArrayView2<f64>,
+    frag_indices:&Vec<usize>,
+)->(Array1<f64>,Vec<Array2<f64>>){
+    let mut converged:bool = false;
+    let max_iter: usize = 40;
+    let mut energy_old:Array1<f64> = Array1::zeros(fragments.len());
+    let mut dq_old:Vec<Array1<f64>> = Vec::new();
+    let mut pmat_old:Vec<Array2<f64>> = Vec::new();
+    let mut dq_rmsd:Array1<f64> = Array1::zeros(fragments.len());
+    let mut p_rmsd:Array1<f64> = Array1::zeros(fragments.len());
+    let mut s_matrices:Vec<Array2<f64>> = Vec::new();
+    let conv:f64 = 1e-6;
+    let length:usize = fragments.len();
+    let ncc_mats:Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
+
+    'ncc_loop: for i in 0..max_iter {
+        let energies_vec: Vec<f64> = fragments
+            .iter_mut().enumerate()
+            .map(|(index,frag)| {
+                let (energy, s,x_opt,h0): (f64,Array2<f64>,Option<Array2<f64>>,Option<Array2<f64>>) =fmo_ncc(frag,ncc_mats[index].x.clone(),Some(ncc_mats[index].s.clone()),ncc_mats[index].h0.clone());
+
+                // calculate dq diff and pmat diff
+                if i == 0 {
+                    let dq_diff:Array1<f64> = frag.final_charges.clone();
+                    let p_diff:Array2<f64> = frag.final_p_matrix.clone();
+                    // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
+                    dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                    p_rmsd[index] = p_diff.map(|val| val*val).mean().unwrap().sqrt();
+                }
+                if i > 0 {
+                    let dq_diff:Array1<f64> = &frag.final_charges - &dq_old[index];
+                    let p_diff:Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
+                    // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
+                    dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                    p_rmsd[index] = p_diff.map(|val| val*val).mean().unwrap().sqrt();
+                }
+                if i == 0{
+                    dq_old.push(frag.final_charges.clone());
+                    pmat_old.push(frag.final_p_matrix.clone());
+                    s_matrices.push(s);
+                }
+                else{
+                    dq_old[index] = frag.final_charges.clone();
+                    pmat_old[index] = frag.final_p_matrix.clone();
+                    s_matrices[index] = s;
+                }
+                energy
+            })
+            .collect();
+
+        // calculate embedding energy
+        let embedding_vec:Vec<f64> = fragments.iter().enumerate().map(|(ind_a,frag)|{
+            let mut embedding:f64 = 0.0;
+            for (ind_k,mol_k) in fragments.iter().enumerate(){
+                // calculate g0 of the pair
+                // let g0_dimer_ab:Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
+                //     &fragments[ind1].atomic_numbers,
+                //     &fragments[ind2].atomic_numbers,
+                //     fragments[ind1].n_atoms,
+                //     fragments[ind2].n_atoms,
+                //     dimer_distances,full_hubbard,
+                //     Some(0.0));
+                let g0_ab:ArrayView2<f64> = g0_total.slice(s![ind_a..ind_a + frag.n_atoms,
+                            ind_k..ind_k + mol_k.n_atoms]);
+                embedding += frag.final_charges.dot(&g0_ab.dot(&mol_k.final_charges));
+            }
+            embedding
+        }).collect();
+        let embedding_arr:Array1<f64> = Array::from(embedding_vec);
+        let energies_arr:Array1<f64> = Array::from(energies_vec) + embedding_arr;
+        let energy_diff:Array1<f64> = (&energies_arr - &energy_old).mapv(|val|val.abs());
+        energy_old = energies_arr;
+
+        // check convergence
+        let converged_energies: Array1<usize> = energy_diff
+            .iter()
+            .filter_map(|&item| if item < conv { Some(1) } else { None })
+            .collect();
+        let converged_dq: Array1<usize> = dq_rmsd
+            .iter()
+            .filter_map(|&item| if item < conv { Some(1) } else { None })
+            .collect();
+        let converged_p: Array1<usize> = p_rmsd
+            .iter()
+            .filter_map(|&item| if item < conv { Some(1) } else { None })
+            .collect();
+        println!("dq diff {}",dq_rmsd.slice(s![0..10]));
+        if converged_energies.len() == length && converged_dq.len() == length && converged_p.len() == length{
+            println!("Iteration {}",i);
+            println!("Number of converged fragment energies {}, charges {} and pmatrices {}",converged_energies.len(),converged_dq.len(),converged_p.len());
+            break 'ncc_loop;
+        }
+        else{
+            println!("Iteration {}",i);
+            println!("Number of converged fragment energies {}, charges {} and pmatrices {}",converged_energies.len(),converged_dq.len(),converged_p.len());
+        }
+    }
+    return (energy_old,s_matrices);
 }
 
 pub fn create_fmo_graph(

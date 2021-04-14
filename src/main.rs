@@ -7,6 +7,7 @@ mod defaults;
 mod diis;
 mod fermi_occupation;
 mod fmo;
+mod fmo_ncc_routine;
 mod gamma_approximation;
 mod gradients;
 mod graph;
@@ -389,8 +390,8 @@ fn main() {
                 atomic_numbers.clone(),
                 positions.clone(),
             );
-            let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>) =
-                reorder_molecule(&fragments, config.clone(), positions.raw_dim());
+            let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat,full_hubbard): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>,HashMap<u8, f64>) =
+                reorder_molecule_v2(&fragments, config.clone(), positions.raw_dim());
             println!(
                 "{:>68} {:>8.2} s",
                 "elapsed time create fragment mols:",
@@ -399,6 +400,16 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
             let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate monomers",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
+            let (frag_energies,s_matrices):(Array1<f64>,Vec<Array2<f64>>) = fmo_calculate_fragments_ncc(&mut fragments,gamma_total.view(),&indices_frags);
 
             println!(
                 "{:>68} {:>8.2} s",
