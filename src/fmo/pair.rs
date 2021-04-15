@@ -6,6 +6,8 @@ use crate::io::Configuration;
 use crate::scc::gamma_approximation::GammaFunction;
 use ndarray::prelude::*;
 use std::collections::HashMap;
+use crate::utils::Timer;
+use log::info;
 
 pub enum PairApproximation {
     Pair,
@@ -36,8 +38,8 @@ impl Pair {
         // DFTB was taken from https://pubs.acs.org/doi/pdf/10.1021/ct500489d (see page 4805).
         // the threshold is generally used in FMO theory and was originally presented in
         // Chem. Phys. Lett. 2002, 351, 475−480
-        // For every atom we do a conversion from the u8 type usize. This could be circumnvented
-        // if we store the atomic number as usize in the [Atom] struct
+        // For every atom we do a conversion from the u8 type usize. But it was checked and it
+        // it does not seem to have a large effect on the performance.
         let is_in_proximity = monomers.0.atoms.iter().find(|atomi| {
             monomers
                 .1

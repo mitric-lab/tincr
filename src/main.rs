@@ -19,6 +19,8 @@ use crate::io::{Configuration, write_header, read_file_to_frame};
 use chemfiles::Frame;
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
+use crate::fmo::SuperSystem;
+use crate::utils::Timer;
 
 mod constants;
 mod defaults;
@@ -40,6 +42,7 @@ fn main() {
         .num_threads(1)
         .build_global()
         .unwrap();
+    let timer: Timer = Timer::start();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -74,7 +77,7 @@ fn main() {
     let frame: Frame = read_file_to_frame(geometry_file);
 
     // read tincr configuration file, if it does not exist in the directory
-    // the program initializes the default settings and writes an configuration file
+    // the program initializes the default settings and writes a configuration file
     // to the directory
     let config_file_path: &Path = Path::new(CONFIG_FILE_NAME);
     let mut config_string: String = if config_file_path.exists() {
@@ -82,18 +85,20 @@ fn main() {
     } else {
         String::from("")
     };
-    // load the configration settings
+    // load the configuration
     let config: Configuration = toml::from_str(&config_string).unwrap();
-    // save the configuration file if it does not exist already
+    // save the configuration file if it does not exist already so that the user can see
+    // all the used options
     if config_file_path.exists() == false {
         config_string = toml::to_string(&config).unwrap();
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
 
-    let mut system: System = System::from((frame, config));
-    system.prepare_scc();
-    system.run_scc();
+    let mut system = SuperSystem::from((frame, config));
+    //system.prepare_scc();
+    //system.run_scc();
 
+    info!("{}", timer);
     info!("{: ^80}", "");
     info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
     info!("{: ^80}", "::    Thank you for using TINCR     ::");

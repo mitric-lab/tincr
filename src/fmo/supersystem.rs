@@ -4,7 +4,7 @@ use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::initialization::{
     get_unique_atoms, initialize_gamma_function, Atom, Geometry, Properties,
 };
-use crate::io::{frame_to_coordinates, Configuration};
+use crate::io::{frame_to_coordinates, Configuration, read_file_to_frame};
 use crate::param::elements::Element;
 use crate::scc::gamma_approximation;
 use crate::scc::gamma_approximation::GammaFunction;
@@ -12,6 +12,8 @@ use chemfiles::Frame;
 use ndarray::prelude::*;
 use std::collections::HashMap;
 use itertools::Itertools;
+use crate::utils::Timer;
+use log::info;
 
 pub struct SuperSystem {
     /// Type that holds all the input settings from the user.
@@ -76,6 +78,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
         } else {
             None
         };
+
         let molecules: Vec<Frame> = get_fragments(input.0);
         let mut monomers: Vec<Monomer> = Vec::with_capacity(molecules.len());
         for mol_frame in molecules.into_iter() {
@@ -103,12 +106,13 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // calculate the number of electrons
         let n_elec: usize = monomers.iter().fold(0, |n, monomer| n + monomer.n_elec);
 
-        let mut pairs: Vec<Pair> = Vec::with_capacity(monomers.len() * (monomers.len() + 1) / 2);
+        let mut pairs: Vec<Pair> = Vec::with_capacity(monomers.len() * (monomers.len() - 1) / 2);
         // the construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after
         // each monomer
+
         // TODO: Read the vdw scaling parameter from the input file instead of setting hard to 2.0
         for (i, monomer_i) in monomers.iter().enumerate() {
-            for (j, monomer_j) in monomers[i..].iter().enumerate() {
+            for (j, monomer_j) in monomers[(i+1)..].iter().enumerate() {
                 pairs.push(Pair::new((i, j), (monomer_i, monomer_j), 2.0));
             }
         }
@@ -124,5 +128,15 @@ impl From<(Frame, Configuration)> for SuperSystem {
             gammafunction_lc: gf_lc,
             pairs: Default::default(),
         }
+    }
+}
+
+
+impl From<(&str, Configuration)> for SuperSystem {
+    /// Creates a new [SuperSystem] from a &str and
+    /// the global configuration as [Configuration](crate::io::settings::Configuration).
+    fn from(filename_and_config: (&str, Configuration)) -> Self {
+        let frame: Frame = read_file_to_frame(filename_and_config.0);
+        Self::from((frame, filename_and_config.1))
     }
 }
