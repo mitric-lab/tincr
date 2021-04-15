@@ -2294,7 +2294,19 @@ pub fn fmo_calculate_fragments_ncc(
         let energies_vec: Vec<f64> = fragments
             .iter_mut().enumerate()
             .map(|(index,frag)| {
-                let (energy, s,x_opt,h0): (f64,Array2<f64>,Option<Array2<f64>>,Option<Array2<f64>>) =fmo_ncc(frag,ncc_mats[index].x.clone(),Some(ncc_mats[index].s.clone()),ncc_mats[index].h0.clone());
+                let mut energy:f64 = 0.0;
+                let mut s:Array2<f64> = Array2::zeros((frag.calculator.n_orbs,frag.calculator.n_orbs));
+                if i == 0 {
+                    let (energy_temp, s_temp, x_opt, h0): (f64, Array2<f64>, Option<Array2<f64>>, Option<Array2<f64>>) =
+                        fmo_ncc(frag, ncc_mats[index].x.clone(), Some(ncc_mats[index].s.clone()), ncc_mats[index].h0.clone(), None, None, None, None);
+                    energy = energy_temp;
+                    s = s_temp;
+                }
+                else{
+                    let (energy_temp, s_temp,x_opt,h0): (f64,Array2<f64>,Option<Array2<f64>>,Option<Array2<f64>>) =
+                        fmo_ncc(frag,ncc_mats[index].x.clone(),Some(ncc_mats[index].s.clone()),ncc_mats[index].h0.clone(),Some(dq_old.clone()),Some(g0_total),Some(index),Some(frag_indices.clone()));
+                    energy = energy_temp;
+                }
 
                 // calculate dq diff and pmat diff
                 if i == 0 {
@@ -2303,23 +2315,20 @@ pub fn fmo_calculate_fragments_ncc(
                     // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
                     dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
                     p_rmsd[index] = p_diff.map(|val| val*val).mean().unwrap().sqrt();
+
+                    dq_old.push(frag.final_charges.clone());
+                    pmat_old.push(frag.final_p_matrix.clone());
+                    s_matrices.push(s);
                 }
-                if i > 0 {
+                else {
                     let dq_diff:Array1<f64> = &frag.final_charges - &dq_old[index];
                     let p_diff:Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
                     // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
                     dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
                     p_rmsd[index] = p_diff.map(|val| val*val).mean().unwrap().sqrt();
-                }
-                if i == 0{
-                    dq_old.push(frag.final_charges.clone());
-                    pmat_old.push(frag.final_p_matrix.clone());
-                    s_matrices.push(s);
-                }
-                else{
+
                     dq_old[index] = frag.final_charges.clone();
                     pmat_old[index] = frag.final_p_matrix.clone();
-                    s_matrices[index] = s;
                 }
                 energy
             })
@@ -2329,17 +2338,19 @@ pub fn fmo_calculate_fragments_ncc(
         let embedding_vec:Vec<f64> = fragments.iter().enumerate().map(|(ind_a,frag)|{
             let mut embedding:f64 = 0.0;
             for (ind_k,mol_k) in fragments.iter().enumerate(){
-                // calculate g0 of the pair
-                // let g0_dimer_ab:Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
-                //     &fragments[ind1].atomic_numbers,
-                //     &fragments[ind2].atomic_numbers,
-                //     fragments[ind1].n_atoms,
-                //     fragments[ind2].n_atoms,
-                //     dimer_distances,full_hubbard,
-                //     Some(0.0));
-                let g0_ab:ArrayView2<f64> = g0_total.slice(s![ind_a..ind_a + frag.n_atoms,
+                if ind_k != ind_a{
+                    // calculate g0 of the pair
+                    // let g0_dimer_ab:Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
+                    //     &fragments[ind1].atomic_numbers,
+                    //     &fragments[ind2].atomic_numbers,
+                    //     fragments[ind1].n_atoms,
+                    //     fragments[ind2].n_atoms,
+                    //     dimer_distances,full_hubbard,
+                    //     Some(0.0));
+                    let g0_ab:ArrayView2<f64> = g0_total.slice(s![ind_a..ind_a + frag.n_atoms,
                             ind_k..ind_k + mol_k.n_atoms]);
-                embedding += frag.final_charges.dot(&g0_ab.dot(&mol_k.final_charges));
+                    embedding += frag.final_charges.dot(&g0_ab.dot(&mol_k.final_charges));
+                }
             }
             embedding
         }).collect();
@@ -2347,7 +2358,6 @@ pub fn fmo_calculate_fragments_ncc(
         let energies_arr:Array1<f64> = Array::from(energies_vec) + embedding_arr;
         let energy_diff:Array1<f64> = (&energies_arr - &energy_old).mapv(|val|val.abs());
         energy_old = energies_arr;
-
         // check convergence
         let converged_energies: Array1<usize> = energy_diff
             .iter()
@@ -2361,7 +2371,7 @@ pub fn fmo_calculate_fragments_ncc(
             .iter()
             .filter_map(|&item| if item < conv { Some(1) } else { None })
             .collect();
-        println!("dq diff {}",dq_rmsd.slice(s![0..10]));
+        println!("dq diff {}",dq_rmsd);
         if converged_energies.len() == length && converged_dq.len() == length && converged_p.len() == length{
             println!("Iteration {}",i);
             println!("Number of converged fragment energies {}, charges {} and pmatrices {}",converged_energies.len(),converged_dq.len(),converged_p.len());

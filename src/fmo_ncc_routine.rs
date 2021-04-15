@@ -25,7 +25,7 @@ use rayon::prelude::*;
 pub fn generate_initial_fmo_monomer_guess(fragments: &mut Vec<Molecule>)->(Vec<ncc_matrices>){
     // create initial dq guess by doing one ncc run
     let x_vec:Vec<ncc_matrices> = fragments.iter_mut().map(|frag|{
-        let (energy, s,x_option,h): (f64,Array2<f64>,Option<Array2<f64>>,Option<Array2<f64>>) =fmo_ncc(frag,None,None,None);
+        let (energy, s,x_option,h): (f64,Array2<f64>,Option<Array2<f64>>,Option<Array2<f64>>) =fmo_ncc(frag,None,None,None,None,None,None,None);
         let matrices:ncc_matrices = ncc_matrices::new(s,h,x_option);
         matrices
     }).collect();
@@ -53,7 +53,8 @@ impl ncc_matrices{
 }
 
 // This routine is very messy und should be rewritten in a clean form
-pub fn fmo_ncc(molecule: &mut Molecule,x_mat:Option<Array2<f64>>,s_mat:Option<Array2<f64>>,h_mat:Option<Array2<f64>>) -> (f64,Array2<f64>,Option<Array2<f64>>,Option<Array2<f64>>) {
+pub fn fmo_ncc(molecule: &mut Molecule,x_mat:Option<Array2<f64>>,s_mat:Option<Array2<f64>>,h_mat:Option<Array2<f64>>,dq_k:Option<Vec<Array1<f64>>>,g0_total:Option<ArrayView2<f64>>,index:Option<usize>,frag_atoms_index:Option<Vec<usize>>)
+    -> (f64,Array2<f64>,Option<Array2<f64>>,Option<Array2<f64>>) {
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
@@ -66,6 +67,10 @@ pub fn fmo_ncc(molecule: &mut Molecule,x_mat:Option<Array2<f64>>,s_mat:Option<Ar
     let mut h0:Array2<f64> = Array2::zeros((molecule.calculator.n_orbs,molecule.calculator.n_orbs));
     let mut h_opt:Option<Array2<f64>> = None;
     let mut x_option:Option<Array2<f64>> = None;
+    let mut dq_monomers:Vec<Array1<f64>> = Vec::new();
+    if dq_k.is_some(){
+        dq_monomers = dq_k.unwrap();
+    }
 
     if x_mat.is_none(){
         let (s_mat, h0_mat): (Array2<f64>, Array2<f64>) = h0_and_s(
@@ -90,7 +95,6 @@ pub fn fmo_ncc(molecule: &mut Molecule,x_mat:Option<Array2<f64>>,s_mat:Option<Ar
         x = x_mat.unwrap();
         h0 = h_mat.unwrap();
         s = s_mat.unwrap();
-
     }
     let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
 
@@ -100,6 +104,45 @@ pub fn fmo_ncc(molecule: &mut Molecule,x_mat:Option<Array2<f64>>,s_mat:Option<Ar
     let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
     let h_coul: Array2<f64> = h1 * s.view();
     let mut h: Array2<f64> = h_coul + h0.view();
+
+    // calculate ESP term V
+    let mut v_mat:Array2<f64> = Array::zeros(s.raw_dim());
+    if dq_monomers.len() >0 {
+        if g0_total.is_some(){
+            let ind:usize = index.unwrap();
+            let atoms_ind:Vec<usize> = frag_atoms_index.unwrap();
+            let g0:ArrayView2<f64> = g0_total.unwrap();
+            let mut v_temp:Array2<f64> = Array2::zeros(s.raw_dim());
+
+            for (ind_k,dq_frag) in dq_monomers.iter().enumerate(){
+                if ind_k != ind{
+                    let g0_slice:ArrayView2<f64> = g0.slice(s![atoms_ind[ind]..atoms_ind[ind]+molecule.n_atoms,atoms_ind[ind_k]..atoms_ind[ind_k]+dq_frag.len()]);
+                    let esp:Array1<f64> = g0_slice.dot(dq_frag);
+                    let mut mu: usize = 0;
+                    let mut nu: usize;
+
+                    // build esp matrix
+                    for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
+                        for _ in &molecule.calculator.valorbs[z_i] {
+                            nu = 0;
+                            for (j, z_j) in molecule.atomic_numbers.iter().enumerate() {
+                                for _ in &molecule.calculator.valorbs[z_j] {
+                                    v_temp[[mu, nu]] += 0.5 * (esp[i] + esp[j]);
+                                    nu = nu + 1;
+                                }
+                            }
+                            mu = mu + 1;
+                        }
+                    }
+                }
+            }
+            v_mat = v_temp*s.view();
+        }
+        else{
+            // calculate g0 on the fly
+        }
+        h = h + v_mat;
+    }
 
     //let mut prev_h_X:Array2<f64>
     if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
