@@ -113,6 +113,7 @@ impl PseudoAtom {
 /// Type that holds the mapping between element pairs and their [SlaterKosterTable].
 /// This is basically a struct that allows to get the [SlaterKosterTable] without a strict
 /// order of the [Element] tuple.
+#[derive(Clone)]
 pub struct SlaterKoster{
     map: HashMap<(Element, Element), SlaterKosterTable>,
 }
@@ -225,6 +226,7 @@ impl SlaterKosterTable {
 /// Type that holds the mapping between element pairs and their [RepulsivePotentialTable].
 /// This is basically a struct that allows to get the [RepulsivePotentialTable] without a s
 /// order of the [Element] tuple.
+#[derive(Clone)]
 pub struct RepulsivePotential {
     map: HashMap<(Element, Element), RepulsivePotentialTable>,
 }

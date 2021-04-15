@@ -69,16 +69,13 @@ pub fn get_fragments(frame: Frame) -> Vec<Frame>{
             idxtomol.insert(i, i);
         }
     }
-    // create a chemfiles frame for each fragment and determine the connectivity within the
-    // individual frames
-    let mut fragment_frames: Vec<Frame> = Vec::new();
+    // create a [Frame](chemfiles::Frame) for each fragment
+    let mut fragment_frames: Vec<Frame> = Vec::with_capacity(molecules.len());
     for (key, value) in molecules.into_iter() {
         let mut fragment: Frame = Frame::new();
         for (num, pos) in value.iter() {
             fragment.add_atom(&Atom::new(ATOM_NAMES[*num as usize]), *pos, None);
         }
-        // let chemfiles guess the connectivity, so that we have access to the smiles representation
-        fragment.guess_bonds();
         fragment_frames.push(fragment);
     }
     return fragment_frames;

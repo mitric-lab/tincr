@@ -1,23 +1,16 @@
-use crate::initialization::atom::Atom;
-use crate::initialization::geometry::*;
-use crate::initialization::parameters::*;
-use crate::initialization::properties::Properties;
-use crate::io::{frame_to_coordinates, Configuration, read_file_to_frame};
-use crate::param::Element;
-use chemfiles::Frame;
-use itertools::Itertools;
 use ndarray::prelude::*;
-use std::collections::HashMap;
+use crate::io::{Configuration, frame_to_coordinates};
+use crate::initialization::{Atom, Geometry, Properties};
+use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::scc::gamma_approximation::GammaFunction;
-use crate::scc::gamma_approximation;
-use crate::initialization::{get_unique_atoms, initialize_gamma_function};
+use std::collections::HashMap;
+use chemfiles::Frame;
+
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
-/// This type is only used for non-FMO calculations. In the case of FMO based calculation
-/// the `FMO`, `Molecule` and `Pair` types are used instead.
-pub struct System {
-    /// Type that holds all the input settings from the user.
-    pub config: Configuration,
+/// This type is only used for FMO calculations. This type is a similar to the [System] type that
+/// is used in non-FMO calculations
+pub struct Monomer {
     /// Number of atoms
     pub n_atoms: usize,
     /// Number of atomic orbitals
@@ -59,26 +52,21 @@ pub struct System {
     pub gammafunction_lc: Option<GammaFunction>,
 }
 
-impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
-    /// Creates a new [System] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
+
+impl Monomer {
+    /// Creates a new [Monomer] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
-    fn from(molecule: (Vec<u8>, Array2<f64>, Configuration)) -> Self {
-        // get the unique [Atom]s and the HashMap with the mapping from the numbers to the [Atom]s
-        let (unique_atoms, num_to_atom): (Vec<Atom>, HashMap<u8, Atom>) = get_unique_atoms(&molecule.0);
-        // get all the Atom's from the HashMap
-        let mut atoms: Vec<Atom> = Vec::with_capacity(molecule.0.len());
-        molecule.0.iter().for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
+    pub fn new(frame: Frame, num_to_atom: HashMap<u8, Atom>, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
+        // get the atomic numbers and positions from the input data
+        let (atomic_numbers, coordinates) = frame_to_coordinates(frame);
+        let mut atoms: Vec<Atom> = Vec::with_capacity(atomic_numbers.len());
+        atomic_numbers.iter().for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
         // set the positions for each atom
-        molecule.1.outer_iter().enumerate().for_each(|(idx, position)| atoms[idx].set_position(position.as_slice().unwrap()));
+        coordinates.outer_iter().enumerate().for_each(|(idx, position)| atoms[idx].set_position(position.as_slice().unwrap()));
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
         // get the number of unpaired electrons from the input option
-        let n_unpaired: usize = match molecule.2.mol.multiplicity {
-            1u8 => 0,
-            2u8 => 1,
-            3u8 => 2,
-            _=> panic!("The specified multiplicity is not implemented")
-        };
+        let n_unpaired: usize = 0;
         // calculate the number of atomic orbitals for the whole system as the sum of the atomic
         // orbitals per atom
         let n_orbs: usize = atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
@@ -86,36 +74,17 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         let mut occ_indices: Vec<usize> = Vec::new();
         let mut virt_indices: Vec<usize> = Vec::new();
         (0..n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
-        assert!(molecule.2.excited.nr_active_occ <= occ_indices.len(), "The number of active occupied orbitals can not be greater \
-        than the number of occupied orbitals");
-        let first_active_occ = occ_indices.len() - molecule.2.excited.nr_active_occ;
-        let active_virt = molecule.2.excited.nr_active_virt;
+        // TODO: Get the number of active occupied and virtual orbitals for FMO
+        let first_active_occ = occ_indices.len() - 0;
+        let active_virt = 0;
         // Create the Geometry from the coordinates. At this point the coordinates have to be
         // transformed already in atomic units
-        let mut geom: Geometry = Geometry::from(molecule.1);
-        geom.set_matrices();
+        let geom: Geometry = Geometry::from(coordinates);
         // Create a new and empty Properties type
         let properties: Properties = Properties::new();
-        let mut slako: SlaterKoster = SlaterKoster::new();
-        let mut vrep: RepulsivePotential = RepulsivePotential::new();
-        // add all unique element pairs
-        let element_iter = unique_atoms.iter().map(|atom| Element::from(atom.number));
-        for (kind1, kind2) in element_iter.clone().cartesian_product(element_iter) {
-            slako.add(kind1, kind2);
-            vrep.add(kind1, kind2);
-        }
-        // initialize the gamma function
-        let gf: GammaFunction = initialize_gamma_function(&unique_atoms, 0.0);
-        // initialize the gamma function for long-range correction if it is requested
-        let gf_lc: Option<GammaFunction> = if molecule.2.lc.long_range_correction {
-            Some(initialize_gamma_function(&unique_atoms, molecule.2.lc.long_range_radius))
-        } else {
-            None
-        };
 
         Self{
-            config: molecule.2,
-            n_atoms: molecule.0.len(),
+            n_atoms: atomic_numbers.len(),
             n_orbs: n_orbs,
             n_elec: n_elec,
             n_unpaired: n_unpaired,
@@ -134,23 +103,5 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
     }
 }
 
-impl From<(Frame, Configuration)> for System {
-    /// Creates a new [System] from a [Frame](chemfiles::Frame) and
-    /// the global configuration as [Configuration](crate::io::settings::Configuration).
-    fn from(frame: (Frame, Configuration)) -> Self {
-        let (numbers, coords) = frame_to_coordinates(frame.0);
-        Self::from((numbers, coords, frame.1))
-    }
-}
-
-impl From<(&str, Configuration)> for System {
-    /// Creates a new [System] from a &str and
-    /// the global configuration as [Configuration](crate::io::settings::Configuration).
-    fn from(filename_and_config: (&str, Configuration)) -> Self {
-        let frame: Frame = read_file_to_frame(filename_and_config.0);
-        let (numbers, coords) = frame_to_coordinates(frame);
-        Self::from((numbers, coords, filename_and_config.1))
-    }
-}
 
 

@@ -16,13 +16,11 @@ impl From<Array2<f64>> for Geometry {
     /// Constructs a new [Geometry] from the coordinates (in atomic units).
     /// The distance, directions and proximity matrices will be computed and set.
     fn from(coordinates: Array2<f64>) -> Self {
-        let (dist, dir, prox): (Array2<f64>, Array3<f64>, Array2<bool>) =
-            distance_matrices(coordinates.view(), None);
         Geometry {
             coordinates: coordinates,
-            distances: Some(dist),
-            directions: Some(dir),
-            proximities: Some(prox),
+            distances: None,
+            directions: None,
+            proximities: None,
         }
     }
 }
@@ -38,6 +36,14 @@ impl Geometry {
         self.set_distances_from_array(dist);
         self.set_directions_from_array(dir);
         self.set_proximities_from_array(prox);
+    }
+
+    pub fn set_matrices(&mut self) {
+        let (dist, dir, prox): (Array2<f64>, Array3<f64>, Array2<bool>) =
+            distance_matrices(self.coordinates.view(), None);
+        self.distances = Some(dist);
+        self.directions = Some(dir);
+        self.proximities = Some(prox);
     }
 
     /// Set distances, directions and proximity matrices to None to free up some memory.
