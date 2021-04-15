@@ -420,6 +420,18 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
+            let molecule_timer: Instant = Instant::now();
+            let energy:f64 = fmo_ncc_pairs_esdim_embedding(&fragments, frag_energies.view(), config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags,&full_hubbard,gamma_total.view());
+            println!("Final FMO energy (NCC pair + esdim +embedding): {}",energy);
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time NCC pair + esdim +embedding",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+
             let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
                 fmo_calculate_pairwise_par(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags);
 
@@ -513,41 +525,41 @@ fn main() {
             drop(molecule_timer);
             println!("FMO Energy {}:",energy);
 
-            // let molecule_timer: Instant = Instant::now();
-            // let mut mol: Molecule = Molecule::new(
-            //     atomic_numbers,
-            //     positions,
-            //     Some(config.mol.charge),
-            //     Some(config.mol.multiplicity),
-            //     Some(0.0),
-            //     None,
-            //     config,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None
-            // );
-            // println!(
-            //     "{:>68} {:>8.2} s",
-            //     "elapsed time:",
-            //     molecule_timer.elapsed().as_secs_f32()
-            // );
-            // drop(molecule_timer);
-            // let molecule_timer: Instant = Instant::now();
-            // let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-            //     scc_routine::run_scc(&mut mol);
-            // println!(
-            //     "{:>68} {:>8.2} s",
-            //     "elapsed time calculate energy:",
-            //     molecule_timer.elapsed().as_secs_f32()
-            // );
-            // drop(molecule_timer);
-            // println!("DFTB energy {}",energy);
+            let molecule_timer: Instant = Instant::now();
+            let mut mol: Molecule = Molecule::new(
+                atomic_numbers,
+                positions,
+                Some(config.mol.charge),
+                Some(config.mol.multiplicity),
+                Some(0.0),
+                None,
+                config,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None
+            );
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            let molecule_timer: Instant = Instant::now();
+            let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+                scc_routine::run_scc(&mut mol);
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate energy:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+            println!("DFTB energy {}",energy);
             0
         }
         _ => {
