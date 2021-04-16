@@ -3622,6 +3622,66 @@ pub fn reorder_molecule_gradients(
     );
 }
 
+pub fn fmo_fragment_gradients(molecule: &mut Molecule,h0_coul:ArrayView2<f64>,fragment_indices:&Vec<usize>,frag_index:usize){
+    // calculate W' matrix
+    let w_mat:Array2<f64> = 0.5 * molecule.final_p_matrix.dot(&h0_coul.dot(&molecule.final_p_matrix));
+    //calculate gradH0 and gradS
+    let (grad_s, grad_h0): (Array3<f64>, Array3<f64>) = h0_and_s_gradients(
+        &molecule.atomic_numbers,
+        molecule.positions.view(),
+        molecule.calculator.n_orbs,
+        &molecule.calculator.valorbs,
+        molecule.proximity_matrix.view(),
+        &molecule.calculator.skt,
+        &molecule.calculator.orbital_energies,
+    );
+    // calculate g1
+    let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
+        &molecule.atomic_numbers,
+        molecule.n_atoms,
+        molecule.calculator.n_orbs,
+        molecule.distance_matrix.view(),
+        molecule.directions_matrix.view(),
+        &molecule.calculator.hubbard_u,
+        &molecule.calculator.valorbs,
+        Some(0.0),
+    );
+    let mut h_term:Array1<f64> = Array1::zeros(molecule.n_atoms);
+    let mut s_term:Array1<f64> = Array1::zeros(molecule.n_atoms);
+    let mut esp_term:Array1<f64> = Array1::zeros(molecule.n_atoms);
+    let mut h_term_v2:Array1<f64> = Array1::zeros(molecule.n_atoms);
+
+    let frag_ind:usize = fragment_indices[frag_index];
+
+    for a in (0..molecule.n_atoms).into_iter(){
+        for b in (0..molecule.n_atoms).into_iter(){
+            if b!= a{
+                for mu in (0..molecule.calculator.valorbs[&molecule.atomic_numbers[b]].len()){
+                    for nu in (0..molecule.calculator.valorbs[&molecule.atomic_numbers[a]].len()){
+                        h_term[a] += 2.0 * molecule.final_p_matrix[[mu,nu]] * grad_h0[[a,mu,nu]];
+                        s_term[a] += 2.0 * w_mat[[mu,nu]] * grad_s[[a,mu,nu]];
+
+                        let mut esp:f64 = 0.0;
+                        for c in (0..molecule.n_atoms).into_iter(){
+                            esp+=(molecule.g0[[b,c]]+molecule.g0[[a,c]])*molecule.final_charges[c];
+                        }
+                        esp_term[a] += molecule.final_p_matrix[[mu,nu]] * grad_s[[a,mu,nu]] * esp;
+                    }
+                }
+            }
+        }
+        h_term_v2[a] = (molecule.final_p_matrix.clone()*grad_h0.slice(s![a,..,..])).sum();
+    }
+
+    // calculate the gradient of the repulsive potential
+    let grad_v_rep: Array1<f64> = gradient_v_rep(
+        &molecule.atomic_numbers,
+        molecule.distance_matrix.view(),
+        molecule.directions_matrix.view(),
+        &molecule.calculator.v_rep,
+    );
+}
+
 pub struct frag_grad_result {
     energy: f64,
     grad_e0: Array1<f64>,

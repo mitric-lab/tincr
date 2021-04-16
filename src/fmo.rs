@@ -1494,7 +1494,8 @@ pub fn fmo_calculate_pairs_esdim_embedding(
                             })
                             .collect();
                         let embedding_pot_sum: f64 = embedding_pot.sum();
-                        energy_pair = Some(pair_energy + embedding_pot_sum);
+                        // energy_pair = Some(pair_energy + embedding_pot_sum);
+                        energy_pair = Some(pair_energy );//+ embedding_pot_sum);
                     } else {
                         let index_pair_a: usize = indices_frags[ind1];
                         let index_pair_b: usize = indices_frags[ind2];
@@ -2021,7 +2022,7 @@ pub fn fmo_calculate_fragments_ncc(
     fragments: &mut Vec<Molecule>,
     g0_total: ArrayView2<f64>,
     frag_indices: &Vec<usize>,
-) -> (Array1<f64>, Vec<Array2<f64>>) {
+) -> (Array1<f64>, Vec<Array2<f64>>,Vec<Array1<f64>>) {
     let mut converged: bool = false;
     let max_iter: usize = 40;
     let mut energy_old: Array1<f64> = Array1::zeros(fragments.len());
@@ -2030,6 +2031,7 @@ pub fn fmo_calculate_fragments_ncc(
     let mut dq_rmsd: Array1<f64> = Array1::zeros(fragments.len());
     let mut p_rmsd: Array1<f64> = Array1::zeros(fragments.len());
     let mut s_matrices: Vec<Array2<f64>> = Vec::new();
+    let mut om_monomer_matrices: Vec<Array1<f64>> = Vec::new();
     let conv: f64 = 1e-6;
     let length: usize = fragments.len();
     let ncc_mats: Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
@@ -2042,12 +2044,15 @@ pub fn fmo_calculate_fragments_ncc(
                 let mut energy: f64 = 0.0;
                 let mut s: Array2<f64> =
                     Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
+                let mut om_monomer:Array1<f64> = Array1::zeros(frag.n_atoms);
                 if i == 0 {
-                    let (energy_temp, s_temp, x_opt, h0): (
+                    let (energy_temp, s_temp, x_opt, h0,h0_coul,om_monomer): (
                         f64,
                         Array2<f64>,
                         Option<Array2<f64>>,
                         Option<Array2<f64>>,
+                        Option<Array2<f64>>,
+                        Option<Array1<f64>>
                     ) = fmo_ncc(
                         frag,
                         ncc_mats[index].x.clone(),
@@ -2057,15 +2062,18 @@ pub fn fmo_calculate_fragments_ncc(
                         None,
                         None,
                         None,
+                        false
                     );
                     energy = energy_temp;
                     s = s_temp;
                 } else {
-                    let (energy_temp, s_temp, x_opt, h0): (
+                    let (energy_temp, s_temp, x_opt, h0,h0_coul,om_temp): (
                         f64,
                         Array2<f64>,
                         Option<Array2<f64>>,
                         Option<Array2<f64>>,
+                        Option<Array2<f64>>,
+                        Option<Array1<f64>>
                     ) = fmo_ncc(
                         frag,
                         ncc_mats[index].x.clone(),
@@ -2075,8 +2083,10 @@ pub fn fmo_calculate_fragments_ncc(
                         Some(g0_total),
                         Some(index),
                         Some(frag_indices.clone()),
+                        false
                     );
                     energy = energy_temp;
+                    om_monomer = om_temp.unwrap();
                 }
 
                 // calculate dq diff and pmat diff
@@ -2099,6 +2109,8 @@ pub fn fmo_calculate_fragments_ncc(
 
                     dq_old[index] = frag.final_charges.clone();
                     pmat_old[index] = frag.final_p_matrix.clone();
+
+                    om_monomer_matrices.push(om_monomer);
                 }
                 energy
             })
@@ -2172,7 +2184,7 @@ pub fn fmo_calculate_fragments_ncc(
             );
         }
     }
-    return (energy_old, s_matrices);
+    return (energy_old, s_matrices,om_monomer_matrices);
 }
 
 pub fn fmo_ncc_pairs_esdim_embedding(
@@ -2185,6 +2197,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     indices_frags: &Vec<usize>,
     full_hubbard: &HashMap<u8, f64>,
     g0_total: ArrayView2<f64>,
+    om_monomers:&Vec<Array1<f64>>
 ) -> (f64) {
     // construct a first graph in case all monomers are the same
     let mol_a = fragments[0].clone();
@@ -2447,14 +2460,11 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             .assign(&mol_b.final_charges);
                         pair.set_final_charges(dq);
 
-                        let (energy, s, x_opt, h0): (
+                        let (energy, s, h0_coul): (
                             f64,
                             Array2<f64>,
                             Option<Array2<f64>>,
-                            Option<Array2<f64>>,
-                        ) = fmo_ncc(&mut pair, None, None, None, None, None, None, None);
-                        drop(x_opt);
-                        drop(h0);
+                        ) = fmo_pair_ncc(&mut pair, mol_a.n_atoms, mol_b.n_atoms, ind1,ind2, false,om_monomers);
                         // energy_pair = Some(energy);
                         // charges_pair = Some(pair.final_charges);
 
@@ -2531,6 +2541,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                         let embedding_pot_sum: f64 = embedding_pot.sum();
                         energy_pair = Some(pair_energy + embedding_pot_sum);
                     } else {
+                        // TODO: calculate g0 on the fly if total g0.is_none()
                         let index_pair_a: usize = indices_frags[ind1];
                         let index_pair_b: usize = indices_frags[ind2];
                         // let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![

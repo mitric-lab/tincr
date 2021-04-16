@@ -27,12 +27,14 @@ pub fn generate_initial_fmo_monomer_guess(fragments: &mut Vec<Molecule>) -> (Vec
     let x_vec: Vec<ncc_matrices> = fragments
         .iter_mut()
         .map(|frag| {
-            let (energy, s, x_option, h): (
+            let (energy, s, x_option, h,h0_coul,om_monomer): (
                 f64,
                 Array2<f64>,
                 Option<Array2<f64>>,
                 Option<Array2<f64>>,
-            ) = fmo_ncc(frag, None, None, None, None, None, None, None);
+                Option<Array2<f64>>,
+                Option<Array1<f64>>
+            ) = fmo_ncc(frag, None, None, None, None, None, None, None,false);
             let matrices: ncc_matrices = ncc_matrices::new(s, h, x_option);
             matrices
         })
@@ -66,7 +68,8 @@ pub fn fmo_ncc(
     g0_total: Option<ArrayView2<f64>>,
     index: Option<usize>,
     frag_atoms_index: Option<Vec<usize>>,
-) -> (f64, Array2<f64>, Option<Array2<f64>>, Option<Array2<f64>>) {
+    calc_gradients:bool,
+) -> (f64, Array2<f64>, Option<Array2<f64>>, Option<Array2<f64>>, Option<Array2<f64>>,Option<Array1<f64>>) {
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
@@ -83,6 +86,7 @@ pub fn fmo_ncc(
     let mut h_opt: Option<Array2<f64>> = None;
     let mut x_option: Option<Array2<f64>> = None;
     let mut dq_monomers: Vec<Array1<f64>> = Vec::new();
+    let mut h0_coul_opt:Option<Array2<f64>> = None;
     if dq_k.is_some() {
         dq_monomers = dq_k.unwrap();
     }
@@ -117,16 +121,22 @@ pub fn fmo_ncc(
 
     let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
     let h_coul: Array2<f64> = h1 * s.view();
-    let mut h: Array2<f64> = h_coul + h0.view();
+    let mut h: Array2<f64> = &h_coul + &h0;
+
+    // return h0 + h_coul if calc_gradients is true
+    if calc_gradients{
+        h0_coul_opt = Some(h_coul + h0.view());
+    }
 
     // calculate ESP term V
     let mut v_mat: Array2<f64> = Array::zeros(s.raw_dim());
+    let mut om_monomer:Option<Array1<f64>> = None;
     if dq_monomers.len() > 0 {
         if g0_total.is_some() {
             let ind: usize = index.unwrap();
             let atoms_ind: Vec<usize> = frag_atoms_index.unwrap();
             let g0: ArrayView2<f64> = g0_total.unwrap();
-            let mut v_temp: Array2<f64> = Array2::zeros(s.raw_dim());
+            let mut esp:Array1<f64> = Array1::zeros(molecule.n_atoms);
 
             for (ind_k, dq_frag) in dq_monomers.iter().enumerate() {
                 if ind_k != ind {
@@ -134,48 +144,39 @@ pub fn fmo_ncc(
                         atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms,
                         atoms_ind[ind_k]..atoms_ind[ind_k] + dq_frag.len()
                     ]);
-                    let esp: Array1<f64> = g0_slice.dot(dq_frag);
-                    let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
-                    // let esp_arr:Array2<f64> = esp.clone().insert_axis(Axis(1));
-                    // let esp_mat:Array2<f64> = &esp_arr.broadcast((esp.len(), esp.len())).unwrap() + &esp;
-                    // println!("ESP {}",esp);
-                    // let esp_mat:Array2<f64> = 0.5 * (into_row(esp.clone())+esp);
-                    // println!("ESP mat {}",esp_mat);
-                    let mut mu: usize = 0;
-                    // let mut nu: usize;
-
-                    for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
-                        for _ in &molecule.calculator.valorbs[z_i] {
-                            esp_ao[mu] = esp[i];
-                            mu = mu + 1;
-                        }
-                    }
-                    let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
-                    v_temp.add_assign(
-                        &(&esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao),
-                    );
-
-                    // // build esp matrix
+                    // let esp: Array1<f64> = g0_slice.dot(dq_frag);
+                    // let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
+                    //
+                    // let mut mu: usize = 0;
                     // for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
                     //     for _ in &molecule.calculator.valorbs[z_i] {
-                    //     // for mu in (0..molecule.calculator.valorbs[z_i].len()) {
-                    //         nu = 0;
-                    //         for (j, z_j) in molecule.atomic_numbers.iter().enumerate() {
-                    //             for _ in &molecule.calculator.valorbs[z_j] {
-                    //             // for nu in (0..molecule.calculator.valorbs[z_j].len()) {
-                    //             //     v_temp[[mu, nu]] += (esp[i] + esp[j]);
-                    //                 v_temp[[mu, nu]] += 0.5 * esp_mat[[i,j]];
-                    //                 nu = nu + 1;
-                    //             }
-                    //         }
+                    //         esp_ao[mu] = esp[i];
                     //         mu = mu + 1;
                     //     }
                     // }
+                    // let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
+                    // v_temp.add_assign(
+                    //     &(&esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao),
+                    // );
+                    esp = esp + g0_slice.dot(dq_frag);
                 }
             }
+            om_monomer = Some(esp.clone());
+            let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
+
+            let mut mu: usize = 0;
+            for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
+                for _ in &molecule.calculator.valorbs[z_i] {
+                    esp_ao[mu] = esp[i];
+                    mu = mu + 1;
+                }
+            }
+            let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
+            let v_temp:Array2<f64> = &esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
+
             v_mat = 0.5 * v_temp * s.view();
         } else {
-            // calculate g0 on the fly
+            // TODO: calculate g0 on the fly
         }
         h = h + v_mat;
     }
@@ -233,7 +234,128 @@ pub fn fmo_ncc(
     molecule.set_final_charges(dq);
     molecule.set_final_p_mat(p);
 
-    return (scf_energy + rep_energy, s, x_option, h_opt);
+    return (scf_energy + rep_energy, s, x_option, h_opt,h0_coul_opt,om_monomer);
+}
+
+pub fn fmo_pair_ncc(
+    molecule: &mut Molecule,
+    atoms_a:usize,
+    atoms_b:usize,
+    index_a:usize,
+    index_b:usize,
+    calc_gradients:bool,
+    om_matrices:&Vec<Array1<f64>>
+) -> (f64, Array2<f64>, Option<Array2<f64>>) {
+    let temperature: f64 = molecule.config.scf.electronic_temperature;
+    // construct reference density matrix
+    let p0: Array2<f64> = density_matrix_ref(&molecule);
+    let mut p: Array2<f64> = molecule.final_p_matrix.clone();
+    let mut dq: Array1<f64> = molecule.final_charges.clone();
+    let mut q: Array1<f64> = Array::from_iter(molecule.calculator.q0.iter().cloned());
+    let mut charge_diff: f64 = 0.0;
+    let mut h0_coul_opt:Option<Array2<f64>> = None;
+
+    let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(
+        &molecule.atomic_numbers,
+        molecule.positions.view(),
+        molecule.calculator.n_orbs,
+        &molecule.calculator.valorbs,
+        molecule.proximity_matrix.view(),
+        &molecule.calculator.skt,
+        &molecule.calculator.orbital_energies,
+    );
+    // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
+    // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
+    let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
+    let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
+
+    // add nuclear energy to the total scf energy
+    let rep_energy: f64 = get_repulsive_energy(&molecule);
+
+    let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
+    let h_coul: Array2<f64> = h1 * s.view();
+    let mut h: Array2<f64> = &h_coul + &h0;
+
+    // return h0 + h_coul if calc_gradients is true
+    if calc_gradients{
+        h0_coul_opt = Some(h_coul + h0.view());
+    }
+
+    // calculate ESP term V
+    let mut v_mat: Array2<f64> = Array::zeros(s.raw_dim());
+
+    let g0_ab:ArrayView2<f64> = molecule.g0.slice(s![0..atoms_a,atoms_a..]);
+    let mut esp_a:Array1<f64> = -g0_ab.dot(&molecule.final_charges.slice(s![atoms_a..])) + om_matrices[index_a].view();
+    let mut esp_b:Array1<f64> = -g0_ab.t().dot(&molecule.final_charges.slice(s![0..atoms_a]))+ om_matrices[index_b].view();
+    let esp:Array1<f64> = esp_a + esp_b;
+    let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
+
+    let mut mu: usize = 0;
+    for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
+        for _ in &molecule.calculator.valorbs[z_i] {
+            esp_ao[mu] = esp[i];
+            mu = mu + 1;
+        }
+    }
+    let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
+    let v_temp:Array2<f64> =&esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
+    v_mat = 0.5 * v_temp * s.view();
+    h = h + v_mat;
+
+    //let mut prev_h_X:Array2<f64>
+    if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
+        let h_x: Array2<f64> = lc_exact_exchange(&s, &molecule.g0_lr_ao, &p0, &p, h.dim().0);
+        h = h + h_x;
+    }
+    // H' = X^t.H.X
+    h = x.t().dot(&h).dot(&x);
+    let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
+    let orbe: Array1<f64> = tmp.0;
+    let orbs: Array2<f64> = x.dot(&tmp.1);
+
+    // construct density matrix
+    let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
+        orbe.view(),
+        molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
+        molecule.calculator.nr_unpaired_electrons,
+        temperature,
+    );
+    let f: Vec<f64> = tmp.1;
+
+    // calculate the density matrix
+    p = density_matrix(orbs.view(), &f[..]);
+
+    // update partial charges using Mulliken analysis
+    let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
+        p.view(),
+        p0.view(),
+        s.view(),
+        &molecule.calculator.orbs_per_atom,
+        molecule.n_atoms,
+    );
+    // charge difference to previous iteration
+    let dq_diff: Array1<f64> = &new_dq - &dq;
+    charge_diff = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+
+    // Broyden mixing of partial charges # changed new_dq to dq
+    dq = broyden_mixer.next(dq, dq_diff);
+    q = new_q;
+
+    // compute electronic energy
+    let scf_energy: f64 = get_electronic_energy(
+        &molecule,
+        p.view(),
+        &p0,
+        &s,
+        h0.view(),
+        dq.view(),
+        (&molecule.g0).deref().view(),
+        &molecule.g0_lr_ao,
+    );
+    molecule.set_final_charges(dq);
+    molecule.set_final_p_mat(p);
+
+    return (scf_energy + rep_energy, s,h0_coul_opt);
 }
 
 // find indeces of HOMO and LUMO orbitals (starting from 0)

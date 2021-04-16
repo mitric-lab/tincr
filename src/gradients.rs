@@ -1952,7 +1952,7 @@ fn h_plus_no_lr(
 //    atom j to atom i
 //  VREP: dictionary, VREP[(Zi,Zj)] has to be an instance of RepulsivePotential
 //    for the atom pair Zi-Zj
-fn gradient_v_rep(
+pub fn gradient_v_rep(
     atomic_numbers: &[u8],
     distances: ArrayView2<f64>,
     directions: ArrayView3<f64>,
