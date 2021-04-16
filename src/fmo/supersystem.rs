@@ -7,7 +7,7 @@ use crate::initialization::{
 use crate::io::{frame_to_coordinates, Configuration, read_file_to_frame};
 use crate::param::elements::Element;
 use crate::scc::gamma_approximation;
-use crate::scc::gamma_approximation::GammaFunction;
+use crate::scc::gamma_approximation::{GammaFunction, gamma_atomwise};
 use chemfiles::Frame;
 use ndarray::prelude::*;
 use std::collections::HashMap;
@@ -59,7 +59,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // transformed already in atomic units
         let geom: Geometry = Geometry::from(coordinates);
         // Create a new and empty Properties type
-        let properties: Properties = Properties::new();
+        let mut properties: Properties = Properties::new();
         let mut slako: SlaterKoster = SlaterKoster::new();
         let mut vrep: RepulsivePotential = RepulsivePotential::new();
         // add all unique element pairs
@@ -68,6 +68,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
             slako.add(kind1, kind2);
             vrep.add(kind1, kind2);
         }
+
         let gf: GammaFunction = initialize_gamma_function(&unique_atoms, 0.0);
         // initialize the gamma function for long-range correction if it is requested
         let gf_lc: Option<GammaFunction> = if input.1.lc.long_range_correction {
@@ -81,8 +82,10 @@ impl From<(Frame, Configuration)> for SuperSystem {
 
         let molecules: Vec<Frame> = get_fragments(input.0);
         let mut monomers: Vec<Monomer> = Vec::with_capacity(molecules.len());
+        // PARALLEL: this loop should be parallelized
         for mol_frame in molecules.into_iter() {
             monomers.push(Monomer::new(
+                input.1.clone(),
                 mol_frame,
                 num_to_atom.clone(),
                 slako.clone(),
@@ -106,11 +109,17 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // calculate the number of electrons
         let n_elec: usize = monomers.iter().fold(0, |n, monomer| n + monomer.n_elec);
 
+        // Compute the gamma function between all atoms if it is requested in the user input
+        // TODO: Insert a new key for this option
+        if true {
+            properties.set_gamma(gamma_atomwise(&gf, &atoms, atoms.len()));
+        }
+
         let mut pairs: Vec<Pair> = Vec::with_capacity(monomers.len() * (monomers.len() - 1) / 2);
         // the construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after
         // each monomer
-
         // TODO: Read the vdw scaling parameter from the input file instead of setting hard to 2.0
+        // PARALLEL: this loop should be parallelized
         for (i, monomer_i) in monomers.iter().enumerate() {
             for (j, monomer_j) in monomers[(i+1)..].iter().enumerate() {
                 pairs.push(Pair::new((i, j), (monomer_i, monomer_j), 2.0));

@@ -3,6 +3,7 @@ use crate::initialization::parameters::*;
 use crate::initialization::{Atom, Geometry};
 use crate::param::slako_transformations::*;
 use std::collections::HashMap;
+use crate::defaults::PROXIMITY_CUTOFF;
 
 ///
 /// compute Hamiltonian and overlap matrix elements between two sets of atoms. If the sets
@@ -148,7 +149,8 @@ pub fn h0_and_s(
             {
                 // iterate over orbitals on center j
                 for orbj in atomj.valorbs.iter() {
-                    if geometry.proximities.as_ref().unwrap()[[i, j]] {
+                    //if geometry.proximities.as_ref().unwrap()[[i, j]] {
+                    if (atomi-atomj).norm() < PROXIMITY_CUTOFF {
                         if mu < nu {
                             if atomi <= atomj {
                                 if i != j {

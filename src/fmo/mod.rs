@@ -2,7 +2,9 @@ mod supersystem;
 mod pair;
 mod fragment;
 mod fragmentation;
+mod fmo_scc;
 
+pub use fmo_scc::*;
 pub use fragment::*;
 pub use pair::*;
 pub use supersystem::*;

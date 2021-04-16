@@ -8,6 +8,7 @@ use crate::scc::mixer::Mixer;
 /// The algorithm is based on the implementation in the DFTB+ Code
 /// see https://github.com/dftbplus/dftbplus/blob/master/prog/dftb%2B/lib_mixer/broydenmixer.F90
 /// and J. Chem. Phys. 152, 124101 (2020); https://doi.org/10.1063/1.5143190
+#[derive(Debug, Clone)]
 pub struct BroydenMixer {
     // current iteration
     iter: usize,

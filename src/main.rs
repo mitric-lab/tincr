@@ -21,6 +21,7 @@ use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::fmo::SuperSystem;
 use crate::utils::Timer;
+use crate::scc::gamma_approximation::gamma_atomwise;
 
 mod constants;
 mod defaults;
@@ -42,7 +43,6 @@ fn main() {
         .num_threads(1)
         .build_global()
         .unwrap();
-    let timer: Timer = Timer::start();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -93,10 +93,11 @@ fn main() {
         config_string = toml::to_string(&config).unwrap();
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
-
+    let timer: Timer = Timer::start();
     let mut system = SuperSystem::from((frame, config));
-    //system.prepare_scc();
-    //system.run_scc();
+    //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
+    system.prepare_scc();
+    system.run_scc();
 
     info!("{}", timer);
     info!("{: ^80}", "");

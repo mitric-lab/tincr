@@ -11,6 +11,8 @@ use chemfiles::Frame;
 /// This type is only used for FMO calculations. This type is a similar to the [System] type that
 /// is used in non-FMO calculations
 pub struct Monomer {
+    /// Type that holds all the input settings from the user.
+    pub config: Configuration,
     /// Number of atoms
     pub n_atoms: usize,
     /// Number of atomic orbitals
@@ -56,7 +58,7 @@ pub struct Monomer {
 impl Monomer {
     /// Creates a new [Monomer] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
-    pub fn new(frame: Frame, num_to_atom: HashMap<u8, Atom>, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
+    pub fn new(config: Configuration, frame: Frame, num_to_atom: HashMap<u8, Atom>, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
         // get the atomic numbers and positions from the input data
         let (atomic_numbers, coordinates) = frame_to_coordinates(frame);
         let mut atoms: Vec<Atom> = Vec::with_capacity(atomic_numbers.len());
@@ -84,6 +86,7 @@ impl Monomer {
         let properties: Properties = Properties::new();
 
         Self{
+            config,
             n_atoms: atomic_numbers.len(),
             n_orbs: n_orbs,
             n_elec: n_elec,

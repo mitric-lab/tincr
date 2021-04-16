@@ -1,4 +1,4 @@
-use crate::constants::VDW_SUM;
+use crate::constants::{VDW_SUM, VDW_RADII};
 use crate::fmo::Monomer;
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::initialization::{Atom, Geometry, Properties};
@@ -40,21 +40,25 @@ impl Pair {
         // Chem. Phys. Lett. 2002, 351, 475−480
         // For every atom we do a conversion from the u8 type usize. But it was checked and it
         // it does not seem to have a large effect on the performance.
-        let is_in_proximity = monomers.0.atoms.iter().find(|atomi| {
-            monomers
-                .1
-                .atoms
-                .iter()
-                .find(|atomj| {
-                    (*atomi - *atomj).norm() < (vdw_scaling * VDW_SUM[atomi.number as usize][atomj.number as usize])
-                })
-                .is_some()
-        });
-        let kind: PairApproximation = if is_in_proximity.is_some() {
-            PairApproximation::Pair
-        } else {
-            PairApproximation::ESD
-        };
+        // let is_in_proximity = monomers.0.atoms.iter().find(|atomi| {
+        //     monomers
+        //         .1
+        //         .atoms
+        //         .iter()
+        //         .find(|atomj| {
+        //             (*atomi - *atomj).norm() < vdw_scaling * VDW_SUM[atomi.number as usize][atomj.number as usize]
+        //         })
+        //         .is_some()
+        // });
+        let mut kind: PairApproximation = PairApproximation::ESD;;
+        'pair_loop: for atomi in monomers.0.atoms.iter() {
+            for atomj in monomers.1.atoms.iter() {
+                if (atomi - atomj).norm() < vdw_scaling * VDW_SUM[atomi.number as usize][atomj.number as usize] {
+                    kind = PairApproximation::Pair;
+                    break 'pair_loop;
+                }
+            }
+        }
 
         Self {
             kind: kind,

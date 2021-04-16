@@ -1,5 +1,6 @@
 use ndarray::prelude::*;
 use enum_as_inner::EnumAsInner;
+use crate::scc::mixer::BroydenMixer;
 
 /// A `Property` is a piece of data that can be associated with an `Molecule` or
 /// `ElectronicData`. The idea of this enum is taken from Guillaume Fraux's (@Luthaf) Chemfiles
@@ -33,8 +34,10 @@ pub enum Property {
     Double(f64),
     /// String property
     String(String),
-    /// Vector property
+    /// Vector property of u8 type
     VecU8(Vec<u8>),
+    /// Vector property of f64 type
+    VecF64(Vec<f64>),
     /// Arraybase<f64, Ix1> property
     Array1(Array1<f64>),
     /// Arraybase<f64, Ix2> property
@@ -42,7 +45,9 @@ pub enum Property {
     /// Arraybase<f64, Ix3> property
     Array3(Array3<f64>),
     /// Arraybase<bool, Ix2> property
-    Array2Bool(Array2<bool>)
+    Array2Bool(Array2<bool>),
+    /// SCC Mixer property
+    Mixer(BroydenMixer),
 }
 
 impl Default for Property {
@@ -71,6 +76,10 @@ impl From<String> for Property {
 
 impl From<Vec<u8>> for Property {
     fn from(value: Vec<u8>) -> Self {Property::VecU8(value)}
+}
+
+impl From<Vec<f64>> for Property {
+    fn from(value: Vec<f64>) -> Self {Property::VecF64(value)}
 }
 
 impl<'a> From<&'_ str> for Property {
@@ -125,5 +134,11 @@ impl From<Array2<bool>> for Property {
 impl From<ArrayView2<'_, bool>> for Property {
     fn from(value: ArrayView2<'_, bool>) -> Self {
         Property::Array2Bool(value.to_owned())
+    }
+}
+
+impl From<BroydenMixer> for Property {
+    fn from(value: BroydenMixer) -> Self {
+        Property::Mixer(value)
     }
 }

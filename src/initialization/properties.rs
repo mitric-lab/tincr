@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use crate::initialization::property::Property;
 use ndarray::prelude::*;
+use crate::scc::mixer::BroydenMixer;
 
 pub struct Properties {
     map: HashMap<&'static str, Property>
@@ -26,6 +27,14 @@ impl Properties {
 
     pub fn contains_key(&self, name: &'static str) -> bool {
         self.map.contains_key(name)
+    }
+
+    /// Takes the scc mixer
+    pub fn take_mixer(&mut self) -> Result<BroydenMixer, Property> {
+        match self.take("mixer") {
+            Some(value) => value.into_mixer(),
+            _=> Err(Property::default())
+        }
     }
 
     /// Takes the atomic numbers
@@ -55,6 +64,14 @@ impl Properties {
     /// Returns the overlap matrix in AO basis.
     pub fn take_s(&mut self) -> Result<Array2<f64>, Property>{
         match self.take("S") {
+            Some(value) => value.into_array2(),
+            _=> Err(Property::default())
+        }
+    }
+
+    /// Returns the S^-1/2 in AO basis
+    pub fn take_x(&mut self) -> Result<Array2<f64>, Property>{
+        match self.take("X") {
             Some(value) => value.into_array2(),
             _=> Err(Property::default())
         }
@@ -164,6 +181,22 @@ impl Properties {
         }
     }
 
+    /// Returns the energy of the last scc iteration
+    pub fn last_energy(&self) -> Option<f64> {
+        match self.get("last_energy") {
+            Some(value) => Some(*value.as_double().unwrap()),
+            _=> Some(0.0)
+        }
+    }
+
+    /// Returns the energy of the last scc iteration
+    pub fn occupation(&self) -> Option<&[f64]> {
+        match self.get("occupation") {
+            Some(value) =>Some(value.as_vec_f64().unwrap()),
+            _=> None
+        }
+    }
+
     /// Returns a reference to the reference density matrix
     pub fn p_ref(&self) -> Option<ArrayView2<f64>> {
         match self.get("ref_density_matrix") {
@@ -183,6 +216,14 @@ impl Properties {
     /// Returns a reference to the overlap matrix in AO basis.
     pub fn s(&self) -> Option<ArrayView2<f64>>{
         match self.get("S") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to S^-1/2 in AO basis.
+    pub fn x(&self) -> Option<ArrayView2<f64>>{
+        match self.get("X") {
             Some(value) => Some(value.as_array2().unwrap().view()),
             _=> None
         }
@@ -284,6 +325,15 @@ impl Properties {
         }
     }
 
+    /// Set the energy of the last scc iteration
+    pub fn set_occupation(&mut self, f: Vec<f64>) {self.set("occupation", Property::VecF64(f))}
+
+    /// Set the energy of the last scc iteration
+    pub fn set_last_energy(&mut self, energy: f64) {self.set("last_energy", Property::Double(energy))}
+
+    /// Set the scc mixer
+    pub fn set_mixer(&mut self, mixer: BroydenMixer) {self.set("mixer", Property::from(mixer))}
+
     /// Set the atomic numbers
     pub fn set_atomic_numbers(&mut self, atomic_numbers: Vec<u8>) {self.set("atomic_numbers", Property::from(atomic_numbers))}
 
@@ -298,6 +348,11 @@ impl Properties {
     /// Set the overlap matrix in AO basis.
     pub fn set_s(&mut self, s: Array2<f64>) {
         self.set("S", Property::from(s));
+    }
+
+    /// Set the S^-1/2 in AO basis.
+    pub fn set_x(&mut self, x: Array2<f64>) {
+        self.set("X", Property::from(x));
     }
 
     /// Set the gradient of the H0 matrix in AO basis.
