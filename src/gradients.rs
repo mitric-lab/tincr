@@ -1441,7 +1441,7 @@ fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>
     return matrix;
 }
 
-fn f_v_new(
+pub fn f_v_new(
     v: ArrayView2<f64>,
     s: ArrayView2<f64>,
     grad_s: ArrayView3<f64>,

@@ -243,24 +243,19 @@ pub fn gamma_gradients_atomwise(
     distances: ArrayView2<f64>,
     directions: ArrayView3<f64>,
 ) -> (Array3<f64>) {
-    let mut g0: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1_val: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1: Array3<f64> = Array3::zeros((3 * n_atoms, n_atoms, n_atoms));
     for (i, z_i) in atomic_numbers.iter().enumerate() {
         for (j, z_j) in atomic_numbers.iter().enumerate() {
-            if i == j {
-                g0[[i, j]] = gamma_func.eval_limit0(*z_i);
-            } else if i < j {
+            if i < j {
                 let r_ij: f64 = distances[[i, j]];
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
-                g0[[i, j]] = gamma_func.eval(r_ij, *z_i, *z_j);
                 g1_val[[i, j]] = gamma_func.deriv(r_ij, *z_i, *z_j);
                 g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
                     .assign(&(&e_ij * g1_val[[i, j]]));
             } else {
                 g1_val[[i, j]] = g1_val[[j, i]];
                 let e_ij: ArrayView1<f64> = directions.slice(s![i, j, ..]);
-                g0[[i, j]] = g0[[j, i]];
                 g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
                     .assign(&(&e_ij * g1_val[[i, j]]));
             }

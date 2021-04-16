@@ -1,4 +1,4 @@
-use crate::calculator::{get_gamma_gradient_matrix_atom_wise_outer_diagonal, get_gamma_matrix_atomwise_outer_diagonal};
+use crate::calculator::{get_gamma_gradient_matrix_atom_wise_outer_diagonal, get_gamma_matrix_atomwise_outer_diagonal, get_gamma_gradient_atomwise};
 use crate::calculator::{
     get_gamma_gradient_matrix, get_gamma_matrix, get_only_gamma_matrix_atomwise,
     import_pseudo_atom, Calculator, DFTBCalculator,
@@ -35,6 +35,7 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::ops::AddAssign;
 use std::time::Instant;
+use crate::scc_routine::density_matrix_ref;
 
 pub fn fmo_gs_gradients(
     fragments: &Vec<Molecule>,
@@ -3622,7 +3623,7 @@ pub fn reorder_molecule_gradients(
     );
 }
 
-pub fn fmo_fragment_gradients(molecule: &mut Molecule,h0_coul:ArrayView2<f64>,fragment_indices:&Vec<usize>,frag_index:usize){
+pub fn fmo_fragment_gradients(molecule: &Molecule,h0_coul:ArrayView2<f64>,fragment_indices:&Vec<usize>,frag_index:usize,s:Array2<f64>)->Array1<f64>{
     // calculate W' matrix
     let w_mat:Array2<f64> = 0.5 * molecule.final_p_matrix.dot(&h0_coul.dot(&molecule.final_p_matrix));
     //calculate gradH0 and gradS
@@ -3635,7 +3636,16 @@ pub fn fmo_fragment_gradients(molecule: &mut Molecule,h0_coul:ArrayView2<f64>,fr
         &molecule.calculator.skt,
         &molecule.calculator.orbital_energies,
     );
+
     // calculate g1
+    // let g1:Array3<f64> = get_gamma_gradient_atomwise(
+    //     &molecule.atomic_numbers,
+    //     molecule.n_atoms,
+    //     molecule.distance_matrix.view(),
+    //     molecule.directions_matrix.view(),
+    //     &molecule.calculator.hubbard_u,
+    //     Some(0.0),
+    // );
     let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
         &molecule.atomic_numbers,
         molecule.n_atoms,
@@ -3646,32 +3656,74 @@ pub fn fmo_fragment_gradients(molecule: &mut Molecule,h0_coul:ArrayView2<f64>,fr
         &molecule.calculator.valorbs,
         Some(0.0),
     );
-    let mut h_term:Array1<f64> = Array1::zeros(molecule.n_atoms);
-    let mut s_term:Array1<f64> = Array1::zeros(molecule.n_atoms);
-    let mut esp_term:Array1<f64> = Array1::zeros(molecule.n_atoms);
-    let mut h_term_v2:Array1<f64> = Array1::zeros(molecule.n_atoms);
+
+    let mut h_term:Array1<f64> = Array1::zeros(3*molecule.n_atoms);
+    let mut s_term:Array1<f64> = Array1::zeros(3*molecule.n_atoms);
+    let mut s_term_v2:Array1<f64> = Array1::zeros(3*molecule.n_atoms);
+    let mut esp_term:Array1<f64> = Array1::zeros(3*molecule.n_atoms);
+    let mut esp_term_v2:Array1<f64> = Array1::zeros(3*molecule.n_atoms);
+    let mut h_term_v2:Array1<f64> = Array1::zeros(3*molecule.n_atoms);
+    let mut coul_term:Array1<f64> = Array1::zeros(3*molecule.n_atoms);
+
+    let diff_p:Array2<f64> = molecule.final_p_matrix.clone() - density_matrix_ref(&molecule);
 
     let frag_ind:usize = fragment_indices[frag_index];
+    let fdmd0: Array3<f64> = f_v_new(
+        diff_p.view(),
+        s.view(),
+        grad_s.view(),
+        (&molecule.g0_ao).view(),
+        g1_ao.view(),
+        molecule.n_atoms,
+        molecule.calculator.n_orbs,
+    );
 
-    for a in (0..molecule.n_atoms).into_iter(){
-        for b in (0..molecule.n_atoms).into_iter(){
-            if b!= a{
-                for mu in (0..molecule.calculator.valorbs[&molecule.atomic_numbers[b]].len()){
-                    for nu in (0..molecule.calculator.valorbs[&molecule.atomic_numbers[a]].len()){
-                        h_term[a] += 2.0 * molecule.final_p_matrix[[mu,nu]] * grad_h0[[a,mu,nu]];
-                        s_term[a] += 2.0 * w_mat[[mu,nu]] * grad_s[[a,mu,nu]];
+    println!("g1 {:?}",g1.slice(s![6..9,..,..]));
 
-                        let mut esp:f64 = 0.0;
-                        for c in (0..molecule.n_atoms).into_iter(){
-                            esp+=(molecule.g0[[b,c]]+molecule.g0[[a,c]])*molecule.final_charges[c];
+    for dir in (0..3).into_iter(){
+        let dir_xyz:usize = dir as usize;
+        let mut nu:usize = 0;
+        for (a, z_a) in molecule.atomic_numbers.iter().enumerate() {
+            let index: usize = 3 * a + dir_xyz;
+            for _ in &molecule.calculator.valorbs[z_a] {
+                let mut mu:usize = 0;
+                for (b, z_b) in molecule.atomic_numbers.iter().enumerate() {
+                    for _ in &molecule.calculator.valorbs[z_b] {
+                        if b!= a{
+                            h_term[index] += 2.0 * molecule.final_p_matrix[[mu,nu]] * grad_h0[[index,mu,nu]];
+                            s_term[index] += 2.0 * w_mat[[mu,nu]] * grad_s[[index,mu,nu]];
+                            let mut esp:f64 = 0.0;
+                            for c in (0..molecule.n_atoms).into_iter(){
+                                esp+=(molecule.g0[[b,c]]+molecule.g0[[a,c]])*molecule.final_charges[c];
+                            }
+                            // println!("density matrix value {}",molecule.final_p_matrix[[mu,nu]]);
+                            // println!("grad s value {}",grad_s[[index,mu,nu]]);
+                            // println!("esp value {}",esp);
+                            esp_term[index] += molecule.final_p_matrix[[mu,nu]] * grad_s[[index,mu,nu]] * esp;
                         }
-                        esp_term[a] += molecule.final_p_matrix[[mu,nu]] * grad_s[[a,mu,nu]] * esp;
+                        mu = mu + 1;
                     }
                 }
+                nu = nu + 1;
             }
+            for (b, z_b) in molecule.atomic_numbers.iter().enumerate(){
+                if b!=a{
+                    coul_term[index] += molecule.final_charges[b]*g1[[index,a,b]];
+                }
+            }
+            coul_term[index] *= molecule.final_charges[a];
+            h_term_v2[index] = (molecule.final_p_matrix.clone()*grad_h0.slice(s![index,..,..])).sum();
+            s_term_v2[index] = (w_mat.clone()*grad_s.slice(s![index,..,..])).sum();
+            esp_term_v2[index] = 0.5 * (&fdmd0.slice(s![index, .., ..]) * &diff_p).sum();
         }
-        h_term_v2[a] = (molecule.final_p_matrix.clone()*grad_h0.slice(s![a,..,..])).sum();
     }
+    println!("H term 1 {}",h_term);
+    println!("s term {}",s_term);
+    println!("esp tern {}",esp_term);
+    println!("coul term {}",coul_term);
+    assert!(h_term.abs_diff_eq(&h_term_v2,1e-12),"h matrices NOT EQUAL");
+    assert!(s_term.abs_diff_eq(&s_term_v2,1e-12),"s matrice NOT EQUAL");
+    assert!(esp_term_v2.abs_diff_eq(&(&esp_term+&coul_term),1e-12)," esp {} esp dftbaby {}",(&esp_term+&coul_term),esp_term_v2);
 
     // calculate the gradient of the repulsive potential
     let grad_v_rep: Array1<f64> = gradient_v_rep(
@@ -3680,6 +3732,8 @@ pub fn fmo_fragment_gradients(molecule: &mut Molecule,h0_coul:ArrayView2<f64>,fr
         molecule.directions_matrix.view(),
         &molecule.calculator.v_rep,
     );
+    let gradient:Array1<f64> = h_term_v2 - s_term_v2 + esp_term +coul_term + grad_v_rep;
+    return gradient;
 }
 
 pub struct frag_grad_result {

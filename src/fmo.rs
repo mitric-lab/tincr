@@ -36,6 +36,7 @@ use petgraph::{Graph, Undirected};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::time::Instant;
+use crate::fmo_gradients::fmo_fragment_gradients;
 
 pub fn fmo_numerical_gradient(
     atomic_numbers: &Vec<u8>,
@@ -2083,10 +2084,14 @@ pub fn fmo_calculate_fragments_ncc(
                         Some(g0_total),
                         Some(index),
                         Some(frag_indices.clone()),
-                        false,
+                        true,
                     );
                     energy = energy_temp;
                     om_monomer = om_temp.unwrap();
+                    if i == 15{
+                        let gradient:Array1<f64> = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),frag_indices,index,s_temp);
+                        println!("Gradient of monomer: {}",gradient);
+                    }
                 }
 
                 // calculate dq diff and pmat diff
@@ -2117,32 +2122,32 @@ pub fn fmo_calculate_fragments_ncc(
             .collect();
 
         // calculate embedding energy
-        let embedding_vec: Vec<f64> = fragments
-            .iter()
-            .enumerate()
-            .map(|(ind_a, frag)| {
-                let mut embedding: f64 = 0.0;
-                for (ind_k, mol_k) in fragments.iter().enumerate() {
-                    if ind_k != ind_a {
-                        // calculate g0 of the pair
-                        // let g0_dimer_ab:Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
-                        //     &fragments[ind1].atomic_numbers,
-                        //     &fragments[ind2].atomic_numbers,
-                        //     fragments[ind1].n_atoms,
-                        //     fragments[ind2].n_atoms,
-                        //     dimer_distances,full_hubbard,
-                        //     Some(0.0));
-                        let g0_ab: ArrayView2<f64> = g0_total.slice(s![
-                            ind_a..ind_a + frag.n_atoms,
-                            ind_k..ind_k + mol_k.n_atoms
-                        ]);
-                        embedding += frag.final_charges.dot(&g0_ab.dot(&mol_k.final_charges));
-                    }
-                }
-                embedding
-            })
-            .collect();
-        let embedding_arr: Array1<f64> = Array::from(embedding_vec);
+        // let embedding_vec: Vec<f64> = fragments
+        //     .iter()
+        //     .enumerate()
+        //     .map(|(ind_a, frag)| {
+        //         let mut embedding: f64 = 0.0;
+        //         for (ind_k, mol_k) in fragments.iter().enumerate() {
+        //             if ind_k != ind_a {
+        //                 // calculate g0 of the pair
+        //                 // let g0_dimer_ab:Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
+        //                 //     &fragments[ind1].atomic_numbers,
+        //                 //     &fragments[ind2].atomic_numbers,
+        //                 //     fragments[ind1].n_atoms,
+        //                 //     fragments[ind2].n_atoms,
+        //                 //     dimer_distances,full_hubbard,
+        //                 //     Some(0.0));
+        //                 let g0_ab: ArrayView2<f64> = g0_total.slice(s![
+        //                     ind_a..ind_a + frag.n_atoms,
+        //                     ind_k..ind_k + mol_k.n_atoms
+        //                 ]);
+        //                 embedding += frag.final_charges.dot(&g0_ab.dot(&mol_k.final_charges));
+        //             }
+        //         }
+        //         embedding
+        //     })
+        //     .collect();
+        // let embedding_arr: Array1<f64> = Array::from(embedding_vec);
         // println!("Embedding energy per monomer {}",embedding_arr);
         let energies_arr: Array1<f64> = Array::from(energies_vec); // + embedding_arr;
         let energy_diff: Array1<f64> = (&energies_arr - &energy_old).mapv(|val| val.abs());
@@ -2184,6 +2189,7 @@ pub fn fmo_calculate_fragments_ncc(
             );
         }
     }
+
     return (energy_old, s_matrices, om_monomer_matrices);
 }
 
