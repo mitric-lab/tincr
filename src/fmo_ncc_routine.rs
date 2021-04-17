@@ -27,6 +27,7 @@ pub fn generate_initial_fmo_monomer_guess(fragments: &mut Vec<Molecule>) -> (Vec
     let x_vec: Vec<ncc_matrices> = fragments
         .iter_mut()
         .map(|frag| {
+            frag.set_repulsive_energy();
             let (energy, s, x_option, h, h0_coul, om_monomer): (
                 f64,
                 Array2<f64>,
@@ -121,10 +122,7 @@ pub fn fmo_ncc(
         h0 = h_mat.unwrap();
         s = s_mat.unwrap();
     }
-    let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
-
-    // add nuclear energy to the total scf energy
-    let rep_energy: f64 = get_repulsive_energy(&molecule);
+    //let mut broyden_mixer: BroydenMixer = BroydenMixer::new(molecule.n_atoms);
 
     let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
     let h_coul: Array2<f64> = h1 * s.view();
@@ -225,8 +223,7 @@ pub fn fmo_ncc(
     charge_diff = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
 
     // Broyden mixing of partial charges # changed new_dq to dq
-    dq = broyden_mixer.next(dq, dq_diff);
-    q = new_q;
+    dq = molecule.broyden_mixer.next(dq, dq_diff);
 
     // compute electronic energy
     let scf_energy: f64 = get_electronic_energy(
@@ -243,7 +240,7 @@ pub fn fmo_ncc(
     molecule.set_final_p_mat(p);
 
     return (
-        scf_energy + rep_energy,
+        scf_energy + molecule.rep_energy,
         s,
         x_option,
         h_opt,
@@ -398,7 +395,7 @@ fn get_homo_lumo_gap(orbe: ArrayView1<f64>, homo_lumo_idx: (usize, usize)) -> f6
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
-fn get_repulsive_energy(molecule: &Molecule) -> f64 {
+pub fn get_repulsive_energy(molecule: &Molecule) -> f64 {
     let mut e_nuc: f64 = 0.0;
     for (i, (z_i, posi)) in molecule.atomic_numbers[1..molecule.n_atoms]
         .iter()

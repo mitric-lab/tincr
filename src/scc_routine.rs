@@ -346,7 +346,7 @@ fn get_homo_lumo_gap(orbe: ArrayView1<f64>, homo_lumo_idx: (usize, usize)) -> f6
 }
 
 /// Compute energy due to core electrons and nuclear repulsion
-fn get_repulsive_energy(molecule: &Molecule) -> f64 {
+pub fn get_repulsive_energy(molecule: &Molecule) -> f64 {
     let mut e_nuc: f64 = 0.0;
     for (i, (z_i, posi)) in molecule.atomic_numbers[1..molecule.n_atoms]
         .iter()

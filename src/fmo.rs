@@ -2088,7 +2088,7 @@ pub fn fmo_calculate_fragments_ncc(
                     );
                     energy = energy_temp;
                     om_monomer = om_temp.unwrap();
-                    if i == 15{
+                    if i == 6{
                         let gradient:Array1<f64> = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),frag_indices,index,s_temp);
                         println!("Gradient of monomer: {}",gradient);
                     }

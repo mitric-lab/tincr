@@ -7,6 +7,7 @@ use crate::graph::build_connectivity_matrix;
 use crate::graph::*;
 use crate::io::GeneralConfig;
 use crate::parameters::*;
+use crate::scc_routine::get_repulsive_energy;
 use approx::AbsDiffEq;
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
@@ -22,6 +23,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Deref, Neg};
 use std::time::Instant;
+use crate::broyden::BroydenMixer;
 
 #[derive(Clone)]
 pub struct Molecule {
@@ -47,7 +49,9 @@ pub struct Molecule {
     pub g0_ao: Array2<f64>,
     pub g0_lr_ao: Array2<f64>,
     pub g1:Option<Array3<f64>>,
-    pub g1_ao:Option<Array3<f64>>
+    pub g1_ao:Option<Array3<f64>>,
+    pub broyden_mixer:BroydenMixer,
+    pub rep_energy:f64
 }
 
 impl Molecule {
@@ -176,6 +180,8 @@ impl Molecule {
         info!("{:-^80}", "");
         let g1:Option<Array3<f64>> = None;
         let g1_ao:Option<Array3<f64>> = None;
+        let mut broyden_mixer: BroydenMixer = BroydenMixer::new(n_atoms);
+        let rep_energy:f64 = 0.0;
 
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
@@ -200,7 +206,9 @@ impl Molecule {
             g0_ao: g0_a0,
             g0_lr_ao: g0_lr_a0,
             g1:g1,
-            g1_ao:g1_ao
+            g1_ao:g1_ao,
+            broyden_mixer:broyden_mixer,
+            rep_energy:rep_energy
         };
 
         return mol;
@@ -270,6 +278,9 @@ impl Molecule {
     pub fn set_g1_gradients(&mut self, g1:&Array3<f64>,g1_ao:&Array3<f64>) {
         self.g1 = Some(g1.clone());
         self.g1_ao = Some(g1_ao.clone());
+    }
+    pub fn set_repulsive_energy(&mut self){
+        self.rep_energy = get_repulsive_energy(&self);
     }
 }
 pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
