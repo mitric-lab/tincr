@@ -3688,6 +3688,7 @@ pub fn fmo_fragment_gradients(molecule: &Molecule,h0_coul:ArrayView2<f64>,fragme
         let esp_vec:Array1<f64> = molecule.g0.dot(&molecule.final_charges);
         for (a, z_a) in molecule.atomic_numbers.iter().enumerate() {
             let index: usize = 3 * a + dir_xyz;
+            let mut esp_matrix:Array2<f64> = Array2::zeros((molecule.calculator.n_orbs,molecule.calculator.n_orbs));
             for _ in &molecule.calculator.valorbs[z_a] {
                 let mut mu:usize = 0;
                 for (b, z_b) in molecule.atomic_numbers.iter().enumerate() {
@@ -3703,10 +3704,7 @@ pub fn fmo_fragment_gradients(molecule: &Molecule,h0_coul:ArrayView2<f64>,fragme
                             let esp:f64 = esp_vec[b]+esp_vec[a];
                             //println!("Esp 1st version {} and esp 2nd version {} and their difference {}",esp,esp_v2, &esp-&esp_v2);
                             // assert!(esp == esp_v2,"esp not equal 1 {} 2 {}",esp,esp_v2);
-                            // println!("density matrix value {}",molecule.final_p_matrix[[mu,nu]]);
-                            // println!("grad s value {}",grad_s[[index,mu,nu]]);
-                            // println!("esp value {}",esp);
-                            esp_term_v3[index] +=esp;
+                            esp_matrix[[mu,nu]] = esp;
                             esp_term[index] += molecule.final_p_matrix[[mu,nu]] * grad_s[[index,mu,nu]] * esp;
                         }
                         mu = mu + 1;
@@ -3724,7 +3722,7 @@ pub fn fmo_fragment_gradients(molecule: &Molecule,h0_coul:ArrayView2<f64>,fragme
                     //esp_term_v3[index] +=esp;
                 }
             }
-            esp_term_v3[index] *= 0.5*(molecule.final_p_matrix.clone() * grad_s.slice(s![index,..,..])).sum();
+            esp_term_v3[index] =  (molecule.final_p_matrix.clone() * grad_s.slice(s![index,..,..])*esp_matrix).sum();
             coul_term[index] *= molecule.final_charges[a];
             assert!(coul_term[index].abs_diff_eq(&coul_term_v2[index],1e-12),"coul terms NOT EQUAL");
             h_term_v2[index] = (molecule.final_p_matrix.clone()*grad_h0.slice(s![index,..,..])).sum();
@@ -3736,10 +3734,10 @@ pub fn fmo_fragment_gradients(molecule: &Molecule,h0_coul:ArrayView2<f64>,fragme
     println!("s term {}",s_term);
     println!("esp tern {}",esp_term);
     println!("coul term {}",coul_term);
-    assert!(esp_term_v3.abs_diff_eq(&esp_term,1e-12),"esp terms NOT EQUAL! esp difference {}",&esp_term-&esp_term_v3);
-    assert!(h_term.abs_diff_eq(&h_term_v2,1e-12),"h matrices NOT EQUAL");
-    assert!(s_term.abs_diff_eq(&s_term_v2,1e-12),"s matrice NOT EQUAL");
-    assert!(esp_term_v2.abs_diff_eq(&(&esp_term+&coul_term),1e-12)," esp difference {}",(&esp_term+&coul_term)-esp_term_v2);
+    assert!(esp_term_v3.abs_diff_eq(&esp_term,1e-14),"esp terms NOT EQUAL! esp difference {}",&esp_term-&esp_term_v3);
+    assert!(h_term.abs_diff_eq(&h_term_v2,1e-14),"h matrices NOT EQUAL");
+    assert!(s_term.abs_diff_eq(&s_term_v2,1e-14),"s matrice NOT EQUAL");
+    assert!(esp_term_v2.abs_diff_eq(&(&esp_term+&coul_term),1e-8)," DFTBABY comparison failed {}",(&esp_term+&coul_term)-esp_term_v2);
 
     // calculate the gradient of the repulsive potential
     let grad_v_rep: Array1<f64> = gradient_v_rep(
