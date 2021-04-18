@@ -409,7 +409,7 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let (frag_energies,s_matrices,om_matrices):(Array1<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>) = fmo_calculate_fragments_ncc(&mut fragments,gamma_total.view(),&indices_frags);
+            let (frag_energies,s_matrices,om_matrices,dq_vec):(Array1<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>,Vec<Array1<f64>>) = fmo_calculate_fragments_ncc(&mut fragments,gamma_total.view(),&indices_frags);
             println!("Monomer energy sum {}",frag_energies.sum());
 
             println!(
@@ -421,7 +421,7 @@ fn main() {
             let molecule_timer: Instant = Instant::now();
 
             let molecule_timer: Instant = Instant::now();
-            let energy:f64 = fmo_ncc_pairs_esdim_embedding(&fragments, frag_energies.view(), config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags,&full_hubbard,gamma_total.view(),&om_matrices);
+            let energy:f64 = fmo_ncc_pairs_esdim_embedding(&fragments, frag_energies.view(), config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags,&full_hubbard,gamma_total.view(),&om_matrices,&dq_vec);
             println!("Final FMO energy (NCC pair + esdim +embedding): {}",energy);
 
             println!(

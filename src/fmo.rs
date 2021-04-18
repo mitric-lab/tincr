@@ -2023,7 +2023,7 @@ pub fn fmo_calculate_fragments_ncc(
     fragments: &mut Vec<Molecule>,
     g0_total: ArrayView2<f64>,
     frag_indices: &Vec<usize>,
-) -> (Array1<f64>, Vec<Array2<f64>>, Vec<Array1<f64>>) {
+) -> (Array1<f64>, Vec<Array2<f64>>, Vec<Array1<f64>>,Vec<Array1<f64>>) {
     let mut converged: bool = false;
     let max_iter: usize = 40;
     let mut energy_old: Array1<f64> = Array1::zeros(fragments.len());
@@ -2190,7 +2190,7 @@ pub fn fmo_calculate_fragments_ncc(
         }
     }
 
-    return (energy_old, s_matrices, om_monomer_matrices);
+    return (energy_old, s_matrices, om_monomer_matrices,dq_old);
 }
 
 pub fn fmo_ncc_pairs_esdim_embedding(
@@ -2204,6 +2204,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     full_hubbard: &HashMap<u8, f64>,
     g0_total: ArrayView2<f64>,
     om_monomers: &Vec<Array1<f64>>,
+    dq_vec:&Vec<Array1<f64>>,
 ) -> (f64) {
     // construct a first graph in case all monomers are the same
     let mol_a = fragments[0].clone();
@@ -2475,6 +2476,9 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                                 ind2,
                                 false,
                                 om_monomers,
+                                dq_vec,
+                                g0_total,
+                                indices_frags
                             );
                         // energy_pair = Some(energy);
                         // charges_pair = Some(pair.final_charges);

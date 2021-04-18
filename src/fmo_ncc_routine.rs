@@ -257,6 +257,9 @@ pub fn fmo_pair_ncc(
     index_b: usize,
     calc_gradients: bool,
     om_matrices: &Vec<Array1<f64>>,
+    dq_vec:&Vec<Array1<f64>>,
+    g0_total:ArrayView2<f64>,
+    indices_frags:&Vec<usize>,
 ) -> (f64, Array2<f64>, Option<Array2<f64>>) {
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     // construct reference density matrix
@@ -311,7 +314,45 @@ pub fn fmo_pair_ncc(
     let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
     let v_temp: Array2<f64> = &esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
     let v_mat: Array2<f64> = 0.5 * v_temp * s.view();
-    h = h + v_mat;
+    //h = h + v_mat.view();
+
+    // compare to long procedure
+    let mut esp: Array1<f64> = Array1::zeros(molecule.n_atoms);
+    let index_pair_a:usize = indices_frags[index_a];
+    let index_pair_b:usize = indices_frags[index_b];
+
+    for (ind_k, dq_frag) in dq_vec.iter().enumerate() {
+        if ind_k != index_a && ind_k!=index_b {
+            let index_frag_iter:usize = indices_frags[ind_k];
+            let g0_trimer_a: ArrayView2<f64> = g0_total.slice(s![
+                index_pair_a..index_pair_a + atoms_a,
+                index_frag_iter..index_frag_iter + dq_frag.len()
+            ]);
+            let g0_trimer_b: ArrayView2<f64> = g0_total.slice(s![
+                index_pair_b..index_pair_b + atoms_b,
+                index_frag_iter..index_frag_iter + dq_frag.len()
+            ]);
+            let g0_trimer_ak: Array2<f64> =
+                stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
+
+            esp = esp + g0_trimer_ak.dot(dq_frag);
+        }
+    }
+    let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
+    let mut mu: usize = 0;
+    for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
+        for _ in &molecule.calculator.valorbs[z_i] {
+            esp_ao[mu] = esp[i];
+            mu = mu + 1;
+        }
+    }
+    let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
+    let v_temp_2: Array2<f64> =
+        &esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
+
+    let v_mat_2 = 0.5 * v_temp_2 * s.view();
+    assert!(v_mat.abs_diff_eq(&v_mat_2,1e-14),"v matrices are NOT EQUAL!! Difference {}",&v_mat_2-&v_mat);
+    h = h + v_mat_2.view();
 
     //let mut prev_h_X:Array2<f64>
     if molecule.calculator.r_lr.is_none() || molecule.calculator.r_lr.unwrap() > 0.0 {
