@@ -1,17 +1,21 @@
 use crate::fmo::{Monomer, SuperSystem};
+use crate::initialization::Atom;
 use crate::scc::gamma_approximation::{gamma_ao_wise, gamma_atomwise};
 use crate::scc::h0_and_s::h0_and_s;
 use crate::scc::mixer::{BroydenMixer, Mixer};
+use crate::scc::mulliken::mulliken;
 use crate::scc::scc_routine::{RestrictedSCC, SCCError};
-use crate::scc::{construct_h1, density_matrix, density_matrix_ref, get_repulsive_energy, lc_exact_exchange, get_electronic_energy};
+use crate::scc::{
+    construct_h1, density_matrix, density_matrix_ref, get_electronic_energy, get_repulsive_energy,
+    lc_exact_exchange,
+};
 use ndarray::parallel::prelude::IntoParallelRefIterator;
 use ndarray::prelude::*;
+use ndarray::stack;
 use ndarray_linalg::{Eigh, Inverse, SymmetricSqrt, UPLO};
 use ndarray_stats::QuantileExt;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::IntoParallelRefMutIterator;
-use crate::scc::mulliken::mulliken;
-
 
 impl RestrictedSCC for SuperSystem {
     ///  To run the SCC calculation of the FMO [SuperSystem] the following properties need to be set:
@@ -36,22 +40,34 @@ impl RestrictedSCC for SuperSystem {
         // SCC settings from the user input
         let temperature: f64 = self.config.scf.electronic_temperature;
         let max_iter: usize = self.config.scf.scf_max_cycles;
+        // Vector that holds the information if the scc calculation of the individual monomer
+        // is converged or not
         let mut converged: Vec<bool> = vec![false; self.n_mol];
+        // charge differences of all atoms. these are needed to compute the electrostatic potential
+        // that acts on the monomers.
+        let mut dq: Array1<f64> = Array1::zeros([self.atoms.len()]);
+        // charge consistent loop for the monomers
         'scf_loop: for iter in 0..max_iter {
+            // the matrix vector product of the gamma matrix for all atoms and the charge diffrences
+            // yields the electrostatic potential for all atoms. this is then converted into ao basis
+            // and given to each monomer scc step
+            let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
             for (i, mol) in self.monomers.iter_mut().enumerate() {
-                let mut tmp: bool = false;
-                if !converged[i] {
-                    //tmp = mol.scc_step();
-                } else {
-                    tmp = true;
-                }
-                converged[i] = tmp;
+                let v_esp: Array2<f64> =
+                    atomvec_to_aomat(esp_at.slice(s![mol.atom_slice]), mol.n_orbs, &mol.atoms);
+                converged[i] = mol.scc_step(v_esp);
+                // save the dq's from the monomer calculation
+                dq.slice_mut(s![mol.atom_slice])
+                    .assign(&mol.properties.dq().unwrap());
             }
+            // the loop ends if all monomers are converged
             if !converged.contains(&false) {
                 break 'scf_loop;
             }
-            println!("iter {}", iter + 1);
+            println!("Iteration");
         }
+        // scc loop for each dimer that is not labeled as ESD pair
+        //for pair in self.pairs
         println!("SCC");
         Ok(0.0)
     }
@@ -77,7 +93,9 @@ impl Monomer {
         // and save it as a `Property`
         self.properties.set_gamma(gamma);
         // occupation is determined by Aufbau principle and no electronic temperature is considered
-        let f: Vec<f64> = (0..self.n_orbs).map(|idx| if idx < self.n_elec/2 {2.0} else {0.0}).collect();
+        let f: Vec<f64> = (0..self.n_orbs)
+            .map(|idx| if idx < self.n_elec / 2 { 2.0 } else { 0.0 })
+            .collect();
         self.properties.set_occupation(f);
 
         // if the system contains a long-range corrected Gammafunction the gamma matrix will be computed
@@ -113,7 +131,7 @@ impl Monomer {
     }
 
     //pub fn scc_step(&mut self) -> bool {
-    pub fn scc_step(&mut self, gamma_x: ArrayView2<f64>, gamma_xk: ArrayView2<f64>, super_dq: &[ArrayView1<f64>]) -> bool {
+    pub fn scc_step(&mut self, v_esp: Array2<f64>) -> bool {
         let scf_charge_conv: f64 = self.config.scf.scf_charge_conv;
         let scf_energy_conv: f64 = self.config.scf.scf_energy_conv;
         let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
@@ -127,7 +145,11 @@ impl Monomer {
         let mut last_energy: f64 = self.properties.last_energy().unwrap();
         let f: &[f64] = self.properties.occupation().unwrap();
 
-        let h_coul: Array2<f64> = construct_h1(self.n_orbs, &self.atoms, gamma, dq.view()) * &s;
+        // electrostatic interaction between the atoms of the same monomer and all the other atoms
+        // the coulomb term and the electrostatic potential term are combined into one:
+        // H_mu_nu = H0_mu_nu + HCoul_mu_nu + HESP_mu_nu
+        // H_mu_nu = H0_mu_nu + 1/2 S_mu_nu sum_k sum_c_on_k (gamma_ac + gamma_bc) dq_c
+        let h_coul: Array2<f64> = v_esp * &s * 0.5;
         let mut h: Array2<f64> = h_coul + h0;
         if self.gammafunction_lc.is_some() {
             let h_x: Array2<f64> =
@@ -183,4 +205,18 @@ impl Monomer {
         self.properties.set_last_energy(scf_energy);
         return converged;
     }
+}
+
+fn atomvec_to_aomat(esp_atomwise: ArrayView1<f64>, n_orbs: usize, atoms: &[Atom]) -> Array2<f64> {
+    let mut esp_ao_row: Array1<f64> = Array1::zeros(n_orbs);
+    let mut mu: usize = 0;
+    for (atom, esp_at) in atoms.iter().zip(esp_atomwise.iter()) {
+        for _ in 0..atom.n_orbs {
+            esp_ao_row[mu] = *esp_at;
+            mu = mu + 1;
+        }
+    }
+    let esp_ao_column: Array2<f64> = esp_ao_row.clone().insert_axis(Axis(1));
+    let esp_ao: Array2<f64> = &esp_ao_column.broadcast((n_orbs, n_orbs)).unwrap() + &esp_ao_row;
+    return esp_ao;
 }

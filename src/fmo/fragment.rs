@@ -5,6 +5,7 @@ use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::scc::gamma_approximation::GammaFunction;
 use std::collections::HashMap;
 use chemfiles::Frame;
+use ndarray::{Slice, SliceInfo};
 
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
@@ -15,8 +16,12 @@ pub struct Monomer {
     pub config: Configuration,
     /// Number of atoms
     pub n_atoms: usize,
+    /// [Slice](ndarray::prelude::Slice) for the atoms corresponding to this monomer
+    pub atom_slice: Slice,
     /// Number of atomic orbitals
     pub n_orbs: usize,
+    /// [Slice](ndarray::prelude::Slice) for the orbitals corresponding to this monomer
+    pub orb_slice: Slice,
     /// Number of valence electrons
     pub n_elec: usize,
     /// Number of unpaired electrons (singlet -> 0, doublet -> 1, triplet -> 2)
@@ -58,10 +63,12 @@ pub struct Monomer {
 impl Monomer {
     /// Creates a new [Monomer] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
-    pub fn new(config: Configuration, frame: Frame, num_to_atom: HashMap<u8, Atom>, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
+    pub fn new(config: Configuration, frame: Frame, at_index: usize, orb_index: usize, num_to_atom: HashMap<u8, Atom>, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
         // get the atomic numbers and positions from the input data
         let (atomic_numbers, coordinates) = frame_to_coordinates(frame);
-        let mut atoms: Vec<Atom> = Vec::with_capacity(atomic_numbers.len());
+        let n_atoms: usize = atomic_numbers.len();
+        let atom_slice: Slice = Slice::from(at_index..(at_index+n_atoms));
+        let mut atoms: Vec<Atom> = Vec::with_capacity(n_atoms);
         atomic_numbers.iter().for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
         // set the positions for each atom
         coordinates.outer_iter().enumerate().for_each(|(idx, position)| atoms[idx].set_position(position.as_slice().unwrap()));
@@ -72,6 +79,7 @@ impl Monomer {
         // calculate the number of atomic orbitals for the whole system as the sum of the atomic
         // orbitals per atom
         let n_orbs: usize = atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
+        let orb_slice: Slice = Slice::from(orb_index..(orb_index+n_orbs));
         // get the indices of the occupied and virtual orbitals
         let mut occ_indices: Vec<usize> = Vec::new();
         let mut virt_indices: Vec<usize> = Vec::new();
@@ -87,19 +95,21 @@ impl Monomer {
 
         Self{
             config,
-            n_atoms: atomic_numbers.len(),
-            n_orbs: n_orbs,
-            n_elec: n_elec,
-            n_unpaired: n_unpaired,
-            occ_indices: occ_indices,
+            n_atoms,
+            atom_slice,
+            n_orbs,
+            orb_slice,
+            n_elec,
+            n_unpaired,
+            occ_indices,
             virt_indices: virt_indices,
             first_active_occ: first_active_occ,
             last_active_virt: active_virt,
-            atoms: atoms,
+            atoms,
             geometry: geom,
-            properties: properties,
-            vrep: vrep,
-            slako: slako,
+            properties,
+            vrep,
+            slako,
             gammafunction: gf,
             gammafunction_lc: gf_lc
         }

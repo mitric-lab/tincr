@@ -1,5 +1,5 @@
 use crate::fmo::fragmentation::get_fragments;
-use crate::fmo::{Monomer, Pair};
+use crate::fmo::{Monomer, Pair, ESDPair, get_pair_type, PairType};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::initialization::{
     get_unique_atoms, initialize_gamma_function, Atom, Geometry, Properties,
@@ -25,9 +25,12 @@ pub struct SuperSystem {
     pub n_mol: usize,
     /// List of individuals fragments which are stored as a [Monomer](crate::fmo::Monomer)
     pub monomers: Vec<Monomer>,
-    /// HashMap with that holds the pairs of two fragments. Each pair is stored as [Pair](crate::fmo::Pair)
-    /// that holds basic information about the pair.
-    pub pairs: HashMap<(usize, usize), Pair>,
+    /// [Vec] that holds the pairs of two fragments if they are close to each other. Each pair is
+    /// stored as [Pair](crate::fmo::Pair) that holds all information necessary for scc calculations
+    pub pairs: Vec<Pair>,
+    /// [Vec] that holds pairs for which the energy is only calculated within the ESD approximation.
+    /// Only a small and minimal amount of information is stored in this [ESDPair] type.
+    pub esd_pairs: Vec<ESDPair>,
     /// Type that can hold calculated properties e.g. gamma matrix for the whole FMO system
     pub properties: Properties,
     /// Type that stores the coordinates of the whole FMO system
@@ -83,16 +86,23 @@ impl From<(Frame, Configuration)> for SuperSystem {
         let molecules: Vec<Frame> = get_fragments(input.0);
         let mut monomers: Vec<Monomer> = Vec::with_capacity(molecules.len());
         // PARALLEL: this loop should be parallelized
+        let mut at_counter: usize = 0;
+        let mut orb_counter: usize = 0;
         for mol_frame in molecules.into_iter() {
-            monomers.push(Monomer::new(
+            let current_monomer = Monomer::new(
                 input.1.clone(),
                 mol_frame,
+                at_counter,
+                orb_counter,
                 num_to_atom.clone(),
                 slako.clone(),
                 vrep.clone(),
                 gf.clone(),
                 gf_lc.clone(),
-            ));
+            );
+            at_counter += current_monomer.n_atoms;
+            orb_counter += current_monomer.n_orbs;
+            monomers.push(current_monomer);
         }
         // get all the [Atom]s for the SuperSystem. They are just copied from the individual monomers.
         // This ensures that they are also grouped for each monomer and are in the same order
@@ -110,21 +120,28 @@ impl From<(Frame, Configuration)> for SuperSystem {
         let n_elec: usize = monomers.iter().fold(0, |n, monomer| n + monomer.n_elec);
 
         // Compute the gamma function between all atoms if it is requested in the user input
-        // TODO: Insert a new key for this option
+        // TODO: Insert a input option for this choice
         if true {
             properties.set_gamma(gamma_atomwise(&gf, &atoms, atoms.len()));
         }
 
-        let mut pairs: Vec<Pair> = Vec::with_capacity(monomers.len() * (monomers.len() - 1) / 2);
+        let timer: Timer = Timer::start();
+        let mut pairs: Vec<Pair> = Vec::new();
+        let mut esd_pairs: Vec<ESDPair> = Vec::new();
         // the construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after
         // each monomer
         // TODO: Read the vdw scaling parameter from the input file instead of setting hard to 2.0
         // PARALLEL: this loop should be parallelized
         for (i, monomer_i) in monomers.iter().enumerate() {
             for (j, monomer_j) in monomers[(i+1)..].iter().enumerate() {
-                pairs.push(Pair::new((i, j), (monomer_i, monomer_j), 2.0));
+                match get_pair_type(monomer_i, monomer_j, 2.0) {
+                    PairType::Pair => pairs.push(monomer_i + monomer_j),
+                    PairType::ESD => esd_pairs.push(ESDPair::new(i, j, monomer_i, monomer_j)),
+                    _ => {}
+                }
             }
         }
+        info!("{}", timer);
 
         Self {
             config: input.1,
@@ -135,7 +152,8 @@ impl From<(Frame, Configuration)> for SuperSystem {
             properties: properties,
             gammafunction: gf,
             gammafunction_lc: gf_lc,
-            pairs: Default::default(),
+            pairs,
+            esd_pairs,
         }
     }
 }
