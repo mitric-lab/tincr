@@ -3680,8 +3680,6 @@ pub fn fmo_fragment_gradients(molecule: &Molecule,h0_coul:ArrayView2<f64>,fragme
         molecule.calculator.n_orbs,
     );
 
-    println!("g1 {:?}",g1.slice(s![6..9,..,..]));
-
     for dir in (0..3).into_iter(){
         let dir_xyz:usize = dir as usize;
         let mut nu:usize = 0;
@@ -3730,10 +3728,10 @@ pub fn fmo_fragment_gradients(molecule: &Molecule,h0_coul:ArrayView2<f64>,fragme
             esp_term_v2[index] = 0.5 * (&fdmd0.slice(s![index, .., ..]) * &diff_p).sum();
         }
     }
-    println!("H term 1 {}",h_term);
-    println!("s term {}",s_term);
-    println!("esp tern {}",esp_term);
-    println!("coul term {}",coul_term);
+    // println!("H term 1 {}",h_term);
+    // println!("s term {}",s_term);
+    // println!("esp tern {}",esp_term);
+    // println!("coul term {}",coul_term);
     assert!(esp_term_v3.abs_diff_eq(&esp_term,1e-14),"esp terms NOT EQUAL! esp difference {}",&esp_term-&esp_term_v3);
     assert!(h_term.abs_diff_eq(&h_term_v2,1e-14),"h matrices NOT EQUAL");
     assert!(s_term.abs_diff_eq(&s_term_v2,1e-14),"s matrice NOT EQUAL");

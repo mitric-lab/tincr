@@ -2105,6 +2105,7 @@ pub fn fmo_calculate_fragments_ncc(
                     dq_old.push(frag.final_charges.clone());
                     pmat_old.push(frag.final_p_matrix.clone());
                     s_matrices.push(s);
+                    om_monomer_matrices.push(Array1::zeros(length));
                 } else {
                     let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
                     let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
@@ -2115,7 +2116,7 @@ pub fn fmo_calculate_fragments_ncc(
                     dq_old[index] = frag.final_charges.clone();
                     pmat_old[index] = frag.final_p_matrix.clone();
 
-                    om_monomer_matrices.push(om_monomer);
+                    om_monomer_matrices[index] = om_monomer;
                 }
                 energy
             })

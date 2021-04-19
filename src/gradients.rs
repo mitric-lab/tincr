@@ -1488,6 +1488,7 @@ pub fn f_v_new(
 
             for b in 0..n_orb {
                 for a in 0..n_orb {
+                    // println!("gdsv[a] {} gdsv [b] {}",gdsv[a],gdsv[b]);
                     d_f.push(
                         ds[[a, b]] * (gsv[a] + gsv[b])
                             + s[[a, b]] * (dgsv[a] + gdsv[a] + dgsv[b] + gdsv[b]),

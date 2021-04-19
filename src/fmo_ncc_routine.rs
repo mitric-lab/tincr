@@ -317,7 +317,8 @@ pub fn fmo_pair_ncc(
     //h = h + v_mat.view();
 
     // compare to long procedure
-    let mut esp: Array1<f64> = Array1::zeros(molecule.n_atoms);
+    let mut esp_1: Array1<f64> = Array1::zeros(atoms_a);
+    let mut esp_2: Array1<f64> = Array1::zeros(atoms_b);
     let index_pair_a:usize = indices_frags[index_a];
     let index_pair_b:usize = indices_frags[index_b];
 
@@ -332,12 +333,14 @@ pub fn fmo_pair_ncc(
                 index_pair_b..index_pair_b + atoms_b,
                 index_frag_iter..index_frag_iter + dq_frag.len()
             ]);
-            let g0_trimer_ak: Array2<f64> =
-                stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
+            // let g0_trimer_ak: Array2<f64> =
+            //     stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
 
-            esp = esp + g0_trimer_ak.dot(dq_frag);
+            esp_1 = esp_1 + g0_trimer_a.dot(dq_frag);
+            esp_2 = esp_2 + g0_trimer_b.dot(dq_frag);
         }
     }
+    let esp: Array1<f64> = stack(Axis(0), &[esp_1.view(), esp_2.view()]).unwrap();
     let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
     let mut mu: usize = 0;
     for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
