@@ -72,7 +72,7 @@ impl<'a> RestrictedSCC for System {
     fn prepare_scc(&mut self) {
         // get H0 and S
         let (s, h0): (Array2<f64>, Array2<f64>) =
-            h0_and_s(self.n_orbs, &self.atoms, &self.geometry, &self.slako);
+            h0_and_s(self.n_orbs, &self.atoms,  &self.slako);
         // and save it in the molecule properties
         self.properties.set_h0(h0);
         self.properties.set_s(s);

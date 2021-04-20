@@ -12,6 +12,8 @@ impl Properties {
         Properties{map: HashMap::new()}
     }
 
+    pub fn reset(&mut self) {self.map = HashMap::new()}
+
     pub fn get(&self, name: &'static str) -> Option<&Property> {
         self.map.get(name)
     }
@@ -253,6 +255,22 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to the esp charges per atom
+    pub fn esp_q(&self) -> Option<ArrayView1<f64>>{
+        match self.get("esp_charges") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _=> None
+        }
+    }
+
+    /// Returns a reference to the electrostatic potential in AO basis.
+    pub fn v(&self) -> Option<ArrayView2<f64>>{
+        match self.get("V") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _=> None
+        }
+    }
+
     /// Returns a reference to the density matrix in AO basis.
     pub fn p(&self) -> Option<ArrayView2<f64>>{
         match self.get("P") {
@@ -370,9 +388,19 @@ impl Properties {
         self.set("dq", Property::from(dq));
     }
 
+    /// Set the esp charges per atom
+    pub fn set_esp_q(&mut self, esp_q: Array1<f64>){
+        self.set("esp_charges", Property::from(esp_q));
+    }
+
     /// Set the density matrix in AO basis.
     pub fn set_p(&mut self, p: Array2<f64>) {
         self.set("P", Property::from(p));
+    }
+
+    /// Set the electrostatic potential in AO basis.
+    pub fn set_v(&mut self, v: Array2<f64>) {
+        self.set("V", Property::from(v));
     }
 
     /// Set the gamma matrix in atomic basis.

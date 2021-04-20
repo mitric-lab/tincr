@@ -16,6 +16,8 @@ pub struct Monomer {
     pub config: Configuration,
     /// Number of atoms
     pub n_atoms: usize,
+    /// Index of the monomer in the [SuperSystem]
+    pub index: usize,
     /// [Slice](ndarray::prelude::Slice) for the atoms corresponding to this monomer
     pub atom_slice: Slice,
     /// Number of atomic orbitals
@@ -63,7 +65,7 @@ pub struct Monomer {
 impl Monomer {
     /// Creates a new [Monomer] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
-    pub fn new(config: Configuration, frame: Frame, at_index: usize, orb_index: usize, num_to_atom: HashMap<u8, Atom>, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
+    pub fn new(config: Configuration, frame: Frame, index: usize, at_index: usize, orb_index: usize, num_to_atom: HashMap<u8, Atom>, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
         // get the atomic numbers and positions from the input data
         let (atomic_numbers, coordinates) = frame_to_coordinates(frame);
         let n_atoms: usize = atomic_numbers.len();
@@ -96,6 +98,7 @@ impl Monomer {
         Self{
             config,
             n_atoms,
+            index,
             atom_slice,
             n_orbs,
             orb_slice,

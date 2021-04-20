@@ -88,10 +88,11 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // PARALLEL: this loop should be parallelized
         let mut at_counter: usize = 0;
         let mut orb_counter: usize = 0;
-        for mol_frame in molecules.into_iter() {
+        for (idx, mol_frame) in molecules.into_iter().enumerate() {
             let current_monomer = Monomer::new(
                 input.1.clone(),
                 mol_frame,
+                idx,
                 at_counter,
                 orb_counter,
                 num_to_atom.clone(),

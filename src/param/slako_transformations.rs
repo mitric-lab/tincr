@@ -2,28 +2,29 @@ use crate::initialization::parameters::*;
 use ndarray::prelude::*;
 use rusty_fitpack::{splder_uniform, splev_uniform};
 use std::collections::HashMap;
+use nalgebra::{VectorSlice3, Vector3};
 
 const SQRT3: f64 = 1.7320508075688772;
-pub fn get_h0_and_s_mu_nu(
-    skt: &SlaterKosterTable,
-    li: i8,
-    mi: i8,
-    posi: ArrayView1<f64>,
-    lj: i8,
-    mj: i8,
-    posj: ArrayView1<f64>,
-) -> (f64, f64) {
-    let (r, x, y, z): (f64, f64, f64, f64) = directional_cosines(posi, posj);
-    // if the distance `r` is larger than the maximal value on the grid in the parameter files, then
-    // just a zero is returned and the splines are not evaluated at all
-    if r > skt.dmax {
-        (0.0, 0.0)
-    } else {
-        let s: f64 = slako_transformation(r, x, y, z, &skt.s_spline, li, mi, lj, mj);
-        let h: f64 = slako_transformation(r, x, y, z, &skt.h_spline, li, mi, lj, mj);
-        (s, h)
-    }
-}
+// pub fn get_h0_and_s_mu_nu(
+//     skt: &SlaterKosterTable,
+//     li: i8,
+//     mi: i8,
+//     posi: ArrayView1<f64>,
+//     lj: i8,
+//     mj: i8,
+//     posj: ArrayView1<f64>,
+// ) -> (f64, f64) {
+//     let (r, x, y, z): (f64, f64, f64, f64) = directional_cosines(posi, posj);
+//     // if the distance `r` is larger than the maximal value on the grid in the parameter files, then
+//     // just a zero is returned and the splines are not evaluated at all
+//     if r > skt.dmax {
+//         (0.0, 0.0)
+//     } else {
+//         let s: f64 = slako_transformation(r, x, y, z, &skt.s_spline, li, mi, lj, mj);
+//         let h: f64 = slako_transformation(r, x, y, z, &skt.h_spline, li, mi, lj, mj);
+//         (s, h)
+//     }
+// }
 
 /// compute directional cosines for the vector going from
 /// pos1 to pos2
@@ -31,10 +32,10 @@ pub fn get_h0_and_s_mu_nu(
 /// ========
 /// r: length of vector
 /// x,y,z: directional cosines
-pub fn directional_cosines(pos1: ArrayView1<f64>, pos2: ArrayView1<f64>) -> (f64, f64, f64, f64) {
-    let xc: f64 = pos2[0] - pos1[0];
-    let yc: f64 = pos2[1] - pos1[1];
-    let zc: f64 = pos2[2] - pos1[2];
+pub fn directional_cosines(pos1: &Vector3<f64>, pos2: &Vector3<f64>) -> (f64, f64, f64, f64) {
+    let xc: f64 = pos2.x - pos1.x;
+    let yc: f64 = pos2.y - pos1.y;
+    let zc: f64 = pos2.z - pos1.z;
     let r: f64 = (xc.powi(2) + yc.powi(2) + zc.powi(2)).sqrt();
     // directional cosines
     let x: f64;

@@ -167,6 +167,7 @@ impl GammaFunction {
     }
 }
 
+/// Compute the atomwise Coulomb interaction between all atoms of one sets of atoms
 pub fn gamma_atomwise(
     gamma_func: &GammaFunction,
     atoms: &[Atom],
@@ -186,6 +187,30 @@ pub fn gamma_atomwise(
     }
     return g0;
 }
+
+/// Compute the atomwise Coulomb interaction between two sets of atoms.
+pub fn gamma_atomwise_ab(
+    gamma_func: &GammaFunction,
+    atoms_a: &[Atom],
+    atoms_b: &[Atom],
+    n_atoms_a: usize,
+    n_atoms_b: usize,
+) -> Array2<f64> {
+    let mut g0 = Array2::zeros((n_atoms_a, n_atoms_b));
+    for (i, atomi) in atoms_a.iter().enumerate() {
+        for (j, atomj) in atoms_b.iter().enumerate() {
+            if i == j {
+                g0[[i, j]] = gamma_func.eval_limit0(atomi.number);
+            } else if i < j {
+                g0[[i, j]] = gamma_func.eval((atomi-atomj).norm(), atomi.number, atomj.number);
+            } else {
+                g0[[i, j]] = g0[[j, i]];
+            }
+        }
+    }
+    return g0;
+}
+
 
 fn gamma_gradients_atomwise(
     gamma_func: &GammaFunction,

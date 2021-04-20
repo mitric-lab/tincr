@@ -72,6 +72,10 @@ impl ESDPair {
 /// This type is a similar to the [Monomer] type that but holds some further properties that are
 /// specific to fragment pairs
 pub struct Pair {
+    /// Index of the first monomer contained in the pair
+    pub i: usize,
+    /// Index of the second monomer contained in the pair
+    pub j: usize,
     /// Type that holds all the input settings from the user.
     pub config: Configuration,
     /// Number of atoms
@@ -96,7 +100,7 @@ pub struct Pair {
     /// Type that holds the calculated properties e.g. gamma matrix, overlap matrix and so on.
     pub properties: Properties,
     /// Repulsive potential type. Type that contains the repulsion energy and its derivative
-    /// w.r.t. d/dR for each unique pair of atoms as a spline.
+    /// w.r.t. dR for each unique pair of atoms as a spline.
     pub vrep: RepulsivePotential,
     /// Slater-Koster parameters for the H0 and overlap matrix elements. For each unique atom pair
     /// the matrix elements and their derivatives can be splined.
@@ -118,6 +122,8 @@ impl Add for &Monomer {
         let mut atoms: Vec<Atom> = self.atoms.clone();
         atoms.append(&mut rhs.atoms.clone());
         Self::Output{
+            i: self.index,
+            j: rhs.index,
             config: self.config.clone(),
             n_atoms: self.n_atoms + rhs.n_atoms,
             n_orbs: self.n_orbs + rhs.n_orbs,
