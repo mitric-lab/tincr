@@ -236,7 +236,7 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
     return (scf_energy + rep_energy, orbs, orbe, s, f);
 }
 
-fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) -> () {
+pub fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) -> () {
     info!("{:^80} ", "");
     info!(
         "{:^8} {:^6} {:>18.14} | {:^8} {:^6} {:>18.14}",
@@ -262,18 +262,18 @@ fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) -> () {
     info!("{:-^71} ", "");
 }
 
-fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> bool {
+pub fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> bool {
     let hl_idxs: (usize, usize) = get_frontier_orbitals(n_elec);
     let gap: f64 = get_homo_lumo_gap(orbe.view(), hl_idxs);
     debug!("HOMO - LUMO gap:          {:>18.14}", gap);
     gap < defaults::HOMO_LUMO_TOL
 }
 
-struct LevelShifter {
-    shift_value: f64,
-    weight: f64,
-    vv_block: Array2<f64>,
-    activated: bool,
+pub struct LevelShifter {
+    pub shift_value: f64,
+    pub weight: f64,
+    pub vv_block: Array2<f64>,
+    pub activated: bool,
 }
 
 impl LevelShifter {
@@ -302,20 +302,20 @@ impl LevelShifter {
         }
     }
 
-    fn shift(&mut self, orbs: ArrayView2<f64>) -> Array2<f64> {
+    pub fn shift(&mut self, orbs: ArrayView2<f64>) -> Array2<f64> {
         orbs.dot(&(self.weight * self.shift_value * &self.vv_block).dot(&orbs.t()))
     }
 
-    fn reduce_weight(&mut self) {
+    pub fn reduce_weight(&mut self) {
         self.weight *= 0.5;
     }
 
-    fn turn_off(&mut self) {
+    pub fn turn_off(&mut self) {
         self.weight = 0.0;
         self.activated = false;
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.shift_value == 0.0
     }
 }

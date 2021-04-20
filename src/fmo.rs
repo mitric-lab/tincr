@@ -2469,7 +2469,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                         pair.set_final_charges(dq);
 
                         let (energy, s, h0_coul): (f64, Array2<f64>, Option<Array2<f64>>) =
-                            fmo_pair_ncc(
+                            fmo_pair_scc(
                                 &mut pair,
                                 mol_a.n_atoms,
                                 mol_b.n_atoms,
