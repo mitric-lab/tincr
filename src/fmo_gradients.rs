@@ -4843,26 +4843,26 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                     let gdq_arr_ao:Array2<f64> = &gdq_ao.broadcast((gdq_ao.len(), gdq_ao.len())).unwrap() + &gdq_ao;
 
                     let c_s_mat:Array2<f64> = 2.0 * orbs_frag.t().dot(&frag_s_matrices[ind]).dot(&orbs_frag);
-                    let c_s_mat_v2:Array2<f64> = orbs_frag.t().dot(&frag_s_matrices[ind]).dot(&orbs_frag)+orbs_frag.t().dot(&frag_s_matrices[ind]).dot(&orbs_frag).t();
-
-                    let mut c_s_mat_loop: Array2<f64> = Array2::zeros((frag.calculator.n_orbs,frag.calculator.n_orbs));
-
-                    //inefficient loop
-                    for m in (0..frag.calculator.n_orbs).into_iter(){
-                        for i in (0..frag.calculator.n_orbs).into_iter(){
-                            let mut mu: usize = 0;
-                            for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
-                                for _ in &frag.calculator.valorbs[z_i] {
-                                    for nu in (0..frag.calculator.n_orbs).into_iter(){
-                                        c_s_mat_loop[[m,i]] +=(orbs_frag[[mu,m]]*orbs_frag[[nu,i]]+ orbs_frag[[mu,i]]*orbs_frag[[nu,m]])*frag_s_matrices[ind][[mu,nu]];
-                                    }
-                                    mu = mu + 1;
-                                }
-                            }
-                        }
-                    }
-                    assert!(c_s_mat_loop.abs_diff_eq(&c_s_mat_v2,1e-14),"Loop != Dots");
-                    assert!(c_s_mat.abs_diff_eq(&c_s_mat_v2,1e-14),"C_S matrices NOT EQUAL");
+                    // let c_s_mat_v2:Array2<f64> = orbs_frag.t().dot(&frag_s_matrices[ind]).dot(&orbs_frag)+orbs_frag.t().dot(&frag_s_matrices[ind]).dot(&orbs_frag).t();
+                    //
+                    // let mut c_s_mat_loop: Array2<f64> = Array2::zeros((frag.calculator.n_orbs,frag.calculator.n_orbs));
+                    //
+                    // //inefficient loop
+                    // for m in (0..frag.calculator.n_orbs).into_iter(){
+                    //     for i in (0..frag.calculator.n_orbs).into_iter(){
+                    //         let mut mu: usize = 0;
+                    //         for (j, z_i) in frag.atomic_numbers.iter().enumerate() {
+                    //             for _ in &frag.calculator.valorbs[z_i] {
+                    //                 for nu in (0..frag.calculator.n_orbs).into_iter(){
+                    //                     c_s_mat_loop[[m,i]] +=(orbs_frag[[mu,m]]*orbs_frag[[nu,i]]+ orbs_frag[[mu,i]]*orbs_frag[[nu,m]])*frag_s_matrices[ind][[mu,nu]];
+                    //                 }
+                    //                 mu = mu + 1;
+                    //             }
+                    //         }
+                    //     }
+                    // }
+                    // assert!(c_s_mat_loop.abs_diff_eq(&c_s_mat_v2,1e-14),"Loop != Dots");
+                    // assert!(c_s_mat.abs_diff_eq(&c_s_mat_v2,1e-14),"C_S matrices NOT EQUAL");
 
                     lagrangian_arr = lagrangian_arr + 2.0 * gdq_arr_ao * c_s_mat;
                 }

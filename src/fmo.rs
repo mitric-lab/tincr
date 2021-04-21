@@ -2237,6 +2237,10 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     let first_calc: DFTBCalculator =
         DFTBCalculator::new(&atomic_numbers, &atomtypes, None, &distance_frag, Some(0.0));
 
+    let mut real_pairs:Vec<f64> = Vec::new();
+    let mut embedding_vecs:Vec<f64> = Vec::new();
+    let mut esd_pairs:Vec<f64> = Vec::new();
+
     let mut result: Vec<Vec<f64>> = fragments
         .iter()
         .enumerate()
@@ -2553,6 +2557,8 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             })
                             .collect();
                         let embedding_pot_sum: f64 = embedding_pot.sum();
+                        real_pairs.push(pair_energy.clone());
+                        embedding_vecs.push(embedding_pot_sum.clone());
                         energy_pair = Some(pair_energy + embedding_pot_sum);
                     } else {
                         // TODO: calculate g0 on the fly if total g0.is_none()
@@ -2575,10 +2581,11 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             index_pair_b..index_pair_b + fragments[ind2].n_atoms
                         ]);
 
-                        let pair_energy = fragments[ind1]
+                        let pair_energy:f64 = fragments[ind1]
                             .final_charges
                             .dot(&g0_dimer_ab.dot(&fragments[ind2].final_charges));
 
+                        esd_pairs.push(pair_energy.clone());
                         energy_pair = Some(pair_energy);
                     }
 
@@ -2595,6 +2602,15 @@ pub fn fmo_ncc_pairs_esdim_embedding(
             vec_pair_result
         })
         .collect();
+
+    //print something
+    let esd_pairs:Array1<f64> = Array::from(esd_pairs);
+    let real_pairs:Array1<f64> = Array::from(real_pairs);
+    let embedding_en:Array1<f64> = Array::from(embedding_vecs);
+
+    println!("Real pairs energy: {}",real_pairs.sum());
+    println!("Esd pairs energy {}",esd_pairs.sum());
+    println!("Embedding energy {}",embedding_en.sum());
 
     // transform Vec<Vec> back to Vec<>
     let mut pair_result: Vec<f64> = Vec::new();
