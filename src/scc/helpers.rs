@@ -34,21 +34,13 @@ pub fn get_homo_lumo_gap(orbe: ArrayView1<f64>, homo_lumo_idx: (usize, usize)) -
 /// Compute energy due to core electrons and nuclear repulsion
 pub fn get_repulsive_energy(
     atoms: &[Atom],
-    positions: ArrayView2<f64>,
     n_atoms: usize,
     v_rep: &RepulsivePotential,
 ) -> f64 {
     let mut e_nuc: f64 = 0.0;
-    for (i, (atomi, posi)) in atoms[1..n_atoms]
-        .iter()
-        .zip(positions.slice(s![1..n_atoms, ..]).outer_iter())
-        .enumerate()
-    {
-        for (atomj, posj) in atoms[0..i + 1]
-            .iter()
-            .zip(positions.slice(s![0..(i + 1), ..]).outer_iter())
-        {
-            let r: f64 = (&posi - &posj).norm();
+    for (i, atomi) in atoms[1..n_atoms].iter().enumerate(){
+        for atomj in atoms[0..i + 1].iter() {
+            let r: f64 = (atomi - atomj).norm();
             // nucleus-nucleus and core-electron repulsion
             e_nuc += v_rep.get(atomi.kind, atomj.kind).spline_eval(r);
         }

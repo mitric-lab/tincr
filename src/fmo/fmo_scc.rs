@@ -1,4 +1,4 @@
-use crate::fmo::{Monomer, SuperSystem, Pair};
+use crate::fmo::{Monomer, Pair, SuperSystem};
 use crate::initialization::Atom;
 use crate::scc::gamma_approximation::{gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab};
 use crate::scc::h0_and_s::{h0_and_s, h0_and_s_ab};
@@ -9,6 +9,7 @@ use crate::scc::{
     construct_h1, density_matrix, density_matrix_ref, get_electronic_energy, get_repulsive_energy,
     lc_exact_exchange,
 };
+use approx::AbsDiffEq;
 use ndarray::parallel::prelude::IntoParallelRefIterator;
 use ndarray::prelude::*;
 use ndarray::stack;
@@ -16,6 +17,7 @@ use ndarray_linalg::{Eigh, Inverse, SymmetricSqrt, UPLO};
 use ndarray_stats::QuantileExt;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::IntoParallelRefMutIterator;
+use std::ops::SubAssign;
 
 impl RestrictedSCC for SuperSystem {
     ///  To run the SCC calculation of the FMO [SuperSystem] the following properties need to be set:
@@ -69,19 +71,97 @@ impl RestrictedSCC for SuperSystem {
         // this is the electrostatic potential that acts on the pairs
         // PARALLEL: The dot product could be parallelized and then it is not necessary to convert
         // the ArrayView into an owned ArrayBase
-        let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
+        //let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
         for mol in self.monomers.iter_mut() {
-            mol.properties.set_esp_q(esp_at.slice(s![mol.atom_slice]).to_owned());
+            let mut esp_slice: Array1<f64> = self
+                .properties
+                .gamma()
+                .unwrap()
+                .slice(s![mol.atom_slice, 0..])
+                .dot(&dq);
+            esp_slice.sub_assign(
+                &self
+                    .properties
+                    .gamma()
+                    .unwrap()
+                    .slice(s![mol.atom_slice, mol.atom_slice])
+                    .dot(&mol.properties.dq().unwrap()),
+            );
+            // mol.properties
+            //     .set_esp_q(esp_at.slice(s![mol.atom_slice]).to_owned());
+            mol.properties.set_esp_q(esp_slice);
         }
+        // SCC iteration for each pair that is treated exact
         for pair in self.pairs.iter_mut() {
             pair.prepare_scc(&self.monomers[pair.i], &self.monomers[pair.j]);
             pair.run_scc();
-
+        }
+        // Assembling of the energy following Eq. 11 in
+        // https://pubs.acs.org/doi/pdf/10.1021/ct500489d
+        // E = sum_I^N E_I^ + sum_(I>J)^N ( E_(IJ) - E_I - E_J ) + sum_(I>J)^(N) DeltaE_(IJ)^V
+        let mut total_energy: f64 = 0.0;
+        for mol in self.monomers.iter_mut() {
+            let scf_energy: f64 =  mol.properties.last_energy().unwrap();
+            let e_rep: f64 = get_repulsive_energy(&mol.atoms, mol.n_atoms, &mol.vrep);
+            mol.properties.set_last_energy(scf_energy + e_rep);
+            total_energy += scf_energy + e_rep;
+        }
+        let mut emb: f64 = 0.0;
+        println!("MONOMER ENERGIES {}", total_energy);
+        for pair in self.pairs.iter() {
+            let m_i: &Monomer = &self.monomers[pair.i];
+            let m_j: &Monomer = &self.monomers[pair.j];
+            emb += pair.properties.last_energy().unwrap()
+                - m_i.properties.last_energy().unwrap()
+                - m_j.properties.last_energy().unwrap();
+            total_energy += m_i
+                .properties
+                .esp_q()
+                .unwrap()
+                .dot(&pair.properties.delta_dq().unwrap().slice(s![..m_i.n_atoms]));
+            total_energy += m_j
+                .properties
+                .esp_q()
+                .unwrap()
+                .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
+            total_energy -= self
+                .properties
+                .gamma()
+                .unwrap()
+                .slice(s![m_i.atom_slice, m_j.atom_slice])
+                .dot(&m_j.properties.dq().unwrap())
+                .dot(&pair.properties.delta_dq().unwrap().slice(s![..m_i.n_atoms]));
+            total_energy -= self
+                .properties
+                .gamma()
+                .unwrap()
+                .slice(s![m_j.atom_slice, m_i.atom_slice])
+                .dot(&m_i.properties.dq().unwrap())
+                .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
+        }
+        println!("ESD PAIRS {} {}", self.esd_pairs.len(), self.pairs.len());
+        let mut bla: f64 = 0.0;
+        for esd_pair in self.esd_pairs.iter() {
+            let m_i: &Monomer = &self.monomers[esd_pair.i];
+            let m_j: &Monomer = &self.monomers[esd_pair.j];
+            bla += m_i
+                .properties
+                .dq()
+                .unwrap()
+                .dot(
+                    &self
+                        .properties
+                        .gamma()
+                        .unwrap()
+                        .slice(s![m_i.atom_slice, m_j.atom_slice]),
+                )
+                .dot(&m_j.properties.dq().unwrap());
         }
 
         // scc loop for each dimer that is not labeled as ESD pair
         //for pair in self.pairs
-        println!("SCC");
+        println!("SCC {}", emb);
+
         Ok(0.0)
     }
 }
@@ -89,8 +169,7 @@ impl RestrictedSCC for SuperSystem {
 impl Monomer {
     pub fn prepare_scc(&mut self) {
         // get H0 and S
-        let (s, h0): (Array2<f64>, Array2<f64>) =
-            h0_and_s(self.n_orbs, &self.atoms,&self.slako);
+        let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(self.n_orbs, &self.atoms, &self.slako);
         // convert generalized eigenvalue problem H.C = S.C.e into eigenvalue problem H'.C' = C'.e
         // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
@@ -231,13 +310,17 @@ impl Pair {
         let mu: usize = m1.n_orbs;
         let a: usize = m1.n_atoms;
 
-        s.slice_mut(s![0..mu, 0..mu]).assign(&m1.properties.s().unwrap());
-        s.slice_mut(s![mu.., mu..]).assign(&m2.properties.s().unwrap());
+        s.slice_mut(s![0..mu, 0..mu])
+            .assign(&m1.properties.s().unwrap());
+        s.slice_mut(s![mu.., mu..])
+            .assign(&m2.properties.s().unwrap());
         s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
         s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
 
-        h0.slice_mut(s![0..mu, 0..mu]).assign(&m1.properties.h0().unwrap());
-        h0.slice_mut(s![mu.., mu..]).assign(&m2.properties.h0().unwrap());
+        h0.slice_mut(s![0..mu, 0..mu])
+            .assign(&m1.properties.h0().unwrap());
+        h0.slice_mut(s![mu.., mu..])
+            .assign(&m2.properties.h0().unwrap());
         h0.slice_mut(s![0..mu, mu..]).assign(&h0_ab);
         h0.slice_mut(s![mu.., 0..mu]).assign(&h0_ab.t());
 
@@ -245,11 +328,21 @@ impl Pair {
         // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
         // get the gamma matrix
-        let gamma_ab: Array2<f64> = gamma_atomwise_ab(&self.gammafunction, &m1.atoms, &m2.atoms, m1.n_atoms, m2.n_atoms);
+        let gamma_ab: Array2<f64> = gamma_atomwise_ab(
+            &self.gammafunction,
+            &m1.atoms,
+            &m2.atoms,
+            m1.n_atoms,
+            m2.n_atoms,
+        );
         let mut gamma: Array2<f64> = Array2::zeros([self.n_atoms, self.n_atoms]);
 
-        gamma.slice_mut(s![0..a, 0..a]).assign(&m1.properties.gamma().unwrap());
-        gamma.slice_mut(s![a.., a..]).assign(&m2.properties.gamma().unwrap());
+        gamma
+            .slice_mut(s![0..a, 0..a])
+            .assign(&m1.properties.gamma().unwrap());
+        gamma
+            .slice_mut(s![a.., a..])
+            .assign(&m2.properties.gamma().unwrap());
         gamma.slice_mut(s![0..a, a..]).assign(&gamma_ab);
         gamma.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
 
@@ -258,11 +351,15 @@ impl Pair {
         // Recent Advances of the Fragment Molecular Orbital Method
         // See: https://www.springer.com/gp/book/9789811592348
         let mut esp: Array1<f64> = Array1::zeros([self.n_atoms]);
-        esp.slice_mut(s![0..a]).assign(&(&m1.properties.esp_q().unwrap() - &(gamma_ab.dot(&m2.properties.dq().unwrap()))));
-        esp.slice_mut(s![a..]).assign(&(&m2.properties.esp_q().unwrap() - &(gamma_ab.t().dot(&m1.properties.dq().unwrap()))));
+        esp.slice_mut(s![0..a]).assign(
+            &(&m1.properties.esp_q().unwrap() - &(gamma_ab.dot(&m2.properties.dq().unwrap()))),
+        );
+        esp.slice_mut(s![a..]).assign(
+            &(&m2.properties.esp_q().unwrap() - &(gamma_ab.t().dot(&m1.properties.dq().unwrap()))),
+        );
         // and convert it into a matrix in AO basis
         let omega: Array2<f64> = atomvec_to_aomat(esp.view(), self.n_orbs, &self.atoms);
-        self.properties.set_v(omega*&s*0.5);
+        self.properties.set_v(omega * &s * 0.5);
 
         // and save it in the self properties
         self.properties.set_h0(h0);
@@ -280,7 +377,7 @@ impl Pair {
             .collect();
         self.properties.set_occupation(f);
 
-        // if the system contains a long-range corrected Gammafunction the gamma matrix will be computed
+        // if the system contains a long-range corrected Gamma function the gamma matrix will be computed
         if self.gammafunction_lc.is_some() {
             let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
                 self.gammafunction_lc.as_ref().unwrap(),
@@ -292,12 +389,15 @@ impl Pair {
             self.properties.set_gamma_lr_ao(gamma_lr_ao);
         }
 
-        // if this is the first SCC calculation the charge differences will be initialized to zeros
+        // if this is the first SCC calculation the charge will be taken from the corresponding
+        // monomers
         if !self.properties.contains_key("dq") {
-            self.properties.set_dq(stack![Axis(0), m1.properties.dq().unwrap(), m2.properties.dq().unwrap()]);
+            self.properties.set_dq(stack![
+                Axis(0),
+                m1.properties.dq().unwrap(),
+                m2.properties.dq().unwrap()
+            ]);
         }
-
-        self.properties.set_mixer(BroydenMixer::new(self.n_atoms));
 
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
@@ -315,9 +415,11 @@ impl Pair {
     fn run_scc(&mut self) {
         let scf_charge_conv: f64 = self.config.scf.scf_charge_conv;
         let scf_energy_conv: f64 = self.config.scf.scf_energy_conv;
-        let max_iter: usize = 10;//self.config.scf.scf_max_cycles;
-        let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
-        let mut mixer: BroydenMixer = self.properties.take_mixer().unwrap();
+        let max_iter: usize = self.config.scf.scf_max_cycles;
+        // Create a copy of the dq's as they will be used later for the calculation of the
+        // Delta dq
+        let mut dq: Array1<f64> = self.properties.dq().unwrap().to_owned();
+        let mut mixer: BroydenMixer = BroydenMixer::new(self.n_atoms);
         let x: ArrayView2<f64> = self.properties.x().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
@@ -331,7 +433,8 @@ impl Pair {
         let h_esp: Array2<f64> = &h0 + &v;
 
         'scf_loop: for iter in 0..max_iter {
-            let h_coul: Array2<f64> = atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms) * &s * 0.5;
+            let h_coul: Array2<f64> =
+                atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms) * &s * 0.5;
             let mut h: Array2<f64> = h_coul + &h_esp;
             if self.gammafunction_lc.is_some() {
                 let h_x: Array2<f64> =
@@ -382,14 +485,18 @@ impl Pair {
                 false
             };
 
+            last_energy = scf_energy;
             if converged {
-                self.properties.set_last_energy(scf_energy);
+                let e_rep: f64 = get_repulsive_energy(&self.atoms, self.n_atoms, &self.vrep);
+                self.properties.set_last_energy(scf_energy + e_rep);
                 break 'scf_loop;
             }
         }
+        // only remove the large arrays not the energy or charges
         self.properties.reset();
+        self.properties
+            .set_delta_dq(&dq - &self.properties.dq().unwrap());
         self.properties.set_dq(dq);
-        //return converged;
     }
 }
 

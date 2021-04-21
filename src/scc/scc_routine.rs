@@ -152,7 +152,7 @@ impl<'a> RestrictedSCC for System {
         let mut scf_energy: f64 = 0.0;
         let mut converged: bool = false;
         // add nuclear energy to the total scf energy
-        let rep_energy: f64 = get_repulsive_energy(&self.atoms, self.geometry.coordinates.view(), self.n_atoms, &self.vrep);
+        let rep_energy: f64 = get_repulsive_energy(&self.atoms, self.n_atoms, &self.vrep);
 
         // initialize the charge mixer
         let mut broyden_mixer: BroydenMixer = BroydenMixer::new(self.n_atoms);

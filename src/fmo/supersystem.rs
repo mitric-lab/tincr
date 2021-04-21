@@ -135,9 +135,9 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // PARALLEL: this loop should be parallelized
         for (i, monomer_i) in monomers.iter().enumerate() {
             for (j, monomer_j) in monomers[(i+1)..].iter().enumerate() {
-                match get_pair_type(monomer_i, monomer_j, 2.0) {
+                match get_pair_type(monomer_i, monomer_j, 1.8) {
                     PairType::Pair => pairs.push(monomer_i + monomer_j),
-                    PairType::ESD => esd_pairs.push(ESDPair::new(i, j, monomer_i, monomer_j)),
+                    PairType::ESD => esd_pairs.push(ESDPair::new(i, (i+j+1), monomer_i, monomer_j)),
                     _ => {}
                 }
             }

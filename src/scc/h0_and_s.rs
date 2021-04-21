@@ -27,63 +27,56 @@ pub fn h0_and_s_ab(
                 for orbj in atomj.valorbs.iter() {
                     //if geometry.proximities.as_ref().unwrap()[[i, j]] {
                     if (atomi-atomj).norm() < PROXIMITY_CUTOFF {
-                        if mu < nu {
-                            if atomi <= atomj {
-                                if i != j {
-                                    let (r, x, y, z): (f64, f64, f64, f64) =
-                                        directional_cosines(&atomi.xyz, &atomj.xyz);
-                                    s[[mu, nu]] = slako_transformation(
-                                        r,
-                                        x,
-                                        y,
-                                        z,
-                                        &skt.get(atomi.kind, atomj.kind).s_spline,
-                                        orbi.l,
-                                        orbi.m,
-                                        orbj.l,
-                                        orbj.m,
-                                    );
-                                    h0[[mu, nu]] = slako_transformation(
-                                        r,
-                                        x,
-                                        y,
-                                        z,
-                                        &skt.get(atomi.kind, atomj.kind).h_spline,
-                                        orbi.l,
-                                        orbi.m,
-                                        orbj.l,
-                                        orbj.m,
-                                    );
-                                }
-                            } else {
+                        if atomi<=atomj {
                                 let (r, x, y, z): (f64, f64, f64, f64) =
-                                    directional_cosines(&atomj.xyz, &atomi.xyz);
+                                    directional_cosines(&atomi.xyz, &atomj.xyz);
                                 s[[mu, nu]] = slako_transformation(
                                     r,
                                     x,
                                     y,
                                     z,
-                                    &skt.get(atomj.kind, atomi.kind).s_spline,
-                                    orbj.l,
-                                    orbj.m,
+                                    &skt.get(atomi.kind, atomj.kind).s_spline,
                                     orbi.l,
                                     orbi.m,
+                                    orbj.l,
+                                    orbj.m,
                                 );
                                 h0[[mu, nu]] = slako_transformation(
                                     r,
                                     x,
                                     y,
                                     z,
-                                    &skt.get(atomj.kind, atomi.kind).h_spline,
-                                    orbj.l,
-                                    orbj.m,
+                                    &skt.get(atomi.kind, atomj.kind).h_spline,
                                     orbi.l,
                                     orbi.m,
+                                    orbj.l,
+                                    orbj.m,
                                 );
-                            }
                         } else {
-                            s[[mu, nu]] = s[[nu, mu]];
-                            h0[[mu, nu]] = h0[[nu, mu]];
+                            let (r, x, y, z): (f64, f64, f64, f64) =
+                                directional_cosines(&atomj.xyz, &atomi.xyz);
+                            s[[mu, nu]] = slako_transformation(
+                                r,
+                                x,
+                                y,
+                                z,
+                                &skt.get(atomj.kind, atomi.kind).s_spline,
+                                orbj.l,
+                                orbj.m,
+                                orbi.l,
+                                orbi.m,
+                            );
+                            h0[[mu, nu]] = slako_transformation(
+                                r,
+                                x,
+                                y,
+                                z,
+                                &skt.get(atomj.kind, atomi.kind).h_spline,
+                                orbj.l,
+                                orbj.m,
+                                orbi.l,
+                                orbi.m,
+                            );
                         }
                     }
                     nu = nu + 1;
