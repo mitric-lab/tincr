@@ -320,7 +320,7 @@ pub fn fmo_pair_scc(
     // calculate ESP term V
     let g0_ab: ArrayView2<f64> = molecule.g0.slice(s![0..atoms_a, atoms_a..]);
     let esp_a: Array1<f64> = -g0_ab.dot(&dq_vec[index_b]) + om_matrices[index_a].view();
-    let esp_b: Array1<f64> = -g0_ab.t().dot(&dq_vec[index_b]) + om_matrices[index_b].view();
+    let esp_b: Array1<f64> = -g0_ab.t().dot(&dq_vec[index_a]) + om_matrices[index_b].view();
 
     let esp: Array1<f64> = stack(Axis(0), &[esp_a.view(), esp_b.view()]).unwrap();
     let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);

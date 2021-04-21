@@ -2188,8 +2188,26 @@ pub fn fmo_calculate_fragments_ncc(
             );
         }
     }
+    let om_monomers: Vec<Array1<f64>> = fragments
+        .iter_mut()
+        .enumerate()
+        .map(|(index, frag)| {
+            let mut esp: Array1<f64> = Array1::zeros(frag.n_atoms);
 
-    return (energy_old, s_matrices, om_monomer_matrices,dq_old);
+            for (ind_k, dq_frag) in dq_old.iter().enumerate() {
+                if ind_k != index {
+                    let g0_slice: ArrayView2<f64> = g0_total.slice(s![
+                    frag_indices[index]..frag_indices[index] + frag.n_atoms,
+                    frag_indices[ind_k]..frag_indices[ind_k] + dq_frag.len()
+                ]);
+                    esp = esp + g0_slice.dot(dq_frag);
+                }
+            }
+            let esp_arr:Array1<f64> = esp;
+            esp_arr
+        }).collect();
+
+    return (energy_old, s_matrices, om_monomers,dq_old);
 }
 
 pub fn fmo_ncc_pairs_esdim_embedding(
