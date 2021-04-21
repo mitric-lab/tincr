@@ -2047,10 +2047,9 @@ pub fn fmo_calculate_fragments_ncc(
                     Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
                 let mut om_monomer: Array1<f64> = Array1::zeros(frag.n_atoms);
                 if i == 0 {
-                    let (energy_temp, s_temp, x_opt, h0, h0_coul, om_monomer): (
+                    let (energy_temp, s_temp, x_opt, h0, om_monomer): (
                         f64,
                         Array2<f64>,
-                        Option<Array2<f64>>,
                         Option<Array2<f64>>,
                         Option<Array2<f64>>,
                         Option<Array1<f64>>,
@@ -2068,10 +2067,9 @@ pub fn fmo_calculate_fragments_ncc(
                     energy = energy_temp;
                     s = s_temp;
                 } else {
-                    let (energy_temp, s_temp, x_opt, h0, h0_coul, om_temp): (
+                    let (energy_temp, s_temp, x_opt, h0, om_temp): (
                         f64,
                         Array2<f64>,
-                        Option<Array2<f64>>,
                         Option<Array2<f64>>,
                         Option<Array2<f64>>,
                         Option<Array1<f64>>,
@@ -2088,10 +2086,10 @@ pub fn fmo_calculate_fragments_ncc(
                     );
                     energy = energy_temp;
                     om_monomer = om_temp.unwrap();
-                    if i == 6{
-                        let (gradient,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),s_temp.view());
-                        println!("Gradient of monomer: {}",gradient);
-                    }
+                    // if i == 6{
+                    //     let (gradient,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),s_temp.view());
+                    //     println!("Gradient of monomer: {}",gradient);
+                    // }
                 }
 
                 // calculate dq diff and pmat diff
@@ -2468,7 +2466,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             .assign(&mol_b.final_charges);
                         pair.set_final_charges(dq);
 
-                        let (energy, s, h0_coul): (f64, Array2<f64>, Option<Array2<f64>>) =
+                        let (energy, s): (f64, Array2<f64>) =
                             fmo_pair_scc(
                                 &mut pair,
                                 mol_a.n_atoms,

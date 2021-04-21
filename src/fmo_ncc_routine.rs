@@ -29,10 +29,9 @@ pub fn generate_initial_fmo_monomer_guess(fragments: &mut Vec<Molecule>) -> (Vec
         .iter_mut()
         .map(|frag| {
             frag.set_repulsive_energy();
-            let (energy, s, x_option, h, h0_coul, om_monomer): (
+            let (energy, s, x_option, h, om_monomer): (
                 f64,
                 Array2<f64>,
-                Option<Array2<f64>>,
                 Option<Array2<f64>>,
                 Option<Array2<f64>>,
                 Option<Array1<f64>>,
@@ -74,7 +73,6 @@ pub fn fmo_ncc(
 ) -> (
     f64,
     Array2<f64>,
-    Option<Array2<f64>>,
     Option<Array2<f64>>,
     Option<Array2<f64>>,
     Option<Array1<f64>>,
@@ -131,7 +129,7 @@ pub fn fmo_ncc(
 
     // return h0 + h_coul if calc_gradients is true
     if calc_gradients {
-        h0_coul_opt = Some(h_coul + h0.view());
+        molecule.set_h_coul(h_coul + h0.view());
     }
 
     // calculate ESP term V
@@ -197,7 +195,7 @@ pub fn fmo_ncc(
     h = x.t().dot(&h).dot(&x);
     let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
     let orbe: Array1<f64> = tmp.0;
-    let orbs: Array2<f64> = x.dot(&tmp.1);
+    let orbs:Array2<f64> = x.dot(&tmp.1);
 
     // construct density matrix
     let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
@@ -239,14 +237,14 @@ pub fn fmo_ncc(
     );
     molecule.set_final_charges(dq);
     molecule.set_final_p_mat(p);
+    molecule.set_orbs(orbs);
 
     return (
         scf_energy + molecule.rep_energy,
         s,
         x_option,
         h_opt,
-        h0_coul_opt,
-        om_monomer,
+        om_monomer
     );
 }
 
@@ -261,7 +259,7 @@ pub fn fmo_pair_scc(
     dq_vec:&Vec<Array1<f64>>,
     g0_total:ArrayView2<f64>,
     indices_frags:&Vec<usize>,
-) -> (f64, Array2<f64>, Option<Array2<f64>>) {
+) -> (f64, Array2<f64>) {
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     let scf_charge_conv: f64 = molecule.config.scf.scf_charge_conv;
     let scf_energy_conv: f64 = molecule.config.scf.scf_energy_conv;
@@ -319,6 +317,25 @@ pub fn fmo_pair_scc(
     );
     info!("{:-^75} ", "");
 
+    // calculate ESP term V
+    let g0_ab: ArrayView2<f64> = molecule.g0.slice(s![0..atoms_a, atoms_a..]);
+    let esp_a: Array1<f64> = -g0_ab.dot(&dq_vec[index_b]) + om_matrices[index_a].view();
+    let esp_b: Array1<f64> = -g0_ab.t().dot(&dq_vec[index_b]) + om_matrices[index_b].view();
+
+    let esp: Array1<f64> = stack(Axis(0), &[esp_a.view(), esp_b.view()]).unwrap();
+    let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
+
+    let mut mu: usize = 0;
+    for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
+        for _ in &molecule.calculator.valorbs[z_i] {
+            esp_ao[mu] = esp[i];
+            mu = mu + 1;
+        }
+    }
+    let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
+    let v_temp: Array2<f64> = &esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
+    let v_mat: Array2<f64> = 0.5 * v_temp * s.view();
+
     'scf_loop: for i in 0..max_iter {
         let h1: Array2<f64> = construct_h1(&molecule, molecule.g0.view(), dq.view());
         let h_coul: Array2<f64> = h1 * s.view();
@@ -326,27 +343,9 @@ pub fn fmo_pair_scc(
 
         // return h0 + h_coul if calc_gradients is true
         if calc_gradients {
-            h0_coul_opt = Some(h_coul + h0.view());
+            molecule.set_h_coul(h_coul + h0.view());
         }
 
-        // calculate ESP term V
-        let g0_ab: ArrayView2<f64> = molecule.g0.slice(s![0..atoms_a, atoms_a..]);
-        let esp_a: Array1<f64> = -g0_ab.dot(&dq_vec[index_b]) + om_matrices[index_a].view();
-        let esp_b: Array1<f64> = -g0_ab.t().dot(&dq_vec[index_b]) + om_matrices[index_b].view();
-
-        let esp: Array1<f64> = stack(Axis(0), &[esp_a.view(), esp_b.view()]).unwrap();
-        let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
-
-        let mut mu: usize = 0;
-        for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
-            for _ in &molecule.calculator.valorbs[z_i] {
-                esp_ao[mu] = esp[i];
-                mu = mu + 1;
-            }
-        }
-        let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
-        let v_temp: Array2<f64> = &esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
-        let v_mat: Array2<f64> = 0.5 * v_temp * s.view();
         h = h + v_mat.view();
 
         // compare to long procedure
@@ -515,7 +514,7 @@ pub fn fmo_pair_scc(
         }
     }
 
-    return (scf_energy + rep_energy, s, h0_coul_opt);
+    return (scf_energy + rep_energy, s);
 }
 
 pub fn fmo_pair_ncc(
@@ -529,7 +528,7 @@ pub fn fmo_pair_ncc(
     dq_vec:&Vec<Array1<f64>>,
     g0_total:ArrayView2<f64>,
     indices_frags:&Vec<usize>,
-) -> (f64, Array2<f64>, Option<Array2<f64>>) {
+) -> (f64, Array2<f64>) {
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     // construct reference density matrix
     let p0: Array2<f64> = density_matrix_ref(&molecule);
@@ -562,7 +561,7 @@ pub fn fmo_pair_ncc(
 
     // return h0 + h_coul if calc_gradients is true
     if calc_gradients {
-        h0_coul_opt = Some(h_coul + h0.view());
+        molecule.set_h_coul(h_coul + h0.view());
     }
 
     // calculate ESP term V
@@ -682,7 +681,7 @@ pub fn fmo_pair_ncc(
     molecule.set_final_charges(dq);
     molecule.set_final_p_mat(p);
 
-    return (scf_energy + rep_energy, s, h0_coul_opt);
+    return (scf_energy + rep_energy, s);
 }
 
 // find indeces of HOMO and LUMO orbitals (starting from 0)

@@ -251,8 +251,10 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let (indices_frags,prox_mat,dist_mat,direct_mat,full_hubbard): (Vec<usize>, Array2<bool>,Array2<f64>, Array3<f64>,HashMap<u8,f64>) =
-                reorder_molecule_gradients(&fragments, config.clone(), positions.raw_dim());
+            // let (indices_frags,prox_mat,dist_mat,direct_mat,full_hubbard): (Vec<usize>, Array2<bool>,Array2<f64>, Array3<f64>,HashMap<u8,f64>) =
+            //     reorder_molecule_gradients(&fragments, config.clone(), positions.raw_dim());
+            let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat,full_hubbard): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>,HashMap<u8, f64>) =
+                reorder_molecule_v2(&fragments, config.clone(), positions.raw_dim());
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -262,7 +264,9 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
-            let fragments_data: Vec<frag_grad_result> = fmo_calculate_fragment_gradients_par(&mut fragments);
+            // let fragments_data: Vec<frag_grad_result> = fmo_calculate_fragment_gradients_par(&mut fragments);
+            let (frag_energies,s_matrices,om_matrices,dq_vec,gradient_vec):(Array1<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>,Vec<Array1<f64>>,Vec<frag_gradient_result>) = fmo_fragments_gradients_ncc(&mut fragments,gamma_total.view(),&indices_frags);
+            println!("Monomer energy sum {}",frag_energies.sum());
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -283,8 +287,9 @@ fn main() {
             // drop(molecule_timer);
             // let molecule_timer: Instant = Instant::now();
 
-            let gradients:Array1<f64> = fmo_calculate_pairs_embedding_esdim(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard);
+            // let gradients:Array1<f64> = fmo_calculate_pairs_embedding_esdim(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard);
             // let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,&dist_mat,&direct_mat,&full_hubbard);
+            let gradients:Array1<f64> = fmo_gradient_pairs_embedding_esdim(&fragments, &gradient_vec, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard,gamma_total.view(),&om_matrices,&dq_vec,&s_matrices);
 
             println!(
                 "{:>68} {:>8.2} s",

@@ -51,7 +51,9 @@ pub struct Molecule {
     pub g1:Option<Array3<f64>>,
     pub g1_ao:Option<Array3<f64>>,
     pub broyden_mixer:BroydenMixer,
-    pub rep_energy:f64
+    pub rep_energy:f64,
+    pub saved_orbs:Option<Array2<f64>>,
+    pub saved_h_coul:Option<Array2<f64>>,
 }
 
 impl Molecule {
@@ -71,7 +73,7 @@ impl Molecule {
         saved_dist: Option<Array2<f64>>,
         saved_dir: Option<Array3<f64>>,
         saved_prox: Option<Array2<bool>>,
-        saved_gamma:Option<Array2<f64>>
+        saved_gamma:Option<Array2<f64>>,
     ) -> Molecule {
         let (atomtypes, unique_numbers): (HashMap<u8, String>, Vec<u8>) =
             get_atomtypes(atomic_numbers.clone());
@@ -182,6 +184,8 @@ impl Molecule {
         let g1_ao:Option<Array3<f64>> = None;
         let mut broyden_mixer: BroydenMixer = BroydenMixer::new(n_atoms);
         let rep_energy:f64 = 0.0;
+        let saved_orbs:Option<Array2<f64>> = None;
+        let saved_h_coul:Option<Array2<f64>> = None;
 
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
@@ -208,7 +212,9 @@ impl Molecule {
             g1:g1,
             g1_ao:g1_ao,
             broyden_mixer:broyden_mixer,
-            rep_energy:rep_energy
+            rep_energy:rep_energy,
+            saved_orbs:saved_orbs,
+            saved_h_coul:saved_h_coul,
         };
 
         return mol;
@@ -282,6 +288,8 @@ impl Molecule {
     pub fn set_repulsive_energy(&mut self){
         self.rep_energy = get_repulsive_energy(&self);
     }
+    pub fn set_orbs(&mut self,orbs:Array2<f64>){self.saved_orbs = Some(orbs);}
+    pub fn set_h_coul(&mut self,h_coul:Array2<f64>){self.saved_h_coul=Some(h_coul);}
 }
 pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
     // find unique atom types
