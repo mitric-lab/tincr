@@ -35,7 +35,7 @@ pub fn generate_initial_fmo_monomer_guess(fragments: &mut Vec<Molecule>) -> (Vec
                 Option<Array2<f64>>,
                 Option<Array2<f64>>,
                 Option<Array1<f64>>,
-            ) = fmo_ncc(frag, None, None, None, None, None, None, None, false);
+            ) = fmo_ncc(frag, None, None, None, None, None, None, false,None);
             let matrices: ncc_matrices = ncc_matrices::new(s, h, x_option);
             matrices
         })
@@ -65,11 +65,11 @@ pub fn fmo_ncc(
     x_mat: Option<Array2<f64>>,
     s_mat: Option<Array2<f64>>,
     h_mat: Option<Array2<f64>>,
-    dq_k: Option<Vec<Array1<f64>>>,
     g0_total: Option<ArrayView2<f64>>,
     index: Option<usize>,
     frag_atoms_index: Option<Vec<usize>>,
     calc_gradients: bool,
+    dq_arr:Option<ArrayView1<f64>>,
 ) -> (
     f64,
     Array2<f64>,
@@ -92,11 +92,7 @@ pub fn fmo_ncc(
         Array2::zeros((molecule.calculator.n_orbs, molecule.calculator.n_orbs));
     let mut h_opt: Option<Array2<f64>> = None;
     let mut x_option: Option<Array2<f64>> = None;
-    let mut dq_monomers: Vec<Array1<f64>> = Vec::new();
     let mut h0_coul_opt: Option<Array2<f64>> = None;
-    if dq_k.is_some() {
-        dq_monomers = dq_k.unwrap();
-    }
 
     if x_mat.is_none() {
         let (s_mat, h0_mat): (Array2<f64>, Array2<f64>) = h0_and_s(
@@ -135,36 +131,43 @@ pub fn fmo_ncc(
     // calculate ESP term V
     let mut v_mat: Array2<f64> = Array::zeros(s.raw_dim());
     let mut om_monomer: Option<Array1<f64>> = None;
-    if dq_monomers.len() > 0 {
+    if dq_arr.is_some(){
         if g0_total.is_some() {
             let ind: usize = index.unwrap();
             let atoms_ind: Vec<usize> = frag_atoms_index.unwrap();
+            let dq_monomers_arr:ArrayView1<f64> = dq_arr.unwrap();
             let g0: ArrayView2<f64> = g0_total.unwrap();
-            let mut esp: Array1<f64> = Array1::zeros(molecule.n_atoms);
+            let mut esp_2: Array1<f64> = Array1::zeros(molecule.n_atoms);
 
-            for (ind_k, dq_frag) in dq_monomers.iter().enumerate() {
-                if ind_k != ind {
-                    let g0_slice: ArrayView2<f64> = g0.slice(s![
-                        atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms,
-                        atoms_ind[ind_k]..atoms_ind[ind_k] + dq_frag.len()
-                    ]);
-                    // let esp: Array1<f64> = g0_slice.dot(dq_frag);
-                    // let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
-                    //
-                    // let mut mu: usize = 0;
-                    // for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
-                    //     for _ in &molecule.calculator.valorbs[z_i] {
-                    //         esp_ao[mu] = esp[i];
-                    //         mu = mu + 1;
-                    //     }
-                    // }
-                    // let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
-                    // v_temp.add_assign(
-                    //     &(&esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao),
-                    // );
-                    esp = esp + g0_slice.dot(dq_frag);
-                }
-            }
+            let g0_slice:ArrayView2<f64> = g0.slice(s![atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms,..]);
+            let g0_a_slice:ArrayView2<f64> = g0.slice(s![atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms,atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms]);
+            let mut esp:Array1<f64> = g0_slice.dot(&dq_monomers_arr);
+            esp = esp - g0_a_slice.dot(&dq_monomers_arr.slice(s![atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms]));
+
+            // for (ind_k, dq_frag) in dq_monomers.iter().enumerate() {
+            //     if ind_k != ind {
+            //         let g0_slice: ArrayView2<f64> = g0.slice(s![
+            //             atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms,
+            //             atoms_ind[ind_k]..atoms_ind[ind_k] + dq_frag.len()
+            //         ]);
+            //         // let esp: Array1<f64> = g0_slice.dot(dq_frag);
+            //         // let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
+            //         //
+            //         // let mut mu: usize = 0;
+            //         // for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
+            //         //     for _ in &molecule.calculator.valorbs[z_i] {
+            //         //         esp_ao[mu] = esp[i];
+            //         //         mu = mu + 1;
+            //         //     }
+            //         // }
+            //         // let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
+            //         // v_temp.add_assign(
+            //         //     &(&esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao),
+            //         // );
+            //         esp_2 = esp_2 + g0_slice.dot(dq_frag);
+            //     }
+            // }
+            // assert_eq!(esp_2,esp,"ESP not equal");
             om_monomer = Some(esp.clone());
             let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);
 

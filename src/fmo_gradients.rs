@@ -3765,6 +3765,7 @@ pub fn fmo_fragments_gradients_ncc(
     let mut p_rmsd: Array1<f64> = Array1::zeros(fragments.len());
     let mut s_matrices: Vec<Array2<f64>> = Vec::new();
     let mut om_monomer_matrices: Vec<Array1<f64>> = Vec::new();
+    let mut dq_arr:Array1<f64> = Array1::zeros(*frag_indices.last().unwrap()+fragments.last().unwrap().n_atoms);
     let conv: f64 = 1e-6;
     let length: usize = fragments.len();
     let ncc_mats: Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
@@ -3778,6 +3779,7 @@ pub fn fmo_fragments_gradients_ncc(
                 let mut s: Array2<f64> =
                     Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
                 let mut om_monomer: Array1<f64> = Array1::zeros(frag.n_atoms);
+                let frag_index:usize = frag_indices[index];
                 if i == 0 {
                     let (energy_temp, s_temp, x_opt, h0, om_monomer): (
                         f64,
@@ -3793,8 +3795,8 @@ pub fn fmo_fragments_gradients_ncc(
                         None,
                         None,
                         None,
-                        None,
                         false,
+                        None,
                     );
                     energy = energy_temp;
                     s = s_temp;
@@ -3810,11 +3812,11 @@ pub fn fmo_fragments_gradients_ncc(
                         ncc_mats[index].x.clone(),
                         Some(ncc_mats[index].s.clone()),
                         ncc_mats[index].h0.clone(),
-                        Some(dq_old.clone()),
                         Some(g0_total),
                         Some(index),
                         Some(frag_indices.clone()),
                         true,
+                        Some(dq_arr.view()),
                     );
                     energy = energy_temp;
                     om_monomer = om_temp.unwrap();
@@ -3836,6 +3838,7 @@ pub fn fmo_fragments_gradients_ncc(
                     pmat_old.push(frag.final_p_matrix.clone());
                     s_matrices.push(s);
                     om_monomer_matrices.push(Array1::zeros(length));
+                    dq_arr.slice_mut(s![frag_index..frag_index+frag.n_atoms]).assign(&frag.final_charges);
                 } else {
                     let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
                     let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
@@ -3847,6 +3850,7 @@ pub fn fmo_fragments_gradients_ncc(
                     pmat_old[index] = frag.final_p_matrix.clone();
 
                     om_monomer_matrices[index] = om_monomer;
+                    dq_arr.slice_mut(s![frag_index..frag_index+frag.n_atoms]).assign(&frag.final_charges);
                 }
                 energy
             })
@@ -3892,6 +3896,30 @@ pub fn fmo_fragments_gradients_ncc(
             );
         }
     }
+    let om_monomers: Vec<Array1<f64>> = fragments
+        .iter_mut()
+        .enumerate()
+        .map(|(index, frag)| {
+            // let mut esp: Array1<f64> = Array1::zeros(frag.n_atoms);
+            // for (ind_k, dq_frag) in dq_old.iter().enumerate() {
+            //     if ind_k != index {
+            //         let g0_slice: ArrayView2<f64> = g0_total.slice(s![
+            //         frag_indices[index]..frag_indices[index] + frag.n_atoms,
+            //         frag_indices[ind_k]..frag_indices[ind_k] + dq_frag.len()
+            //     ]);
+            //         esp = esp + g0_slice.dot(dq_frag);
+            //     }
+            // }
+            // let esp_arr:Array1<f64> = esp;
+            // esp_arr
+
+            let g0_slice:ArrayView2<f64> = g0_total.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms,..]);
+            let g0_a_slice:ArrayView2<f64> = g0_total.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms,frag_indices[index]..frag_indices[index] + frag.n_atoms]);
+            let mut esp:Array1<f64> = g0_slice.dot(&dq_arr);
+            esp = esp - g0_a_slice.dot(&dq_arr.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms]));
+            esp
+        }).collect();
+
     let gradients_vec: Vec<frag_gradient_result> = fragments
         .iter_mut()
         .enumerate()
@@ -3901,7 +3929,7 @@ pub fn fmo_fragments_gradients_ncc(
             result
         }).collect();
 
-    return (energy_old, s_matrices, om_monomer_matrices,dq_old,gradients_vec);
+    return (energy_old, s_matrices, om_monomers,dq_old,gradients_vec);
 }
 
 pub fn fmo_gradient_pairs_embedding_esdim(
@@ -4870,6 +4898,57 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         }
         lagrangian_arr
     }).collect();
+
+    // calculate A matrix
+    let mut a_mat_i:Vec<Vec<Array4<f64>>> = Vec::new();
+    for (ind_a,frag_a) in fragments.iter().enumerate(){
+        let mut a_mat_j:Vec<Array4<f64>> = Vec::new();
+        let orbs_a:Array2<f64> = frag_a.saved_orbs.clone().unwrap();
+        for (ind_b,frag_b) in fragments.iter().enumerate(){
+            let orbs_b:Array2<f64> = frag_b.saved_orbs.clone().unwrap();
+            if ind_a <= ind_b{
+                let mut a_mat:Array4<f64> = Array4::zeros((frag_a.calculator.n_orbs,frag_a.calculator.n_orbs,frag_b.calculator.n_orbs,frag_b.calculator.n_orbs));
+
+                for i in (0..frag_a.calculator.n_orbs).into_iter(){
+                    for j in (0..frag_a.calculator.n_orbs).into_iter(){
+                        for k in (0..frag_b.calculator.n_orbs).into_iter(){
+                            for l in (0..frag_b.calculator.n_orbs).into_iter(){
+                                // energy difference for diagonal matrix elements
+                                // if i==j && i==k && j==l{
+                                //     a_mat[[i,j,k,l]] += frag_a.saved_orbe[j] - frag_a.saved_orbe[i];
+                                // }
+                                let mut q_j_kl:Array1<f64> = Array1::zeros(frag_b.n_atoms);
+                                let mut mu:usize = 0;
+                                for (c, z_c) in frag_b.atomic_numbers.iter().enumerate() {
+                                    for _ in &frag_b.calculator.valorbs[z_c] {
+                                        q_j_kl[c] +=(orbs_b[[mu,k]]*orbs_b.slice(s![..,l]).to_owned()+orbs_b[[mu,l]]*orbs_b.slice(s![..,k]).to_owned()).dot(&frag_s_matrices[ind_b].slice(s![mu,..]));
+                                        mu = mu + 1;
+                                    }
+                                }
+                                let g0_slice_ij:ArrayView2<f64> = g0_total.slice(s![indices_frags[ind_a]..indices_frags[ind_a] + frag_a.n_atoms,indices_frags[ind_b]..indices_frags[ind_b] + frag_b.n_atoms]);
+                                let esp_like:Array1<f64> = g0_slice_ij.dot(&q_j_kl);
+                                let mut esp_ao: Array1<f64> = Array1::zeros(frag_a.calculator.n_orbs);
+                                let mut mu: usize = 0;
+                                for (d, z_d) in frag_a.atomic_numbers.iter().enumerate() {
+                                    for _ in &frag_a.calculator.valorbs[z_d] {
+                                        esp_ao[mu] = esp_like[i];
+                                        mu = mu + 1;
+                                    }
+                                }
+                                let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
+                                let esp_temp: Array2<f64> =&esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
+                                let s_esp:Array2<f64> = frag_s_matrices[ind_a].dot(&esp_temp);
+                                a_mat[[i,j,k,l]] -= orbs_a.slice(s![..,i]).t().dot(&s_esp).dot(&orbs_a.slice(s![..,j]));
+                            }
+                        }
+                    }
+                    // let q_j_kl:Array2<f64> = 2.0 * orbs_b.t().dot(&frag_s_matrices[ind_b]).dot(&orbs_b);
+               }
+                a_mat_j.push(a_mat);
+            }
+        }
+        a_mat_i.push(a_mat_j);
+    }
 
     return total_gradient;
 }

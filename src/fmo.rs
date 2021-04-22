@@ -2031,8 +2031,8 @@ pub fn fmo_calculate_fragments_ncc(
     let mut pmat_old: Vec<Array2<f64>> = Vec::new();
     let mut dq_rmsd: Array1<f64> = Array1::zeros(fragments.len());
     let mut p_rmsd: Array1<f64> = Array1::zeros(fragments.len());
+    let mut dq_arr:Array1<f64> = Array1::zeros(*frag_indices.last().unwrap()+fragments.last().unwrap().n_atoms);
     let mut s_matrices: Vec<Array2<f64>> = Vec::new();
-    let mut om_monomer_matrices: Vec<Array1<f64>> = Vec::new();
     let conv: f64 = 1e-6;
     let length: usize = fragments.len();
     let ncc_mats: Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
@@ -2045,7 +2045,7 @@ pub fn fmo_calculate_fragments_ncc(
                 let mut energy: f64 = 0.0;
                 let mut s: Array2<f64> =
                     Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
-                let mut om_monomer: Array1<f64> = Array1::zeros(frag.n_atoms);
+                let frag_index:usize = frag_indices[index];
                 if i == 0 {
                     let (energy_temp, s_temp, x_opt, h0, om_monomer): (
                         f64,
@@ -2061,8 +2061,8 @@ pub fn fmo_calculate_fragments_ncc(
                         None,
                         None,
                         None,
-                        None,
                         false,
+                        Some(dq_arr.view()),
                     );
                     energy = energy_temp;
                     s = s_temp;
@@ -2078,14 +2078,13 @@ pub fn fmo_calculate_fragments_ncc(
                         ncc_mats[index].x.clone(),
                         Some(ncc_mats[index].s.clone()),
                         ncc_mats[index].h0.clone(),
-                        Some(dq_old.clone()),
                         Some(g0_total),
                         Some(index),
                         Some(frag_indices.clone()),
                         true,
+                        Some(dq_arr.view()),
                     );
                     energy = energy_temp;
-                    om_monomer = om_temp.unwrap();
                     // if i == 6{
                     //     let (gradient,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),s_temp.view());
                     //     println!("Gradient of monomer: {}",gradient);
@@ -2103,7 +2102,7 @@ pub fn fmo_calculate_fragments_ncc(
                     dq_old.push(frag.final_charges.clone());
                     pmat_old.push(frag.final_p_matrix.clone());
                     s_matrices.push(s);
-                    om_monomer_matrices.push(Array1::zeros(length));
+                    dq_arr.slice_mut(s![frag_index..frag_index+frag.n_atoms]).assign(&frag.final_charges);
                 } else {
                     let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
                     let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
@@ -2113,8 +2112,7 @@ pub fn fmo_calculate_fragments_ncc(
 
                     dq_old[index] = frag.final_charges.clone();
                     pmat_old[index] = frag.final_p_matrix.clone();
-
-                    om_monomer_matrices[index] = om_monomer;
+                    dq_arr.slice_mut(s![frag_index..frag_index+frag.n_atoms]).assign(&frag.final_charges);
                 }
                 energy
             })
@@ -2192,19 +2190,24 @@ pub fn fmo_calculate_fragments_ncc(
         .iter_mut()
         .enumerate()
         .map(|(index, frag)| {
-            let mut esp: Array1<f64> = Array1::zeros(frag.n_atoms);
+            // let mut esp: Array1<f64> = Array1::zeros(frag.n_atoms);
+            // for (ind_k, dq_frag) in dq_old.iter().enumerate() {
+            //     if ind_k != index {
+            //         let g0_slice: ArrayView2<f64> = g0_total.slice(s![
+            //         frag_indices[index]..frag_indices[index] + frag.n_atoms,
+            //         frag_indices[ind_k]..frag_indices[ind_k] + dq_frag.len()
+            //     ]);
+            //         esp = esp + g0_slice.dot(dq_frag);
+            //     }
+            // }
+            // let esp_arr:Array1<f64> = esp;
+            // esp_arr
 
-            for (ind_k, dq_frag) in dq_old.iter().enumerate() {
-                if ind_k != index {
-                    let g0_slice: ArrayView2<f64> = g0_total.slice(s![
-                    frag_indices[index]..frag_indices[index] + frag.n_atoms,
-                    frag_indices[ind_k]..frag_indices[ind_k] + dq_frag.len()
-                ]);
-                    esp = esp + g0_slice.dot(dq_frag);
-                }
-            }
-            let esp_arr:Array1<f64> = esp;
-            esp_arr
+            let g0_slice:ArrayView2<f64> = g0_total.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms,..]);
+            let g0_a_slice:ArrayView2<f64> = g0_total.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms,frag_indices[index]..frag_indices[index] + frag.n_atoms]);
+            let mut esp:Array1<f64> = g0_slice.dot(&dq_arr);
+            esp = esp - g0_a_slice.dot(&dq_arr.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms]));
+            esp
         }).collect();
 
     return (energy_old, s_matrices, om_monomers,dq_old);
@@ -2229,6 +2232,12 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     let mut atomic_numbers: Vec<u8> = Vec::new();
     atomic_numbers.append(&mut mol_a.atomic_numbers.clone());
     atomic_numbers.append(&mut mol_b.atomic_numbers.clone());
+
+    let mut dq_arr:Vec<f64> = Vec::new();
+    for i in dq_vec.iter(){
+        dq_arr.append(&mut i.clone().to_vec());
+    }
+    let dq_arr:Array1<f64> = Array::from(dq_arr);
 
     let distance_frag: Array2<f64> = dist_mat
         .slice(s![
@@ -2531,53 +2540,97 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             .collect();
                         let ddq_arr: Array1<f64> = Array::from(ddq_vec);
 
-                        let embedding_pot: Vec<f64> = fragments
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(ind_k, mol_k)| {
-                                if ind_k != ind1 && ind_k != ind2 {
-                                    let index_frag_iter: usize = indices_frags[ind_k];
-                                    // let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
-                                    //     index_pair_a..index_pair_a + frag_a_atoms,
-                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    // ]);
-                                    // let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
-                                    //     index_pair_b..index_pair_b + frag_b_atoms,
-                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    // ]);
-                                    // let trimer_distances:Array2<f64> = stack(Axis(0),&[trimer_distances_a,trimer_distances_b]).unwrap();
-                                    //
-                                    // let g0_trimer_ak: Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
-                                    //     &dimer_atomic_numbers,
-                                    //     &mol_k.atomic_numbers,
-                                    //     pair_atoms,
-                                    //     mol_k.n_atoms,
-                                    //     trimer_distances.view(),
-                                    //     full_hubbard,
-                                    //     Some(0.0));
-                                    let g0_trimer_a: ArrayView2<f64> = g0_total.slice(s![
-                                        index_pair_a..index_pair_a + frag_a_atoms,
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    ]);
-                                    let g0_trimer_b: ArrayView2<f64> = g0_total.slice(s![
-                                        index_pair_b..index_pair_b + frag_b_atoms,
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    ]);
-                                    let g0_trimer_ak: Array2<f64> =
-                                        stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
+                        // let embedding_pot: Vec<f64> = fragments
+                        //     .iter()
+                        //     .enumerate()
+                        //     .filter_map(|(ind_k, mol_k)| {
+                        //         if ind_k != ind1 && ind_k != ind2 {
+                        //             let index_frag_iter: usize = indices_frags[ind_k];
+                        //             // let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
+                        //             //     index_pair_a..index_pair_a + frag_a_atoms,
+                        //             //     index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             // ]);
+                        //             // let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
+                        //             //     index_pair_b..index_pair_b + frag_b_atoms,
+                        //             //     index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             // ]);
+                        //             // let trimer_distances:Array2<f64> = stack(Axis(0),&[trimer_distances_a,trimer_distances_b]).unwrap();
+                        //             //
+                        //             // let g0_trimer_ak: Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
+                        //             //     &dimer_atomic_numbers,
+                        //             //     &mol_k.atomic_numbers,
+                        //             //     pair_atoms,
+                        //             //     mol_k.n_atoms,
+                        //             //     trimer_distances.view(),
+                        //             //     full_hubbard,
+                        //             //     Some(0.0));
+                        //             let g0_trimer_a: ArrayView2<f64> = g0_total.slice(s![
+                        //                 index_pair_a..index_pair_a + frag_a_atoms,
+                        //                 index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             ]);
+                        //             let g0_trimer_b: ArrayView2<f64> = g0_total.slice(s![
+                        //                 index_pair_b..index_pair_b + frag_b_atoms,
+                        //                 index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             ]);
+                        //             let g0_trimer_ak: Array2<f64> =
+                        //                 stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
+                        //             let embedding: f64 =
+                        //                 ddq_arr.dot(&g0_trimer_ak.dot(&mol_k.final_charges));
+                        //             Some(embedding)
+                        //         } else {
+                        //             None
+                        //         }
+                        //     })
+                        //     .collect();
+                        // let g0_a: ArrayView2<f64> = g0_total.slice(s![
+                        //     index_pair_a..index_pair_a + frag_a_atoms,..
+                        // ]);
+                        // let g0_b: ArrayView2<f64> = g0_total.slice(s![
+                        //     index_pair_b..index_pair_b + frag_b_atoms,..
+                        // ]);
+                        // let g0_trimer: Array2<f64> =
+                        //     stack(Axis(0), &[g0_a, g0_b]).unwrap();
+                        // let embedding_total:f64 = ddq_arr.dot(&g0_trimer.dot(&dq_arr));
 
-                                    let embedding: f64 =
-                                        ddq_arr.dot(&g0_trimer_ak.dot(&mol_k.final_charges));
-                                    Some(embedding)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-                        let embedding_pot_sum: f64 = embedding_pot.sum();
+                        // let g0_a_1: ArrayView2<f64> = g0_total.slice(s![
+                        //     index_pair_a..index_pair_a + frag_a_atoms,
+                        //     index_pair_a..index_pair_a + frag_a_atoms
+                        // ]);
+                        let g0_a_2: ArrayView2<f64> = g0_total.slice(s![
+                            index_pair_a..index_pair_a + frag_a_atoms,
+                            index_pair_b..index_pair_b + frag_b_atoms
+                        ]);
+                        // let g0_b_2: ArrayView2<f64> = g0_total.slice(s![
+                        //     index_pair_b..index_pair_b + frag_b_atoms,
+                        //     index_pair_b..index_pair_b + frag_b_atoms
+                        // ]);
+                        // let g0_b_1: ArrayView2<f64> = g0_total.slice(s![
+                        //     index_pair_b..index_pair_b + frag_b_atoms,
+                        //     index_pair_a..index_pair_a + frag_a_atoms
+                        // ]);
+
+                        // let g0_a:Array2<f64> = stack(Axis(1),&[g0_a_1,g0_a_2]).unwrap();
+                        // let g0_b:Array2<f64> = stack(Axis(1),&[g0_b_1,g0_b_2]).unwrap();
+                        // let g0_trimer: Array2<f64> =
+                        //     stack(Axis(0), &[g0_a.view(), g0_b.view()]).unwrap();
+                        // let dq_ab:Array1<f64> = stack(Axis(0),&[dq_vec[ind1].view(),dq_vec[ind2].view()]).unwrap();
+                        // let embedding_corr:f64 = ddq_arr.dot(&g0_trimer.dot(&dq_ab));
+                        // let embedding_tot_2:f64 = embedding_total - embedding_corr;
+
+                        // let embedding_a:f64 = ddq_arr.slice(s![0..frag_a_atoms]).dot(&om_monomers[ind1])-&ddq_arr.slice(s![0..frag_a_atoms]).dot(&g0_a_2.dot(&molecule_b.final_charges));
+                        // let embedding_b:f64 = ddq_arr.slice(s![frag_a_atoms..]).dot(&om_monomers[ind2])-&ddq_arr.slice(s![frag_a_atoms..]).dot(&g0_a_2.t().dot(&molecule_a.final_charges));
+
+                        let embedding_a:f64 = ddq_arr.slice(s![0..frag_a_atoms]).dot(&(&om_monomers[ind1]-&g0_a_2.dot(&molecule_b.final_charges)));
+                        let embedding_b:f64 = ddq_arr.slice(s![frag_a_atoms..]).dot(&(&om_monomers[ind2]-&g0_a_2.t().dot(&molecule_a.final_charges)));
+                        let embedding_tot:f64 = embedding_a+embedding_b;
+                        //assert_eq!(embedding_tot_2,embedding_tot,"NOT EQUAL");
+
+                        //let embedding_pot_sum: f64 = embedding_pot.sum();
+                        //assert_eq!(embedding_tot,embedding_pot_sum,"EMBEDDING NOT EQUAL!!");
+
                         real_pairs.push(pair_energy.clone());
-                        embedding_vecs.push(embedding_pot_sum.clone());
-                        energy_pair = Some(pair_energy + embedding_pot_sum);
+                        embedding_vecs.push(embedding_tot);
+                        energy_pair = Some(pair_energy + embedding_tot);
                     } else {
                         // TODO: calculate g0 on the fly if total g0.is_none()
                         let index_pair_a: usize = indices_frags[ind1];
