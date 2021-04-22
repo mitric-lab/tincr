@@ -3626,7 +3626,7 @@ pub fn reorder_molecule_gradients(
     );
 }
 
-pub fn fmo_fragment_gradients(molecule: &Molecule,s:ArrayView2<f64>)->(Array1<f64>,Array3<f64>){
+pub fn fmo_fragment_gradients(molecule: &Molecule,s:ArrayView2<f64>)->(Array1<f64>,Array3<f64>,Array3<f64>){
     // set h_coul
     let h0_coul:Array2<f64> = molecule.saved_h_coul.clone().unwrap();
     // calculate W' matrix
@@ -3749,7 +3749,7 @@ pub fn fmo_fragment_gradients(molecule: &Molecule,s:ArrayView2<f64>)->(Array1<f6
         &molecule.calculator.v_rep,
     );
     let gradient:Array1<f64> = h_term_v2 - s_term_v2 + esp_term_v3 +coul_term_v2 + grad_v_rep;
-    return (gradient,grad_s);
+    return (gradient,grad_s,grad_h0);
 }
 
 pub fn fmo_fragments_gradients_ncc(
@@ -3924,8 +3924,8 @@ pub fn fmo_fragments_gradients_ncc(
         .iter_mut()
         .enumerate()
         .map(|(index, frag)| {
-            let (gradient,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,s_matrices[index].view());
-            let result = frag_gradient_result::new(gradient,grad_s);
+            let (gradient,grad_s,grad_h0):(Array1<f64>,Array3<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,s_matrices[index].view());
+            let result = frag_gradient_result::new(gradient,grad_s,grad_h0);
             result
         }).collect();
 
@@ -4247,7 +4247,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         energy_pair = Some(energy);
                         pair_density = Some(pair.final_p_matrix.clone());
 
-                        let (gradient_dimer,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&pair,s.view());
+                        let (gradient_dimer,grad_s,grad_h0):(Array1<f64>,Array3<f64>,Array3<f64>) = fmo_fragment_gradients(&pair,s.view());
+                        drop(grad_h0);
 
                         let pair_atoms: usize = pair.n_atoms;
                         let pair_charges:Array1<f64> = pair.final_charges.clone();
@@ -4904,6 +4905,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     for (ind_a,frag_a) in fragments.iter().enumerate(){
         let mut a_mat_j:Vec<Array4<f64>> = Vec::new();
         let orbs_a:Array2<f64> = frag_a.saved_orbs.clone().unwrap();
+        let orbe_a:Array1<f64> = frag_a.saved_orbe.clone().unwrap();
+
         for (ind_b,frag_b) in fragments.iter().enumerate(){
             let orbs_b:Array2<f64> = frag_b.saved_orbs.clone().unwrap();
             if ind_a <= ind_b{
@@ -4914,9 +4917,9 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         for k in (0..frag_b.calculator.n_orbs).into_iter(){
                             for l in (0..frag_b.calculator.n_orbs).into_iter(){
                                 // energy difference for diagonal matrix elements
-                                // if i==j && i==k && j==l{
-                                //     a_mat[[i,j,k,l]] += frag_a.saved_orbe[j] - frag_a.saved_orbe[i];
-                                // }
+                                if i==j && i==k && j==l{
+                                    a_mat[[i,j,k,l]] += orbe_a[j] - orbe_a[i];
+                                }
                                 let mut q_j_kl:Array1<f64> = Array1::zeros(frag_b.n_atoms);
                                 let mut mu:usize = 0;
                                 for (c, z_c) in frag_b.atomic_numbers.iter().enumerate() {
@@ -4948,6 +4951,70 @@ pub fn fmo_gradient_pairs_embedding_esdim(
             }
         }
         a_mat_i.push(a_mat_j);
+    }
+
+    // calculate B matrix
+    let n_atoms_system:usize = indices_frags.last().unwrap()+fragments.last().unwrap().n_atoms;
+    let mut b_mat:Vec<Vec<Array2<f64>>> = Vec::new();
+    for a in (0..3*n_atoms_system).into_iter(){
+        let mut b_mat_frag:Vec<Array2<f64>> = Vec::new();
+
+        for (ind,frag) in fragments.iter().enumerate(){
+            let mut b_mat_ij:Array2<f64> = Array2::zeros((frag.calculator.n_orbs,frag.calculator.n_orbs));
+            let frag_orbs:Array2<f64> = frag.saved_orbs.clone().unwrap();
+            let orbe_a:Array1<f64> = frag.saved_orbe.clone().unwrap();
+
+            for i in (0..frag.calculator.n_orbs).into_iter(){
+                for j in (0..frag.calculator.n_orbs).into_iter(){
+                    let h_s_term:Array2<f64> = &frag_gradient_results[ind].grad_h0.slice(s![a,..,..]) + &(orbe_a[j] *frag_gradient_results[ind].grad_s.slice(s![a,..,..]).to_owned());
+
+                    let mut esp_like:Array1<f64> = Array1::zeros(frag.n_atoms);
+                    // iterate over all fragments to calculate q_c^a,K
+                    for (ind_k,frag_k) in fragments.iter().enumerate(){
+                        let shape_orbs_k: usize = frag_k.calculator.n_orbs;
+                        let mut w_mat_k: Array3<f64> = Array3::zeros((
+                            3 * frag_k.n_atoms,
+                            shape_orbs_k,
+                            shape_orbs_k,
+                        ));
+                        for i in (0..3 * frag_k.n_atoms).into_iter() {
+                            w_mat_k.slice_mut(s![i, .., ..]).assign(
+                                &frag_k.final_p_matrix.dot(&frag_gradient_results[ind_k].grad_s
+                                    .slice(s![i, .., ..])
+                                    .dot(&frag_k.final_p_matrix)));
+                        }
+                        w_mat_k = -0.5 * w_mat_k;
+
+                        let mut q_c_ak:Array1<f64> = Array1::zeros(frag_k.n_atoms);
+                        let mut mu:usize = 0;
+                        for (c, z_c) in frag_k.atomic_numbers.iter().enumerate() {
+                            for _ in &frag_k.calculator.valorbs[z_c] {
+                                q_c_ak[c] += w_mat_k.slice(s![a,mu,..]).dot(&frag_s_matrices[ind_k].slice(s![mu,..]))+frag_k.final_p_matrix.slice(s![mu,..]).dot(&frag_gradient_results[ind_k].grad_s.slice(s![a,mu,..]));
+                                mu = mu + 1;
+                            }
+                        }
+                        let g0_slice_ik:ArrayView2<f64> = g0_total.slice(s![indices_frags[ind]..indices_frags[ind] + frag.n_atoms,indices_frags[ind_k]..indices_frags[ind_k] + frag_k.n_atoms]);
+                        esp_like = esp_like + g0_slice_ik.dot(&q_c_ak);
+                    }
+                    let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
+                    let mut mu: usize = 0;
+                    for (d, z_d) in frag.atomic_numbers.iter().enumerate() {
+                        for _ in &frag.calculator.valorbs[z_d] {
+                            esp_ao[mu] = esp_like[i];
+                            mu = mu + 1;
+                        }
+                    }
+                    let esp_arr: Array2<f64> = esp_ao.clone().insert_axis(Axis(1));
+                    let esp_temp: Array2<f64> =&esp_arr.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
+                    let s_esp:Array2<f64> = 0.5* frag_s_matrices[ind].dot(&esp_temp);
+
+                    let sum_terms:Array2<f64> = h_s_term + s_esp;
+                    b_mat_ij[[i,j]] = frag_orbs.slice(s![..,i]).dot(&sum_terms).dot(&frag_orbs.slice(s![..,j]));
+                }
+            }
+            b_mat_frag.push(b_mat_ij);
+        }
+        b_mat.push(b_mat_frag);
     }
 
     return total_gradient;
@@ -4983,16 +5050,19 @@ impl frag_grad_result {
 pub struct frag_gradient_result {
     gradient: Array1<f64>,
     grad_s: Array3<f64>,
+    grad_h0:Array3<f64>,
 }
 
 impl frag_gradient_result {
     pub(crate) fn new(
         gradient: Array1<f64>,
         grad_s: Array3<f64>,
+        grad_h0:Array3<f64>,
     ) -> (frag_gradient_result) {
         let result = frag_gradient_result {
             gradient:gradient,
             grad_s: grad_s,
+            grad_h0:grad_h0,
         };
         return result;
     }

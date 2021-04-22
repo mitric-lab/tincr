@@ -54,6 +54,7 @@ pub struct Molecule {
     pub rep_energy:f64,
     pub saved_orbs:Option<Array2<f64>>,
     pub saved_h_coul:Option<Array2<f64>>,
+    pub saved_orbe:Option<Array1<f64>>,
 }
 
 impl Molecule {
@@ -186,6 +187,7 @@ impl Molecule {
         let rep_energy:f64 = 0.0;
         let saved_orbs:Option<Array2<f64>> = None;
         let saved_h_coul:Option<Array2<f64>> = None;
+        let saved_orbe:Option<Array1<f64>> = None;
 
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
@@ -215,6 +217,7 @@ impl Molecule {
             rep_energy:rep_energy,
             saved_orbs:saved_orbs,
             saved_h_coul:saved_h_coul,
+            saved_orbe:saved_orbe,
         };
 
         return mol;
@@ -288,7 +291,10 @@ impl Molecule {
     pub fn set_repulsive_energy(&mut self){
         self.rep_energy = get_repulsive_energy(&self);
     }
-    pub fn set_orbs(&mut self,orbs:Array2<f64>){self.saved_orbs = Some(orbs);}
+    pub fn set_orbs(&mut self,orbs:Array2<f64>,orbe:Array1<f64>){
+        self.saved_orbs = Some(orbs);
+        self.saved_orbe = Some(orbe);
+    }
     pub fn set_h_coul(&mut self,h_coul:Array2<f64>){self.saved_h_coul=Some(h_coul);}
 }
 pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {

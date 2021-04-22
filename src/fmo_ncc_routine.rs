@@ -240,7 +240,7 @@ pub fn fmo_ncc(
     );
     molecule.set_final_charges(dq);
     molecule.set_final_p_mat(p);
-    molecule.set_orbs(orbs);
+    molecule.set_orbs(orbs,orbe);
 
     return (
         scf_energy + molecule.rep_energy,
