@@ -504,6 +504,7 @@ impl Pair {
     }
 }
 
+
 fn atomvec_to_aomat(esp_atomwise: ArrayView1<f64>, n_orbs: usize, atoms: &[Atom]) -> Array2<f64> {
     let mut esp_ao_row: Array1<f64> = Array1::zeros(n_orbs);
     let mut mu: usize = 0;
