@@ -27,6 +27,15 @@ impl From<Array2<f64>> for Geometry {
 
 
 impl Geometry {
+    pub fn new() -> Self {
+        Self{
+            coordinates:Array2::zeros([1,1]),
+            distances: None,
+            directions: None,
+            proximities: None
+        }
+    }
+
     /// Update the coordinates and the geometric matrices. The following matrices will
     /// be set to the struct: coordinates, distances, directions, proximities.
     pub fn update(&mut self, coordinates: Array2<f64>) {

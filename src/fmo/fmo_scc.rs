@@ -18,6 +18,8 @@ use ndarray_stats::QuantileExt;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::IntoParallelRefMutIterator;
 use std::ops::SubAssign;
+use crate::utils::Timer;
+use log::info;
 
 impl RestrictedSCC for SuperSystem {
     ///  To run the SCC calculation of the FMO [SuperSystem] the following properties need to be set:
@@ -39,9 +41,11 @@ impl RestrictedSCC for SuperSystem {
     }
 
     fn run_scc(&mut self) -> Result<f64, SCCError> {
+        let timer: Timer = Timer::start();
         // SCC settings from the user input
         let temperature: f64 = self.config.scf.electronic_temperature;
         let max_iter: usize = self.config.scf.scf_max_cycles;
+        print_fmo_scc_init(max_iter);
         // Vector that holds the information if the scc calculation of the individual monomer
         // is converged or not
         let mut converged: Vec<bool> = vec![false; self.n_mol];
@@ -57,16 +61,20 @@ impl RestrictedSCC for SuperSystem {
             for (i, mol) in self.monomers.iter_mut().enumerate() {
                 let v_esp: Array2<f64> =
                     atomvec_to_aomat(esp_at.slice(s![mol.atom_slice]), mol.n_orbs, &mol.atoms);
-                converged[i] = mol.scc_step(v_esp);
+                if !converged[i] {
+                    println!("dq {}", mol.properties.dq().unwrap());
+                    converged[i] = mol.scc_step(v_esp);
+                }
                 // save the dq's from the monomer calculation
                 dq.slice_mut(s![mol.atom_slice])
                     .assign(&mol.properties.dq().unwrap());
             }
+            let n_converged: usize = converged.iter().filter(|&n| *n == true).count();
+            print_fmo_monomer_iteration(iter, n_converged, self.n_mol);
             // the loop ends if all monomers are converged
-            if !converged.contains(&false) {
+            if n_converged == self.n_mol {
                 break 'scf_loop;
             }
-            println!("Iteration");
         }
         // this is the electrostatic potential that acts on the pairs
         // PARALLEL: The dot product could be parallelized and then it is not necessary to convert
@@ -99,39 +107,39 @@ impl RestrictedSCC for SuperSystem {
         // Assembling of the energy following Eq. 11 in
         // https://pubs.acs.org/doi/pdf/10.1021/ct500489d
         // E = sum_I^N E_I^ + sum_(I>J)^N ( E_(IJ) - E_I - E_J ) + sum_(I>J)^(N) DeltaE_(IJ)^V
-        let mut total_energy: f64 = 0.0;
+        let mut monomer_energies: f64 = 0.0;
         for mol in self.monomers.iter_mut() {
             let scf_energy: f64 =  mol.properties.last_energy().unwrap();
             let e_rep: f64 = get_repulsive_energy(&mol.atoms, mol.n_atoms, &mol.vrep);
             mol.properties.set_last_energy(scf_energy + e_rep);
-            total_energy += scf_energy + e_rep;
+            monomer_energies += scf_energy + e_rep;
         }
-        let mut emb: f64 = 0.0;
-        println!("MONOMER ENERGIES {}", total_energy);
+        let mut pair_energies: f64 = 0.0;
+        let mut embedding: f64 = 0.0;
         for pair in self.pairs.iter() {
             let m_i: &Monomer = &self.monomers[pair.i];
             let m_j: &Monomer = &self.monomers[pair.j];
-            emb += pair.properties.last_energy().unwrap()
+            pair_energies += pair.properties.last_energy().unwrap()
                 - m_i.properties.last_energy().unwrap()
                 - m_j.properties.last_energy().unwrap();
-            total_energy += m_i
+            embedding += m_i
                 .properties
                 .esp_q()
                 .unwrap()
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![..m_i.n_atoms]));
-            total_energy += m_j
+            embedding += m_j
                 .properties
                 .esp_q()
                 .unwrap()
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
-            total_energy -= self
+            embedding -= self
                 .properties
                 .gamma()
                 .unwrap()
                 .slice(s![m_i.atom_slice, m_j.atom_slice])
                 .dot(&m_j.properties.dq().unwrap())
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![..m_i.n_atoms]));
-            total_energy -= self
+            embedding -= self
                 .properties
                 .gamma()
                 .unwrap()
@@ -139,12 +147,11 @@ impl RestrictedSCC for SuperSystem {
                 .dot(&m_i.properties.dq().unwrap())
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
         }
-        println!("ESD PAIRS {} {}", self.esd_pairs.len(), self.pairs.len());
-        let mut bla: f64 = 0.0;
+        let mut esd_pair_energies: f64 = 0.0;
         for esd_pair in self.esd_pairs.iter() {
             let m_i: &Monomer = &self.monomers[esd_pair.i];
             let m_j: &Monomer = &self.monomers[esd_pair.j];
-            bla += m_i
+            esd_pair_energies += m_i
                 .properties
                 .dq()
                 .unwrap()
@@ -157,12 +164,9 @@ impl RestrictedSCC for SuperSystem {
                 )
                 .dot(&m_j.properties.dq().unwrap());
         }
-
-        // scc loop for each dimer that is not labeled as ESD pair
-        //for pair in self.pairs
-        println!("SCC {}", emb);
-
-        Ok(0.0)
+        let total_energy: f64 = monomer_energies + pair_energies + embedding + esd_pair_energies;
+        print_fmo_scc_end(timer, monomer_energies, pair_energies, embedding, esd_pair_energies);
+        Ok(total_energy)
     }
 }
 
@@ -477,7 +481,7 @@ impl Pair {
             );
 
             // check if charge difference to the previous iteration is lower than 1e-5
-            let converged: bool = if (delta_dq_max < scf_charge_conv)
+            let converged: bool = if (delta_dq_max  < scf_charge_conv)
                 && (last_energy - scf_energy).abs() < scf_energy_conv
             {
                 true
@@ -512,4 +516,45 @@ fn atomvec_to_aomat(esp_atomwise: ArrayView1<f64>, n_orbs: usize, atoms: &[Atom]
     let esp_ao_column: Array2<f64> = esp_ao_row.clone().insert_axis(Axis(1));
     let esp_ao: Array2<f64> = &esp_ao_column.broadcast((n_orbs, n_orbs)).unwrap() + &esp_ao_row;
     return esp_ao;
+}
+
+pub fn print_fmo_scc_init(max_iter: usize) {
+    info!("{:^80}", "");
+    info!("{: ^80}", "FMO SCC-Routine");
+    info!("{:-^80}", "");
+    //info!("{: <25} {}", "convergence criterium:", scf_conv);
+    info!("{: <25} {}", "max. iterations:", max_iter);
+    info!("{:^80}", "");
+    info!(
+        "{: <45} ",
+        "Monomer SCC Iterations:"
+    );
+    info!("{:-^45} ", "");
+    info!(
+        "{: <5} {: >18} {: >18}",
+        "Iter.", "#conv. Monomers", "#Monomers"
+    );
+    info!("{:-^75} ", "");
+}
+
+pub fn print_fmo_monomer_iteration(iter: usize, n_converged: usize, n_total: usize) {
+    info!(
+        "{: >5} {:>18} {:>18}",
+        iter + 1,
+        n_converged,
+        n_total
+    );
+}
+
+
+pub fn print_fmo_scc_end(timer: Timer, e_monomer: f64, e_pairs: f64, e_emb: f64, e_esd: f64) {
+    info!("{:-^75} ", "");
+    info!("{: ^75}", "FMO SCC converged");
+    info!("{:^80} ", "");
+    info!("{:<26} {:>24.14} Hartree", "sum of monomer energies:", e_monomer);
+    info!("{:<26} {:>24.14} Hartree", "sum of pair energies:", e_pairs);
+    info!("{:<26} {:>24.14} Hartree", "sum of embedding energies:", e_emb);
+    info!("{:<26} {:>24.14} Hartree", "sum of ESD pair energies", e_esd);
+    info!("{:-<80} ", "");
+    info!("{}", timer);
 }

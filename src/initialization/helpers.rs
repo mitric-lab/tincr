@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use crate::initialization::Atom;
 use crate::scc::gamma_approximation::{GammaFunction, gaussian_decay};
 

@@ -1,82 +1,45 @@
 use crate::constants::{BOND_THRESHOLD, ATOM_NAMES};
-use chemfiles::{Atom, Frame, Trajectory};
 use std::collections::HashMap;
+use petgraph::visit::Bfs;
+use petgraph::graphmap::GraphMap;
+use hashbrown::HashSet;
+use petgraph::prelude::*;
+use crate::initialization::Atom;
 
-pub fn get_fragments(frame: Frame) -> Vec<Frame>{
-    // coordinates that were already seen
-    let mut positions_seen: Vec<[f64; 3]> = Vec::new();
+pub type Graph = GraphMap<usize, (), Undirected>;
 
-    // atomic numbers
-    let mut numbers_seen: Vec<u8> = Vec::new();
-
-    // for each monomer the atomic number and coordinates are stored
-    let mut molecules: HashMap<usize, Vec<(u8, [f64; 3])>> = HashMap::new();
-
-    // conversion of atomic index to atomic numbers and positions
-    let mut idxtomol: HashMap<usize, usize> = HashMap::new();
-
-    // atomic numbers of the whole system
-    let atomic_numbers: Vec<u8> = (0..frame.size() as usize)
-        .map(|i| frame.atom(i).atomic_number() as u8)
-        .collect();
-
-    // true -> create new fragment, false -> append to fragment
-    let mut iflag: bool;
-
-    // i: idx, zi: atomic number, posi: xyz coordinates in angstrom
-    for (i, (zi, posi)) in atomic_numbers
-        .iter()
-        .zip(frame.positions().iter())
-        .enumerate()
-    {
-        iflag = true;
-        // iterate over the atoms that we have seen already in reversed order
-        // since the probability that the current atom is linked to the last one
-        // is much higher than that is linked to the first one.
-        // j: idx, zj: atomic_number, posj: xyz coordinates in angstrom
-        'inner: for (j, (zj, posj)) in numbers_seen
-            .iter()
-            .zip(positions_seen.iter())
-            .enumerate()
-            .rev()
-        {
-            // distance between atom i and atom j in angstrom
-            let r: f64 = posi
-                .iter()
-                .zip(posj.iter())
-                .map(|(x, y)| (x - y).powi(2))
-                .sum::<f64>()
-                .sqrt();
-            // if the atom is linked to an atom that we have already seen, the atom will be added
-            // to this molecule. otherwise a new molecule will be createad
-            if r < BOND_THRESHOLD[*zi as usize][*zj as usize] {
-                // append atomic number and coordinates
-                molecules
-                    .entry(idxtomol[&j])
-                    .or_insert(Vec::new())
-                    .push((*zi, *posi));
-                // and idx to the molecule entry
-                idxtomol.insert(i, idxtomol[&j]);
-                iflag = false;
-                break 'inner;
+/// Construct a graph of a given set of [Atom]s. The edges are determined from the sum of the covalent
+/// radii of two atoms scaled by a factor of 1.2.
+pub fn build_graph(n_atoms: usize, atoms: &[Atom]) -> Graph {
+    let mut edges: Vec<(usize, usize)> = Vec::with_capacity(n_atoms);
+    for (i, atomi) in (0..n_atoms).zip(atoms.iter()) {
+        for (j, atomj) in ((i + 1)..n_atoms).zip(atoms[(i + 1)..].iter()) {
+            if (atomi - atomj).norm() < BOND_THRESHOLD[atomi.number as usize][atomj.number as usize] {
+                edges.push((i as usize, j as usize));
             }
         }
-        numbers_seen.push(*zi);
-        positions_seen.push(*posi);
-        // if the atom is not connected than we create new list of numbers and coords
-        if iflag {
-            molecules.insert(i, vec![(*zi, *posi)]);
-            idxtomol.insert(i, i);
-        }
     }
-    // create a [Frame](chemfiles::Frame) for each fragment
-    let mut fragment_frames: Vec<Frame> = Vec::with_capacity(molecules.len());
-    for (key, value) in molecules.into_iter() {
-        let mut fragment: Frame = Frame::new();
-        for (num, pos) in value.iter() {
-            fragment.add_atom(&Atom::new(ATOM_NAMES[*num as usize]), *pos, None);
+    Graph::from_edges(&edges)
+}
+
+/// Returns all disconnected monomers from the graph. The algorithm works as follows:
+/// 1. Create a HashSet containing all atom indices (0 - #atoms)
+/// 2. Get one edge (atom) from the graph
+/// 3. Search all neighbors of this atom by using Breadth-first search
+/// 4. Delete the parent atom and all neighbors from the HashSet
+/// 5. If there is no index left in the HashSet -> End
+///    Otherwise go back to 1.
+pub fn fragmentation(graph: &Graph) -> Vec<Vec<usize>> {
+    let mut monomers: Vec<Vec<usize>> = Vec::new();
+    let mut indices: HashSet<usize> = (0..graph.node_count()).collect();
+    while !indices.is_empty() {
+        let mut monomer: Vec<usize> = Vec::new();
+        let mut bfs = Bfs::new(&graph, *indices.iter().next().unwrap());
+        while let Some(nx) = bfs.next(&graph) {
+            monomer.push(nx);
+            indices.remove(&nx);
         }
-        fragment_frames.push(fragment);
+        monomers.push(monomer);
     }
-    return fragment_frames;
+    monomers
 }

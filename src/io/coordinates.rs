@@ -1,6 +1,8 @@
 use chemfiles::{Frame, Trajectory};
 use ndarray::{Array2};
 use crate::constants::{BOHR_TO_ANGS};
+use hashbrown::HashMap;
+use crate::initialization::Atom;
 
 /// Extract the atomic numbers and positions (in bohr) from a [Frame](chemfiles::frame)
 pub fn frame_to_coordinates(frame: Frame) -> (Vec<u8>, Array2<f64>) {
@@ -26,6 +28,30 @@ pub fn frame_to_coordinates(frame: Frame) -> (Vec<u8>, Array2<f64>) {
     // let smiles: String = smiles_repr.memory_buffer().unwrap().replace('~', "").replace('\n', "");
     return (atomic_numbers, positions);
 }
+
+/// Extract the atoms and coordinates from the [Frame](chemfiles::Frame). The unique atoms will
+/// be stored as a HashMap and a Vec<> with all [Atom]s and their position will be returned. The
+/// stored position in each [Atom] are in bohr.
+pub fn frame_to_atoms(frame: Frame) -> (Vec<Atom>, Vec<Atom>) {
+    let mut unique_atoms_map: HashMap<u8, Atom> = HashMap::new();
+    let mut unique_atoms: Vec<Atom> = Vec::new();
+    let mut atoms: Vec<Atom> = Vec::with_capacity(frame.size());
+    for i in (0..frame.size()) {
+        let number: u8 = frame.atom(i).atomic_number() as u8;
+        if !unique_atoms_map.contains_key(&number) {
+            unique_atoms_map.insert(number, Atom::from(number));
+            unique_atoms.push(Atom::from(number));
+        }
+        let mut atom: Atom = unique_atoms_map.get(&number).unwrap().clone();
+        atom.set_position(&frame.positions()[i]);
+        // Convert angstrom to bohr. Assert that the coordinates are given in Angstrom
+        atom.xyz /= BOHR_TO_ANGS;
+        atoms.push(atom);
+    }
+    (atoms, unique_atoms)
+}
+
+
 
 /// Read a xyz-geometry file like .xyz or .pdb and returns a [Frame](chemfiles::Frame)
 pub fn read_file_to_frame(filename: &str) -> Frame{

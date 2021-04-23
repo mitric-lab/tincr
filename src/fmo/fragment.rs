@@ -3,10 +3,9 @@ use crate::io::{Configuration, frame_to_coordinates};
 use crate::initialization::{Atom, Geometry, Properties};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::scc::gamma_approximation::GammaFunction;
-use std::collections::HashMap;
 use chemfiles::Frame;
 use ndarray::{Slice, SliceInfo};
-
+use hashbrown::HashMap;
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
 /// This type is only used for FMO calculations. This type is a similar to the [System] type that
@@ -65,15 +64,10 @@ pub struct Monomer {
 impl Monomer {
     /// Creates a new [Monomer] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
-    pub fn new(config: Configuration, frame: Frame, index: usize, at_index: usize, orb_index: usize, num_to_atom: HashMap<u8, Atom>, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
+    pub fn new(config: Configuration, atoms: Vec<Atom>, index: usize, at_index: usize, orb_index: usize, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
         // get the atomic numbers and positions from the input data
-        let (atomic_numbers, coordinates) = frame_to_coordinates(frame);
-        let n_atoms: usize = atomic_numbers.len();
+        let n_atoms: usize = atoms.len();
         let atom_slice: Slice = Slice::from(at_index..(at_index+n_atoms));
-        let mut atoms: Vec<Atom> = Vec::with_capacity(n_atoms);
-        atomic_numbers.iter().for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
-        // set the positions for each atom
-        coordinates.outer_iter().enumerate().for_each(|(idx, position)| atoms[idx].set_position(position.as_slice().unwrap()));
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
         // get the number of unpaired electrons from the input option
@@ -91,7 +85,7 @@ impl Monomer {
         let active_virt = 0;
         // Create the Geometry from the coordinates. At this point the coordinates have to be
         // transformed already in atomic units
-        let geom: Geometry = Geometry::from(coordinates);
+        let geom: Geometry = Geometry::new();
         // Create a new and empty Properties type
         let properties: Properties = Properties::new();
 

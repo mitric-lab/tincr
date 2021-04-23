@@ -1,7 +1,7 @@
 use crate::initialization::*;
 use libm;
 use ndarray::prelude::*;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::f64::consts::PI;
 use nalgebra::Vector3;
 use std::iter::FromIterator;

@@ -7,7 +7,7 @@ use crate::param::Element;
 use chemfiles::Frame;
 use itertools::Itertools;
 use ndarray::prelude::*;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use crate::scc::gamma_approximation::GammaFunction;
 use crate::scc::gamma_approximation;
 use crate::initialization::{get_unique_atoms, initialize_gamma_function};

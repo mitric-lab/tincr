@@ -1,19 +1,20 @@
-use crate::fmo::fragmentation::get_fragments;
+use crate::fmo::fragmentation::{Graph, build_graph, fragmentation};
 use crate::fmo::{Monomer, Pair, ESDPair, get_pair_type, PairType};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::initialization::{
     get_unique_atoms, initialize_gamma_function, Atom, Geometry, Properties,
 };
-use crate::io::{frame_to_coordinates, Configuration, read_file_to_frame};
+use crate::io::{frame_to_coordinates, Configuration, read_file_to_frame, frame_to_atoms};
 use crate::param::elements::Element;
 use crate::scc::gamma_approximation;
 use crate::scc::gamma_approximation::{GammaFunction, gamma_atomwise};
 use chemfiles::Frame;
 use ndarray::prelude::*;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use itertools::Itertools;
 use crate::utils::Timer;
 use log::info;
+use std::hash::Hash;
 
 pub struct SuperSystem {
     /// Type that holds all the input settings from the user.
@@ -45,12 +46,9 @@ impl From<(Frame, Configuration)> for SuperSystem {
     /// Creates a new [SuperSystem] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
     fn from(input: (Frame, Configuration)) -> Self {
-        // get the atomic numbers and positions from the input data. The [Frame] needs to be cloned,
-        // as it will be also used for the fragmentation into monomers
-        let (atomic_numbers, coordinates) = frame_to_coordinates(input.0.clone());
-        // get the unique [Atom]s and the HashMap with the mapping from the numbers to the [Atom]s
-        let (unique_atoms, num_to_atom): (Vec<Atom>, HashMap<u8, Atom>) =
-            get_unique_atoms(&atomic_numbers);
+        let timer: Timer = Timer::start();
+        // get all [Atom]s from the Frame and also a HashMap with the unique atoms
+        let (atoms, unique_atoms): (Vec<Atom>, Vec<Atom>) = frame_to_atoms(input.0);
         // get the number of unpaired electrons from the input option
         let n_unpaired: usize = match input.1.mol.multiplicity {
             1u8 => 0,
@@ -58,9 +56,8 @@ impl From<(Frame, Configuration)> for SuperSystem {
             3u8 => 2,
             _ => panic!("The specified multiplicity is not implemented"),
         };
-        // Create the Geometry from the coordinates. At this point the coordinates have to be
-        // transformed already in atomic units
-        let geom: Geometry = Geometry::from(coordinates);
+        // Create an empty Geometry
+        let geom: Geometry = Geometry::new();
         // Create a new and empty Properties type
         let mut properties: Properties = Properties::new();
         let mut slako: SlaterKoster = SlaterKoster::new();
@@ -83,19 +80,21 @@ impl From<(Frame, Configuration)> for SuperSystem {
             None
         };
 
-        let molecules: Vec<Frame> = get_fragments(input.0);
-        let mut monomers: Vec<Monomer> = Vec::with_capacity(molecules.len());
+        let graph: Graph = build_graph(atoms.len(), &atoms);
+        let monomer_indices: Vec<Vec<usize>> = fragmentation(&graph);
+        println!("len () {}", monomer_indices.len());
+        let mut monomers: Vec<Monomer> = Vec::with_capacity(monomer_indices.len());
         // PARALLEL: this loop should be parallelized
         let mut at_counter: usize = 0;
         let mut orb_counter: usize = 0;
-        for (idx, mol_frame) in molecules.into_iter().enumerate() {
+        for (idx, indices) in monomer_indices.into_iter().enumerate() {
+            let monomer_atoms: Vec<Atom> = indices.into_iter().map(|i| atoms[i].clone()).collect();
             let current_monomer = Monomer::new(
                 input.1.clone(),
-                mol_frame,
+                monomer_atoms,
                 idx,
                 at_counter,
                 orb_counter,
-                num_to_atom.clone(),
                 slako.clone(),
                 vrep.clone(),
                 gf.clone(),
@@ -107,7 +106,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
         }
         // get all the [Atom]s for the SuperSystem. They are just copied from the individual monomers.
         // This ensures that they are also grouped for each monomer and are in the same order
-        let mut atoms: Vec<Atom> = Vec::with_capacity(atomic_numbers.len());
+        let mut atoms: Vec<Atom> = Vec::with_capacity(atoms.len());
         monomers.iter().for_each(|monomer| {
             monomer
                 .atoms
@@ -126,7 +125,6 @@ impl From<(Frame, Configuration)> for SuperSystem {
             properties.set_gamma(gamma_atomwise(&gf, &atoms, atoms.len()));
         }
 
-        let timer: Timer = Timer::start();
         let mut pairs: Vec<Pair> = Vec::new();
         let mut esd_pairs: Vec<ESDPair> = Vec::new();
         // the construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after
