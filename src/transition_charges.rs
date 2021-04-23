@@ -64,6 +64,40 @@ pub fn trans_charges(
     return (q_trans_ov, q_trans_oo, q_trans_vv);
 }
 
+pub fn fragment_trans_charges(
+    atomic_numbers: &[u8],
+    valorbs: &HashMap<u8, Vec<(i8, i8, i8)>>,
+    orbs: ArrayView2<f64>,
+    s: ArrayView2<f64>,
+    active_occupied_orbs: &[usize],
+    active_virtual_orbs: &[usize],
+) -> (Array2<f64>) {
+    let n_atoms: usize = atomic_numbers.len();
+    let dim_o: usize = active_occupied_orbs.len();
+    let dim_v: usize = active_virtual_orbs.len();
+    // transition charges between virtual and occupied orbitals
+    let mut q_trans_vo: Array3<f64> = Array3::zeros([n_atoms, dim_v,dim_o]);
+    let s_c: Array2<f64> = s.dot(&orbs);
+
+    let mut mu: usize = 0;
+    for (atom_a, z_a) in atomic_numbers.iter().enumerate() {
+        for _ in valorbs[z_a].iter() {
+            // virtuals - occupied
+            for (a, virta) in active_virtual_orbs.iter().enumerate() {
+                for (i, occi) in active_occupied_orbs.iter().enumerate() {
+                    q_trans_vo.slice_mut(s![atom_a, a, i]).add_assign(
+                        0.5 * (orbs[[mu, *virta]] * s_c[[mu, *occi]]
+                            + orbs[[mu, *occi]] * s_c[[mu, *virta]]),
+                    );
+                }
+            }
+            mu += 1;
+        }
+    }
+    let qtrans_vo:Array2<f64> = q_trans_vo.into_shape((n_atoms,dim_o*dim_v)).unwrap();
+    return (qtrans_vo);
+}
+
 #[test]
 fn transition_charges() {
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];

@@ -8,8 +8,8 @@ use crate::h0_and_s::h0_and_s;
 use crate::io::*;
 use crate::molecule::*;
 use crate::mulliken::*;
+use crate::scc_routine::{enable_level_shifting, print_orbital_information, LevelShifter};
 use crate::test::{get_benzene_molecule, get_water_molecule};
-use crate::scc_routine::{LevelShifter,enable_level_shifting,print_orbital_information};
 use approx::AbsDiffEq;
 use itertools::Itertools;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
@@ -35,7 +35,7 @@ pub fn generate_initial_fmo_monomer_guess(fragments: &mut Vec<Molecule>) -> (Vec
                 Option<Array2<f64>>,
                 Option<Array2<f64>>,
                 Option<Array1<f64>>,
-            ) = fmo_ncc(frag, None, None, None, None, None, None, false,None);
+            ) = fmo_ncc(frag, None, None, None, None, None, None, false, None);
             let matrices: ncc_matrices = ncc_matrices::new(s, h, x_option);
             matrices
         })
@@ -69,7 +69,7 @@ pub fn fmo_ncc(
     index: Option<usize>,
     frag_atoms_index: Option<Vec<usize>>,
     calc_gradients: bool,
-    dq_arr:Option<ArrayView1<f64>>,
+    dq_arr: Option<ArrayView1<f64>>,
 ) -> (
     f64,
     Array2<f64>,
@@ -124,25 +124,29 @@ pub fn fmo_ncc(
     let mut h: Array2<f64> = &h_coul + &h0;
 
     // return h0 + h_coul if calc_gradients is true
-    if calc_gradients {
-        molecule.set_h_coul(h_coul + h0.view());
-    }
 
     // calculate ESP term V
     let mut v_mat: Array2<f64> = Array::zeros(s.raw_dim());
     let mut om_monomer: Option<Array1<f64>> = None;
-    if dq_arr.is_some(){
+    if dq_arr.is_some() {
         if g0_total.is_some() {
             let ind: usize = index.unwrap();
             let atoms_ind: Vec<usize> = frag_atoms_index.unwrap();
-            let dq_monomers_arr:ArrayView1<f64> = dq_arr.unwrap();
+            let dq_monomers_arr: ArrayView1<f64> = dq_arr.unwrap();
             let g0: ArrayView2<f64> = g0_total.unwrap();
             let mut esp_2: Array1<f64> = Array1::zeros(molecule.n_atoms);
 
-            let g0_slice:ArrayView2<f64> = g0.slice(s![atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms,..]);
-            let g0_a_slice:ArrayView2<f64> = g0.slice(s![atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms,atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms]);
-            let mut esp:Array1<f64> = g0_slice.dot(&dq_monomers_arr);
-            esp = esp - g0_a_slice.dot(&dq_monomers_arr.slice(s![atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms]));
+            let g0_slice: ArrayView2<f64> =
+                g0.slice(s![atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms, ..]);
+            let g0_a_slice: ArrayView2<f64> = g0.slice(s![
+                atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms,
+                atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms
+            ]);
+            let mut esp: Array1<f64> = g0_slice.dot(&dq_monomers_arr);
+            esp = esp
+                - g0_a_slice.dot(
+                    &dq_monomers_arr.slice(s![atoms_ind[ind]..atoms_ind[ind] + molecule.n_atoms]),
+                );
 
             // for (ind_k, dq_frag) in dq_monomers.iter().enumerate() {
             //     if ind_k != ind {
@@ -198,7 +202,7 @@ pub fn fmo_ncc(
     h = x.t().dot(&h).dot(&x);
     let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
     let orbe: Array1<f64> = tmp.0;
-    let orbs:Array2<f64> = x.dot(&tmp.1);
+    let orbs: Array2<f64> = x.dot(&tmp.1);
 
     // construct density matrix
     let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
@@ -240,14 +244,18 @@ pub fn fmo_ncc(
     );
     molecule.set_final_charges(dq);
     molecule.set_final_p_mat(p);
-    molecule.set_orbs(orbs,orbe);
+    molecule.set_orbs(orbs, orbe);
+    if calc_gradients {
+        molecule.set_h_coul(h_coul + h0.view());
+        molecule.set_fermi_occ(f);
+    }
 
     return (
         scf_energy + molecule.rep_energy,
         s,
         x_option,
         h_opt,
-        om_monomer
+        om_monomer,
     );
 }
 
@@ -259,9 +267,9 @@ pub fn fmo_pair_scc(
     index_b: usize,
     calc_gradients: bool,
     om_matrices: &Vec<Array1<f64>>,
-    dq_vec:&Vec<Array1<f64>>,
-    g0_total:ArrayView2<f64>,
-    indices_frags:&Vec<usize>,
+    dq_vec: &Vec<Array1<f64>>,
+    g0_total: ArrayView2<f64>,
+    indices_frags: &Vec<usize>,
 ) -> (f64, Array2<f64>) {
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     let scf_charge_conv: f64 = molecule.config.scf.scf_charge_conv;
@@ -528,9 +536,9 @@ pub fn fmo_pair_ncc(
     index_b: usize,
     calc_gradients: bool,
     om_matrices: &Vec<Array1<f64>>,
-    dq_vec:&Vec<Array1<f64>>,
-    g0_total:ArrayView2<f64>,
-    indices_frags:&Vec<usize>,
+    dq_vec: &Vec<Array1<f64>>,
+    g0_total: ArrayView2<f64>,
+    indices_frags: &Vec<usize>,
 ) -> (f64, Array2<f64>) {
     let temperature: f64 = molecule.config.scf.electronic_temperature;
     // construct reference density matrix
@@ -569,8 +577,10 @@ pub fn fmo_pair_ncc(
 
     // calculate ESP term V
     let g0_ab: ArrayView2<f64> = molecule.g0.slice(s![0..atoms_a, atoms_a..]);
-    let esp_a: Array1<f64> = -g0_ab.dot(&molecule.final_charges.slice(s![atoms_a..])) + om_matrices[index_a].view();
-    let esp_b: Array1<f64> = -g0_ab.t().dot(&molecule.final_charges.slice(s![0..atoms_a])) + om_matrices[index_b].view();
+    let esp_a: Array1<f64> =
+        -g0_ab.dot(&molecule.final_charges.slice(s![atoms_a..])) + om_matrices[index_a].view();
+    let esp_b: Array1<f64> =
+        -g0_ab.t().dot(&molecule.final_charges.slice(s![0..atoms_a])) + om_matrices[index_b].view();
 
     let esp: Array1<f64> = stack(Axis(0), &[esp_a.view(), esp_b.view()]).unwrap();
     let mut esp_ao: Array1<f64> = Array1::zeros(molecule.calculator.n_orbs);

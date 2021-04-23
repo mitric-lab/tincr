@@ -143,6 +143,24 @@ impl DFTBCalculator {
         self.full_occ = Some(full_occ_indices);
         self.full_virt = Some(full_virt_indices);
     }
+
+    pub fn set_complete_active_orbitals(&mut self, f: Vec<f64>) {
+        let f: Array1<f64> = Array::from_vec(f);
+        let occ_indices: Array1<usize> = f
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item > 0.1 { Some(index) } else { None })
+            .collect();
+        let virt_indices: Array1<usize> = f
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item <= 0.1 { Some(index) } else { None })
+            .collect();
+
+        let full_occ_indices: Vec<usize> = occ_indices.to_vec();
+        let full_virt_indices: Vec<usize> = virt_indices.to_vec();
+
+        self.full_occ = Some(full_occ_indices);
+        self.full_virt = Some(full_virt_indices);
+    }
 }
 
 pub fn import_pseudo_atom(zi: &u8) -> (PseudoAtom, PseudoAtom) {

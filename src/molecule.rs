@@ -55,6 +55,7 @@ pub struct Molecule {
     pub saved_orbs:Option<Array2<f64>>,
     pub saved_h_coul:Option<Array2<f64>>,
     pub saved_orbe:Option<Array1<f64>>,
+    pub fermi_occ:Option<Vec<f64>>,
 }
 
 impl Molecule {
@@ -188,6 +189,7 @@ impl Molecule {
         let saved_orbs:Option<Array2<f64>> = None;
         let saved_h_coul:Option<Array2<f64>> = None;
         let saved_orbe:Option<Array1<f64>> = None;
+        let fermi_occ:Option<Vec<f64>> = None;
 
         let mol = Molecule {
             atomic_numbers: atomic_numbers,
@@ -218,6 +220,7 @@ impl Molecule {
             saved_orbs:saved_orbs,
             saved_h_coul:saved_h_coul,
             saved_orbe:saved_orbe,
+            fermi_occ:fermi_occ,
         };
 
         return mol;
@@ -296,6 +299,7 @@ impl Molecule {
         self.saved_orbe = Some(orbe);
     }
     pub fn set_h_coul(&mut self,h_coul:Array2<f64>){self.saved_h_coul=Some(h_coul);}
+    pub fn set_fermi_occ(&mut self,f:Vec<f64>){self.fermi_occ=Some(f);}
 }
 pub fn get_atomtypes(atomic_numbers: Vec<u8>) -> (HashMap<u8, String>, Vec<u8>) {
     // find unique atom types

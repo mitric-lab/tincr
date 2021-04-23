@@ -8,6 +8,7 @@ use crate::calculator::{
 use crate::constants;
 use crate::constants::VDW_RADII;
 use crate::defaults;
+use crate::fmo_gradients::fmo_fragment_gradients;
 use crate::fmo_ncc_routine::*;
 use crate::gradients::{get_gradients, ToOwnedF};
 use crate::graph::*;
@@ -36,7 +37,6 @@ use petgraph::{Graph, Undirected};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::time::Instant;
-use crate::fmo_gradients::fmo_fragment_gradients;
 
 pub fn fmo_numerical_gradient(
     atomic_numbers: &Vec<u8>,
@@ -2023,19 +2023,27 @@ pub fn fmo_calculate_fragments_ncc(
     fragments: &mut Vec<Molecule>,
     g0_total: ArrayView2<f64>,
     frag_indices: &Vec<usize>,
-) -> (Array1<f64>, Vec<Array2<f64>>, Vec<Array1<f64>>,Vec<Array1<f64>>) {
+) -> (
+    Array1<f64>,
+    Vec<Array2<f64>>,
+    Vec<Array1<f64>>,
+    Vec<Array1<f64>>,
+) {
     let mut converged: bool = false;
-    let max_iter: usize = 40;
+    let max_iter: usize = 250;
     let mut energy_old: Array1<f64> = Array1::zeros(fragments.len());
     let mut dq_old: Vec<Array1<f64>> = Vec::new();
     let mut pmat_old: Vec<Array2<f64>> = Vec::new();
     let mut dq_rmsd: Array1<f64> = Array1::zeros(fragments.len());
     let mut p_rmsd: Array1<f64> = Array1::zeros(fragments.len());
-    let mut dq_arr:Array1<f64> = Array1::zeros(*frag_indices.last().unwrap()+fragments.last().unwrap().n_atoms);
+    let mut dq_arr: Array1<f64> =
+        Array1::zeros(*frag_indices.last().unwrap() + fragments.last().unwrap().n_atoms);
     let mut s_matrices: Vec<Array2<f64>> = Vec::new();
     let conv: f64 = 1e-6;
     let length: usize = fragments.len();
     let ncc_mats: Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
+    let mut converged:Vec<bool> = vec![false;length];
+    let mut old_energies:Array1<f64> = Array1::zeros(length);
 
     'ncc_loop: for i in 0..max_iter {
         let energies_vec: Vec<f64> = fragments
@@ -2043,76 +2051,92 @@ pub fn fmo_calculate_fragments_ncc(
             .enumerate()
             .map(|(index, frag)| {
                 let mut energy: f64 = 0.0;
-                let mut s: Array2<f64> =
-                    Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
-                let frag_index:usize = frag_indices[index];
-                if i == 0 {
-                    let (energy_temp, s_temp, x_opt, h0, om_monomer): (
-                        f64,
-                        Array2<f64>,
-                        Option<Array2<f64>>,
-                        Option<Array2<f64>>,
-                        Option<Array1<f64>>,
-                    ) = fmo_ncc(
-                        frag,
-                        ncc_mats[index].x.clone(),
-                        Some(ncc_mats[index].s.clone()),
-                        ncc_mats[index].h0.clone(),
-                        None,
-                        None,
-                        None,
-                        false,
-                        Some(dq_arr.view()),
-                    );
-                    energy = energy_temp;
-                    s = s_temp;
-                } else {
-                    let (energy_temp, s_temp, x_opt, h0, om_temp): (
-                        f64,
-                        Array2<f64>,
-                        Option<Array2<f64>>,
-                        Option<Array2<f64>>,
-                        Option<Array1<f64>>,
-                    ) = fmo_ncc(
-                        frag,
-                        ncc_mats[index].x.clone(),
-                        Some(ncc_mats[index].s.clone()),
-                        ncc_mats[index].h0.clone(),
-                        Some(g0_total),
-                        Some(index),
-                        Some(frag_indices.clone()),
-                        true,
-                        Some(dq_arr.view()),
-                    );
-                    energy = energy_temp;
-                    // if i == 6{
-                    //     let (gradient,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),s_temp.view());
-                    //     println!("Gradient of monomer: {}",gradient);
-                    // }
+                if converged[index] == false{
+                    let mut s: Array2<f64> =
+                        Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
+                    let frag_index: usize = frag_indices[index];
+                    if i == 0 {
+                        let (energy_temp, s_temp, x_opt, h0, om_monomer): (
+                            f64,
+                            Array2<f64>,
+                            Option<Array2<f64>>,
+                            Option<Array2<f64>>,
+                            Option<Array1<f64>>,
+                        ) = fmo_ncc(
+                            frag,
+                            ncc_mats[index].x.clone(),
+                            Some(ncc_mats[index].s.clone()),
+                            ncc_mats[index].h0.clone(),
+                            None,
+                            None,
+                            None,
+                            false,
+                            Some(dq_arr.view()),
+                        );
+                        energy = energy_temp;
+                        s = s_temp;
+                    } else {
+                        let (energy_temp, s_temp, x_opt, h0, om_temp): (
+                            f64,
+                            Array2<f64>,
+                            Option<Array2<f64>>,
+                            Option<Array2<f64>>,
+                            Option<Array1<f64>>,
+                        ) = fmo_ncc(
+                            frag,
+                            ncc_mats[index].x.clone(),
+                            Some(ncc_mats[index].s.clone()),
+                            ncc_mats[index].h0.clone(),
+                            Some(g0_total),
+                            Some(index),
+                            Some(frag_indices.clone()),
+                            true,
+                            Some(dq_arr.view()),
+                        );
+                        energy = energy_temp;
+                        // if i == 6{
+                        //     let (gradient,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),s_temp.view());
+                        //     println!("Gradient of monomer: {}",gradient);
+                        // }
+                    }
+
+                    // calculate dq diff and pmat diff
+                    if i == 0 {
+                        let energy_diff:f64 = (energy-old_energies[index]).abs();
+                        old_energies[index] = energy;
+                        let dq_diff: Array1<f64> = frag.final_charges.clone();
+                        let p_diff: Array2<f64> = frag.final_p_matrix.clone();
+                        // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
+                        dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                        p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
+
+                        dq_old.push(frag.final_charges.clone());
+                        pmat_old.push(frag.final_p_matrix.clone());
+                        s_matrices.push(s);
+                        dq_arr
+                            .slice_mut(s![frag_index..frag_index + frag.n_atoms])
+                            .assign(&frag.final_charges);
+                    } else {
+                        let energy_diff:f64 = (energy-old_energies[index]).abs();
+                        old_energies[index] = energy;
+                        let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
+                        let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
+                        // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
+                        dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                        p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
+
+                        if energy_diff < conv && dq_rmsd[index] < conv && p_rmsd[index] < conv{
+                            converged[index] = true;
+                        }
+                        dq_old[index] = frag.final_charges.clone();
+                        pmat_old[index] = frag.final_p_matrix.clone();
+                        dq_arr
+                            .slice_mut(s![frag_index..frag_index + frag.n_atoms])
+                            .assign(&frag.final_charges);
+                    }
                 }
-
-                // calculate dq diff and pmat diff
-                if i == 0 {
-                    let dq_diff: Array1<f64> = frag.final_charges.clone();
-                    let p_diff: Array2<f64> = frag.final_p_matrix.clone();
-                    // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
-                    dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
-                    p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
-
-                    dq_old.push(frag.final_charges.clone());
-                    pmat_old.push(frag.final_p_matrix.clone());
-                    s_matrices.push(s);
-                    dq_arr.slice_mut(s![frag_index..frag_index+frag.n_atoms]).assign(&frag.final_charges);
-                } else {
-                    let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
-                    let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
-                    // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
-                    dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
-                    p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
-
-                    dq_old[index] = frag.final_charges.clone();
-                    pmat_old[index] = frag.final_p_matrix.clone();
-                    dq_arr.slice_mut(s![frag_index..frag_index+frag.n_atoms]).assign(&frag.final_charges);
+                else{
+                    energy = old_energies[index];
                 }
                 energy
             })
@@ -2164,9 +2188,10 @@ pub fn fmo_calculate_fragments_ncc(
             .filter_map(|&item| if item < conv { Some(1) } else { None })
             .collect();
         // println!("dq diff {}",dq_rmsd);
-        if converged_energies.len() == length
-            && converged_dq.len() == length
-            && converged_p.len() == length
+        // if converged_energies.len() == length
+        //     && converged_dq.len() == length
+        //     && converged_p.len() == length
+        if !converged.contains(&false)
         {
             println!("Iteration {}", i);
             println!(
@@ -2203,14 +2228,24 @@ pub fn fmo_calculate_fragments_ncc(
             // let esp_arr:Array1<f64> = esp;
             // esp_arr
 
-            let g0_slice:ArrayView2<f64> = g0_total.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms,..]);
-            let g0_a_slice:ArrayView2<f64> = g0_total.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms,frag_indices[index]..frag_indices[index] + frag.n_atoms]);
-            let mut esp:Array1<f64> = g0_slice.dot(&dq_arr);
-            esp = esp - g0_a_slice.dot(&dq_arr.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms]));
+            let g0_slice: ArrayView2<f64> = g0_total.slice(s![
+                frag_indices[index]..frag_indices[index] + frag.n_atoms,
+                ..
+            ]);
+            let g0_a_slice: ArrayView2<f64> = g0_total.slice(s![
+                frag_indices[index]..frag_indices[index] + frag.n_atoms,
+                frag_indices[index]..frag_indices[index] + frag.n_atoms
+            ]);
+            let mut esp: Array1<f64> = g0_slice.dot(&dq_arr);
+            esp = esp
+                - g0_a_slice.dot(
+                    &dq_arr.slice(s![frag_indices[index]..frag_indices[index] + frag.n_atoms]),
+                );
             esp
-        }).collect();
+        })
+        .collect();
 
-    return (energy_old, s_matrices, om_monomers,dq_old);
+    return (energy_old, s_matrices, om_monomers, dq_old);
 }
 
 pub fn fmo_ncc_pairs_esdim_embedding(
@@ -2224,7 +2259,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     full_hubbard: &HashMap<u8, f64>,
     g0_total: ArrayView2<f64>,
     om_monomers: &Vec<Array1<f64>>,
-    dq_vec:&Vec<Array1<f64>>,
+    dq_vec: &Vec<Array1<f64>>,
 ) -> (f64) {
     // construct a first graph in case all monomers are the same
     let mol_a = fragments[0].clone();
@@ -2233,11 +2268,11 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     atomic_numbers.append(&mut mol_a.atomic_numbers.clone());
     atomic_numbers.append(&mut mol_b.atomic_numbers.clone());
 
-    let mut dq_arr:Vec<f64> = Vec::new();
-    for i in dq_vec.iter(){
+    let mut dq_arr: Vec<f64> = Vec::new();
+    for i in dq_vec.iter() {
         dq_arr.append(&mut i.clone().to_vec());
     }
-    let dq_arr:Array1<f64> = Array::from(dq_arr);
+    let dq_arr: Array1<f64> = Array::from(dq_arr);
 
     let distance_frag: Array2<f64> = dist_mat
         .slice(s![
@@ -2264,9 +2299,9 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     let first_calc: DFTBCalculator =
         DFTBCalculator::new(&atomic_numbers, &atomtypes, None, &distance_frag, Some(0.0));
 
-    let mut real_pairs:Vec<f64> = Vec::new();
-    let mut embedding_vecs:Vec<f64> = Vec::new();
-    let mut esd_pairs:Vec<f64> = Vec::new();
+    let mut real_pairs: Vec<f64> = Vec::new();
+    let mut embedding_vecs: Vec<f64> = Vec::new();
+    let mut esd_pairs: Vec<f64> = Vec::new();
 
     let mut result: Vec<Vec<f64>> = fragments
         .iter()
@@ -2497,19 +2532,18 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             .assign(&mol_b.final_charges);
                         pair.set_final_charges(dq);
 
-                        let (energy, s): (f64, Array2<f64>) =
-                            fmo_pair_scc(
-                                &mut pair,
-                                mol_a.n_atoms,
-                                mol_b.n_atoms,
-                                ind1,
-                                ind2,
-                                false,
-                                om_monomers,
-                                dq_vec,
-                                g0_total,
-                                indices_frags
-                            );
+                        let (energy, s): (f64, Array2<f64>) = fmo_pair_scc(
+                            &mut pair,
+                            mol_a.n_atoms,
+                            mol_b.n_atoms,
+                            ind1,
+                            ind2,
+                            false,
+                            om_monomers,
+                            dq_vec,
+                            g0_total,
+                            indices_frags,
+                        );
                         // energy_pair = Some(energy);
                         // charges_pair = Some(pair.final_charges);
 
@@ -2620,9 +2654,13 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                         // let embedding_a:f64 = ddq_arr.slice(s![0..frag_a_atoms]).dot(&om_monomers[ind1])-&ddq_arr.slice(s![0..frag_a_atoms]).dot(&g0_a_2.dot(&molecule_b.final_charges));
                         // let embedding_b:f64 = ddq_arr.slice(s![frag_a_atoms..]).dot(&om_monomers[ind2])-&ddq_arr.slice(s![frag_a_atoms..]).dot(&g0_a_2.t().dot(&molecule_a.final_charges));
 
-                        let embedding_a:f64 = ddq_arr.slice(s![0..frag_a_atoms]).dot(&(&om_monomers[ind1]-&g0_a_2.dot(&molecule_b.final_charges)));
-                        let embedding_b:f64 = ddq_arr.slice(s![frag_a_atoms..]).dot(&(&om_monomers[ind2]-&g0_a_2.t().dot(&molecule_a.final_charges)));
-                        let embedding_tot:f64 = embedding_a+embedding_b;
+                        let embedding_a: f64 = ddq_arr
+                            .slice(s![0..frag_a_atoms])
+                            .dot(&(&om_monomers[ind1] - &g0_a_2.dot(&molecule_b.final_charges)));
+                        let embedding_b: f64 = ddq_arr.slice(s![frag_a_atoms..]).dot(
+                            &(&om_monomers[ind2] - &g0_a_2.t().dot(&molecule_a.final_charges)),
+                        );
+                        let embedding_tot: f64 = embedding_a + embedding_b;
                         //assert_eq!(embedding_tot_2,embedding_tot,"NOT EQUAL");
 
                         //let embedding_pot_sum: f64 = embedding_pot.sum();
@@ -2652,7 +2690,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             index_pair_b..index_pair_b + fragments[ind2].n_atoms
                         ]);
 
-                        let pair_energy:f64 = fragments[ind1]
+                        let pair_energy: f64 = fragments[ind1]
                             .final_charges
                             .dot(&g0_dimer_ab.dot(&fragments[ind2].final_charges));
 
@@ -2675,13 +2713,13 @@ pub fn fmo_ncc_pairs_esdim_embedding(
         .collect();
 
     //print something
-    let esd_pairs:Array1<f64> = Array::from(esd_pairs);
-    let real_pairs:Array1<f64> = Array::from(real_pairs);
-    let embedding_en:Array1<f64> = Array::from(embedding_vecs);
+    let esd_pairs: Array1<f64> = Array::from(esd_pairs);
+    let real_pairs: Array1<f64> = Array::from(real_pairs);
+    let embedding_en: Array1<f64> = Array::from(embedding_vecs);
 
-    println!("Real pairs energy: {}",real_pairs.sum());
-    println!("Esd pairs energy {}",esd_pairs.sum());
-    println!("Embedding energy {}",embedding_en.sum());
+    println!("Real pairs energy: {}", real_pairs.sum());
+    println!("Esd pairs energy {}", esd_pairs.sum());
+    println!("Embedding energy {}", embedding_en.sum());
 
     // transform Vec<Vec> back to Vec<>
     let mut pair_result: Vec<f64> = Vec::new();
