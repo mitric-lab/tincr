@@ -4096,8 +4096,16 @@ pub fn fmo_fragments_gradients_ncc(
                 &grad_s,
             );
 
-            let result =
-                frag_gradient_result::new(gradient, grad_s, grad_h0, om_monomers, qtrans, ws_pds,dim_o,dim_v);
+            let result = frag_gradient_result::new(
+                gradient,
+                grad_s,
+                grad_h0,
+                om_monomers,
+                qtrans,
+                ws_pds,
+                dim_o,
+                dim_v,
+            );
             result
         })
         .collect();
@@ -5053,13 +5061,32 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     }
 
     // calculate lagrangian
-    let lagrangian:Vec<Array2<f64>> = calculate_lagrangian_zvector(fragments,indices_frags,&pair_result,g0_total,frag_gradient_results);
+    let lagrangian: Vec<Array2<f64>> = calculate_lagrangian_zvector(
+        fragments,
+        indices_frags,
+        &pair_result,
+        g0_total,
+        frag_gradient_results,
+    );
 
     // do self consistent z-vector routine
-    let z_vectors:Vec<Array2<f64>> = fmo_zvector_routine(fragments,indices_frags,g0_total,frag_gradient_results,&lagrangian);
+    let z_vectors: Vec<Array2<f64>> = fmo_zvector_routine(
+        fragments,
+        indices_frags,
+        g0_total,
+        frag_gradient_results,
+        &lagrangian,
+    );
 
     // calculate response contribution to the gradient
-    let response_contribution:Array1<f64> = response_contribution_gradient(fragments,indices_frags,g0_total,frag_gradient_results,&z_vectors,frag_s_matrices);
+    let response_contribution: Array1<f64> = response_contribution_gradient(
+        fragments,
+        indices_frags,
+        g0_total,
+        frag_gradient_results,
+        &z_vectors,
+        frag_s_matrices,
+    );
 
     // assemble total gradient
     let total_gradient: Array1<f64> = grad_total_frags + grad_total_dimers + response_contribution;
@@ -5100,24 +5127,35 @@ pub fn charges_derivatives_contribution(
     return matrix;
 }
 
-pub fn fmo_zvector_routine(fragments:&Vec<Molecule>,indices_frags:&Vec<usize>,g0_total:ArrayView2<f64>,frag_gradient_results:&Vec<frag_gradient_result>,initial_lagrangian:&Vec<Array2<f64>>)->(Vec<Array2<f64>>){
+pub fn fmo_zvector_routine(
+    fragments: &Vec<Molecule>,
+    indices_frags: &Vec<usize>,
+    g0_total: ArrayView2<f64>,
+    frag_gradient_results: &Vec<frag_gradient_result>,
+    initial_lagrangian: &Vec<Array2<f64>>,
+) -> (Vec<Array2<f64>>) {
     // generate initial z-vectors, can be parallel
     let mut z_old: Vec<Array2<f64>> = fragments
         .iter()
         .enumerate()
         .map(|(ind, frag)| {
             // calculate diagonal elements A^I,I_ij,kl for each fragment
-            let dim_occ:usize = frag_gradient_results[ind].dim_occ;
-            let dim_virt:usize = frag_gradient_results[ind].dim_virt;
-            let orbe:Array1<f64> = frag.saved_orbe.clone().unwrap();
-            let a_mat_2d:Array2<f64> = -1.0* frag_gradient_results[ind].qtrans.dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
-            let mut a_mat:Array4<f64> = a_mat_2d.into_shape((dim_virt,dim_occ,dim_virt,dim_occ)).unwrap();
-            for i in (0..dim_virt).into_iter(){
-                for j in (0..dim_occ).into_iter(){
-                    for k in (0..dim_virt).into_iter(){
-                        for l in (0..dim_occ).into_iter(){
-                            if i==k && j==l{
-                                a_mat[[i,j,k,l]] += orbe[j] - orbe[dim_occ+i];
+            let dim_occ: usize = frag_gradient_results[ind].dim_occ;
+            let dim_virt: usize = frag_gradient_results[ind].dim_virt;
+            let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
+            let a_mat_2d: Array2<f64> = -1.0
+                * frag_gradient_results[ind]
+                    .qtrans
+                    .dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
+            let mut a_mat: Array4<f64> = a_mat_2d
+                .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
+                .unwrap();
+            for i in (0..dim_virt).into_iter() {
+                for j in (0..dim_occ).into_iter() {
+                    for k in (0..dim_virt).into_iter() {
+                        for l in (0..dim_occ).into_iter() {
+                            if i == k && j == l {
+                                a_mat[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
                             }
                         }
                     }
@@ -5126,20 +5164,23 @@ pub fn fmo_zvector_routine(fragments:&Vec<Molecule>,indices_frags:&Vec<usize>,g0
             // Solve a set of equations
             // (A^I,I).T Z^I = L^I
             // sum A over kl, then solve the equations for each column
-            let a_mat_ij:Array2<f64> = a_mat.sum_axis(Axis(3)).sum_axis(Axis(2));
+            let a_mat_ij: Array2<f64> = a_mat.sum_axis(Axis(3)).sum_axis(Axis(2));
             let mut z_vec: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
             let f = a_mat_ij.factorize_into().unwrap();
             for index in 0..dim_virt {
-                z_vec.slice_mut(s![index, ..])
-                    .assign(&f.solve_into(initial_lagrangian[ind].clone().slice_mut(s![..,index])).unwrap());
+                z_vec.slice_mut(s![index, ..]).assign(
+                    &f.solve_into(initial_lagrangian[ind].clone().slice_mut(s![.., index]))
+                        .unwrap(),
+                );
             }
             z_vec
-        }).collect();
+        })
+        .collect();
 
-    let mut converged:Vec<bool> = vec![false;z_old.len()];
-    let mut lagrangian_old:Vec<Array2<f64>> = initial_lagrangian.clone();
-    let conv:f64 = 1e-6;
-    let max_iter:usize = 250;
+    let mut converged: Vec<bool> = vec![false; z_old.len()];
+    let mut lagrangian_old: Vec<Array2<f64>> = initial_lagrangian.clone();
+    let conv: f64 = 1e-6;
+    let max_iter: usize = 250;
     // self consisitent zvector loop
     'scz_loop: for iter in 0..max_iter {
         // calcuate new Lagragians 'I
@@ -5147,56 +5188,66 @@ pub fn fmo_zvector_routine(fragments:&Vec<Molecule>,indices_frags:&Vec<usize>,g0
             .iter()
             .enumerate()
             .map(|(ind, frag)| {
-                let dim_occ:usize = frag_gradient_results[ind].dim_occ;
-                let dim_virt:usize = frag_gradient_results[ind].dim_virt;
-                let mut lagrangian:Array2<f64> = Array2::zeros((dim_virt,dim_occ));
+                let dim_occ: usize = frag_gradient_results[ind].dim_occ;
+                let dim_virt: usize = frag_gradient_results[ind].dim_virt;
+                let mut lagrangian: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
 
-                if converged[ind] == false{
-                    let mut sum:Array2<f64> = Array2::zeros((dim_virt,dim_occ));
+                if converged[ind] == false {
+                    let mut sum: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
                     // calculate sum_{K!=I} (A^K,I).T Z^K
-                    for (ind_k,z_k) in z_old.iter().enumerate(){
-                        if ind_k != ind{
-                            let dim_occ_k:usize = frag_gradient_results[ind_k].dim_occ;
-                            let dim_virt_k:usize = frag_gradient_results[ind_k].dim_virt;
+                    for (ind_k, z_k) in z_old.iter().enumerate() {
+                        if ind_k != ind {
+                            let dim_occ_k: usize = frag_gradient_results[ind_k].dim_occ;
+                            let dim_virt_k: usize = frag_gradient_results[ind_k].dim_virt;
                             let index_frag_i: usize = indices_frags[ind];
                             let index_frag_k: usize = indices_frags[ind_k];
                             let g0: ArrayView2<f64> = g0_total.slice(s![
-                            index_frag_k..index_frag_k + fragments[ind_k].n_atoms,
-                            index_frag_i..index_frag_i + frag.n_atoms
+                                index_frag_k..index_frag_k + fragments[ind_k].n_atoms,
+                                index_frag_i..index_frag_i + frag.n_atoms
                             ]);
-                            let a_mat_2d:Array2<f64> = -1.0* frag_gradient_results[ind_k].qtrans.dot(&g0.dot(&frag_gradient_results[ind].qtrans));
-                            let a_mat:Array4<f64> = a_mat_2d.into_shape((dim_virt_k,dim_occ_k,dim_virt,dim_occ)).unwrap();
-                            sum = sum + a_mat.sum_axis(Axis(1)).sum_axis(Axis(0))*z_k.sum();
+                            let a_mat_2d: Array2<f64> = -1.0
+                                * frag_gradient_results[ind_k]
+                                    .qtrans
+                                    .dot(&g0.dot(&frag_gradient_results[ind].qtrans));
+                            let a_mat: Array4<f64> = a_mat_2d
+                                .into_shape((dim_virt_k, dim_occ_k, dim_virt, dim_occ))
+                                .unwrap();
+                            sum = sum + a_mat.sum_axis(Axis(1)).sum_axis(Axis(0)) * z_k.sum();
                         }
                     }
                     lagrangian = &lagrangian_old[ind] - &sum;
-                }
-                else{
+                } else {
                     lagrangian = lagrangian_old[ind].clone();
                 }
                 lagrangian
-            }).collect();
+            })
+            .collect();
 
         // calculate new z_vectors
         let z_new: Vec<Array2<f64>> = fragments
             .iter()
             .enumerate()
             .map(|(ind, frag)| {
-                let dim_occ:usize = frag_gradient_results[ind].dim_occ;
-                let dim_virt:usize = frag_gradient_results[ind].dim_virt;
+                let dim_occ: usize = frag_gradient_results[ind].dim_occ;
+                let dim_virt: usize = frag_gradient_results[ind].dim_virt;
                 let mut z_vector: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
 
-                if converged[ind] == false{
+                if converged[ind] == false {
                     // calculate diagonal elements A^I,I_ij,kl for each fragment
-                    let orbe:Array1<f64> = frag.saved_orbe.clone().unwrap();
-                    let a_mat_2d:Array2<f64> = -1.0* frag_gradient_results[ind].qtrans.dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
-                    let mut a_mat:Array4<f64> = a_mat_2d.into_shape((dim_virt,dim_occ,dim_virt,dim_occ)).unwrap();
-                    for i in (0..dim_virt).into_iter(){
-                        for j in (0..dim_occ).into_iter(){
-                            for k in (0..dim_virt).into_iter(){
-                                for l in (0..dim_occ).into_iter(){
-                                    if i==k && j==l{
-                                        a_mat[[i,j,k,l]] += orbe[j] - orbe[dim_occ+i];
+                    let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
+                    let a_mat_2d: Array2<f64> = -1.0
+                        * frag_gradient_results[ind]
+                            .qtrans
+                            .dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
+                    let mut a_mat: Array4<f64> = a_mat_2d
+                        .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
+                        .unwrap();
+                    for i in (0..dim_virt).into_iter() {
+                        for j in (0..dim_occ).into_iter() {
+                            for k in (0..dim_virt).into_iter() {
+                                for l in (0..dim_occ).into_iter() {
+                                    if i == k && j == l {
+                                        a_mat[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
                                     }
                                 }
                             }
@@ -5205,54 +5256,61 @@ pub fn fmo_zvector_routine(fragments:&Vec<Molecule>,indices_frags:&Vec<usize>,g0
                     // Solve a set of equations
                     // (A^I,I).T Z^I = L^I
                     // sum A over kl, then solve the equations for each column
-                    let a_mat_ij:Array2<f64> = a_mat.sum_axis(Axis(3)).sum_axis(Axis(2));
+                    let a_mat_ij: Array2<f64> = a_mat.sum_axis(Axis(3)).sum_axis(Axis(2));
                     let mut z_vec: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
                     let f = a_mat_ij.factorize_into().unwrap();
                     for index in 0..dim_virt {
-                        z_vec.slice_mut(s![index, ..])
-                            .assign(&f.solve_into(lagrangian_new[ind].clone().slice_mut(s![..,index])).unwrap());
+                        z_vec.slice_mut(s![index, ..]).assign(
+                            &f.solve_into(lagrangian_new[ind].clone().slice_mut(s![.., index]))
+                                .unwrap(),
+                        );
                     }
                     z_vector = z_vec;
-                }
-                else{
+                } else {
                     z_vector = z_old[ind].clone();
                 }
                 z_vector
-            }).collect();
+            })
+            .collect();
 
         // check convergence
-        for (index,z_vec) in z_new.iter().enumerate(){
-            let z_diff:Array2<f64> = z_vec - &z_old[index];
-            let z_rmsd:f64 = z_diff.map(|val| val * val).mean().unwrap().sqrt();
-            if z_rmsd < conv{
+        for (index, z_vec) in z_new.iter().enumerate() {
+            let z_diff: Array2<f64> = z_vec - &z_old[index];
+            let z_rmsd: f64 = z_diff.map(|val| val * val).mean().unwrap().sqrt();
+            if z_rmsd < conv {
                 converged[index] = true;
-            }
-            else{
+            } else {
                 z_old[index] = z_vec.clone();
                 lagrangian_old[index] = lagrangian_new[index].clone();
             }
         }
 
-        if !converged.contains(&false){
+        if !converged.contains(&false) {
             break 'scz_loop;
-        }
-        else{
-            println!("Iteration SCZV: {}",iter);
+        } else {
+            println!("Iteration SCZV: {}", iter);
             let converged_zvecs: Array1<usize> = converged
                 .iter()
-                .filter_map(|&item| if item ==true { Some(1) } else { None })
+                .filter_map(|&item| if item == true { Some(1) } else { None })
                 .collect();
-            println!("Number of converged z-vectors: {}",converged_zvecs.len());
+            println!("Number of converged z-vectors: {}", converged_zvecs.len());
         }
     }
     return z_old;
 }
 
-pub fn response_contribution_gradient(fragments:&Vec<Molecule>,indices_frags:&Vec<usize>,g0_total:ArrayView2<f64>,frag_gradient_results:&Vec<frag_gradient_result>,z_vectors:&Vec<Array2<f64>>,s_matrices:&Vec<Array2<f64>>)->Array1<f64>{
-    let grad_length:usize = indices_frags.last().unwrap() + fragments.last().unwrap().n_atoms;
-    let mut response_gradient:Array1<f64> = Array1::zeros(grad_length);
+pub fn response_contribution_gradient(
+    fragments: &Vec<Molecule>,
+    indices_frags: &Vec<usize>,
+    g0_total: ArrayView2<f64>,
+    frag_gradient_results: &Vec<frag_gradient_result>,
+    z_vectors: &Vec<Array2<f64>>,
+    s_matrices: &Vec<Array2<f64>>,
+) -> Array1<f64> {
+    let grad_length: usize = indices_frags.last().unwrap() + fragments.last().unwrap().n_atoms;
+    let mut response_gradient: Array1<f64> = Array1::zeros(grad_length);
 
-    let frag_gradients:Vec<Array1<f64>> = fragments
+    let frag_gradients: Vec<Array1<f64>> = fragments
         .iter()
         .enumerate()
         .map(|(ind, frag)| {
@@ -5266,19 +5324,19 @@ pub fn response_contribution_gradient(fragments:&Vec<Molecule>,indices_frags:&Ve
                 &frag.calculator.skt,
                 &frag.calculator.orbital_energies,
             );
-            let dim_occ:usize = frag_gradient_results[ind].dim_occ;
-            let dim_virt:usize = frag_gradient_results[ind].dim_virt;
-            let orbe:Array1<f64> = frag.saved_orbe.clone().unwrap();
+            let dim_occ: usize = frag_gradient_results[ind].dim_occ;
+            let dim_virt: usize = frag_gradient_results[ind].dim_virt;
+            let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
 
             // let mut b_mat:Array3<f64> = Array3::zeros((3*frag.n_atoms,dim_virt,dim_occ));
-            let mut gradient:Array1<f64> = Array1::zeros(3*frag.n_atoms);
+            let mut gradient: Array1<f64> = Array1::zeros(3 * frag.n_atoms);
 
             // calculate Matrix B^a_ij of fragment I
-            for a in (0..3*frag.n_atoms).into_iter(){
-                let mut b_mat:Array2<f64> = Array2::zeros((dim_virt,dim_occ));
+            for a in (0..3 * frag.n_atoms).into_iter() {
+                let mut b_mat: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
                 // calculate sum_K sum_c (g_ac + g_ab) q_c^a,K
-                let mut charge_term:Array1<f64> = Array1::zeros(frag.n_atoms);
-                for (ind_k,frag_k) in fragments.iter().enumerate(){
+                let mut charge_term: Array1<f64> = Array1::zeros(frag.n_atoms);
+                for (ind_k, frag_k) in fragments.iter().enumerate() {
                     let index_frag_i: usize = indices_frags[ind];
                     let index_frag_k: usize = indices_frags[ind_k];
 
@@ -5286,7 +5344,8 @@ pub fn response_contribution_gradient(fragments:&Vec<Molecule>,indices_frags:&Ve
                         index_frag_i..index_frag_i + frag.n_atoms,
                         index_frag_k..index_frag_k + fragments[ind_k].n_atoms
                     ]);
-                    charge_term = charge_term + g0.dot(&frag_gradient_results[ind_k].ws_pds.slice(s![a,..]));
+                    charge_term =
+                        charge_term + g0.dot(&frag_gradient_results[ind_k].ws_pds.slice(s![a, ..]));
                 }
                 // transform into dimension of s matrix of fragment I
                 let mut mu: usize = 0;
@@ -5297,33 +5356,48 @@ pub fn response_contribution_gradient(fragments:&Vec<Molecule>,indices_frags:&Ve
                         mu = mu + 1;
                     }
                 }
-                let charge_mat_ao: Array2<f64> = &charge_ao.broadcast((charge_ao.len(), charge_ao.len())).unwrap() + &charge_ao;
-                let s_charge_term:Array2<f64> = charge_mat_ao * s_matrices[ind].view();
+                let charge_mat_ao: Array2<f64> = &charge_ao
+                    .broadcast((charge_ao.len(), charge_ao.len()))
+                    .unwrap()
+                    + &charge_ao;
+                let s_charge_term: Array2<f64> = charge_mat_ao * s_matrices[ind].view();
 
                 let orbs_i: Array2<f64> = frag.saved_orbs.clone().unwrap();
                 // calculate terms for dH and e_j * dS
 
-                for j in (0..dim_occ){
-                    let hs_term:Array2<f64> = &grad_h0.slice(s![a,..,..])-&(orbe[j] * &grad_s.slice(s![a,..,..]).to_owned());
-                    let sum_terms:Array2<f64> = hs_term + s_charge_term.clone();
+                for j in (0..dim_occ) {
+                    let hs_term: Array2<f64> = &grad_h0.slice(s![a, .., ..])
+                        - &(orbe[j] * &grad_s.slice(s![a, .., ..]).to_owned());
+                    let sum_terms: Array2<f64> = hs_term + s_charge_term.clone();
                     // calculate sum_mu,nu c_mui c_nuj sum_terms
-                    b_mat.slice_mut(s![..,j]).assign(&(orbs_i.t().dot(&sum_terms).dot(&orbs_i.slice(s![..,j]))));
+                    b_mat
+                        .slice_mut(s![.., j])
+                        .assign(&(orbs_i.t().dot(&sum_terms).dot(&orbs_i.slice(s![.., j]))));
                 }
                 gradient[a] = b_mat.dot(&z_vectors[ind]).sum();
             }
             // let gradient:Array1<f64> = b_mat.dot(&z_vectors[ind]);
             gradient
-        }).collect();
+        })
+        .collect();
 
-    for (index,frag) in fragments.iter().enumerate(){
-        let index_i: usize = 3*indices_frags[index];
-        let atoms:usize = 3*frag.n_atoms;
-        response_gradient.slice_mut(s![index_i..index_i+atoms]).assign(&frag_gradients[index]);
+    for (index, frag) in fragments.iter().enumerate() {
+        let index_i: usize = 3 * indices_frags[index];
+        let atoms: usize = 3 * frag.n_atoms;
+        response_gradient
+            .slice_mut(s![index_i..index_i + atoms])
+            .assign(&frag_gradients[index]);
     }
     return response_gradient;
 }
 
-pub fn calculate_lagrangian_zvector(fragments:&Vec<Molecule>,indices_frags:&Vec<usize>,pair_result:&Vec<pair_gradients_result>,g0_total:ArrayView2<f64>,frag_gradient_results:&Vec<frag_gradient_result>)->Vec<Array2<f64>>{
+pub fn calculate_lagrangian_zvector(
+    fragments: &Vec<Molecule>,
+    indices_frags: &Vec<usize>,
+    pair_result: &Vec<pair_gradients_result>,
+    g0_total: ArrayView2<f64>,
+    frag_gradient_results: &Vec<frag_gradient_result>,
+) -> Vec<Array2<f64>> {
     // calculate lagrangian
     let lagrangian: Vec<Array2<f64>> = fragments
         .iter()
@@ -5356,9 +5430,17 @@ pub fn calculate_lagrangian_zvector(fragments:&Vec<Molecule>,indices_frags:&Vec<
 
                         let ddq_pair: Array1<f64> = pair.pair_ddq.clone().unwrap();
                         let gdq_vec: Array1<f64> = ddq_pair.dot(&g0_trimer);
-                        let lagragian_1dim:Array1<f64> = gdq_vec.dot(&frag_gradient_results[ind].qtrans);
+                        let lagragian_1dim: Array1<f64> =
+                            gdq_vec.dot(&frag_gradient_results[ind].qtrans);
 
-                        lagrangian_arr = lagrangian_arr + 4.0 * lagragian_1dim.into_shape((frag_gradient_results[ind].dim_virt,frag_gradient_results[ind].dim_occ)).unwrap();
+                        lagrangian_arr = lagrangian_arr
+                            + 4.0
+                                * lagragian_1dim
+                                    .into_shape((
+                                        frag_gradient_results[ind].dim_virt,
+                                        frag_gradient_results[ind].dim_occ,
+                                    ))
+                                    .unwrap();
 
                         // let mut mu: usize = 0;
                         // let mut gdq_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
@@ -5439,8 +5521,8 @@ pub struct frag_gradient_result {
     om_monomers: Array1<f64>,
     qtrans: Array2<f64>,
     ws_pds: Array2<f64>,
-    dim_occ:usize,
-    dim_virt:usize,
+    dim_occ: usize,
+    dim_virt: usize,
 }
 
 impl frag_gradient_result {
@@ -5451,8 +5533,8 @@ impl frag_gradient_result {
         om_monomers: Array1<f64>,
         qtrans: Array2<f64>,
         ws_pds: Array2<f64>,
-        dim_occ:usize,
-        dim_virt:usize,
+        dim_occ: usize,
+        dim_virt: usize,
     ) -> (frag_gradient_result) {
         let result = frag_gradient_result {
             gradient: gradient,
@@ -5461,8 +5543,8 @@ impl frag_gradient_result {
             om_monomers: om_monomers,
             qtrans: qtrans,
             ws_pds: ws_pds,
-            dim_occ:dim_occ,
-            dim_virt:dim_virt,
+            dim_occ: dim_occ,
+            dim_virt: dim_virt,
         };
         return result;
     }
