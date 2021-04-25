@@ -4462,7 +4462,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
 
                         let shape_orbs_dimer: usize = pair.calculator.n_orbs;
                         let dimer_atomic_numbers: Vec<u8> = pair.atomic_numbers.clone();
-                        drop(pair);
+
                         let shape_orbs_a: usize = fragments[ind1].calculator.n_orbs;
                         let shape_orbs_b: usize = fragments[ind2].calculator.n_orbs;
 
@@ -4555,6 +4555,16 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         let dw_dimer: Array3<f64> = Array::from(dw_dimer_vec_flat)
                             .into_shape((3 * pair_atoms, w_dimer_dim, w_dimer_dim))
                             .unwrap();
+
+                        let ws_pds_pair: Array2<f64> = charges_derivatives_contribution(
+                            pair_atoms,
+                            shape_orbs_dimer,
+                            &pair.atomic_numbers,
+                            &pair.calculator.valorbs,
+                            dimer_pmat.view(),
+                            &pair_smat,
+                            &grad_s,
+                        );
 
                         let embedding_pot: Vec<Array1<f64>> = fragments
                             .iter()
@@ -4660,7 +4670,9 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                     for dir in (0..3).into_iter() {
                                         let dir_xyz: usize = dir as usize;
                                         let mut diag_ind: usize = 0;
-                                        for a in (0..pair_atoms).into_iter() {
+
+                                        let mut mu: usize = 0;
+                                        for (a, z_a) in pair.atomic_numbers.iter().enumerate() {
                                             let index: usize = 3 * a + dir_xyz;
 
                                             term_1[index] = ddq_arr[a]
@@ -4668,36 +4680,51 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                                     .slice(s![index, a, ..])
                                                     .dot(&mol_k.final_charges);
 
-                                            let mut atom_type: u8 = 0;
-                                            let mut norbs_a: usize = 0;
+                                            // let mut atom_type: u8 = 0;
+                                            // let mut norbs_a: usize = 0;
+                                            // if a < frag_a_atoms {
+                                            //     atom_type = fragments[ind1].atomic_numbers[a];
+                                            //     norbs_a = fragments[ind1].calculator.valorbs
+                                            //         [&atom_type]
+                                            //         .len();
+                                            // } else {
+                                            //     atom_type = fragments[ind2].atomic_numbers
+                                            //         [a - frag_a_atoms];
+                                            //     norbs_a = fragments[ind2].calculator.valorbs
+                                            //         [&atom_type]
+                                            //         .len();
+                                            // }
+                                            let mut sum_2: f64 = 0.0;
+                                            for _ in pair.calculator.valorbs[z_a].iter() {
+                                                sum_2 += dw_dimer
+                                                    .slice(s![index, mu, ..])
+                                                    .dot(&pair_smat.slice(s![mu, ..]))
+                                                    + dp_dimer
+                                                        .slice(s![mu, ..])
+                                                        .dot(&grad_s.slice(s![index, mu, ..]));
 
-                                            if a < frag_a_atoms {
-                                                atom_type = fragments[ind1].atomic_numbers[a];
-                                                norbs_a = fragments[ind1].calculator.valorbs
-                                                    [&atom_type]
-                                                    .len();
-                                            } else {
-                                                atom_type = fragments[ind2].atomic_numbers
-                                                    [a - frag_a_atoms];
-                                                norbs_a = fragments[ind2].calculator.valorbs
-                                                    [&atom_type]
-                                                    .len();
+                                                mu = mu + 1;
                                             }
+                                            let sum: f64 = ws_pds_pair[[index, a]];
+                                            assert_eq!(
+                                                sum, sum_2,
+                                                " sum_mu,nu dWS +dDdS not equal"
+                                            );
 
-                                            let tmp_1: Array2<f64> = dw_dimer
-                                                .slice(s![index, .., ..])
-                                                .dot(&pair_smat.t());
-                                            let tmp_2: Array2<f64> =
-                                                dp_dimer.dot(&grad_s.slice(s![index, .., ..]).t());
-                                            let sum: Array2<f64> = tmp_1 + tmp_2;
+                                            // let tmp_1: Array2<f64> = dw_dimer
+                                            //     .slice(s![index, .., ..])
+                                            //     .dot(&pair_smat.t());
+                                            // let tmp_2: Array2<f64> =
+                                            //     dp_dimer.dot(&grad_s.slice(s![index, .., ..]).t());
+                                            // let sum: Array2<f64> = tmp_1 + tmp_2;
 
-                                            let diag: f64 = sum
-                                                .diag()
-                                                .slice(s![diag_ind..diag_ind + norbs_a])
-                                                .sum();
-                                            diag_ind += norbs_a;
+                                            // let diag: f64 = sum
+                                            //     .diag()
+                                            //     .slice(s![diag_ind..diag_ind + norbs_a])
+                                            //     .sum();
+                                            // diag_ind += norbs_a;
 
-                                            term_2[index] = diag
+                                            term_2[index] = sum
                                                 * g0_trimer_ak
                                                     .slice(s![a, ..])
                                                     .dot(&fragments[ind_k].final_charges);
@@ -4707,28 +4734,30 @@ pub fn fmo_gradient_pairs_embedding_esdim(
 
                                     // let shape_orbs_k: usize = frag_grad_results[ind_k].grad_s.dim().1;
                                     let shape_orbs_k: usize = mol_k.calculator.n_orbs;
-                                    let mut w_mat_k: Array3<f64> = Array3::zeros((
-                                        3 * fragments[ind_k].n_atoms,
-                                        shape_orbs_k,
-                                        shape_orbs_k,
-                                    ));
+                                    // let mut w_mat_k: Array3<f64> = Array3::zeros((
+                                    //     3 * fragments[ind_k].n_atoms,
+                                    //     shape_orbs_k,
+                                    //     shape_orbs_k,
+                                    // ));
 
-                                    for i in (0..3 * fragments[ind_k].n_atoms).into_iter() {
-                                        w_mat_k.slice_mut(s![i, .., ..]).assign(
-                                            &fragments[ind_k].final_p_matrix.dot(
-                                                &frag_gradient_results[ind_k]
-                                                    .grad_s
-                                                    .slice(s![i, .., ..])
-                                                    .dot(&fragments[ind_k].final_p_matrix),
-                                            ),
-                                        );
-                                    }
-                                    w_mat_k = -0.5 * w_mat_k;
+                                    // for i in (0..3 * fragments[ind_k].n_atoms).into_iter() {
+                                    //     w_mat_k.slice_mut(s![i, .., ..]).assign(
+                                    //         &fragments[ind_k].final_p_matrix.dot(
+                                    //             &frag_gradient_results[ind_k]
+                                    //                 .grad_s
+                                    //                 .slice(s![i, .., ..])
+                                    //                 .dot(&fragments[ind_k].final_p_matrix),
+                                    //         ),
+                                    //     );
+                                    // }
+                                    // w_mat_k = -0.5 * w_mat_k;
 
                                     let mut term_1: Array1<f64> =
                                         Array1::zeros(3 * fragments[ind_k].n_atoms);
                                     let mut term_2: Array1<f64> =
                                         Array1::zeros(3 * fragments[ind_k].n_atoms);
+                                    // let term_2:Array1<f64> = g0_trimer_ak.t().dot(&ddq_arr) * frag_gradient_results[ind_k].ws_pds.view();
+
                                     for dir in (0..3).into_iter() {
                                         let dir_xyz: usize = dir as usize;
                                         let mut diag_ind: usize = 0;
@@ -4740,33 +4769,35 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                                     .slice(s![index, a, ..])
                                                     .dot(&ddq_arr);
 
-                                            let atom_type: u8 = fragments[ind_k].atomic_numbers[a];
-                                            let norbs_k: usize =
-                                                fragments[ind_k].calculator.valorbs[&atom_type]
-                                                    .len();
+                                            // let atom_type: u8 = fragments[ind_k].atomic_numbers[a];
+                                            // let norbs_k: usize =
+                                            //     fragments[ind_k].calculator.valorbs[&atom_type]
+                                            //         .len();
 
-                                            let tmp_1: Array2<f64> = w_mat_k
-                                                .slice(s![index, .., ..])
-                                                .dot(&frag_s_matrices[ind_k].t());
+                                            // let tmp_1: Array2<f64> = w_mat_k
+                                            //     .slice(s![index, .., ..])
+                                            //     .dot(&frag_s_matrices[ind_k].t());
 
-                                            let tmp_2: Array2<f64> =
-                                                fragments[ind_k].final_p_matrix.dot(
-                                                    &frag_gradient_results[ind_k]
-                                                        .grad_s
-                                                        .slice(s![index, .., ..])
-                                                        .t(),
-                                                );
+                                            // let tmp_2: Array2<f64> =
+                                            //     fragments[ind_k].final_p_matrix.dot(
+                                            //         &frag_gradient_results[ind_k]
+                                            //             .grad_s
+                                            //             .slice(s![index, .., ..])
+                                            //             .t(),
+                                            //     );
 
-                                            let sum: Array2<f64> = tmp_1 + tmp_2;
+                                            // let sum: Array2<f64> = tmp_1 + tmp_2;
 
-                                            let diag: f64 = sum
-                                                .diag()
-                                                .slice(s![diag_ind..diag_ind + norbs_k])
-                                                .sum();
-                                            diag_ind += norbs_k;
+                                            // let diag: f64 = sum
+                                            //     .diag()
+                                            //     .slice(s![diag_ind..diag_ind + norbs_k])
+                                            //     .sum();
+                                            // diag_ind += norbs_k;
+                                            let sum: f64 =
+                                                frag_gradient_results[ind_k].ws_pds[[index, a]];
 
                                             term_2[index] =
-                                                diag * g0_trimer_ak.slice(s![.., a]).dot(&ddq_arr);
+                                                sum * g0_trimer_ak.slice(s![.., a]).dot(&ddq_arr);
                                         }
                                     }
                                     let embedding_part_2: Array1<f64> = term_1 + term_2;
@@ -4878,43 +4909,43 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                 Some(0.0),
                             );
 
-                        let mut w_mat_a: Array3<f64> = Array3::zeros((
-                            3 * fragments[ind1].n_atoms,
-                            shape_orbs_a,
-                            shape_orbs_a,
-                        ));
+                        // let mut w_mat_a: Array3<f64> = Array3::zeros((
+                        //     3 * fragments[ind1].n_atoms,
+                        //     shape_orbs_a,
+                        //     shape_orbs_a,
+                        // ));
+                        // for i in (0..3 * fragments[ind1].n_atoms).into_iter() {
+                        //     w_mat_a.slice_mut(s![i, .., ..]).assign(
+                        //         &fragments[ind1].final_p_matrix.dot(
+                        //             &frag_gradient_results[ind1]
+                        //                 .grad_s
+                        //                 .slice(s![i, .., ..])
+                        //                 .dot(&fragments[ind1].final_p_matrix),
+                        //         ),
+                        //     );
+                        // }
+                        // w_mat_a = -0.5 * w_mat_a;
 
-                        for i in (0..3 * fragments[ind1].n_atoms).into_iter() {
-                            w_mat_a.slice_mut(s![i, .., ..]).assign(
-                                &fragments[ind1].final_p_matrix.dot(
-                                    &frag_gradient_results[ind1]
-                                        .grad_s
-                                        .slice(s![i, .., ..])
-                                        .dot(&fragments[ind1].final_p_matrix),
-                                ),
-                            );
-                        }
-                        w_mat_a = -0.5 * w_mat_a;
-
-                        let mut w_mat_b: Array3<f64> = Array3::zeros((
-                            3 * fragments[ind2].n_atoms,
-                            shape_orbs_b,
-                            shape_orbs_b,
-                        ));
-                        for i in (0..3 * fragments[ind2].n_atoms).into_iter() {
-                            w_mat_b.slice_mut(s![i, .., ..]).assign(
-                                &fragments[ind2].final_p_matrix.dot(
-                                    &frag_gradient_results[ind2]
-                                        .grad_s
-                                        .slice(s![i, .., ..])
-                                        .dot(&fragments[ind2].final_p_matrix),
-                                ),
-                            );
-                        }
-                        w_mat_b = -0.5 * w_mat_b;
+                        // let mut w_mat_b: Array3<f64> = Array3::zeros((
+                        //     3 * fragments[ind2].n_atoms,
+                        //     shape_orbs_b,
+                        //     shape_orbs_b,
+                        // ));
+                        // for i in (0..3 * fragments[ind2].n_atoms).into_iter() {
+                        //     w_mat_b.slice_mut(s![i, .., ..]).assign(
+                        //         &fragments[ind2].final_p_matrix.dot(
+                        //             &frag_gradient_results[ind2]
+                        //                 .grad_s
+                        //                 .slice(s![i, .., ..])
+                        //                 .dot(&fragments[ind2].final_p_matrix),
+                        //         ),
+                        //     );
+                        // }
+                        // w_mat_b = -0.5 * w_mat_b;
 
                         let mut term_1: Array1<f64> = Array1::zeros(3 * fragments[ind1].n_atoms);
                         let mut term_2: Array1<f64> = Array1::zeros(3 * fragments[ind1].n_atoms);
+                        // let term_2:Array1<f64> = g0_dimer_ab.dot(&fragments[ind2].final_charges) * frag_gradient_results[ind1].ws_pds.view();
                         for dir in (0..3).into_iter() {
                             let dir_xyz: usize = dir as usize;
                             let mut diag_ind: usize = 0;
@@ -4925,25 +4956,26 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                         .slice(s![index, a, ..])
                                         .dot(&fragments[ind2].final_charges);
 
-                                let atom_type: u8 = fragments[ind1].atomic_numbers[a];
-                                let norbs_a: usize =
-                                    fragments[ind1].calculator.valorbs[&atom_type].len();
+                                // let atom_type: u8 = fragments[ind1].atomic_numbers[a];
+                                // let norbs_a: usize =
+                                //     fragments[ind1].calculator.valorbs[&atom_type].len();
 
-                                let tmp_1: Array2<f64> = w_mat_a
-                                    .slice(s![index, .., ..])
-                                    .dot(&frag_s_matrices[ind1].t());
-                                let tmp_2: Array2<f64> = fragments[ind1].final_p_matrix.dot(
-                                    &frag_gradient_results[ind1]
-                                        .grad_s
-                                        .slice(s![index, .., ..])
-                                        .t(),
-                                );
-                                let sum: Array2<f64> = tmp_1 + tmp_2;
+                                // let tmp_1: Array2<f64> = w_mat_a
+                                //     .slice(s![index, .., ..])
+                                //     .dot(&frag_s_matrices[ind1].t());
+                                // let tmp_2: Array2<f64> = fragments[ind1].final_p_matrix.dot(
+                                //     &frag_gradient_results[ind1]
+                                //         .grad_s
+                                //         .slice(s![index, .., ..])
+                                //         .t(),
+                                // );
+                                // let sum: Array2<f64> = tmp_1 + tmp_2;
 
-                                let diag: f64 =
-                                    sum.diag().slice(s![diag_ind..diag_ind + norbs_a]).sum();
-                                diag_ind += norbs_a;
-                                term_2[index] = diag
+                                // let diag: f64 =
+                                //     sum.diag().slice(s![diag_ind..diag_ind + norbs_a]).sum();
+                                // diag_ind += norbs_a;
+                                let sum: f64 = frag_gradient_results[ind1].ws_pds[[index, a]];
+                                term_2[index] = sum
                                     * g0_dimer_ab
                                         .slice(s![a, ..])
                                         .dot(&fragments[ind2].final_charges);
@@ -4953,6 +4985,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
 
                         let mut term_1: Array1<f64> = Array1::zeros(3 * fragments[ind2].n_atoms);
                         let mut term_2: Array1<f64> = Array1::zeros(3 * fragments[ind2].n_atoms);
+                        // let term_2:Array1<f64> = g0_dimer_ab.t().dot(&fragments[ind1].final_charges) * frag_gradient_results[ind2].ws_pds.view();
                         for dir in (0..3).into_iter() {
                             let dir_xyz: usize = dir as usize;
                             let mut diag_ind: usize = 0;
@@ -4967,26 +5000,27 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                         .slice(s![index, a, ..])
                                         .dot(&fragments[ind1].final_charges);
 
-                                let atom_type: u8 = fragments[ind2].atomic_numbers[a];
-                                let norbs_b: usize =
-                                    fragments[ind2].calculator.valorbs[&atom_type].len();
+                                // let atom_type: u8 = fragments[ind2].atomic_numbers[a];
+                                // let norbs_b: usize =
+                                //     fragments[ind2].calculator.valorbs[&atom_type].len();
 
-                                let tmp_1: Array2<f64> = w_mat_b
-                                    .slice(s![index, .., ..])
-                                    .dot(&frag_s_matrices[ind2].t());
-                                let tmp_2: Array2<f64> = fragments[ind2].final_p_matrix.dot(
-                                    &frag_gradient_results[ind2]
-                                        .grad_s
-                                        .slice(s![index, .., ..])
-                                        .t(),
-                                );
-                                let sum: Array2<f64> = tmp_1 + tmp_2;
+                                // let tmp_1: Array2<f64> = w_mat_b
+                                //     .slice(s![index, .., ..])
+                                //     .dot(&frag_s_matrices[ind2].t());
+                                // let tmp_2: Array2<f64> = fragments[ind2].final_p_matrix.dot(
+                                //     &frag_gradient_results[ind2]
+                                //         .grad_s
+                                //         .slice(s![index, .., ..])
+                                //         .t(),
+                                // );
+                                // let sum: Array2<f64> = tmp_1 + tmp_2;
 
-                                let diag: f64 =
-                                    sum.diag().slice(s![diag_ind..diag_ind + norbs_b]).sum();
+                                // let diag: f64 =
+                                //     sum.diag().slice(s![diag_ind..diag_ind + norbs_b]).sum();
 
-                                diag_ind += norbs_b;
-                                term_2[index] = diag
+                                // diag_ind += norbs_b;
+                                let sum: f64 = frag_gradient_results[ind2].ws_pds[[index, a]];
+                                term_2[index] = sum
                                     * g0_dimer_ab
                                         .slice(s![.., a])
                                         .dot(&fragments[ind1].final_charges);
