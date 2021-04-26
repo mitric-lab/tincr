@@ -364,6 +364,7 @@ fn main() {
             println!("DFTB Gradient {}",&grad_e0 + &grad_vrep);
             println!("Norm of difference fmo and dftb {}",(&gradients - &(&grad_e0 + &grad_vrep)).norm());
             println!("Norm of difference fmo without response and dftb {}",(&gradients_without_response - &(&grad_e0 + &grad_vrep)).norm());
+            println!("Difference dftb and fmo without response {}",&gradients_without_response - &(&grad_e0 + &grad_vrep));
             // let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
             // println!("");
             // println!("numerical dftb gradient {}",num_grad);

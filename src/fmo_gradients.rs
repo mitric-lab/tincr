@@ -5207,10 +5207,10 @@ pub fn fmo_zvector_routine(
             // Solve a set of equations
             // (A^I,I).T Z^I = L^I
             // sum A over kl, then solve the equations for each column
-            let a_mat_ij: Array2<f64> = a_mat.sum_axis(Axis(3)).sum_axis(Axis(2));
-            let mut z_vec: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
+            let a_mat_ij: Array2<f64> = a_mat.t().sum_axis(Axis(0)).sum_axis(Axis(1));
+            let mut z_vec: Array2<f64> = Array2::zeros((dim_occ, dim_virt));
             // let f = a_mat_ij.clone().factorize_into().unwrap();
-            for index in 0..dim_virt {
+            for index in 0..dim_occ {
                 // z_vec.slice_mut(s![index, ..]).assign(
                 //     &f.solve_into(initial_lagrangian[ind].clone().slice_mut(s![.., index]))
                 //         .unwrap(),
@@ -5259,7 +5259,7 @@ pub fn fmo_zvector_routine(
                             let a_mat: Array4<f64> = a_mat_2d
                                 .into_shape((dim_virt_k, dim_occ_k, dim_virt, dim_occ))
                                 .unwrap();
-                            sum = sum + a_mat.sum_axis(Axis(3)).sum_axis(Axis(2)) * z_k.sum();
+                            sum = sum + a_mat.t().sum_axis(Axis(3)).sum_axis(Axis(2)) * z_k.sum();
                         }
                     }
                     lagrangian = &lagrangian_old[ind] - &sum;
@@ -5303,10 +5303,10 @@ pub fn fmo_zvector_routine(
                     // Solve a set of equations
                     // (A^I,I).T Z^I = L^I
                     // sum A over kl, then solve the equations for each column
-                    let a_mat_ij: Array2<f64> = a_mat.sum_axis(Axis(3)).sum_axis(Axis(2));
-                    let mut z_vec: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
+                    let a_mat_ij: Array2<f64> = a_mat.t().sum_axis(Axis(0)).sum_axis(Axis(1));
+                    let mut z_vec: Array2<f64> = Array2::zeros((dim_occ, dim_virt));
                     // let f = a_mat_ij.factorize_into().unwrap();
-                    for index in 0..dim_virt {
+                    for index in 0..dim_occ {
                         // z_vec.slice_mut(s![index, ..]).assign(
                         //     &f.solve_into(lagrangian_new[ind].clone().slice_mut(s![.., index]))
                         //         .unwrap(),
