@@ -4126,7 +4126,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     om_monomers: &Vec<Array1<f64>>,
     dq_vec: &Vec<Array1<f64>>,
     frag_s_matrices: &Vec<Array2<f64>>,
-) -> (Array1<f64>) {
+) -> (Array1<f64>,Array1<f64>) {
     // calculate gradient for monomers
     let mut gradient_monomers: Vec<f64> = Vec::new();
 
@@ -4556,15 +4556,18 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                             .into_shape((3 * pair_atoms, w_dimer_dim, w_dimer_dim))
                             .unwrap();
 
-                        let ws_pds_pair: Array2<f64> = charges_derivatives_contribution(
-                            pair_atoms,
-                            shape_orbs_dimer,
-                            &pair.atomic_numbers,
-                            &pair.calculator.valorbs,
-                            dimer_pmat.view(),
-                            &pair_smat,
-                            &grad_s,
-                        );
+                        let mut ws_pds_pair: Array2<f64> = Array2::zeros((3 * pair_atoms, pair_atoms));
+                        for a in (0..3 * pair_atoms).into_iter() {
+                            let mut mu: usize = 0;
+                            for (atom_c, z_c) in pair.atomic_numbers.iter().enumerate() {
+                                for _ in pair.calculator.valorbs[z_c].iter() {
+                                    ws_pds_pair[[a, atom_c]] += dw_dimer.slice(s![a, mu, ..]).dot(&pair_smat.slice(s![mu, ..]))
+                                        + dp_dimer.slice(s![mu, ..]).dot(&grad_s.slice(s![a, mu, ..]));
+
+                                    mu = mu + 1;
+                                }
+                            }
+                        }
 
                         let embedding_pot: Vec<Array1<f64>> = fragments
                             .iter()
@@ -4694,22 +4697,22 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                             //         [&atom_type]
                                             //         .len();
                                             // }
-                                            let mut sum_2: f64 = 0.0;
-                                            for _ in pair.calculator.valorbs[z_a].iter() {
-                                                sum_2 += dw_dimer
-                                                    .slice(s![index, mu, ..])
-                                                    .dot(&pair_smat.slice(s![mu, ..]))
-                                                    + dp_dimer
-                                                        .slice(s![mu, ..])
-                                                        .dot(&grad_s.slice(s![index, mu, ..]));
-
-                                                mu = mu + 1;
-                                            }
+                                            // let mut sum_2: f64 = 0.0;
+                                            // for _ in pair.calculator.valorbs[z_a].iter() {
+                                            //     sum_2 += dw_dimer
+                                            //         .slice(s![index, mu, ..])
+                                            //         .dot(&pair_smat.slice(s![mu, ..]))
+                                            //         + dp_dimer
+                                            //             .slice(s![mu, ..])
+                                            //             .dot(&grad_s.slice(s![index, mu, ..]));
+                                            //
+                                            //     mu = mu + 1;
+                                            // }
                                             let sum: f64 = ws_pds_pair[[index, a]];
-                                            assert_eq!(
-                                                sum, sum_2,
-                                                " sum_mu,nu dWS +dDdS not equal"
-                                            );
+                                            // assert_eq!(
+                                            //     sum, sum_2,
+                                            //     " sum_mu,nu dWS +dDdS not equal"
+                                            // );
 
                                             // let tmp_1: Array2<f64> = dw_dimer
                                             //     .slice(s![index, .., ..])
@@ -5058,6 +5061,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         pair_result.append(pair);
     }
     drop(result);
+
     let mut grad_total_dimers: Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
 
     for (index, pair) in pair_result.iter().enumerate() {
@@ -5093,6 +5097,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                 .add_assign(&dimer_gradient.slice(s![3 * atoms_a..]));
         }
     }
+    let gradient_without_response:Array1<f64> = grad_total_frags + grad_total_dimers;
+    println!("FMO gradient without response contribution: {}",gradient_without_response);
 
     // calculate lagrangian
     let lagrangian: Vec<Array2<f64>> = calculate_lagrangian_zvector(
@@ -5102,6 +5108,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         g0_total,
         frag_gradient_results,
     );
+    println!("After lagrangian");
 
     // do self consistent z-vector routine
     let z_vectors: Vec<Array2<f64>> = fmo_zvector_routine(
@@ -5111,6 +5118,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         frag_gradient_results,
         &lagrangian,
     );
+    println!("After z vectors");
 
     // calculate response contribution to the gradient
     let response_contribution: Array1<f64> = response_contribution_gradient(
@@ -5123,9 +5131,10 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     );
 
     // assemble total gradient
-    let total_gradient: Array1<f64> = grad_total_frags + grad_total_dimers + response_contribution;
+    let total_gradient: Array1<f64> = gradient_without_response.clone() + response_contribution.clone();
+    println!("Difference respone gradient: {}",response_contribution);
 
-    return total_gradient;
+    return (total_gradient,gradient_without_response);
 }
 
 pub fn charges_derivatives_contribution(
@@ -5179,7 +5188,7 @@ pub fn fmo_zvector_routine(
             let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
             let a_mat_2d: Array2<f64> = -1.0
                 * frag_gradient_results[ind]
-                    .qtrans
+                    .qtrans.t()
                     .dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
             let mut a_mat: Array4<f64> = a_mat_2d
                 .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
@@ -5200,14 +5209,18 @@ pub fn fmo_zvector_routine(
             // sum A over kl, then solve the equations for each column
             let a_mat_ij: Array2<f64> = a_mat.sum_axis(Axis(3)).sum_axis(Axis(2));
             let mut z_vec: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
-            let f = a_mat_ij.factorize_into().unwrap();
+            // let f = a_mat_ij.clone().factorize_into().unwrap();
             for index in 0..dim_virt {
+                // z_vec.slice_mut(s![index, ..]).assign(
+                //     &f.solve_into(initial_lagrangian[ind].clone().slice_mut(s![.., index]))
+                //         .unwrap(),
+                // );
                 z_vec.slice_mut(s![index, ..]).assign(
-                    &f.solve_into(initial_lagrangian[ind].clone().slice_mut(s![.., index]))
+                    &a_mat_ij.solve(&initial_lagrangian[ind].slice(s![.., index]))
                         .unwrap(),
                 );
             }
-            z_vec
+            z_vec.reversed_axes()
         })
         .collect();
 
@@ -5241,12 +5254,12 @@ pub fn fmo_zvector_routine(
                             ]);
                             let a_mat_2d: Array2<f64> = -1.0
                                 * frag_gradient_results[ind_k]
-                                    .qtrans
+                                    .qtrans.t()
                                     .dot(&g0.dot(&frag_gradient_results[ind].qtrans));
                             let a_mat: Array4<f64> = a_mat_2d
                                 .into_shape((dim_virt_k, dim_occ_k, dim_virt, dim_occ))
                                 .unwrap();
-                            sum = sum + a_mat.sum_axis(Axis(1)).sum_axis(Axis(0)) * z_k.sum();
+                            sum = sum + a_mat.sum_axis(Axis(3)).sum_axis(Axis(2)) * z_k.sum();
                         }
                     }
                     lagrangian = &lagrangian_old[ind] - &sum;
@@ -5271,7 +5284,7 @@ pub fn fmo_zvector_routine(
                     let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
                     let a_mat_2d: Array2<f64> = -1.0
                         * frag_gradient_results[ind]
-                            .qtrans
+                            .qtrans.t()
                             .dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
                     let mut a_mat: Array4<f64> = a_mat_2d
                         .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
@@ -5292,14 +5305,18 @@ pub fn fmo_zvector_routine(
                     // sum A over kl, then solve the equations for each column
                     let a_mat_ij: Array2<f64> = a_mat.sum_axis(Axis(3)).sum_axis(Axis(2));
                     let mut z_vec: Array2<f64> = Array2::zeros((dim_virt, dim_occ));
-                    let f = a_mat_ij.factorize_into().unwrap();
+                    // let f = a_mat_ij.factorize_into().unwrap();
                     for index in 0..dim_virt {
+                        // z_vec.slice_mut(s![index, ..]).assign(
+                        //     &f.solve_into(lagrangian_new[ind].clone().slice_mut(s![.., index]))
+                        //         .unwrap(),
+                        // );
                         z_vec.slice_mut(s![index, ..]).assign(
-                            &f.solve_into(lagrangian_new[ind].clone().slice_mut(s![.., index]))
+                            &a_mat_ij.solve(&lagrangian_new[ind].slice(s![.., index]))
                                 .unwrap(),
                         );
                     }
-                    z_vector = z_vec;
+                    z_vector = z_vec.reversed_axes();
                 } else {
                     z_vector = z_old[ind].clone();
                 }
@@ -5312,8 +5329,10 @@ pub fn fmo_zvector_routine(
             let z_diff: Array2<f64> = z_vec - &z_old[index];
             let z_rmsd: f64 = z_diff.map(|val| val * val).mean().unwrap().sqrt();
             if z_rmsd < conv {
+                println!("z_rmsd {} of index {}",z_rmsd,index);
                 converged[index] = true;
             } else {
+                println!("z_rmsd {} of index {}",z_rmsd,index);
                 z_old[index] = z_vec.clone();
                 lagrangian_old[index] = lagrangian_new[index].clone();
             }
@@ -5328,6 +5347,7 @@ pub fn fmo_zvector_routine(
                 .filter_map(|&item| if item == true { Some(1) } else { None })
                 .collect();
             println!("Number of converged z-vectors: {}", converged_zvecs.len());
+            println!("Number of non converged z-vectors: {}",converged.len()-converged_zvecs.len());
         }
     }
     return z_old;
@@ -5341,7 +5361,7 @@ pub fn response_contribution_gradient(
     z_vectors: &Vec<Array2<f64>>,
     s_matrices: &Vec<Array2<f64>>,
 ) -> Array1<f64> {
-    let grad_length: usize = indices_frags.last().unwrap() + fragments.last().unwrap().n_atoms;
+    let grad_length: usize = 3*(indices_frags.last().unwrap() + fragments.last().unwrap().n_atoms);
     let mut response_gradient: Array1<f64> = Array1::zeros(grad_length);
 
     let frag_gradients: Vec<Array1<f64>> = fragments
@@ -5398,15 +5418,17 @@ pub fn response_contribution_gradient(
 
                 let orbs_i: Array2<f64> = frag.saved_orbs.clone().unwrap();
                 // calculate terms for dH and e_j * dS
-
                 for j in (0..dim_occ) {
                     let hs_term: Array2<f64> = &grad_h0.slice(s![a, .., ..])
                         - &(orbe[j] * &grad_s.slice(s![a, .., ..]).to_owned());
                     let sum_terms: Array2<f64> = hs_term + s_charge_term.clone();
                     // calculate sum_mu,nu c_mui c_nuj sum_terms
-                    b_mat
-                        .slice_mut(s![.., j])
-                        .assign(&(orbs_i.t().dot(&sum_terms).dot(&orbs_i.slice(s![.., j]))));
+                    // b_mat
+                    //     .slice_mut(s![.., j])
+                    //     .assign(&(orbs_i.t().dot(&sum_terms).dot(&orbs_i.slice(s![.., j]))));
+                    for i in (0..dim_virt){
+                        b_mat[[i,j]] = orbs_i.slice(s![..,i]).dot(&sum_terms).dot(&orbs_i.slice(s![.., j]));
+                    }
                 }
                 gradient[a] = b_mat.dot(&z_vectors[ind]).sum();
             }
@@ -5439,7 +5461,7 @@ pub fn calculate_lagrangian_zvector(
         .map(|(ind, frag)| {
             let index_frag: usize = indices_frags[ind];
             let mut lagrangian_arr: Array2<f64> =
-                Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
+                Array2::zeros((frag_gradient_results[ind].dim_virt, frag_gradient_results[ind].dim_occ));
 
             for (index_pair, pair) in pair_result.iter().enumerate() {
                 if pair.energy_pair.is_some() {

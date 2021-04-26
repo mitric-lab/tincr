@@ -215,34 +215,12 @@ pub fn calculate_energy_for_coordinates(
         atomic_numbers.clone(),
         positions.clone(),
     );
-    let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat): (
-        Vec<usize>,
-        Array2<f64>,
-        Array2<bool>,
-        Array2<f64>,
-        Array3<f64>,
-    ) = reorder_molecule(&fragments, config.clone(), positions.raw_dim());
+    let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat,full_hubbard): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>,HashMap<u8, f64>) =
+        reorder_molecule_v2(&fragments, config.clone(), positions.raw_dim());
 
-    let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
+    let (frag_energies,s_matrices,om_matrices,dq_vec):(Array1<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>,Vec<Array1<f64>>) = fmo_calculate_fragments_ncc(&mut fragments,gamma_total.view(),&indices_frags);
 
-    let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) = fmo_calculate_pairwise_single(
-        &fragments,
-        &fragments_data,
-        config.clone(),
-        &dist_mat,
-        &direct_mat,
-        &prox_mat,
-        &indices_frags,
-    );
-
-    let energy: f64 = fmo_gs_energy(
-        &fragments,
-        &fragments_data,
-        &pairs_data,
-        &indices_frags,
-        gamma_total,
-        prox_mat,
-    );
+    let energy:f64 = fmo_ncc_pairs_esdim_embedding(&fragments, frag_energies.view(), config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags,&full_hubbard,gamma_total.view(),&om_matrices,&dq_vec);
     return energy;
 }
 
@@ -2193,22 +2171,22 @@ pub fn fmo_calculate_fragments_ncc(
         //     && converged_p.len() == length
         if !converged.contains(&false)
         {
-            println!("Iteration {}", i);
-            println!(
-                "Number of converged fragment energies {}, charges {} and pmatrices {}",
-                converged_energies.len(),
-                converged_dq.len(),
-                converged_p.len()
-            );
+            // println!("Iteration {}", i);
+            // println!(
+            //     "Number of converged fragment energies {}, charges {} and pmatrices {}",
+            //     converged_energies.len(),
+            //     converged_dq.len(),
+            //     converged_p.len()
+            // );
             break 'ncc_loop;
         } else {
-            println!("Iteration {}", i);
-            println!(
-                "Number of converged fragment energies {}, charges {} and pmatrices {}",
-                converged_energies.len(),
-                converged_dq.len(),
-                converged_p.len()
-            );
+            // println!("Iteration {}", i);
+            // println!(
+            //     "Number of converged fragment energies {}, charges {} and pmatrices {}",
+            //     converged_energies.len(),
+            //     converged_dq.len(),
+            //     converged_p.len()
+            // );
         }
     }
     let om_monomers: Vec<Array1<f64>> = fragments
@@ -2717,9 +2695,9 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     let real_pairs: Array1<f64> = Array::from(real_pairs);
     let embedding_en: Array1<f64> = Array::from(embedding_vecs);
 
-    println!("Real pairs energy: {}", real_pairs.sum());
-    println!("Esd pairs energy {}", esd_pairs.sum());
-    println!("Embedding energy {}", embedding_en.sum());
+    // println!("Real pairs energy: {}", real_pairs.sum());
+    // println!("Esd pairs energy {}", esd_pairs.sum());
+    // println!("Embedding energy {}", embedding_en.sum());
 
     // transform Vec<Vec> back to Vec<>
     let mut pair_result: Vec<f64> = Vec::new();
