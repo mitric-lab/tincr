@@ -4099,7 +4099,6 @@ pub fn fmo_fragments_gradients_ncc(
             let result = frag_gradient_result::new(
                 gradient,
                 grad_s,
-                grad_h0,
                 om_monomers,
                 qtrans,
                 ws_pds,
@@ -4128,6 +4127,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     frag_s_matrices: &Vec<Array2<f64>>,
 ) -> (Array1<f64>,Array1<f64>) {
     // calculate gradient for monomers
+    let molecule_timer: Instant = Instant::now();
     let mut gradient_monomers: Vec<f64> = Vec::new();
 
     for frag in frag_gradient_results.iter() {
@@ -4616,16 +4616,27 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                             Some(0.0),
                                         );
 
+                                    // let g0_trimer_ak: Array2<f64> =
+                                    //     get_gamma_matrix_atomwise_outer_diagonal(
+                                    //         &dimer_atomic_numbers,
+                                    //         &mol_k.atomic_numbers,
+                                    //         pair_atoms,
+                                    //         mol_k.n_atoms,
+                                    //         trimer_distances.view(),
+                                    //         full_hubbard,
+                                    //         Some(0.0),
+                                    //     );
+
+                                    let g0_trimer_a: ArrayView2<f64> = g0_total.slice(s![
+                                        index_pair_a..index_pair_a + frag_a_atoms,
+                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
+                                    ]);
+                                    let g0_trimer_b: ArrayView2<f64> = g0_total.slice(s![
+                                        index_pair_b..index_pair_b + frag_b_atoms,
+                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
+                                    ]);
                                     let g0_trimer_ak: Array2<f64> =
-                                        get_gamma_matrix_atomwise_outer_diagonal(
-                                            &dimer_atomic_numbers,
-                                            &mol_k.atomic_numbers,
-                                            pair_atoms,
-                                            mol_k.n_atoms,
-                                            trimer_distances.view(),
-                                            full_hubbard,
-                                            Some(0.0),
-                                        );
+                                        stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
 
                                     let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
                                         index_frag_iter..index_frag_iter + mol_k.n_atoms,
@@ -4879,15 +4890,18 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                 Some(0.0),
                             );
 
-                        let g0_dimer_ab: Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
-                            &fragments[ind1].atomic_numbers,
-                            &fragments[ind2].atomic_numbers,
-                            fragments[ind1].n_atoms,
-                            fragments[ind2].n_atoms,
-                            dimer_distances,
-                            full_hubbard,
-                            Some(0.0),
-                        );
+                        // let g0_dimer_ab: Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
+                        //     &fragments[ind1].atomic_numbers,
+                        //     &fragments[ind2].atomic_numbers,
+                        //     fragments[ind1].n_atoms,
+                        //     fragments[ind2].n_atoms,
+                        //     dimer_distances,
+                        //     full_hubbard,
+                        //     Some(0.0),
+                        // );
+
+                        let g0_dimer_ab:ArrayView2<f64> = g0_total.slice(s![indices_frags[ind1]..indices_frags[ind1]+fragments[ind1].n_atoms,
+                        indices_frags[ind2]..indices_frags[ind2]+fragments[ind2].n_atoms]);
 
                         let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![
                             index_pair_b..index_pair_b + fragments[ind2].n_atoms,
@@ -5099,6 +5113,13 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     }
     let gradient_without_response:Array1<f64> = grad_total_frags + grad_total_dimers;
     println!("FMO gradient without response contribution: {}",gradient_without_response);
+    println!(
+        "{:>68} {:>8.2} s",
+        "elapsed time gradient without response:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+    let molecule_timer: Instant = Instant::now();
 
     // calculate lagrangian
     let lagrangian: Vec<Array2<f64>> = calculate_lagrangian_zvector(
@@ -5108,7 +5129,13 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         g0_total,
         frag_gradient_results,
     );
-    println!("After lagrangian");
+    println!(
+        "{:>68} {:>8.2} s",
+        "elapsed time initial lagrangian:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+    let molecule_timer: Instant = Instant::now();
 
     // do self consistent z-vector routine
     let z_vectors: Vec<Array2<f64>> = fmo_zvector_routine(
@@ -5118,7 +5145,13 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         frag_gradient_results,
         &lagrangian,
     );
-    println!("After z vectors");
+    println!(
+        "{:>68} {:>8.2} s",
+        "elapsed time z_vector routine:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+    let molecule_timer: Instant = Instant::now();
 
     // calculate response contribution to the gradient
     let response_contribution: Array1<f64> = response_contribution_gradient(
@@ -5129,6 +5162,12 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         &z_vectors,
         frag_s_matrices,
     );
+    println!(
+        "{:>68} {:>8.2} s",
+        "elapsed time response contribution:",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
 
     // assemble total gradient
     let total_gradient: Array1<f64> = gradient_without_response.clone() + response_contribution.clone();
@@ -5186,7 +5225,7 @@ pub fn fmo_zvector_routine(
             let dim_occ: usize = frag_gradient_results[ind].dim_occ;
             let dim_virt: usize = frag_gradient_results[ind].dim_virt;
             let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
-            let a_mat_2d: Array2<f64> = -1.0
+            let a_mat_2d: Array2<f64> = -4.0
                 * frag_gradient_results[ind]
                     .qtrans.t()
                     .dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
@@ -5252,7 +5291,7 @@ pub fn fmo_zvector_routine(
                                 index_frag_k..index_frag_k + fragments[ind_k].n_atoms,
                                 index_frag_i..index_frag_i + frag.n_atoms
                             ]);
-                            let a_mat_2d: Array2<f64> = -1.0
+                            let a_mat_2d: Array2<f64> = -4.0
                                 * frag_gradient_results[ind_k]
                                     .qtrans.t()
                                     .dot(&g0.dot(&frag_gradient_results[ind].qtrans));
@@ -5282,7 +5321,7 @@ pub fn fmo_zvector_routine(
                 if converged[ind] == false {
                     // calculate diagonal elements A^I,I_ij,kl for each fragment
                     let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
-                    let a_mat_2d: Array2<f64> = -1.0
+                    let a_mat_2d: Array2<f64> = -4.0
                         * frag_gradient_results[ind]
                             .qtrans.t()
                             .dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
@@ -5430,7 +5469,8 @@ pub fn response_contribution_gradient(
                         b_mat[[i,j]] = orbs_i.slice(s![..,i]).dot(&sum_terms).dot(&orbs_i.slice(s![.., j]));
                     }
                 }
-                gradient[a] = b_mat.dot(&z_vectors[ind]).sum();
+                // gradient[a] = b_mat.dot(&z_vectors[ind]).sum();
+                gradient[a] = z_vectors[ind].t().dot(&b_mat).sum();
             }
             // let gradient:Array1<f64> = b_mat.dot(&z_vectors[ind]);
             gradient
@@ -5573,7 +5613,6 @@ impl frag_grad_result {
 pub struct frag_gradient_result {
     gradient: Array1<f64>,
     grad_s: Array3<f64>,
-    grad_h0: Array3<f64>,
     om_monomers: Array1<f64>,
     qtrans: Array2<f64>,
     ws_pds: Array2<f64>,
@@ -5585,7 +5624,6 @@ impl frag_gradient_result {
     pub(crate) fn new(
         gradient: Array1<f64>,
         grad_s: Array3<f64>,
-        grad_h0: Array3<f64>,
         om_monomers: Array1<f64>,
         qtrans: Array2<f64>,
         ws_pds: Array2<f64>,
@@ -5595,7 +5633,6 @@ impl frag_gradient_result {
         let result = frag_gradient_result {
             gradient: gradient,
             grad_s: grad_s,
-            grad_h0: grad_h0,
             om_monomers: om_monomers,
             qtrans: qtrans,
             ws_pds: ws_pds,
