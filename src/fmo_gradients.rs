@@ -5380,11 +5380,9 @@ pub fn fmo_zvector_routine(
         for (index, z_vec) in z_new.iter().enumerate() {
             let z_diff: Array2<f64> = z_vec - &z_old[index];
             let z_rmsd: f64 = z_diff.map(|val| val * val).mean().unwrap().sqrt();
-            if z_rmsd < conv {
-                println!("z_rmsd {} of index {}",z_rmsd,index);
+            if z_rmsd < conv && iter > 0 {
                 converged[index] = true;
             } else {
-                println!("z_rmsd {} of index {}",z_rmsd,index);
                 z_old[index] = z_vec.clone();
                 lagrangian_old[index] = lagrangian_new[index].clone();
             }
@@ -5466,7 +5464,7 @@ pub fn response_contribution_gradient(
                     .broadcast((charge_ao.len(), charge_ao.len()))
                     .unwrap()
                     + &charge_ao;
-                let s_charge_term: Array2<f64> = charge_mat_ao * s_matrices[ind].view();
+                let s_charge_term: Array2<f64> = 0.5* charge_mat_ao * s_matrices[ind].view();
 
                 let orbs_i: Array2<f64> = frag.saved_orbs.clone().unwrap();
                 // calculate terms for dH and e_j * dS
@@ -5483,7 +5481,7 @@ pub fn response_contribution_gradient(
                     }
                 }
                 // gradient[a] = b_mat.dot(&z_vectors[ind]).sum();
-                gradient[a] = z_vectors[ind].t().dot(&b_mat).sum();
+                gradient[a] = z_vectors[ind].t().dot(&b_mat).trace().unwrap();
             }
             // let gradient:Array1<f64> = b_mat.dot(&z_vectors[ind]);
             gradient
@@ -5539,6 +5537,7 @@ pub fn calculate_lagrangian_zvector(
 
                         let ddq_pair: Array1<f64> = pair.pair_ddq.clone().unwrap();
                         let gdq_vec: Array1<f64> = ddq_pair.dot(&g0_trimer);
+
                         let lagragian_1dim: Array1<f64> =
                             gdq_vec.dot(&frag_gradient_results[ind].qtrans);
 

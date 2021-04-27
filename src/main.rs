@@ -298,42 +298,42 @@ fn main() {
             );
             drop(molecule_timer);
 
-            // let mut mol: Molecule = Molecule::new(
-            //     atomic_numbers.clone(),
-            //     positions,
-            //     Some(config.mol.charge),
-            //     Some(config.mol.multiplicity),
-            //     Some(0.0),
-            //     None,
-            //     config.clone(),
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None,
-            //     None
-            // );
-            //
-            // println!(" ");
-            //
-            // let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
-            //     scc_routine::run_scc(&mut mol);
-            // mol.calculator.set_active_orbitals(f.to_vec());
-            //
-            // println!("SCC Energy {}",energy);
-            //
-            // let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
-            // let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());
+            let mut mol: Molecule = Molecule::new(
+                atomic_numbers.clone(),
+                positions,
+                Some(config.mol.charge),
+                Some(config.mol.multiplicity),
+                Some(0.0),
+                None,
+                config.clone(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None
+            );
+
+            println!(" ");
+
+            let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+                scc_routine::run_scc(&mut mol);
+            mol.calculator.set_active_orbitals(f.to_vec());
+
+            println!("SCC Energy {}",energy);
+
+            let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+            let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());
             // let numerical_gradient_ridders:Array1<f64> = fmo_numerical_gradient_new(&atomic_numbers,&coords,config.clone());
             // println!("Numerical gradient fmo ridders method {}",numerical_gradient_ridders);
             // println!(" ");
-            //
-            // println!("FMO gradients {}", gradients);
-            // println!(" ");
-            //
+
+            println!("FMO gradients {}", gradients);
+            println!(" ");
+
             // println!("Difference between FMO and ridders:");
             // let diff:Array1<f64> = (&gradients - &numerical_gradient_ridders);
             // println!("{}",diff);
@@ -346,34 +346,34 @@ fn main() {
             // println!("Norm of difference fmo and ridders {}",(&gradients - &numerical_gradient_ridders).norm());
             // println!("Norm of difference fmo without response and ridders {}",(&gradients_without_response - &numerical_gradient_ridders).norm());
             // println!(" ");
-            //
-            // println!("Numerical gradient fmo (no ridders) {}",numerical_gradient);
-            // println!("Norm of difference fmo and numerical (no ridders) {}",(&gradients - &numerical_gradient).norm());
-            // println!("Norm of difference fmo without response and numerical (no ridders) {}",(&gradients_without_response - &numerical_gradient).norm());
-            // println!(" ");
-            //
-            // let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
-            //     Array1<f64>,
-            //     Array1<f64>,
-            //     Array1<f64>,
-            //     Array3<f64>,
-            // ) = get_gradients(&orbe, &orbs, &s, &mut mol, &None, &None, None, &None, None);
-            //
+
+            println!("Numerical gradient fmo (no ridders) {}",numerical_gradient);
+            println!("Norm of difference fmo and numerical (no ridders) {}",(&gradients - &numerical_gradient).norm());
+            println!("Norm of difference fmo without response and numerical (no ridders) {}",(&gradients_without_response - &numerical_gradient).norm());
+            println!(" ");
+
+            let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+                Array1<f64>,
+                Array1<f64>,
+                Array1<f64>,
+                Array3<f64>,
+            ) = get_gradients(&orbe, &orbs, &s, &mut mol, &None, &None, None, &None, None);
+
             // let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
-            //
-            // println!("DFTB Gradient {}",&grad_e0 + &grad_vrep);
-            // println!("Norm of difference fmo and dftb {}",(&gradients - &(&grad_e0 + &grad_vrep)).norm());
-            // println!("Norm of difference fmo without response and dftb {}",(&gradients_without_response - &(&grad_e0 + &grad_vrep)).norm());
-            // println!("Difference dftb and fmo without response {}",&gradients_without_response - &(&grad_e0 + &grad_vrep));
-            // // let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
-            // // println!("");
-            // // println!("numerical dftb gradient {}",num_grad);
-            // // println!("");
-            // // println!("Norm of difference: {}", (&(&grad_e0+ &grad_vrep)-&num_grad).norm());
-            // // println!("");
-            // // println!("Difference num grad fmo vs dftb {}",numerical_gradient-num_grad);
-            // // println!("");
-            // // println!("Difference dftb grad vs fmo grad {}",&gradients-&(&grad_e0+ &grad_vrep));
+
+            println!("DFTB Gradient {}",&grad_e0 + &grad_vrep);
+            println!("Norm of difference fmo and dftb {}",(&gradients - &(&grad_e0 + &grad_vrep)).norm());
+            println!("Norm of difference fmo without response and dftb {}",(&gradients_without_response - &(&grad_e0 + &grad_vrep)).norm());
+            println!("Difference dftb and fmo without response {}",&gradients_without_response - &(&grad_e0 + &grad_vrep));
+            // let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
+            // println!("");
+            // println!("numerical dftb gradient {}",num_grad);
+            // println!("");
+            // println!("Norm of difference: {}", (&(&grad_e0+ &grad_vrep)-&num_grad).norm());
+            // println!("");
+            // println!("Difference num grad fmo vs dftb {}",numerical_gradient-num_grad);
+            // println!("");
+            // println!("Difference dftb grad vs fmo grad {}",&gradients-&(&grad_e0+ &grad_vrep));
             0
         }
         "fmo" => {
