@@ -5159,6 +5159,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         g0_total,
         frag_gradient_results,
         &lagrangian,
+        frag_s_matrices
     );
     println!(
         "{:>68} {:>8.2} s",
@@ -5230,6 +5231,7 @@ pub fn fmo_zvector_routine(
     g0_total: ArrayView2<f64>,
     frag_gradient_results: &Vec<frag_gradient_result>,
     initial_lagrangian: &Vec<Array2<f64>>,
+    s_matrices:&Vec<Array2<f64>>,
 ) -> (Vec<Array2<f64>>) {
     // generate initial z-vectors, can be parallel
     let mut z_old: Vec<Array2<f64>> = fragments
@@ -5240,6 +5242,7 @@ pub fn fmo_zvector_routine(
             let dim_occ: usize = frag_gradient_results[ind].dim_occ;
             let dim_virt: usize = frag_gradient_results[ind].dim_virt;
             let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
+            let orbs:Array2<f64> = frag.saved_orbs.clone().unwrap();
             let a_mat_2d: Array2<f64> = -4.0
                 * frag_gradient_results[ind]
                     .qtrans.t()
@@ -5247,20 +5250,45 @@ pub fn fmo_zvector_routine(
             let mut a_mat: Array4<f64> = a_mat_2d
                 .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
                 .unwrap();
+            let mut a_mat_4d:Array4<f64> = Array4::zeros((dim_virt,dim_occ,dim_virt,dim_occ));
+            for k in (0..dim_virt).into_iter() {
+                for l in (0..dim_occ).into_iter() {
+                    let esp_like:Array1<f64> = frag.g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
+                    let mut mu: usize = 0;
+                    // ao transformation
+                    let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
+                    for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
+                        for _ in &frag.calculator.valorbs[z_i] {
+                            esp_ao[mu] = esp_like[i];
+                            mu = mu + 1;
+                        }
+                    }
+                    let esp_mat_ao: Array2<f64> = &esp_ao
+                        .broadcast((esp_ao.len(), esp_ao.len()))
+                        .unwrap()
+                        + &esp_ao;
+                    let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind].view();
+                    let kl_term:Array2<f64> = -1.0 * orbs.slice(s![..,dim_occ..]).t().dot(&s_esp_term).dot(&orbs.slice(s![..,0..dim_occ]));
+                    a_mat_4d.slice_mut(s![..,..,k,l]).assign(&kl_term);
+                }
+            }
             for i in (0..dim_virt).into_iter() {
                 for j in (0..dim_occ).into_iter() {
                     for k in (0..dim_virt).into_iter() {
                         for l in (0..dim_occ).into_iter() {
                             if i == k && j == l {
                                 a_mat[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
+                                a_mat_4d[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
                             }
                         }
                     }
                 }
             }
+            // assert_eq!(a_mat,a_mat_4d,"A matrices NOT EQUAL!");
             // Solve a set of equations
             // (A^I,I).T Z^I = L^I
             let a_mat_2d:Array2<f64> = a_mat.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
+            // let a_mat_2d:Array2<f64> = a_mat_4d.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
             // let zeros_test:Array2<f64> = Array2::zeros(a_mat_2d.raw_dim());
             // assert!(zeros_test.abs_diff_eq(&(&a_mat_2d-&a_mat_2d.t()),1e-15),"A matrix not symmetric");
             let lagrangian_1d:Array1<f64> = initial_lagrangian[ind].clone().into_shape(dim_virt* dim_occ).unwrap();
@@ -5309,6 +5337,7 @@ pub fn fmo_zvector_routine(
                             let dim_virt_k: usize = frag_gradient_results[ind_k].dim_virt;
                             let index_frag_i: usize = indices_frags[ind];
                             let index_frag_k: usize = indices_frags[ind_k];
+                            let orbs_k:Array2<f64> = fragments[ind_k].saved_orbs.clone().unwrap();
                             let g0: ArrayView2<f64> = g0_total.slice(s![
                                 index_frag_k..index_frag_k + fragments[ind_k].n_atoms,
                                 index_frag_i..index_frag_i + frag.n_atoms
@@ -5317,6 +5346,29 @@ pub fn fmo_zvector_routine(
                                 * frag_gradient_results[ind_k]
                                     .qtrans.t()
                                     .dot(&g0.dot(&frag_gradient_results[ind].qtrans));
+                            let mut a_mat_4d:Array4<f64> = Array4::zeros((dim_virt_k,dim_occ_k,dim_virt,dim_occ));
+                            for k in (0..dim_virt).into_iter() {
+                                for l in (0..dim_occ).into_iter() {
+                                    let esp_like:Array1<f64> = g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
+                                    let mut mu: usize = 0;
+                                    // ao transformation
+                                    let mut esp_ao: Array1<f64> = Array1::zeros(fragments[ind_k].calculator.n_orbs);
+                                    for (i, z_i) in fragments[ind_k].atomic_numbers.iter().enumerate() {
+                                        for _ in &fragments[ind_k].calculator.valorbs[z_i] {
+                                            esp_ao[mu] = esp_like[i];
+                                            mu = mu + 1;
+                                        }
+                                    }
+                                    let esp_mat_ao: Array2<f64> = &esp_ao
+                                        .broadcast((esp_ao.len(), esp_ao.len()))
+                                        .unwrap()
+                                        + &esp_ao;
+                                    let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind_k].view();
+                                    let kl_term:Array2<f64> = -1.0 * orbs_k.slice(s![..,dim_occ_k..]).t().dot(&s_esp_term).dot(&orbs_k.slice(s![..,0..dim_occ_k]));
+                                    a_mat_4d.slice_mut(s![..,..,k,l]).assign(&kl_term);
+                                }
+                            }
+                            // let a_mat_2d:Array2<f64> = a_mat_4d.into_shape((dim_virt_k* dim_occ_k, dim_virt* dim_occ)).unwrap();
                             // let a_mat: Array4<f64> = a_mat_2d
                             //     .into_shape((dim_virt_k, dim_occ_k, dim_virt, dim_occ))
                             //     .unwrap();
@@ -5345,6 +5397,7 @@ pub fn fmo_zvector_routine(
                 if converged[ind] == false {
                     // calculate diagonal elements A^I,I_ij,kl for each fragment
                     let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
+                    let orbs:Array2<f64> = frag.saved_orbs.clone().unwrap();
                     let a_mat_2d: Array2<f64> = -4.0
                         * frag_gradient_results[ind]
                             .qtrans.t()
@@ -5352,12 +5405,35 @@ pub fn fmo_zvector_routine(
                     let mut a_mat: Array4<f64> = a_mat_2d
                         .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
                         .unwrap();
+                    let mut a_mat_4d:Array4<f64> = Array4::zeros((dim_virt,dim_occ,dim_virt,dim_occ));
+                    for k in (0..dim_virt).into_iter() {
+                        for l in (0..dim_occ).into_iter() {
+                            let esp_like:Array1<f64> = frag.g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
+                            let mut mu: usize = 0;
+                            // ao transformation
+                            let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
+                            for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
+                                for _ in &frag.calculator.valorbs[z_i] {
+                                    esp_ao[mu] = esp_like[i];
+                                    mu = mu + 1;
+                                }
+                            }
+                            let esp_mat_ao: Array2<f64> = &esp_ao
+                                .broadcast((esp_ao.len(), esp_ao.len()))
+                                .unwrap()
+                                + &esp_ao;
+                            let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind].view();
+                            let kl_term:Array2<f64> = -1.0 *orbs.slice(s![..,dim_occ..]).t().dot(&s_esp_term).dot(&orbs.slice(s![..,0..dim_occ]));
+                            a_mat_4d.slice_mut(s![..,..,k,l]).assign(&kl_term);
+                        }
+                    }
                     for i in (0..dim_virt).into_iter() {
                         for j in (0..dim_occ).into_iter() {
                             for k in (0..dim_virt).into_iter() {
                                 for l in (0..dim_occ).into_iter() {
                                     if i == k && j == l {
                                         a_mat[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
+                                        a_mat_4d[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
                                     }
                                 }
                             }
@@ -5366,6 +5442,7 @@ pub fn fmo_zvector_routine(
                     // Solve a set of equations
                     // (A^I,I).T Z^I = L^I
                     let a_mat_2d:Array2<f64> = a_mat.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
+                    // let a_mat_2d:Array2<f64> = a_mat_4d.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
                     let lagrangian_1d:Array1<f64> = initial_lagrangian[ind].clone().into_shape(dim_virt* dim_occ).unwrap();
 
                     let z_vec:Array1<f64> = a_mat_2d.t().solve_h(&lagrangian_1d).unwrap();
@@ -5492,7 +5569,7 @@ pub fn response_contribution_gradient(
                     //     .slice_mut(s![.., j])
                     //     .assign(&(orbs_i.t().dot(&sum_terms).dot(&orbs_i.slice(s![.., j]))));
                     for i in (0..dim_virt){
-                        b_mat[[i,j]] = orbs_i.slice(s![..,i]).dot(&sum_terms).dot(&orbs_i.slice(s![.., j]));
+                        b_mat[[i,j]] = orbs_i.slice(s![..,dim_occ+i]).dot(&sum_terms).dot(&orbs_i.slice(s![.., j]));
                     }
                 }
                 // gradient[a] = b_mat.dot(&z_vectors[ind]).sum();
