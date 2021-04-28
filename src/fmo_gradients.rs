@@ -3867,7 +3867,7 @@ pub fn fmo_fragments_gradients_ncc(
     Vec<Array1<f64>>,
     Vec<frag_gradient_result>,
 ) {
-    let max_iter: usize = 40;
+    let max_iter: usize = 250;
     let mut energy_old: Array1<f64> = Array1::zeros(fragments.len());
     let mut dq_old: Vec<Array1<f64>> = Vec::new();
     let mut pmat_old: Vec<Array2<f64>> = Vec::new();
@@ -4125,7 +4125,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     om_monomers: &Vec<Array1<f64>>,
     dq_vec: &Vec<Array1<f64>>,
     frag_s_matrices: &Vec<Array2<f64>>,
-) -> (Array1<f64>,Array1<f64>) {
+) -> (Array1<f64>,Array1<f64>,Array1<f64>,Array1<f64>) {
     // calculate gradient for monomers
     let molecule_timer: Instant = Instant::now();
     let mut gradient_monomers: Vec<f64> = Vec::new();
@@ -5077,6 +5077,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     drop(result);
 
     let mut grad_total_dimers: Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
+    let mut grad_real_pairs: Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
 
     for (index, pair) in pair_result.iter().enumerate() {
         let index_a: usize = pair.frag_a_index;
@@ -5098,11 +5099,24 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                 .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
                 .add_assign(
                     &(&dimer_gradient.slice(s![3 * atoms_a..])
+                        - &frag_gradient_results[index_b].gradient),
+                );
+            grad_real_pairs
+                .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+                .add_assign(
+                    &(&dimer_gradient.slice(s![0..3 * atoms_a])
                         - &frag_gradient_results[index_a].gradient),
+                );
+            grad_real_pairs
+                .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+                .add_assign(
+                    &(&dimer_gradient.slice(s![3 * atoms_a..])
+                        - &frag_gradient_results[index_b].gradient),
                 );
             let embedding_gradient: Array1<f64> = pair.embedding_gradient.clone().unwrap();
             grad_total_dimers.add_assign(&embedding_gradient);
-        } else {
+        }
+        else {
             grad_total_dimers
                 .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
                 .add_assign(&dimer_gradient.slice(s![0..3 * atoms_a]));
@@ -5111,8 +5125,9 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                 .add_assign(&dimer_gradient.slice(s![3 * atoms_a..]));
         }
     }
-    let gradient_without_response:Array1<f64> = grad_total_frags + grad_total_dimers;
-    println!("FMO gradient without response contribution: {}",gradient_without_response);
+    let gradient_without_response:Array1<f64> = grad_total_frags.clone() + grad_total_dimers;
+    let gradient_monomers_real_pairs:Array1<f64> = grad_total_frags.clone() + grad_real_pairs;
+
     println!(
         "{:>68} {:>8.2} s",
         "elapsed time gradient without response:",
@@ -5173,7 +5188,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     let total_gradient: Array1<f64> = gradient_without_response.clone() + response_contribution.clone();
     println!("Difference respone gradient: {}",response_contribution);
 
-    return (total_gradient,gradient_without_response);
+    return (total_gradient,gradient_without_response,grad_total_frags,gradient_monomers_real_pairs);
 }
 
 pub fn charges_derivatives_contribution(

@@ -209,12 +209,13 @@ pub fn calculate_energy_for_coordinates(
     config: GeneralConfig,
     subgraph: Vec<StableUnGraph<u8, f64>>,
 ) -> (f64) {
-    let mut fragments: Vec<Molecule> = create_fragment_molecules(
-        subgraph.clone(),
+    let tmp:(Vec<Molecule>,Vec<u8>,Array1<f64>) = create_fragment_molecules(
+        subgraph,
         config.clone(),
         atomic_numbers.clone(),
         positions.clone(),
     );
+    let mut fragments: Vec<Molecule> = tmp.0;
     let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat,full_hubbard): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>,HashMap<u8, f64>) =
         reorder_molecule_v2(&fragments, config.clone(), positions.raw_dim());
 
@@ -1756,7 +1757,7 @@ pub fn create_fragment_molecules(
     config: GeneralConfig,
     cluster_atomic_numbers: Vec<u8>,
     cluster_positions: Array2<f64>,
-) -> Vec<Molecule> {
+) -> (Vec<Molecule>,Vec<u8>,Array1<f64>) {
     //let mut fragments: Vec<Molecule> = Vec::new();
     //for frag in subgraphs.iter() {
     //    let molecule_timer: Instant = Instant::now();
@@ -1797,6 +1798,8 @@ pub fn create_fragment_molecules(
     let mut fragments: Vec<Molecule> = Vec::new();
     let mut saved_calculators: Vec<DFTBCalculator> = Vec::new();
     let mut saved_graphs: Vec<Graph<u8, f64, Undirected>> = Vec::new();
+    let mut new_atomic_numbers:Vec<u8> = Vec::new();
+    let mut new_positions:Vec<f64> = Vec::new();
 
     for (ind_graph, frag) in subgraphs.iter().enumerate() {
         let mut use_saved_calc: bool = false;
@@ -1848,8 +1851,11 @@ pub fn create_fragment_molecules(
             saved_calculators.push(frag_mol.calculator.clone());
             saved_graphs.push(graphs[ind_graph].clone());
         }
+        new_atomic_numbers.append(&mut frag_mol.atomic_numbers.clone());
+        new_positions.append(&mut frag_mol.positions.clone().into_shape(3*frag_mol.n_atoms).unwrap().to_vec());
         fragments.push(frag_mol);
     }
+    let positions:Array1<f64> = Array::from(new_positions);
 
     //let fragments: Vec<Molecule> = subgraphs
     //    .par_iter()
@@ -1875,7 +1881,7 @@ pub fn create_fragment_molecules(
     //    })
     //    .collect();
 
-    return fragments;
+    return (fragments,new_atomic_numbers,positions);
 }
 // TODO: creating the complete cluster as a molecule is problematic
 // The creations of a new molecule includes the calculation of the gamma matrix,

@@ -237,12 +237,16 @@ fn main() {
             );
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
-            let mut fragments: Vec<Molecule> = create_fragment_molecules(
+            let tmp:(Vec<Molecule>,Vec<u8>,Array1<f64>) = create_fragment_molecules(
                 subgraph,
                 config.clone(),
                 atomic_numbers.clone(),
                 positions.clone(),
             );
+            let mut fragments: Vec<Molecule> = tmp.0;
+            let atomic_numbers:Vec<u8> = tmp.1;
+            let positions:Array2<f64> = tmp.2.into_shape(positions.raw_dim()).unwrap();
+
             println!(
                 "{:>68} {:>8.2} s",
                 "elapsed time create fragment mols:",
@@ -289,7 +293,7 @@ fn main() {
 
             // let gradients:Array1<f64> = fmo_calculate_pairs_embedding_esdim(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard);
             // let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,&dist_mat,&direct_mat,&full_hubbard);
-            let (gradients,gradients_without_response):(Array1<f64>,Array1<f64>) = fmo_gradient_pairs_embedding_esdim(&fragments, &gradient_vec, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard,gamma_total.view(),&om_matrices,&dq_vec,&s_matrices);
+            let (gradients,gradients_without_response,monomer_grad,real_pairs_grad):(Array1<f64>,Array1<f64>,Array1<f64>,Array1<f64>) = fmo_gradient_pairs_embedding_esdim(&fragments, &gradient_vec, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard,gamma_total.view(),&om_matrices,&dq_vec,&s_matrices);
 
             println!(
                 "{:>68} {:>8.2} s",
@@ -297,10 +301,15 @@ fn main() {
                 molecule_timer.elapsed().as_secs_f32()
             );
             drop(molecule_timer);
+            println!("Monomer gradients {}",monomer_grad.slice(s![gradients.len()-16..]));
+            println!("real pairs gradient {}",monomer_grad.slice(s![gradients.len()-16..]));
+            println!("FMO gradients {}", gradients_without_response.slice(s![gradients.len()-16..]));
+            println!("FMO gradients + response {}", gradients.slice(s![gradients.len()-16..]));
+            println!(" ");
 
             let mut mol: Molecule = Molecule::new(
                 atomic_numbers.clone(),
-                positions,
+                positions.clone(),
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
                 Some(0.0),
@@ -325,14 +334,11 @@ fn main() {
 
             println!("SCC Energy {}",energy);
 
-            let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+            let coords: Array1<f64> = positions.clone().into_shape(3 * mol.n_atoms).unwrap();
             let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());
             // let numerical_gradient_ridders:Array1<f64> = fmo_numerical_gradient_new(&atomic_numbers,&coords,config.clone());
             // println!("Numerical gradient fmo ridders method {}",numerical_gradient_ridders);
             // println!(" ");
-
-            println!("FMO gradients {}", gradients);
-            println!(" ");
 
             // println!("Difference between FMO and ridders:");
             // let diff:Array1<f64> = (&gradients - &numerical_gradient_ridders);
@@ -347,7 +353,7 @@ fn main() {
             // println!("Norm of difference fmo without response and ridders {}",(&gradients_without_response - &numerical_gradient_ridders).norm());
             // println!(" ");
 
-            println!("Numerical gradient fmo (no ridders) {}",numerical_gradient);
+            println!("Numerical gradient fmo (no ridders) {}",numerical_gradient.slice(s![gradients.len()-16..]));
             println!("Norm of difference fmo and numerical (no ridders) {}",(&gradients - &numerical_gradient).norm());
             println!("Norm of difference fmo without response and numerical (no ridders) {}",(&gradients_without_response - &numerical_gradient).norm());
             println!(" ");
@@ -358,13 +364,22 @@ fn main() {
                 Array1<f64>,
                 Array3<f64>,
             ) = get_gradients(&orbe, &orbs, &s, &mut mol, &None, &None, None, &None, None);
+            let dftb_gradient:Array1<f64> = &grad_e0 + &grad_vrep;
 
             // let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
 
-            println!("DFTB Gradient {}",&grad_e0 + &grad_vrep);
-            println!("Norm of difference fmo and dftb {}",(&gradients - &(&grad_e0 + &grad_vrep)).norm());
-            println!("Norm of difference fmo without response and dftb {}",(&gradients_without_response - &(&grad_e0 + &grad_vrep)).norm());
-            println!("Difference dftb and fmo without response {}",&gradients_without_response - &(&grad_e0 + &grad_vrep));
+            println!("DFTB Gradient {}",dftb_gradient.slice(s![gradients.len()-16..]));
+            println!("Rmsd of difference fmo and dftb {}",(&gradients - &(&grad_e0 + &grad_vrep)).map(|val| val * val).mean().unwrap().sqrt());
+            println!("Rmsd of difference fmo without response and dftb {}",(&gradients_without_response - &(&grad_e0 + &grad_vrep)).map(|val| val * val).mean().unwrap().sqrt());
+            // println!("Norm of difference numerical and dftb {}",(&numerical_gradient - &(&grad_e0 + &grad_vrep)).norm());
+            let dftb_diff:Array1<f64> =&gradients_without_response - &(&grad_e0 + &grad_vrep);
+            let max_gradient: f64 = dftb_diff.clone().mapv(|val|val.abs())
+                .iter()
+                .cloned()
+                .max_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
+                .unwrap();
+            println!("Max deviation from dftb: {}",max_gradient);
+            println!("Difference dftb and fmo without response {}",dftb_diff.slice(s![gradients.len()-16..]));
             // let num_grad:Array1<f64> = dftb_numerical_gradients(&mut mol);
             // println!("");
             // println!("numerical dftb gradient {}",num_grad);
@@ -394,12 +409,13 @@ fn main() {
             );
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
-            let mut fragments: Vec<Molecule> = create_fragment_molecules(
+            let tmp:(Vec<Molecule>,Vec<u8>,Array1<f64>) = create_fragment_molecules(
                 subgraph,
                 config.clone(),
                 atomic_numbers.clone(),
                 positions.clone(),
             );
+            let mut fragments: Vec<Molecule> = tmp.0;
             let (indices_frags, gamma_total, prox_mat, dist_mat, direct_mat,full_hubbard): (Vec<usize>, Array2<f64>, Array2<bool>, Array2<f64>, Array3<f64>,HashMap<u8, f64>) =
                 reorder_molecule_v2(&fragments, config.clone(), positions.raw_dim());
             println!(
@@ -491,12 +507,13 @@ fn main() {
             );
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
-            let mut fragments: Vec<Molecule> = create_fragment_molecules(
+            let tmp:(Vec<Molecule>,Vec<u8>,Array1<f64>) = create_fragment_molecules(
                 subgraph,
                 config.clone(),
                 atomic_numbers.clone(),
                 positions.clone(),
             );
+            let mut fragments: Vec<Molecule> = tmp.0;
             println!(
                 "{:>68} {:>8.2} s",
                 "elapsed time create fragment mols:",
