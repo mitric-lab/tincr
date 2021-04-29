@@ -4125,6 +4125,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     om_monomers: &Vec<Array1<f64>>,
     dq_vec: &Vec<Array1<f64>>,
     frag_s_matrices: &Vec<Array2<f64>>,
+    g1_dot_dq:&Array2<f64>,
 ) -> (Array1<f64>,Array1<f64>,Array1<f64>,Array1<f64>) {
     // calculate gradient for monomers
     let molecule_timer: Instant = Instant::now();
@@ -4576,45 +4577,43 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                 if ind_k != ind1 && ind_k != ind2 {
                                     let index_frag_iter: usize = indices_frags[ind_k];
 
-                                    let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
-                                        index_pair_a..index_pair_a + frag_a_atoms,
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    ]);
-                                    let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
-                                        index_pair_b..index_pair_b + frag_b_atoms,
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    ]);
-                                    let trimer_distances: Array2<f64> =
-                                        stack(Axis(0), &[trimer_distances_a, trimer_distances_b])
-                                            .unwrap();
-
-                                    let trimer_directions_a: ArrayView3<f64> =
-                                        direct_mat.slice(s![
-                                            index_pair_a..index_pair_a + frag_a_atoms,
-                                            index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                            ..
-                                        ]);
-                                    let trimer_directions_b: ArrayView3<f64> =
-                                        direct_mat.slice(s![
-                                            index_pair_b..index_pair_b + frag_b_atoms,
-                                            index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                            ..
-                                        ]);
-                                    let trimer_directions: Array3<f64> =
-                                        stack(Axis(0), &[trimer_directions_a, trimer_directions_b])
-                                            .unwrap();
-
-                                    let g1_trimer_ak: Array3<f64> =
-                                        get_gamma_gradient_matrix_atom_wise_outer_diagonal(
-                                            &dimer_atomic_numbers,
-                                            &mol_k.atomic_numbers,
-                                            pair_atoms,
-                                            mol_k.n_atoms,
-                                            trimer_distances.view(),
-                                            trimer_directions.view(),
-                                            full_hubbard,
-                                            Some(0.0),
-                                        );
+                                    // let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
+                                    //     index_pair_a..index_pair_a + frag_a_atoms,
+                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms
+                                    // ]);
+                                    // let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
+                                    //     index_pair_b..index_pair_b + frag_b_atoms,
+                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms
+                                    // ]);
+                                    // let trimer_distances: Array2<f64> =
+                                    //     stack(Axis(0), &[trimer_distances_a, trimer_distances_b])
+                                    //         .unwrap();
+                                    // let trimer_directions_a: ArrayView3<f64> =
+                                    //     direct_mat.slice(s![
+                                    //         index_pair_a..index_pair_a + frag_a_atoms,
+                                    //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                                    //         ..
+                                    //     ]);
+                                    // let trimer_directions_b: ArrayView3<f64> =
+                                    //     direct_mat.slice(s![
+                                    //         index_pair_b..index_pair_b + frag_b_atoms,
+                                    //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                                    //         ..
+                                    //     ]);
+                                    // let trimer_directions: Array3<f64> =
+                                    //     stack(Axis(0), &[trimer_directions_a, trimer_directions_b])
+                                    //         .unwrap();
+                                    // let g1_trimer_ak: Array3<f64> =
+                                    //     get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+                                    //         &dimer_atomic_numbers,
+                                    //         &mol_k.atomic_numbers,
+                                    //         pair_atoms,
+                                    //         mol_k.n_atoms,
+                                    //         trimer_distances.view(),
+                                    //         trimer_directions.view(),
+                                    //         full_hubbard,
+                                    //         Some(0.0),
+                                    //     );
 
                                     // let g0_trimer_ak: Array2<f64> =
                                     //     get_gamma_matrix_atomwise_outer_diagonal(
@@ -4638,45 +4637,46 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                     let g0_trimer_ak: Array2<f64> =
                                         stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
 
-                                    let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                        index_pair_a..index_pair_a + frag_a_atoms,
-                                    ]);
-                                    let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                        index_pair_b..index_pair_b + frag_b_atoms,
-                                    ]);
-                                    let trimer_distances: Array2<f64> =
-                                        stack(Axis(1), &[trimer_distances_a, trimer_distances_b])
-                                            .unwrap();
+                                    // let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
+                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                                    //     index_pair_a..index_pair_a + frag_a_atoms,
+                                    // ]);
+                                    // let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
+                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                                    //     index_pair_b..index_pair_b + frag_b_atoms,
+                                    // ]);
+                                    // let trimer_distances: Array2<f64> =
+                                    //     stack(Axis(1), &[trimer_distances_a, trimer_distances_b])
+                                    //         .unwrap();
+                                    // let trimer_directions_a: ArrayView3<f64> =
+                                    //     direct_mat.slice(s![
+                                    //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                                    //         index_pair_a..index_pair_a + frag_a_atoms,
+                                    //         ..
+                                    //     ]);
+                                    // let trimer_directions_b: ArrayView3<f64> =
+                                    //     direct_mat.slice(s![
+                                    //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                                    //         index_pair_b..index_pair_b + frag_b_atoms,
+                                    //         ..
+                                    //     ]);
+                                    // let trimer_directions: Array3<f64> =
+                                    //     stack(Axis(1), &[trimer_directions_a, trimer_directions_b])
+                                    //         .unwrap();
+                                    // let g1_trimer_ka: Array3<f64> =
+                                    //     get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+                                    //         &mol_k.atomic_numbers,
+                                    //         &dimer_atomic_numbers,
+                                    //         mol_k.n_atoms,
+                                    //         pair_atoms,
+                                    //         trimer_distances.view(),
+                                    //         trimer_directions.view(),
+                                    //         full_hubbard,
+                                    //         Some(0.0),
+                                    //     );
 
-                                    let trimer_directions_a: ArrayView3<f64> =
-                                        direct_mat.slice(s![
-                                            index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                            index_pair_a..index_pair_a + frag_a_atoms,
-                                            ..
-                                        ]);
-                                    let trimer_directions_b: ArrayView3<f64> =
-                                        direct_mat.slice(s![
-                                            index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                            index_pair_b..index_pair_b + frag_b_atoms,
-                                            ..
-                                        ]);
-                                    let trimer_directions: Array3<f64> =
-                                        stack(Axis(1), &[trimer_directions_a, trimer_directions_b])
-                                            .unwrap();
-
-                                    let g1_trimer_ka: Array3<f64> =
-                                        get_gamma_gradient_matrix_atom_wise_outer_diagonal(
-                                            &mol_k.atomic_numbers,
-                                            &dimer_atomic_numbers,
-                                            mol_k.n_atoms,
-                                            pair_atoms,
-                                            trimer_distances.view(),
-                                            trimer_directions.view(),
-                                            full_hubbard,
-                                            Some(0.0),
-                                        );
+                                    let g1_trimer_ak_new:Array2<f64> = stack(Axis(0),&[g1_dot_dq.slice(s![3*index_pair_a..3*index_pair_a+3*frag_a_atoms,index_frag_iter..index_frag_iter+mol_k.n_atoms]),g1_dot_dq.slice(s![3*index_pair_b..3*index_pair_b+3*frag_b_atoms,index_frag_iter..index_frag_iter+mol_k.n_atoms])]).unwrap();
+                                    let g1_trimer_ka_new:Array2<f64> = stack(Axis(1),&[g1_dot_dq.slice(s![3*index_frag_iter..3*index_frag_iter+3*mol_k.n_atoms,index_pair_a..index_pair_a+frag_a_atoms]),g1_dot_dq.slice(s![3*index_frag_iter..3*index_frag_iter+3*mol_k.n_atoms,index_pair_b..index_pair_b+frag_b_atoms])]).unwrap();
 
                                     // calculate grads for molecule k
                                     let mut term_1: Array1<f64> = Array1::zeros(3 * pair_atoms);
@@ -4689,10 +4689,17 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                         for (a, z_a) in pair.atomic_numbers.iter().enumerate() {
                                             let index: usize = 3 * a + dir_xyz;
 
+                                            // term_1[index] = ddq_arr[a]
+                                            //     * g1_trimer_ak
+                                            //         .slice(s![index, a, ..])
+                                            //         .dot(&mol_k.final_charges);
+
                                             term_1[index] = ddq_arr[a]
-                                                * g1_trimer_ak
-                                                    .slice(s![index, a, ..])
-                                                    .dot(&mol_k.final_charges);
+                                                * g1_trimer_ak_new
+                                                .slice(s![index, ..])
+                                                .dot(&mol_k.final_charges);
+
+                                            // assert_eq!(term_1[index],test_term_1,"Term 1 NOT EQUAL");
 
                                             // let mut atom_type: u8 = 0;
                                             // let mut norbs_a: usize = 0;
@@ -4778,10 +4785,17 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                         for a in (0..fragments[ind_k].n_atoms).into_iter() {
                                             let index: usize = 3 * a + dir_xyz;
 
+                                            // term_1[index] = fragments[ind_k].final_charges[a]
+                                            //     * g1_trimer_ka
+                                            //         .slice(s![index, a, ..])
+                                            //         .dot(&ddq_arr);
+
                                             term_1[index] = fragments[ind_k].final_charges[a]
-                                                * g1_trimer_ka
-                                                    .slice(s![index, a, ..])
-                                                    .dot(&ddq_arr);
+                                                * g1_trimer_ka_new
+                                                .slice(s![index, ..])
+                                                .dot(&ddq_arr);
+
+                                            // assert_eq!(term_1[index],test_term_1,"Term 1 NOT EQUAL");
 
                                             // let atom_type: u8 = fragments[ind_k].atomic_numbers[a];
                                             // let norbs_k: usize =
@@ -4868,27 +4882,26 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         let index_pair_b: usize = indices_frags[ind2];
 
                         // calculate g1 matrix for each dimer
-                        let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![
-                            index_pair_a..index_pair_a + fragments[ind1].n_atoms,
-                            index_pair_b..index_pair_b + fragments[ind2].n_atoms
-                        ]);
-
-                        let dimer_directions: ArrayView3<f64> = direct_mat.slice(s![
-                            index_pair_a..index_pair_a + fragments[ind1].n_atoms,
-                            index_pair_b..index_pair_b + fragments[ind2].n_atoms,
-                            ..
-                        ]);
-                        let g1_dimer_ab: Array3<f64> =
-                            get_gamma_gradient_matrix_atom_wise_outer_diagonal(
-                                &fragments[ind1].atomic_numbers,
-                                &fragments[ind2].atomic_numbers,
-                                fragments[ind1].n_atoms,
-                                fragments[ind2].n_atoms,
-                                dimer_distances,
-                                dimer_directions,
-                                full_hubbard,
-                                Some(0.0),
-                            );
+                        // let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![
+                        //     index_pair_a..index_pair_a + fragments[ind1].n_atoms,
+                        //     index_pair_b..index_pair_b + fragments[ind2].n_atoms
+                        // ]);
+                        // let dimer_directions: ArrayView3<f64> = direct_mat.slice(s![
+                        //     index_pair_a..index_pair_a + fragments[ind1].n_atoms,
+                        //     index_pair_b..index_pair_b + fragments[ind2].n_atoms,
+                        //     ..
+                        // ]);
+                        // let g1_dimer_ab: Array3<f64> =
+                        //     get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+                        //         &fragments[ind1].atomic_numbers,
+                        //         &fragments[ind2].atomic_numbers,
+                        //         fragments[ind1].n_atoms,
+                        //         fragments[ind2].n_atoms,
+                        //         dimer_distances,
+                        //         dimer_directions,
+                        //         full_hubbard,
+                        //         Some(0.0),
+                        //     );
 
                         // let g0_dimer_ab: Array2<f64> = get_gamma_matrix_atomwise_outer_diagonal(
                         //     &fragments[ind1].atomic_numbers,
@@ -4903,28 +4916,26 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         let g0_dimer_ab:ArrayView2<f64> = g0_total.slice(s![indices_frags[ind1]..indices_frags[ind1]+fragments[ind1].n_atoms,
                         indices_frags[ind2]..indices_frags[ind2]+fragments[ind2].n_atoms]);
 
-                        let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![
-                            index_pair_b..index_pair_b + fragments[ind2].n_atoms,
-                            index_pair_a..index_pair_a + fragments[ind1].n_atoms
-                        ]);
-
-                        let dimer_directions: ArrayView3<f64> = direct_mat.slice(s![
-                            index_pair_b..index_pair_b + fragments[ind2].n_atoms,
-                            index_pair_a..index_pair_a + fragments[ind1].n_atoms,
-                            ..
-                        ]);
-
-                        let g1_dimer_ba: Array3<f64> =
-                            get_gamma_gradient_matrix_atom_wise_outer_diagonal(
-                                &fragments[ind2].atomic_numbers,
-                                &fragments[ind1].atomic_numbers,
-                                fragments[ind2].n_atoms,
-                                fragments[ind1].n_atoms,
-                                dimer_distances,
-                                dimer_directions,
-                                full_hubbard,
-                                Some(0.0),
-                            );
+                        // let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![
+                        //     index_pair_b..index_pair_b + fragments[ind2].n_atoms,
+                        //     index_pair_a..index_pair_a + fragments[ind1].n_atoms
+                        // ]);
+                        // let dimer_directions: ArrayView3<f64> = direct_mat.slice(s![
+                        //     index_pair_b..index_pair_b + fragments[ind2].n_atoms,
+                        //     index_pair_a..index_pair_a + fragments[ind1].n_atoms,
+                        //     ..
+                        // ]);
+                        // let g1_dimer_ba: Array3<f64> =
+                        //     get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+                        //         &fragments[ind2].atomic_numbers,
+                        //         &fragments[ind1].atomic_numbers,
+                        //         fragments[ind2].n_atoms,
+                        //         fragments[ind1].n_atoms,
+                        //         dimer_distances,
+                        //         dimer_directions,
+                        //         full_hubbard,
+                        //         Some(0.0),
+                        //     );
 
                         // let mut w_mat_a: Array3<f64> = Array3::zeros((
                         //     3 * fragments[ind1].n_atoms,
@@ -4968,10 +4979,15 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                             let mut diag_ind: usize = 0;
                             for a in (0..fragments[ind1].n_atoms).into_iter() {
                                 let index: usize = 3 * a + dir_xyz;
+                                // term_1[index] = fragments[ind1].final_charges[a]
+                                //     * g1_dimer_ab
+                                //         .slice(s![index, a, ..])
+                                //         .dot(&fragments[ind2].final_charges);
+                                // println!("g1 dot dq {}",g1_dot_dq.slice(s![3*index_pair_a..3*index_pair_a+3*fragments[ind1].n_atoms,index_pair_b..index_pair_b+fragments[ind2].n_atoms]).dot(&fragments[ind2].final_charges) * fragments[ind1].final_charges[a]);
+                                // let test_term1:f64 = fragments[ind1].final_charges[a] * g1_dot_dq.slice(s![3*index_pair_a+index,index_pair_b..index_pair_b+fragments[ind2].n_atoms]).dot(&fragments[ind2].final_charges);
+                                // assert_eq!(term_1[index],test_term1,"term 1 not equal with indices one : {} and two: {}",ind1,ind2);
                                 term_1[index] = fragments[ind1].final_charges[a]
-                                    * g1_dimer_ab
-                                        .slice(s![index, a, ..])
-                                        .dot(&fragments[ind2].final_charges);
+                                     * g1_dot_dq.slice(s![3*index_pair_a+index,index_pair_b..index_pair_b+fragments[ind2].n_atoms]).dot(&fragments[ind2].final_charges);
 
                                 // let atom_type: u8 = fragments[ind1].atomic_numbers[a];
                                 // let norbs_a: usize =
@@ -4998,6 +5014,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                         .dot(&fragments[ind2].final_charges);
                             }
                         }
+                        // assert_eq!(term_1,g1_dot_dq.slice(s![3*index_pair_a..3*index_pair_a + 3*fragments[ind1].n_atoms]),"term 1 NOT EQUAL");
                         let gradient_frag_a: Array1<f64> = term_1 + term_2;
 
                         let mut term_1: Array1<f64> = Array1::zeros(3 * fragments[ind2].n_atoms);
@@ -5012,10 +5029,16 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                 //     * g1_ab_2
                                 //         .slice(s![index, a, ..])
                                 //         .dot(&fragments[ind1].final_charges);
+                                // term_1[index] = fragments[ind2].final_charges[a]
+                                //     * g1_dimer_ba
+                                //         .slice(s![index, a, ..])
+                                //         .dot(&fragments[ind1].final_charges);
+
                                 term_1[index] = fragments[ind2].final_charges[a]
-                                    * g1_dimer_ba
-                                        .slice(s![index, a, ..])
-                                        .dot(&fragments[ind1].final_charges);
+                                    * g1_dot_dq.slice(s![3*index_pair_b+index,index_pair_a..index_pair_a+fragments[ind1].n_atoms]).dot(&fragments[ind1].final_charges);
+
+                                // let test_term1:f64 = fragments[ind2].final_charges[a] * g1_dot_dq.slice(s![3*index_pair_b+index,index_pair_a..index_pair_a+fragments[ind1].n_atoms]).dot(&fragments[ind1].final_charges);
+                                // assert_eq!(term_1[index],test_term1,"term 1 not equal with indices one : {} and two: {}",ind1,ind2);
 
                                 // let atom_type: u8 = fragments[ind2].atomic_numbers[a];
                                 // let norbs_b: usize =

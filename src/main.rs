@@ -58,6 +58,7 @@ use std::process;
 use toml;
 use approx::AbsDiffEq;
 use std::collections::HashMap;
+use crate::calculator::gamma_gradient_dot_dq;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
@@ -280,6 +281,14 @@ fn main() {
             drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
+            let g1_dot_dq:Array2<f64> = gamma_gradient_dot_dq(&atomic_numbers,atomic_numbers.len(),dist_mat.view(),direct_mat.view(),&full_hubbard,Some(0.0),&dq_vec);
+
+            println!(
+                "{:>68} {:>8.2} s",
+                "elapsed time calculate g1 dot dq full system",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
             // let (pairs_data): (Vec<pair_grad_result>) =
             //     fmo_calculate_pairwise_gradients_par(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags);
             //
@@ -293,7 +302,7 @@ fn main() {
 
             // let gradients:Array1<f64> = fmo_calculate_pairs_embedding_esdim(&fragments, &fragments_data, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard);
             // let gradients:Array1<f64> = fmo_gs_gradients(&fragments,&fragments_data,&pairs_data,&indices_frags,&dist_mat,&direct_mat,&full_hubbard);
-            let (gradients,gradients_without_response,monomer_grad,real_pairs_grad):(Array1<f64>,Array1<f64>,Array1<f64>,Array1<f64>) = fmo_gradient_pairs_embedding_esdim(&fragments, &gradient_vec, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard,gamma_total.view(),&om_matrices,&dq_vec,&s_matrices);
+            let (gradients,gradients_without_response,monomer_grad,real_pairs_grad):(Array1<f64>,Array1<f64>,Array1<f64>,Array1<f64>) = fmo_gradient_pairs_embedding_esdim(&fragments, &gradient_vec, config.clone(),&dist_mat,&direct_mat,&prox_mat,&indices_frags,&full_hubbard,gamma_total.view(),&om_matrices,&dq_vec,&s_matrices,&g1_dot_dq);
 
             println!(
                 "{:>68} {:>8.2} s",

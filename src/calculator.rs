@@ -358,6 +358,31 @@ pub fn get_gamma_gradient_atomwise(
     return g1;
 }
 
+pub fn gamma_gradient_dot_dq(
+    atomic_numbers: &[u8],
+    n_atoms: usize,
+    distances: ArrayView2<f64>,
+    directions: ArrayView3<f64>,
+    hubbard_u: &HashMap<u8, f64>,
+    r_lr: Option<f64>,
+    dq_vec:&Vec<Array1<f64>>,
+) -> (Array2<f64>) {
+    // build full dq
+    let mut dq_arr: Vec<f64> = Vec::new();
+    for i in dq_vec.iter() {
+        dq_arr.append(&mut i.clone().to_vec());
+    }
+    let dq_arr: Array1<f64> = Array::from(dq_arr);
+    // initialize gamma matrix
+    let sigma: HashMap<u8, f64> = gamma_approximation::gaussian_decay(hubbard_u);
+    let mut c: HashMap<(u8, u8), f64> = HashMap::new();
+    let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
+    let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
+    gf.initialize();
+    let g1:Array2<f64> = gamma_approximation::gamma_gradients_dot_dq(gf,atomic_numbers,n_atoms,distances,directions,dq_arr.view());
+    return g1;
+}
+
 pub fn get_gamma_gradient_matrix(
     atomic_numbers: &[u8],
     n_atoms: usize,
