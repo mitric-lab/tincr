@@ -4125,8 +4125,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     om_monomers: &Vec<Array1<f64>>,
     dq_vec: &Vec<Array1<f64>>,
     frag_s_matrices: &Vec<Array2<f64>>,
-    g1_dot_dq:&Array2<f64>,
-) -> (Array1<f64>,Array1<f64>,Array1<f64>,Array1<f64>) {
+    g1_dot_dq: &Array2<f64>,
+) -> (Array1<f64>, Array1<f64>, Array1<f64>, Array1<f64>) {
     // calculate gradient for monomers
     let molecule_timer: Instant = Instant::now();
     let mut gradient_monomers: Vec<f64> = Vec::new();
@@ -4557,13 +4557,20 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                             .into_shape((3 * pair_atoms, w_dimer_dim, w_dimer_dim))
                             .unwrap();
 
-                        let mut ws_pds_pair: Array2<f64> = Array2::zeros((3 * pair_atoms, pair_atoms));
+                        let mut ws_pds_pair: Array2<f64> =
+                            Array2::zeros((3 * pair_atoms, pair_atoms));
                         for a in (0..3 * pair_atoms).into_iter() {
                             let mut mu: usize = 0;
                             for (atom_c, z_c) in pair.atomic_numbers.iter().enumerate() {
                                 for _ in pair.calculator.valorbs[z_c].iter() {
-                                    ws_pds_pair[[a, atom_c]] += dw_dimer.slice(s![a, mu, ..]).dot(&pair_smat.slice(s![mu, ..]))
-                                        + dp_dimer.slice(s![mu, ..]).dot(&grad_s.slice(s![a, mu, ..]));
+                                    ws_pds_pair[[a, atom_c]] += dw_dimer
+                                        .slice(s![a, mu, ..])
+                                        .dot(&pair_smat.slice(s![mu, ..]))
+                                        + dp_dimer.slice(s![mu, ..]).dot(&grad_s.slice(s![
+                                            a,
+                                            mu,
+                                            ..
+                                        ]));
 
                                     mu = mu + 1;
                                 }
@@ -4675,8 +4682,38 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                     //         Some(0.0),
                                     //     );
 
-                                    let g1_trimer_ak_new:Array2<f64> = stack(Axis(0),&[g1_dot_dq.slice(s![3*index_pair_a..3*index_pair_a+3*frag_a_atoms,index_frag_iter..index_frag_iter+mol_k.n_atoms]),g1_dot_dq.slice(s![3*index_pair_b..3*index_pair_b+3*frag_b_atoms,index_frag_iter..index_frag_iter+mol_k.n_atoms])]).unwrap();
-                                    let g1_trimer_ka_new:Array2<f64> = stack(Axis(1),&[g1_dot_dq.slice(s![3*index_frag_iter..3*index_frag_iter+3*mol_k.n_atoms,index_pair_a..index_pair_a+frag_a_atoms]),g1_dot_dq.slice(s![3*index_frag_iter..3*index_frag_iter+3*mol_k.n_atoms,index_pair_b..index_pair_b+frag_b_atoms])]).unwrap();
+                                    let g1_trimer_ak_new: Array2<f64> = stack(
+                                        Axis(0),
+                                        &[
+                                            g1_dot_dq.slice(s![
+                                                3 * index_pair_a
+                                                    ..3 * index_pair_a + 3 * frag_a_atoms,
+                                                index_frag_iter..index_frag_iter + mol_k.n_atoms
+                                            ]),
+                                            g1_dot_dq.slice(s![
+                                                3 * index_pair_b
+                                                    ..3 * index_pair_b + 3 * frag_b_atoms,
+                                                index_frag_iter..index_frag_iter + mol_k.n_atoms
+                                            ]),
+                                        ],
+                                    )
+                                    .unwrap();
+                                    let g1_trimer_ka_new: Array2<f64> = stack(
+                                        Axis(1),
+                                        &[
+                                            g1_dot_dq.slice(s![
+                                                3 * index_frag_iter
+                                                    ..3 * index_frag_iter + 3 * mol_k.n_atoms,
+                                                index_pair_a..index_pair_a + frag_a_atoms
+                                            ]),
+                                            g1_dot_dq.slice(s![
+                                                3 * index_frag_iter
+                                                    ..3 * index_frag_iter + 3 * mol_k.n_atoms,
+                                                index_pair_b..index_pair_b + frag_b_atoms
+                                            ]),
+                                        ],
+                                    )
+                                    .unwrap();
 
                                     // calculate grads for molecule k
                                     let mut term_1: Array1<f64> = Array1::zeros(3 * pair_atoms);
@@ -4696,8 +4733,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
 
                                             term_1[index] = ddq_arr[a]
                                                 * g1_trimer_ak_new
-                                                .slice(s![index, ..])
-                                                .dot(&mol_k.final_charges);
+                                                    .slice(s![index, ..])
+                                                    .dot(&mol_k.final_charges);
 
                                             // assert_eq!(term_1[index],test_term_1,"Term 1 NOT EQUAL");
 
@@ -4792,8 +4829,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
 
                                             term_1[index] = fragments[ind_k].final_charges[a]
                                                 * g1_trimer_ka_new
-                                                .slice(s![index, ..])
-                                                .dot(&ddq_arr);
+                                                    .slice(s![index, ..])
+                                                    .dot(&ddq_arr);
 
                                             // assert_eq!(term_1[index],test_term_1,"Term 1 NOT EQUAL");
 
@@ -4913,8 +4950,10 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         //     Some(0.0),
                         // );
 
-                        let g0_dimer_ab:ArrayView2<f64> = g0_total.slice(s![indices_frags[ind1]..indices_frags[ind1]+fragments[ind1].n_atoms,
-                        indices_frags[ind2]..indices_frags[ind2]+fragments[ind2].n_atoms]);
+                        let g0_dimer_ab: ArrayView2<f64> = g0_total.slice(s![
+                            indices_frags[ind1]..indices_frags[ind1] + fragments[ind1].n_atoms,
+                            indices_frags[ind2]..indices_frags[ind2] + fragments[ind2].n_atoms
+                        ]);
 
                         // let dimer_distances: ArrayView2<f64> = dist_mat.slice(s![
                         //     index_pair_b..index_pair_b + fragments[ind2].n_atoms,
@@ -4987,7 +5026,12 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                 // let test_term1:f64 = fragments[ind1].final_charges[a] * g1_dot_dq.slice(s![3*index_pair_a+index,index_pair_b..index_pair_b+fragments[ind2].n_atoms]).dot(&fragments[ind2].final_charges);
                                 // assert_eq!(term_1[index],test_term1,"term 1 not equal with indices one : {} and two: {}",ind1,ind2);
                                 term_1[index] = fragments[ind1].final_charges[a]
-                                     * g1_dot_dq.slice(s![3*index_pair_a+index,index_pair_b..index_pair_b+fragments[ind2].n_atoms]).dot(&fragments[ind2].final_charges);
+                                    * g1_dot_dq
+                                        .slice(s![
+                                            3 * index_pair_a + index,
+                                            index_pair_b..index_pair_b + fragments[ind2].n_atoms
+                                        ])
+                                        .dot(&fragments[ind2].final_charges);
 
                                 // let atom_type: u8 = fragments[ind1].atomic_numbers[a];
                                 // let norbs_a: usize =
@@ -5035,7 +5079,12 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                 //         .dot(&fragments[ind1].final_charges);
 
                                 term_1[index] = fragments[ind2].final_charges[a]
-                                    * g1_dot_dq.slice(s![3*index_pair_b+index,index_pair_a..index_pair_a+fragments[ind1].n_atoms]).dot(&fragments[ind1].final_charges);
+                                    * g1_dot_dq
+                                        .slice(s![
+                                            3 * index_pair_b + index,
+                                            index_pair_a..index_pair_a + fragments[ind1].n_atoms
+                                        ])
+                                        .dot(&fragments[ind1].final_charges);
 
                                 // let test_term1:f64 = fragments[ind2].final_charges[a] * g1_dot_dq.slice(s![3*index_pair_b+index,index_pair_a..index_pair_a+fragments[ind1].n_atoms]).dot(&fragments[ind1].final_charges);
                                 // assert_eq!(term_1[index],test_term1,"term 1 not equal with indices one : {} and two: {}",ind1,ind2);
@@ -5138,8 +5187,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                 );
             let embedding_gradient: Array1<f64> = pair.embedding_gradient.clone().unwrap();
             grad_total_dimers.add_assign(&embedding_gradient);
-        }
-        else {
+        } else {
             grad_total_dimers
                 .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
                 .add_assign(&dimer_gradient.slice(s![0..3 * atoms_a]));
@@ -5148,8 +5196,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                 .add_assign(&dimer_gradient.slice(s![3 * atoms_a..]));
         }
     }
-    let gradient_without_response:Array1<f64> = grad_total_frags.clone() + grad_total_dimers;
-    let gradient_monomers_real_pairs:Array1<f64> = grad_total_frags.clone() + grad_real_pairs;
+    let gradient_without_response: Array1<f64> = grad_total_frags.clone() + grad_total_dimers;
+    let gradient_monomers_real_pairs: Array1<f64> = grad_total_frags.clone() + grad_real_pairs;
 
     println!(
         "{:>68} {:>8.2} s",
@@ -5182,7 +5230,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         g0_total,
         frag_gradient_results,
         &lagrangian,
-        frag_s_matrices
+        frag_s_matrices,
     );
     println!(
         "{:>68} {:>8.2} s",
@@ -5209,10 +5257,16 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     drop(molecule_timer);
 
     // assemble total gradient
-    let total_gradient: Array1<f64> = gradient_without_response.clone() + response_contribution.clone();
-    println!("Difference respone gradient: {}",response_contribution);
+    let total_gradient: Array1<f64> =
+        gradient_without_response.clone() + response_contribution.clone();
+    println!("Difference respone gradient: {}", response_contribution);
 
-    return (total_gradient,gradient_without_response,grad_total_frags,gradient_monomers_real_pairs);
+    return (
+        total_gradient,
+        gradient_without_response,
+        grad_total_frags,
+        gradient_monomers_real_pairs,
+    );
 }
 
 pub fn charges_derivatives_contribution(
@@ -5254,7 +5308,7 @@ pub fn fmo_zvector_routine(
     g0_total: ArrayView2<f64>,
     frag_gradient_results: &Vec<frag_gradient_result>,
     initial_lagrangian: &Vec<Array2<f64>>,
-    s_matrices:&Vec<Array2<f64>>,
+    s_matrices: &Vec<Array2<f64>>,
 ) -> (Vec<Array2<f64>>) {
     // generate initial z-vectors, can be parallel
     let mut z_old: Vec<Array2<f64>> = fragments
@@ -5265,20 +5319,25 @@ pub fn fmo_zvector_routine(
             let dim_occ: usize = frag_gradient_results[ind].dim_occ;
             let dim_virt: usize = frag_gradient_results[ind].dim_virt;
             let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
-            let orbs:Array2<f64> = frag.saved_orbs.clone().unwrap();
+            let orbs: Array2<f64> = frag.saved_orbs.clone().unwrap();
             let a_mat_2d: Array2<f64> = -4.0
                 * frag_gradient_results[ind]
-                    .qtrans.t()
+                    .qtrans
+                    .t()
                     .dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
             let mut a_mat: Array4<f64> = a_mat_2d
                 .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
                 .unwrap();
-            let mut a_mat_4d:Array4<f64> = Array4::zeros((dim_virt,dim_occ,dim_virt,dim_occ));
-            let qtrans_3d:Array3<f64> = frag_gradient_results[ind].qtrans.clone().into_shape((frag.n_atoms,dim_virt,dim_occ)).unwrap();
+            let mut a_mat_4d: Array4<f64> = Array4::zeros((dim_virt, dim_occ, dim_virt, dim_occ));
+            let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
+                .qtrans
+                .clone()
+                .into_shape((frag.n_atoms, dim_virt, dim_occ))
+                .unwrap();
             for k in (0..dim_virt).into_iter() {
                 for l in (0..dim_occ).into_iter() {
                     // let esp_like:Array1<f64> = frag.g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
-                    let esp_like:Array1<f64> = frag.g0.dot(&qtrans_3d.slice(s![..,k,l]));
+                    let esp_like: Array1<f64> = frag.g0.dot(&qtrans_3d.slice(s![.., k, l]));
                     let mut mu: usize = 0;
                     // ao transformation
                     let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
@@ -5288,13 +5347,16 @@ pub fn fmo_zvector_routine(
                             mu = mu + 1;
                         }
                     }
-                    let esp_mat_ao: Array2<f64> = &esp_ao
-                        .broadcast((esp_ao.len(), esp_ao.len()))
-                        .unwrap()
-                        + &esp_ao;
+                    let esp_mat_ao: Array2<f64> =
+                        &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
                     let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind].view();
-                    let kl_term:Array2<f64> = -1.0 * orbs.slice(s![..,dim_occ..]).t().dot(&s_esp_term).dot(&orbs.slice(s![..,0..dim_occ]));
-                    a_mat_4d.slice_mut(s![..,..,k,l]).assign(&kl_term);
+                    let kl_term: Array2<f64> = -1.0
+                        * orbs
+                            .slice(s![.., dim_occ..])
+                            .t()
+                            .dot(&s_esp_term)
+                            .dot(&orbs.slice(s![.., 0..dim_occ]));
+                    a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
                 }
             }
             for i in (0..dim_virt).into_iter() {
@@ -5314,12 +5376,17 @@ pub fn fmo_zvector_routine(
             // Solve a set of equations
             // (A^I,I).T Z^I = L^I
             // let a_mat_2d:Array2<f64> = a_mat.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
-            let a_mat_2d:Array2<f64> = a_mat_4d.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
+            let a_mat_2d: Array2<f64> = a_mat_4d
+                .into_shape((dim_virt * dim_occ, dim_virt * dim_occ))
+                .unwrap();
             // let zeros_test:Array2<f64> = Array2::zeros(a_mat_2d.raw_dim());
             // assert!(zeros_test.abs_diff_eq(&(&a_mat_2d-&a_mat_2d.t()),1e-15),"A matrix not symmetric");
-            let lagrangian_1d:Array1<f64> = initial_lagrangian[ind].clone().into_shape(dim_virt* dim_occ).unwrap();
+            let lagrangian_1d: Array1<f64> = initial_lagrangian[ind]
+                .clone()
+                .into_shape(dim_virt * dim_occ)
+                .unwrap();
 
-            let z_vec:Array1<f64> = a_mat_2d.t().solve_h(&lagrangian_1d).unwrap();
+            let z_vec: Array1<f64> = a_mat_2d.t().solve_h(&lagrangian_1d).unwrap();
             z_vec.into_shape((dim_virt, dim_occ)).unwrap()
 
             //let a_mat_ij: Array2<f64> = a_mat.t().sum_axis(Axis(0)).sum_axis(Axis(1));
@@ -5363,45 +5430,67 @@ pub fn fmo_zvector_routine(
                             let dim_virt_k: usize = frag_gradient_results[ind_k].dim_virt;
                             let index_frag_i: usize = indices_frags[ind];
                             let index_frag_k: usize = indices_frags[ind_k];
-                            let orbs_k:Array2<f64> = fragments[ind_k].saved_orbs.clone().unwrap();
+                            let orbs_k: Array2<f64> = fragments[ind_k].saved_orbs.clone().unwrap();
                             let g0: ArrayView2<f64> = g0_total.slice(s![
                                 index_frag_k..index_frag_k + fragments[ind_k].n_atoms,
                                 index_frag_i..index_frag_i + frag.n_atoms
                             ]);
                             let a_mat_2d: Array2<f64> = -4.0
                                 * frag_gradient_results[ind_k]
-                                    .qtrans.t()
+                                    .qtrans
+                                    .t()
                                     .dot(&g0.dot(&frag_gradient_results[ind].qtrans));
-                            let mut a_mat_4d:Array4<f64> = Array4::zeros((dim_virt_k,dim_occ_k,dim_virt,dim_occ));
-                            let qtrans_3d:Array3<f64> = frag_gradient_results[ind].qtrans.clone().into_shape((frag.n_atoms,dim_virt,dim_occ)).unwrap();
+                            let mut a_mat_4d: Array4<f64> =
+                                Array4::zeros((dim_virt_k, dim_occ_k, dim_virt, dim_occ));
+                            let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
+                                .qtrans
+                                .clone()
+                                .into_shape((frag.n_atoms, dim_virt, dim_occ))
+                                .unwrap();
                             for k in (0..dim_virt).into_iter() {
                                 for l in (0..dim_occ).into_iter() {
                                     // let esp_like:Array1<f64> = g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
-                                    let esp_like:Array1<f64> = g0.dot(&qtrans_3d.slice(s![..,k,l]));
+                                    let esp_like: Array1<f64> =
+                                        g0.dot(&qtrans_3d.slice(s![.., k, l]));
                                     let mut mu: usize = 0;
                                     // ao transformation
-                                    let mut esp_ao: Array1<f64> = Array1::zeros(fragments[ind_k].calculator.n_orbs);
-                                    for (i, z_i) in fragments[ind_k].atomic_numbers.iter().enumerate() {
+                                    let mut esp_ao: Array1<f64> =
+                                        Array1::zeros(fragments[ind_k].calculator.n_orbs);
+                                    for (i, z_i) in
+                                        fragments[ind_k].atomic_numbers.iter().enumerate()
+                                    {
                                         for _ in &fragments[ind_k].calculator.valorbs[z_i] {
                                             esp_ao[mu] = esp_like[i];
                                             mu = mu + 1;
                                         }
                                     }
-                                    let esp_mat_ao: Array2<f64> = &esp_ao
-                                        .broadcast((esp_ao.len(), esp_ao.len()))
-                                        .unwrap()
-                                        + &esp_ao;
-                                    let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind_k].view();
-                                    let kl_term:Array2<f64> = -1.0 * orbs_k.slice(s![..,dim_occ_k..]).t().dot(&s_esp_term).dot(&orbs_k.slice(s![..,0..dim_occ_k]));
-                                    a_mat_4d.slice_mut(s![..,..,k,l]).assign(&kl_term);
+                                    let esp_mat_ao: Array2<f64> =
+                                        &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap()
+                                            + &esp_ao;
+                                    let s_esp_term: Array2<f64> =
+                                        2.0 * esp_mat_ao * s_matrices[ind_k].view();
+                                    let kl_term: Array2<f64> = -1.0
+                                        * orbs_k
+                                            .slice(s![.., dim_occ_k..])
+                                            .t()
+                                            .dot(&s_esp_term)
+                                            .dot(&orbs_k.slice(s![.., 0..dim_occ_k]));
+                                    a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
                                 }
                             }
-                            let a_mat_2d:Array2<f64> = a_mat_4d.into_shape((dim_virt_k* dim_occ_k, dim_virt* dim_occ)).unwrap();
+                            let a_mat_2d: Array2<f64> = a_mat_4d
+                                .into_shape((dim_virt_k * dim_occ_k, dim_virt * dim_occ))
+                                .unwrap();
                             // let a_mat: Array4<f64> = a_mat_2d
                             //     .into_shape((dim_virt_k, dim_occ_k, dim_virt, dim_occ))
                             //     .unwrap();
 
-                            sum = sum + a_mat_2d.t().dot(&z_k.clone().into_shape(dim_occ_k*dim_virt_k).unwrap()).into_shape((dim_virt, dim_occ)).unwrap();
+                            sum = sum
+                                + a_mat_2d
+                                    .t()
+                                    .dot(&z_k.clone().into_shape(dim_occ_k * dim_virt_k).unwrap())
+                                    .into_shape((dim_virt, dim_occ))
+                                    .unwrap();
                             // sum = sum + a_mat.t().sum_axis(Axis(3)).sum_axis(Axis(2)) * z_k.sum();
                         }
                     }
@@ -5425,20 +5514,26 @@ pub fn fmo_zvector_routine(
                 if converged[ind] == false {
                     // calculate diagonal elements A^I,I_ij,kl for each fragment
                     let orbe: Array1<f64> = frag.saved_orbe.clone().unwrap();
-                    let orbs:Array2<f64> = frag.saved_orbs.clone().unwrap();
+                    let orbs: Array2<f64> = frag.saved_orbs.clone().unwrap();
                     let a_mat_2d: Array2<f64> = -4.0
                         * frag_gradient_results[ind]
-                            .qtrans.t()
+                            .qtrans
+                            .t()
                             .dot(&frag.g0.dot(&frag_gradient_results[ind].qtrans));
                     let mut a_mat: Array4<f64> = a_mat_2d
                         .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
                         .unwrap();
-                    let mut a_mat_4d:Array4<f64> = Array4::zeros((dim_virt,dim_occ,dim_virt,dim_occ));
-                    let qtrans_3d:Array3<f64> = frag_gradient_results[ind].qtrans.clone().into_shape((frag.n_atoms,dim_virt,dim_occ)).unwrap();
+                    let mut a_mat_4d: Array4<f64> =
+                        Array4::zeros((dim_virt, dim_occ, dim_virt, dim_occ));
+                    let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
+                        .qtrans
+                        .clone()
+                        .into_shape((frag.n_atoms, dim_virt, dim_occ))
+                        .unwrap();
                     for k in (0..dim_virt).into_iter() {
                         for l in (0..dim_occ).into_iter() {
                             // let esp_like:Array1<f64> = frag.g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
-                            let esp_like:Array1<f64> = frag.g0.dot(&qtrans_3d.slice(s![..,k,l]));
+                            let esp_like: Array1<f64> = frag.g0.dot(&qtrans_3d.slice(s![.., k, l]));
                             let mut mu: usize = 0;
                             // ao transformation
                             let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
@@ -5448,13 +5543,16 @@ pub fn fmo_zvector_routine(
                                     mu = mu + 1;
                                 }
                             }
-                            let esp_mat_ao: Array2<f64> = &esp_ao
-                                .broadcast((esp_ao.len(), esp_ao.len()))
-                                .unwrap()
-                                + &esp_ao;
+                            let esp_mat_ao: Array2<f64> =
+                                &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
                             let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind].view();
-                            let kl_term:Array2<f64> = -1.0 *orbs.slice(s![..,dim_occ..]).t().dot(&s_esp_term).dot(&orbs.slice(s![..,0..dim_occ]));
-                            a_mat_4d.slice_mut(s![..,..,k,l]).assign(&kl_term);
+                            let kl_term: Array2<f64> = -1.0
+                                * orbs
+                                    .slice(s![.., dim_occ..])
+                                    .t()
+                                    .dot(&s_esp_term)
+                                    .dot(&orbs.slice(s![.., 0..dim_occ]));
+                            a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
                         }
                     }
                     for i in (0..dim_virt).into_iter() {
@@ -5472,25 +5570,30 @@ pub fn fmo_zvector_routine(
                     // Solve a set of equations
                     // (A^I,I).T Z^I = L^I
                     // let a_mat_2d:Array2<f64> = a_mat.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
-                    let a_mat_2d:Array2<f64> = a_mat_4d.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
-                    let lagrangian_1d:Array1<f64> = initial_lagrangian[ind].clone().into_shape(dim_virt* dim_occ).unwrap();
+                    let a_mat_2d: Array2<f64> = a_mat_4d
+                        .into_shape((dim_virt * dim_occ, dim_virt * dim_occ))
+                        .unwrap();
+                    let lagrangian_1d: Array1<f64> = initial_lagrangian[ind]
+                        .clone()
+                        .into_shape(dim_virt * dim_occ)
+                        .unwrap();
 
-                    let z_vec:Array1<f64> = a_mat_2d.t().solve_h(&lagrangian_1d).unwrap();
+                    let z_vec: Array1<f64> = a_mat_2d.t().solve_h(&lagrangian_1d).unwrap();
                     z_vector = z_vec.into_shape((dim_virt, dim_occ)).unwrap();
-                    // let a_mat_ij: Array2<f64> = a_mat.t().sum_axis(Axis(0)).sum_axis(Axis(1));
-                    // let mut z_vec: Array2<f64> = Array2::zeros((dim_occ, dim_virt));
-                    // // let f = a_mat_ij.factorize_into().unwrap();
-                    // for index in 0..dim_occ {
-                    //     // z_vec.slice_mut(s![index, ..]).assign(
-                    //     //     &f.solve_into(lagrangian_new[ind].clone().slice_mut(s![.., index]))
-                    //     //         .unwrap(),
-                    //     // );
-                    //     z_vec.slice_mut(s![index, ..]).assign(
-                    //         &a_mat_ij.solve(&lagrangian_new[ind].slice(s![.., index]))
-                    //             .unwrap(),
-                    //     );
-                    // }
-                    // z_vector = z_vec.reversed_axes();
+                // let a_mat_ij: Array2<f64> = a_mat.t().sum_axis(Axis(0)).sum_axis(Axis(1));
+                // let mut z_vec: Array2<f64> = Array2::zeros((dim_occ, dim_virt));
+                // // let f = a_mat_ij.factorize_into().unwrap();
+                // for index in 0..dim_occ {
+                //     // z_vec.slice_mut(s![index, ..]).assign(
+                //     //     &f.solve_into(lagrangian_new[ind].clone().slice_mut(s![.., index]))
+                //     //         .unwrap(),
+                //     // );
+                //     z_vec.slice_mut(s![index, ..]).assign(
+                //         &a_mat_ij.solve(&lagrangian_new[ind].slice(s![.., index]))
+                //             .unwrap(),
+                //     );
+                // }
+                // z_vector = z_vec.reversed_axes();
                 } else {
                     z_vector = z_old[ind].clone();
                 }
@@ -5520,7 +5623,10 @@ pub fn fmo_zvector_routine(
                 .filter_map(|&item| if item == true { Some(1) } else { None })
                 .collect();
             println!("Number of converged z-vectors: {}", converged_zvecs.len());
-            println!("Number of non converged z-vectors: {}",converged.len()-converged_zvecs.len());
+            println!(
+                "Number of non converged z-vectors: {}",
+                converged.len() - converged_zvecs.len()
+            );
         }
     }
     return z_old;
@@ -5534,7 +5640,8 @@ pub fn response_contribution_gradient(
     z_vectors: &Vec<Array2<f64>>,
     s_matrices: &Vec<Array2<f64>>,
 ) -> Array1<f64> {
-    let grad_length: usize = 3*(indices_frags.last().unwrap() + fragments.last().unwrap().n_atoms);
+    let grad_length: usize =
+        3 * (indices_frags.last().unwrap() + fragments.last().unwrap().n_atoms);
     let mut response_gradient: Array1<f64> = Array1::zeros(grad_length);
 
     let frag_gradients: Vec<Array1<f64>> = fragments
@@ -5587,11 +5694,11 @@ pub fn response_contribution_gradient(
                     .broadcast((charge_ao.len(), charge_ao.len()))
                     .unwrap()
                     + &charge_ao;
-                let s_charge_term: Array2<f64> = 0.5* charge_mat_ao * s_matrices[ind].view();
+                let s_charge_term: Array2<f64> = 0.5 * charge_mat_ao * s_matrices[ind].view();
 
                 let orbs_i: Array2<f64> = frag.saved_orbs.clone().unwrap();
                 // calculate terms for dH and e_j * dS
-                for i in (0..dim_virt){
+                for i in (0..dim_virt) {
                     for j in (0..dim_occ) {
                         let hs_term: Array2<f64> = &grad_h0.slice(s![a, .., ..])
                             - &(orbe[j] * &grad_s.slice(s![a, .., ..]).to_owned());
@@ -5601,8 +5708,11 @@ pub fn response_contribution_gradient(
                         //     .slice_mut(s![.., j])
                         //     .assign(&(orbs_i.t().dot(&sum_terms).dot(&orbs_i.slice(s![.., j]))));
 
-                        b_mat[[i,j]] = orbs_i.slice(s![..,dim_occ+i]).dot(&sum_terms).dot(&orbs_i.slice(s![.., j]));
-                        }
+                        b_mat[[i, j]] = orbs_i
+                            .slice(s![.., dim_occ + i])
+                            .dot(&sum_terms)
+                            .dot(&orbs_i.slice(s![.., j]));
+                    }
                 }
                 // gradient[a] = b_mat.dot(&z_vectors[ind]).sum();
                 gradient[a] = z_vectors[ind].t().dot(&b_mat).trace().unwrap();
@@ -5635,8 +5745,10 @@ pub fn calculate_lagrangian_zvector(
         .enumerate()
         .map(|(ind, frag)| {
             let index_frag: usize = indices_frags[ind];
-            let mut lagrangian_arr: Array2<f64> =
-                Array2::zeros((frag_gradient_results[ind].dim_virt, frag_gradient_results[ind].dim_occ));
+            let mut lagrangian_arr: Array2<f64> = Array2::zeros((
+                frag_gradient_results[ind].dim_virt,
+                frag_gradient_results[ind].dim_occ,
+            ));
 
             for (index_pair, pair) in pair_result.iter().enumerate() {
                 if pair.energy_pair.is_some() {
