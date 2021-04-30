@@ -366,7 +366,7 @@ pub fn gamma_gradient_dot_dq(
     hubbard_u: &HashMap<u8, f64>,
     r_lr: Option<f64>,
     dq_vec:&Vec<Array1<f64>>,
-) -> (Array2<f64>) {
+) -> (Array2<f64>,Array1<f64>) {
     // build full dq
     let mut dq_arr: Vec<f64> = Vec::new();
     for i in dq_vec.iter() {
@@ -379,8 +379,8 @@ pub fn gamma_gradient_dot_dq(
     let r_lr: f64 = r_lr.unwrap_or(defaults::LONG_RANGE_RADIUS);
     let mut gf = gamma_approximation::GammaFunction::Gaussian { sigma, c, r_lr };
     gf.initialize();
-    let g1:Array2<f64> = gamma_approximation::gamma_gradients_dot_dq(gf,atomic_numbers,n_atoms,distances,directions,dq_arr.view());
-    return g1;
+    let (g1,g1_dot_dq):(Array2<f64>,Array1<f64>) = gamma_approximation::gamma_gradients_dot_dq(gf,atomic_numbers,n_atoms,distances,directions,dq_arr.view());
+    return (g1,g1_dot_dq);
 }
 
 pub fn get_gamma_gradient_matrix(

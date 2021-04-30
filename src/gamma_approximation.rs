@@ -271,9 +271,10 @@ pub fn gamma_gradients_dot_dq(
     distances: ArrayView2<f64>,
     directions: ArrayView3<f64>,
     dq_arr: ArrayView1<f64>,
-) -> (Array2<f64>) {
+) -> (Array2<f64>,Array1<f64>) {
     let mut g1_val: Array2<f64> = Array2::zeros( (n_atoms,n_atoms));
     let mut g1: Array2<f64> = Array2::zeros((3 * n_atoms,n_atoms));
+    let mut g1_dot_dq:Array1<f64> = Array1::zeros(3*n_atoms);
     for (i, z_i) in atomic_numbers.iter().enumerate() {
         let mut g1_temp:Array2<f64> = Array::zeros((3,n_atoms));
         for (j, z_j) in atomic_numbers.iter().enumerate() {
@@ -294,8 +295,9 @@ pub fn gamma_gradients_dot_dq(
             }
         }
         g1.slice_mut(s![(3 * i)..(3 * i + 3),..]).assign(&g1_temp);
+        g1_dot_dq.slice_mut(s![(3 * i)..(3 * i + 3)]).assign(&g1_temp.dot(&dq_arr));
     }
-    return g1;
+    return (g1,g1_dot_dq);
 }
 
 pub fn gamma_atomwise_outer_diagonal(
