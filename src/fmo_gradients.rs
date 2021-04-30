@@ -3750,6 +3750,7 @@ pub fn fmo_fragment_gradients(
         &molecule.calculator.hubbard_u,
         Some(0.0),
     );
+    println!("g1 {}",g1.slice(s![0..6,..,..]));
     // let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
     //     &molecule.atomic_numbers,
     //     molecule.n_atoms,
@@ -4478,19 +4479,144 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     drop(matching_timer);
     let molecule_timer: Instant = Instant::now();
 
-    // build complete ddq
-    let mut ddq_complete: Array1<f64> = Array::zeros(dq_arr.raw_dim());
-    for (ind,ddq) in ddq_arr_vec.iter().enumerate() {
-        let ind1:usize = pair_indices[ind].0;
-        let ind2:usize = pair_indices[ind].1;
-        let index_a:usize = indices_frags[ind1];
-        let index_b:usize = indices_frags[ind2];
-        let atoms_a:usize = fragments[ind1].n_atoms;
-        let atoms_b:usize = fragments[ind2].n_atoms;
-        ddq_complete.slice_mut(s![index_a..index_a+atoms_a]).add_assign(&ddq.slice(s![0..atoms_a]));
-        ddq_complete.slice_mut(s![index_b..index_b+atoms_b]).add_assign(&ddq.slice(s![atoms_a..]));
+    // // build complete ddq
+    // let mut ddq_complete: Array1<f64> = Array::zeros(dq_arr.raw_dim());
+    // for (ind,ddq) in ddq_arr_vec.iter().enumerate() {
+    //     let ind1:usize = pair_indices[ind].0;
+    //     let ind2:usize = pair_indices[ind].1;
+    //     let index_a:usize = indices_frags[ind1];
+    //     let index_b:usize = indices_frags[ind2];
+    //     let atoms_a:usize = fragments[ind1].n_atoms;
+    //     let atoms_b:usize = fragments[ind2].n_atoms;
+    //     ddq_complete.slice_mut(s![index_a..index_a+atoms_a]).add_assign(&ddq.slice(s![0..atoms_a]));
+    //     ddq_complete.slice_mut(s![index_b..index_b+atoms_b]).add_assign(&ddq.slice(s![atoms_a..]));
+    // }
+
+    let mut dq_gradient_dim:Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
+    for xyz in (0..3).into_iter(){
+        for ind in (0..dq_arr.len()).into_iter(){
+            let index:usize = 3*ind+xyz;
+            dq_gradient_dim[index] = dq_arr[ind];
+        }
     }
 
+    // build embedding for each fragment
+    let mut embedding_k:Vec<Vec<f64>> =fragments
+        .iter()
+        .enumerate()
+        .map(|(ind, frag)| {
+            let index_k:usize = indices_frags[ind];
+            let atoms_k:usize = frag.n_atoms;
+            let mut term_1:Array1<f64> = Array1::zeros(3*atoms_k);
+            let mut term_2:Array1<f64> = Array1::zeros(atoms_k);
+            for (ind_pair,ddq) in ddq_arr_vec.iter().enumerate(){
+                let ind1:usize = pair_indices[ind_pair].0;
+                let ind2:usize = pair_indices[ind_pair].1;
+                if ind1 != ind && ind2 != ind{
+                    let index_a:usize = indices_frags[ind1];
+                    let index_b:usize = indices_frags[ind2];
+                    let atoms_a:usize = fragments[ind1].n_atoms;
+                    let atoms_b:usize = fragments[ind2].n_atoms;
+                    let g1_trimer_k: Array2<f64> = stack(
+                        Axis(1),
+                        &[
+                            g1_2d.slice(s![
+                            3 * index_k..3*index_k+3*atoms_k,
+                            index_a..index_a + atoms_a
+                        ]),
+                            g1_2d.slice(s![
+                            3 * index_k..3*index_k+3*atoms_k,
+                            index_b..index_b + atoms_b
+                        ]),
+                        ],
+                    ).unwrap();
+                    let g0_trimer_a: ArrayView2<f64> = g0_total.slice(s![
+                        index_k..index_k+atoms_k,
+                        index_a..index_a + atoms_a
+                    ]);
+                    let g0_trimer_b: ArrayView2<f64> = g0_total.slice(s![
+                        index_k..index_k+atoms_k,
+                        index_b..index_b + atoms_b
+                    ]);
+                    let g0_trimer: Array2<f64> =
+                        stack(Axis(1), &[g0_trimer_a, g0_trimer_b]).unwrap();
+
+                    term_1.add_assign(&g1_trimer_k.dot(ddq));
+                    term_2.add_assign(&g0_trimer.dot(ddq));
+                }
+            }
+            term_1 = term_1 * dq_gradient_dim.slice(s![3*index_k..3*index_k+3*atoms_k]);
+            let mut term2:Array1<f64> = Array::zeros(3*atoms_k);
+            for xyz in (0..3).into_iter(){
+                for a in (0..atoms_k){
+                    let index:usize = 3*a+xyz;
+                    term2[index] = frag_gradient_results[ind].ws_pds[[index,a]]*term_2[a];
+                }
+            }
+            let return_val:Array1<f64> = term_1 + term2;
+            return_val.to_vec()
+        }).collect();
+
+    // let mut embedding_k_total:Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
+    // for (ind_pair,ddq) in ddq_arr_vec.iter().enumerate() {
+    //     let ind1: usize = pair_indices[ind_pair].0;
+    //     let ind2: usize = pair_indices[ind_pair].1;
+    //     let index_a: usize = indices_frags[ind1];
+    //     let index_b: usize = indices_frags[ind2];
+    //     let atoms_a: usize = fragments[ind1].n_atoms;
+    //     let atoms_b: usize = fragments[ind2].n_atoms;
+    //     println!("DDQ array {}",ddq);
+    //
+    //     for (ind,frag) in fragments.iter().enumerate(){
+    //         if ind!=ind1 && ind!=ind2 {
+    //             let index_k: usize = indices_frags[ind];
+    //             let atoms_k: usize = frag.n_atoms;
+    //             // let mut term_2:Array1<f64> = Array1::zeros(atoms_k);
+    //             let g1_trimer_k: Array2<f64> = stack(
+    //                 Axis(1),
+    //                 &[
+    //                     g1_2d.slice(s![
+    //                     3 * index_k..3*index_k+3*atoms_k,
+    //                     index_a..index_a + atoms_a
+    //                 ]),
+    //                     g1_2d.slice(s![
+    //                     3 * index_k..3*index_k+3*atoms_k,
+    //                     index_b..index_b + atoms_b
+    //                 ]),
+    //                 ],
+    //             ).unwrap();
+    //             // let g0_trimer_a: ArrayView2<f64> = g0_total.slice(s![
+    //             //     index_k..index_k+atoms_k,
+    //             //     index_a..index_a + atoms_a
+    //             // ]);
+    //             // let g0_trimer_b: ArrayView2<f64> = g0_total.slice(s![
+    //             //     index_k..index_k+atoms_k,
+    //             //     index_b..index_b + atoms_b
+    //             // ]);
+    //             // let g0_trimer: Array2<f64> =
+    //             //     stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
+    //             let term_1:Array1<f64> = g1_trimer_k.dot(ddq);
+    //             // term_2.add_assign(&g0_trimer.dot(&ddq));
+    //             embedding_k_total.slice_mut(s![3*index_k..3*index_k+3*atoms_k]).add_assign(&term_1);
+    //         }
+    //     }
+    // }
+
+    let mut embedding_k_total:Vec<f64> = Vec::new();
+    for frag_k in embedding_k.iter_mut(){
+        embedding_k_total.append(frag_k);
+    }
+    let embedding_k_total:Array1<f64> = Array::from(embedding_k_total);
+    println!(
+        "{:>68} {:>8.2} s",
+        "elapsed time build embedding part k",
+        molecule_timer.elapsed().as_secs_f32()
+    );
+    drop(molecule_timer);
+    let molecule_timer: Instant = Instant::now();
+    let mut embedding_k_test:Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
+
+    let mut real_pair_count:usize = 0;
     let mut result: Vec<Vec<pair_gradients_result>> = fragments
         .iter()
         .enumerate()
@@ -4505,7 +4631,6 @@ pub fn fmo_gradient_pairs_embedding_esdim(
             for (ind2, molecule_b) in fragments.iter().enumerate() {
                 //println!("Index 1 {} and Index 2 {}", ind1, ind2);
                 if ind1 < ind2 {
-                    let mut real_pair_count:usize = 0;
                     // let mut use_saved_calc: bool = false;
                     // let mut saved_calc: Option<DFTBCalculator> = None;
 
@@ -4918,346 +5043,344 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                 }
                             }
                         }
-                        let mut embedding_k_test:Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
-                        // let mut embedding_pair_ij_test:Array1<f64> = Array1::zeros(3*pair_atoms);
-                        let embedding_pot: Vec<Array1<f64>> = fragments
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(ind_k, mol_k)| {
-                                if ind_k != ind1 && ind_k != ind2 {
-                                    let index_frag_iter: usize = indices_frags[ind_k];
 
-                                    // let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
-                                    //     index_pair_a..index_pair_a + frag_a_atoms,
-                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    // ]);
-                                    // let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
-                                    //     index_pair_b..index_pair_b + frag_b_atoms,
-                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    // ]);
-                                    // let trimer_distances: Array2<f64> =
-                                    //     stack(Axis(0), &[trimer_distances_a, trimer_distances_b])
-                                    //         .unwrap();
-                                    // let trimer_directions_a: ArrayView3<f64> =
-                                    //     direct_mat.slice(s![
-                                    //         index_pair_a..index_pair_a + frag_a_atoms,
-                                    //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                    //         ..
-                                    //     ]);
-                                    // let trimer_directions_b: ArrayView3<f64> =
-                                    //     direct_mat.slice(s![
-                                    //         index_pair_b..index_pair_b + frag_b_atoms,
-                                    //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                    //         ..
-                                    //     ]);
-                                    // let trimer_directions: Array3<f64> =
-                                    //     stack(Axis(0), &[trimer_directions_a, trimer_directions_b])
-                                    //         .unwrap();
-                                    // let g1_trimer_ak: Array3<f64> =
-                                    //     get_gamma_gradient_matrix_atom_wise_outer_diagonal(
-                                    //         &dimer_atomic_numbers,
-                                    //         &mol_k.atomic_numbers,
-                                    //         pair_atoms,
-                                    //         mol_k.n_atoms,
-                                    //         trimer_distances.view(),
-                                    //         trimer_directions.view(),
-                                    //         full_hubbard,
-                                    //         Some(0.0),
-                                    //     );
-
-                                    // let g0_trimer_ak: Array2<f64> =
-                                    //     get_gamma_matrix_atomwise_outer_diagonal(
-                                    //         &dimer_atomic_numbers,
-                                    //         &mol_k.atomic_numbers,
-                                    //         pair_atoms,
-                                    //         mol_k.n_atoms,
-                                    //         trimer_distances.view(),
-                                    //         full_hubbard,
-                                    //         Some(0.0),
-                                    //     );
-
-                                    let g0_trimer_a: ArrayView2<f64> = g0_total.slice(s![
-                                        index_pair_a..index_pair_a + frag_a_atoms,
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    ]);
-                                    let g0_trimer_b: ArrayView2<f64> = g0_total.slice(s![
-                                        index_pair_b..index_pair_b + frag_b_atoms,
-                                        index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    ]);
-                                    let g0_trimer_ak: Array2<f64> =
-                                        stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
-
-                                    // let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
-                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                    //     index_pair_a..index_pair_a + frag_a_atoms,
-                                    // ]);
-                                    // let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
-                                    //     index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                    //     index_pair_b..index_pair_b + frag_b_atoms,
-                                    // ]);
-                                    // let trimer_distances: Array2<f64> =
-                                    //     stack(Axis(1), &[trimer_distances_a, trimer_distances_b])
-                                    //         .unwrap();
-                                    // let trimer_directions_a: ArrayView3<f64> =
-                                    //     direct_mat.slice(s![
-                                    //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                    //         index_pair_a..index_pair_a + frag_a_atoms,
-                                    //         ..
-                                    //     ]);
-                                    // let trimer_directions_b: ArrayView3<f64> =
-                                    //     direct_mat.slice(s![
-                                    //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
-                                    //         index_pair_b..index_pair_b + frag_b_atoms,
-                                    //         ..
-                                    //     ]);
-                                    // let trimer_directions: Array3<f64> =
-                                    //     stack(Axis(1), &[trimer_directions_a, trimer_directions_b])
-                                    //         .unwrap();
-                                    // let g1_trimer_ka: Array3<f64> =
-                                    //     get_gamma_gradient_matrix_atom_wise_outer_diagonal(
-                                    //         &mol_k.atomic_numbers,
-                                    //         &dimer_atomic_numbers,
-                                    //         mol_k.n_atoms,
-                                    //         pair_atoms,
-                                    //         trimer_distances.view(),
-                                    //         trimer_directions.view(),
-                                    //         full_hubbard,
-                                    //         Some(0.0),
-                                    //     );
-
-                                    // let g1_trimer_ak_new: Array2<f64> = stack(
-                                    //     Axis(0),
-                                    //     &[
-                                    //         g1_2d.slice(s![
-                                    //             3 * index_pair_a
-                                    //                 ..3 * index_pair_a + 3 * frag_a_atoms,
-                                    //             index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    //         ]),
-                                    //         g1_2d.slice(s![
-                                    //             3 * index_pair_b
-                                    //                 ..3 * index_pair_b + 3 * frag_b_atoms,
-                                    //             index_frag_iter..index_frag_iter + mol_k.n_atoms
-                                    //         ]),
-                                    //     ],
-                                    // )
-                                    // .unwrap();
-                                    let g1_trimer_ka_new: Array2<f64> = stack(
-                                        Axis(1),
-                                        &[
-                                            g1_2d.slice(s![
-                                                3 * index_frag_iter
-                                                    ..3 * index_frag_iter + 3 * mol_k.n_atoms,
-                                                index_pair_a..index_pair_a + frag_a_atoms
-                                            ]),
-                                            g1_2d.slice(s![
-                                                3 * index_frag_iter
-                                                    ..3 * index_frag_iter + 3 * mol_k.n_atoms,
-                                                index_pair_b..index_pair_b + frag_b_atoms
-                                            ]),
-                                        ],
-                                    )
-                                    .unwrap();
-
-                                    // calculate grads for molecule k
-                                    // let mut term_1: Array1<f64> = Array1::zeros(3 * pair_atoms);
-                                    // let mut term_2: Array1<f64> = Array1::zeros(3 * pair_atoms);
-                                    // for dir in (0..3).into_iter() {
-                                    //     let dir_xyz: usize = dir as usize;
-                                    //     let mut diag_ind: usize = 0;
-                                    //
-                                    //     let mut mu: usize = 0;
-                                    //     for (a, z_a) in pair.atomic_numbers.iter().enumerate() {
-                                    //         let index: usize = 3 * a + dir_xyz;
-                                    //
-                                    //         // term_1[index] = ddq_arr[a]
-                                    //         //     * g1_trimer_ak
-                                    //         //         .slice(s![index, a, ..])
-                                    //         //         .dot(&mol_k.final_charges);
-                                    //
-                                    //         term_1[index] = ddq_arr[a]
-                                    //             * g1_trimer_ak_new
-                                    //                 .slice(s![index, ..])
-                                    //                 .dot(&mol_k.final_charges);
-                                    //
-                                    //         // assert_eq!(term_1[index],test_term_1,"Term 1 NOT EQUAL");
-                                    //
-                                    //         // let mut atom_type: u8 = 0;
-                                    //         // let mut norbs_a: usize = 0;
-                                    //         // if a < frag_a_atoms {
-                                    //         //     atom_type = fragments[ind1].atomic_numbers[a];
-                                    //         //     norbs_a = fragments[ind1].calculator.valorbs
-                                    //         //         [&atom_type]
-                                    //         //         .len();
-                                    //         // } else {
-                                    //         //     atom_type = fragments[ind2].atomic_numbers
-                                    //         //         [a - frag_a_atoms];
-                                    //         //     norbs_a = fragments[ind2].calculator.valorbs
-                                    //         //         [&atom_type]
-                                    //         //         .len();
-                                    //         // }
-                                    //         // let mut sum_2: f64 = 0.0;
-                                    //         // for _ in pair.calculator.valorbs[z_a].iter() {
-                                    //         //     sum_2 += dw_dimer
-                                    //         //         .slice(s![index, mu, ..])
-                                    //         //         .dot(&pair_smat.slice(s![mu, ..]))
-                                    //         //         + dp_dimer
-                                    //         //             .slice(s![mu, ..])
-                                    //         //             .dot(&grad_s.slice(s![index, mu, ..]));
-                                    //         //
-                                    //         //     mu = mu + 1;
-                                    //         // }
-                                    //         let sum: f64 = ws_pds_pair[[index, a]];
-                                    //         // assert_eq!(
-                                    //         //     sum, sum_2,
-                                    //         //     " sum_mu,nu dWS +dDdS not equal"
-                                    //         // );
-                                    //
-                                    //         // let tmp_1: Array2<f64> = dw_dimer
-                                    //         //     .slice(s![index, .., ..])
-                                    //         //     .dot(&pair_smat.t());
-                                    //         // let tmp_2: Array2<f64> =
-                                    //         //     dp_dimer.dot(&grad_s.slice(s![index, .., ..]).t());
-                                    //         // let sum: Array2<f64> = tmp_1 + tmp_2;
-                                    //
-                                    //         // let diag: f64 = sum
-                                    //         //     .diag()
-                                    //         //     .slice(s![diag_ind..diag_ind + norbs_a])
-                                    //         //     .sum();
-                                    //         // diag_ind += norbs_a;
-                                    //
-                                    //         term_2[index] = sum
-                                    //             * g0_trimer_ak
-                                    //                 .slice(s![a, ..])
-                                    //                 .dot(&fragments[ind_k].final_charges);
-                                    //     }
-                                    // }
-                                    // let embedding_part_1: Array1<f64> = term_1 + term_2;
-                                    // // embedding_pair_ij_test.add_assign(&embedding_part_1);
-
-                                    // let shape_orbs_k: usize = frag_grad_results[ind_k].grad_s.dim().1;
-                                    let shape_orbs_k: usize = mol_k.calculator.n_orbs;
-                                    // let mut w_mat_k: Array3<f64> = Array3::zeros((
-                                    //     3 * fragments[ind_k].n_atoms,
-                                    //     shape_orbs_k,
-                                    //     shape_orbs_k,
-                                    // ));
-
-                                    // for i in (0..3 * fragments[ind_k].n_atoms).into_iter() {
-                                    //     w_mat_k.slice_mut(s![i, .., ..]).assign(
-                                    //         &fragments[ind_k].final_p_matrix.dot(
-                                    //             &frag_gradient_results[ind_k]
-                                    //                 .grad_s
-                                    //                 .slice(s![i, .., ..])
-                                    //                 .dot(&fragments[ind_k].final_p_matrix),
-                                    //         ),
-                                    //     );
-                                    // }
-                                    // w_mat_k = -0.5 * w_mat_k;
-
-                                    let mut term_1: Array1<f64> =
-                                        Array1::zeros(3 * fragments[ind_k].n_atoms);
-                                    let mut term_1_alt: Array1<f64> =
-                                        Array1::zeros(3 * fragments[ind_k].n_atoms);
-                                    let mut term_2: Array1<f64> =
-                                        Array1::zeros(3 * fragments[ind_k].n_atoms);
-                                    // let term_2:Array1<f64> = g0_trimer_ak.t().dot(&ddq_arr) * frag_gradient_results[ind_k].ws_pds.view();
-
-                                    for dir in (0..3).into_iter() {
-                                        let dir_xyz: usize = dir as usize;
-                                        let mut diag_ind: usize = 0;
-                                        for a in (0..fragments[ind_k].n_atoms).into_iter() {
-                                            let index: usize = 3 * a + dir_xyz;
-
-                                            // term_1[index] = fragments[ind_k].final_charges[a]
-                                            //     * g1_trimer_ka
-                                            //         .slice(s![index, a, ..])
-                                            //         .dot(&ddq_arr);
-
-                                            term_1[index] = fragments[ind_k].final_charges[a]
-                                                * g1_trimer_ka_new
-                                                    .slice(s![index, ..])
-                                                    .dot(&ddq_arr);
-                                            term_1_alt[index] = g1_trimer_ka_new
-                                                .slice(s![index, ..])
-                                                .dot(&ddq_arr);
-
-                                            // assert_eq!(term_1[index],test_term_1,"Term 1 NOT EQUAL");
-
-                                            // let atom_type: u8 = fragments[ind_k].atomic_numbers[a];
-                                            // let norbs_k: usize =
-                                            //     fragments[ind_k].calculator.valorbs[&atom_type]
-                                            //         .len();
-
-                                            // let tmp_1: Array2<f64> = w_mat_k
-                                            //     .slice(s![index, .., ..])
-                                            //     .dot(&frag_s_matrices[ind_k].t());
-
-                                            // let tmp_2: Array2<f64> =
-                                            //     fragments[ind_k].final_p_matrix.dot(
-                                            //         &frag_gradient_results[ind_k]
-                                            //             .grad_s
-                                            //             .slice(s![index, .., ..])
-                                            //             .t(),
-                                            //     );
-
-                                            // let sum: Array2<f64> = tmp_1 + tmp_2;
-
-                                            // let diag: f64 = sum
-                                            //     .diag()
-                                            //     .slice(s![diag_ind..diag_ind + norbs_k])
-                                            //     .sum();
-                                            // diag_ind += norbs_k;
-                                            let sum: f64 =
-                                                frag_gradient_results[ind_k].ws_pds[[index, a]];
-
-                                            term_2[index] =
-                                                sum * g0_trimer_ak.slice(s![.., a]).dot(&ddq_arr);
-                                        }
-                                    }
-                                    embedding_k_test.slice_mut(s![3 * index_frag_iter
-                                            ..3 * index_frag_iter + 3 * mol_k.n_atoms])
-                                        .add_assign(&term_1_alt);
-                                    let embedding_part_2: Array1<f64> = term_1 + term_2;
-
-                                    let mut temp_grad: Array1<f64> =
-                                        Array1::zeros(grad_total_frags.len());
-
-                                    // let index_a: usize = ind1;
-                                    // let index_b: usize = ind2;
-                                    // let atoms_a: usize = fragments[index_a].n_atoms;
-                                    // let atoms_b: usize = fragments[index_b].n_atoms;
-                                    // let index_frag_a: usize = indices_frags[index_a];
-                                    // let index_frag_b: usize = indices_frags[index_b];
-                                    //
-                                    // temp_grad
-                                    //     .slice_mut(s![
-                                    //         3 * index_frag_a..3 * index_frag_a + 3 * atoms_a
-                                    //     ])
-                                    //     .add_assign(&embedding_part_1.slice(s![0..3 * atoms_a]));
-                                    // temp_grad
-                                    //     .slice_mut(s![
-                                    //         3 * index_frag_b..3 * index_frag_b + 3 * atoms_b
-                                    //     ])
-                                    //     .add_assign(&embedding_part_1.slice(s![3 * atoms_a..]));
-                                    temp_grad
-                                        .slice_mut(s![3 * index_frag_iter
-                                            ..3 * index_frag_iter + 3 * mol_k.n_atoms])
-                                        .add_assign(&embedding_part_2);
-
-                                    Some(temp_grad)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-                        // assert_eq!(embedding_pair_ij_test,embedding_pair_ij,"Embedding not equal!!");
-                        assert_eq!(embedding_k_test,embedding_k,"Embedding test NOT EQUAL!!");
-
+                        // // let mut embedding_pair_ij_test:Array1<f64> = Array1::zeros(3*pair_atoms);
+                        // let embedding_pot: Vec<Array1<f64>> = fragments
+                        //     .iter()
+                        //     .enumerate()
+                        //     .filter_map(|(ind_k, mol_k)| {
+                        //         if ind_k != ind1 && ind_k != ind2 {
+                        //             let index_frag_iter: usize = indices_frags[ind_k];
+                        //
+                        //             // let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
+                        //             //     index_pair_a..index_pair_a + frag_a_atoms,
+                        //             //     index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             // ]);
+                        //             // let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
+                        //             //     index_pair_b..index_pair_b + frag_b_atoms,
+                        //             //     index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             // ]);
+                        //             // let trimer_distances: Array2<f64> =
+                        //             //     stack(Axis(0), &[trimer_distances_a, trimer_distances_b])
+                        //             //         .unwrap();
+                        //             // let trimer_directions_a: ArrayView3<f64> =
+                        //             //     direct_mat.slice(s![
+                        //             //         index_pair_a..index_pair_a + frag_a_atoms,
+                        //             //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                        //             //         ..
+                        //             //     ]);
+                        //             // let trimer_directions_b: ArrayView3<f64> =
+                        //             //     direct_mat.slice(s![
+                        //             //         index_pair_b..index_pair_b + frag_b_atoms,
+                        //             //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                        //             //         ..
+                        //             //     ]);
+                        //             // let trimer_directions: Array3<f64> =
+                        //             //     stack(Axis(0), &[trimer_directions_a, trimer_directions_b])
+                        //             //         .unwrap();
+                        //             // let g1_trimer_ak: Array3<f64> =
+                        //             //     get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+                        //             //         &dimer_atomic_numbers,
+                        //             //         &mol_k.atomic_numbers,
+                        //             //         pair_atoms,
+                        //             //         mol_k.n_atoms,
+                        //             //         trimer_distances.view(),
+                        //             //         trimer_directions.view(),
+                        //             //         full_hubbard,
+                        //             //         Some(0.0),
+                        //             //     );
+                        //
+                        //             // let g0_trimer_ak: Array2<f64> =
+                        //             //     get_gamma_matrix_atomwise_outer_diagonal(
+                        //             //         &dimer_atomic_numbers,
+                        //             //         &mol_k.atomic_numbers,
+                        //             //         pair_atoms,
+                        //             //         mol_k.n_atoms,
+                        //             //         trimer_distances.view(),
+                        //             //         full_hubbard,
+                        //             //         Some(0.0),
+                        //             //     );
+                        //
+                        //             let g0_trimer_a: ArrayView2<f64> = g0_total.slice(s![
+                        //                 index_pair_a..index_pair_a + frag_a_atoms,
+                        //                 index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             ]);
+                        //             let g0_trimer_b: ArrayView2<f64> = g0_total.slice(s![
+                        //                 index_pair_b..index_pair_b + frag_b_atoms,
+                        //                 index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             ]);
+                        //             let g0_trimer_ak: Array2<f64> =
+                        //                 stack(Axis(0), &[g0_trimer_a, g0_trimer_b]).unwrap();
+                        //
+                        //             // let trimer_distances_a: ArrayView2<f64> = dist_mat.slice(s![
+                        //             //     index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                        //             //     index_pair_a..index_pair_a + frag_a_atoms,
+                        //             // ]);
+                        //             // let trimer_distances_b: ArrayView2<f64> = dist_mat.slice(s![
+                        //             //     index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                        //             //     index_pair_b..index_pair_b + frag_b_atoms,
+                        //             // ]);
+                        //             // let trimer_distances: Array2<f64> =
+                        //             //     stack(Axis(1), &[trimer_distances_a, trimer_distances_b])
+                        //             //         .unwrap();
+                        //             // let trimer_directions_a: ArrayView3<f64> =
+                        //             //     direct_mat.slice(s![
+                        //             //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                        //             //         index_pair_a..index_pair_a + frag_a_atoms,
+                        //             //         ..
+                        //             //     ]);
+                        //             // let trimer_directions_b: ArrayView3<f64> =
+                        //             //     direct_mat.slice(s![
+                        //             //         index_frag_iter..index_frag_iter + mol_k.n_atoms,
+                        //             //         index_pair_b..index_pair_b + frag_b_atoms,
+                        //             //         ..
+                        //             //     ]);
+                        //             // let trimer_directions: Array3<f64> =
+                        //             //     stack(Axis(1), &[trimer_directions_a, trimer_directions_b])
+                        //             //         .unwrap();
+                        //             // let g1_trimer_ka: Array3<f64> =
+                        //             //     get_gamma_gradient_matrix_atom_wise_outer_diagonal(
+                        //             //         &mol_k.atomic_numbers,
+                        //             //         &dimer_atomic_numbers,
+                        //             //         mol_k.n_atoms,
+                        //             //         pair_atoms,
+                        //             //         trimer_distances.view(),
+                        //             //         trimer_directions.view(),
+                        //             //         full_hubbard,
+                        //             //         Some(0.0),
+                        //             //     );
+                        //
+                        //             // let g1_trimer_ak_new: Array2<f64> = stack(
+                        //             //     Axis(0),
+                        //             //     &[
+                        //             //         g1_2d.slice(s![
+                        //             //             3 * index_pair_a
+                        //             //                 ..3 * index_pair_a + 3 * frag_a_atoms,
+                        //             //             index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             //         ]),
+                        //             //         g1_2d.slice(s![
+                        //             //             3 * index_pair_b
+                        //             //                 ..3 * index_pair_b + 3 * frag_b_atoms,
+                        //             //             index_frag_iter..index_frag_iter + mol_k.n_atoms
+                        //             //         ]),
+                        //             //     ],
+                        //             // )
+                        //             // .unwrap();
+                        //             let g1_trimer_ka_new: Array2<f64> = stack(
+                        //                 Axis(1),
+                        //                 &[
+                        //                     g1_2d.slice(s![
+                        //                         3 * index_frag_iter
+                        //                             ..3 * index_frag_iter + 3 * mol_k.n_atoms,
+                        //                         index_pair_a..index_pair_a + frag_a_atoms
+                        //                     ]),
+                        //                     g1_2d.slice(s![
+                        //                         3 * index_frag_iter
+                        //                             ..3 * index_frag_iter + 3 * mol_k.n_atoms,
+                        //                         index_pair_b..index_pair_b + frag_b_atoms
+                        //                     ]),
+                        //                 ],
+                        //             )
+                        //             .unwrap();
+                        //
+                        //             // calculate grads for molecule k
+                        //             // let mut term_1: Array1<f64> = Array1::zeros(3 * pair_atoms);
+                        //             // let mut term_2: Array1<f64> = Array1::zeros(3 * pair_atoms);
+                        //             // for dir in (0..3).into_iter() {
+                        //             //     let dir_xyz: usize = dir as usize;
+                        //             //     let mut diag_ind: usize = 0;
+                        //             //
+                        //             //     let mut mu: usize = 0;
+                        //             //     for (a, z_a) in pair.atomic_numbers.iter().enumerate() {
+                        //             //         let index: usize = 3 * a + dir_xyz;
+                        //             //
+                        //             //         // term_1[index] = ddq_arr[a]
+                        //             //         //     * g1_trimer_ak
+                        //             //         //         .slice(s![index, a, ..])
+                        //             //         //         .dot(&mol_k.final_charges);
+                        //             //
+                        //             //         term_1[index] = ddq_arr[a]
+                        //             //             * g1_trimer_ak_new
+                        //             //                 .slice(s![index, ..])
+                        //             //                 .dot(&mol_k.final_charges);
+                        //             //
+                        //             //         // assert_eq!(term_1[index],test_term_1,"Term 1 NOT EQUAL");
+                        //             //
+                        //             //         // let mut atom_type: u8 = 0;
+                        //             //         // let mut norbs_a: usize = 0;
+                        //             //         // if a < frag_a_atoms {
+                        //             //         //     atom_type = fragments[ind1].atomic_numbers[a];
+                        //             //         //     norbs_a = fragments[ind1].calculator.valorbs
+                        //             //         //         [&atom_type]
+                        //             //         //         .len();
+                        //             //         // } else {
+                        //             //         //     atom_type = fragments[ind2].atomic_numbers
+                        //             //         //         [a - frag_a_atoms];
+                        //             //         //     norbs_a = fragments[ind2].calculator.valorbs
+                        //             //         //         [&atom_type]
+                        //             //         //         .len();
+                        //             //         // }
+                        //             //         // let mut sum_2: f64 = 0.0;
+                        //             //         // for _ in pair.calculator.valorbs[z_a].iter() {
+                        //             //         //     sum_2 += dw_dimer
+                        //             //         //         .slice(s![index, mu, ..])
+                        //             //         //         .dot(&pair_smat.slice(s![mu, ..]))
+                        //             //         //         + dp_dimer
+                        //             //         //             .slice(s![mu, ..])
+                        //             //         //             .dot(&grad_s.slice(s![index, mu, ..]));
+                        //             //         //
+                        //             //         //     mu = mu + 1;
+                        //             //         // }
+                        //             //         let sum: f64 = ws_pds_pair[[index, a]];
+                        //             //         // assert_eq!(
+                        //             //         //     sum, sum_2,
+                        //             //         //     " sum_mu,nu dWS +dDdS not equal"
+                        //             //         // );
+                        //             //
+                        //             //         // let tmp_1: Array2<f64> = dw_dimer
+                        //             //         //     .slice(s![index, .., ..])
+                        //             //         //     .dot(&pair_smat.t());
+                        //             //         // let tmp_2: Array2<f64> =
+                        //             //         //     dp_dimer.dot(&grad_s.slice(s![index, .., ..]).t());
+                        //             //         // let sum: Array2<f64> = tmp_1 + tmp_2;
+                        //             //
+                        //             //         // let diag: f64 = sum
+                        //             //         //     .diag()
+                        //             //         //     .slice(s![diag_ind..diag_ind + norbs_a])
+                        //             //         //     .sum();
+                        //             //         // diag_ind += norbs_a;
+                        //             //
+                        //             //         term_2[index] = sum
+                        //             //             * g0_trimer_ak
+                        //             //                 .slice(s![a, ..])
+                        //             //                 .dot(&fragments[ind_k].final_charges);
+                        //             //     }
+                        //             // }
+                        //             // let embedding_part_1: Array1<f64> = term_1 + term_2;
+                        //             // // embedding_pair_ij_test.add_assign(&embedding_part_1);
+                        //
+                        //             // let shape_orbs_k: usize = frag_grad_results[ind_k].grad_s.dim().1;
+                        //             let shape_orbs_k: usize = mol_k.calculator.n_orbs;
+                        //             // let mut w_mat_k: Array3<f64> = Array3::zeros((
+                        //             //     3 * fragments[ind_k].n_atoms,
+                        //             //     shape_orbs_k,
+                        //             //     shape_orbs_k,
+                        //             // ));
+                        //
+                        //             // for i in (0..3 * fragments[ind_k].n_atoms).into_iter() {
+                        //             //     w_mat_k.slice_mut(s![i, .., ..]).assign(
+                        //             //         &fragments[ind_k].final_p_matrix.dot(
+                        //             //             &frag_gradient_results[ind_k]
+                        //             //                 .grad_s
+                        //             //                 .slice(s![i, .., ..])
+                        //             //                 .dot(&fragments[ind_k].final_p_matrix),
+                        //             //         ),
+                        //             //     );
+                        //             // }
+                        //             // w_mat_k = -0.5 * w_mat_k;
+                        //
+                        //             let mut term_1: Array1<f64> =
+                        //                 Array1::zeros(3 * fragments[ind_k].n_atoms);
+                        //             let mut term_1_alt: Array1<f64> =
+                        //                 Array1::zeros(3 * fragments[ind_k].n_atoms);
+                        //             let mut term_2: Array1<f64> =
+                        //                 Array1::zeros(3 * fragments[ind_k].n_atoms);
+                        //             // let term_2:Array1<f64> = g0_trimer_ak.t().dot(&ddq_arr) * frag_gradient_results[ind_k].ws_pds.view();
+                        //
+                        //             for dir in (0..3).into_iter() {
+                        //                 let dir_xyz: usize = dir as usize;
+                        //                 let mut diag_ind: usize = 0;
+                        //                 for a in (0..fragments[ind_k].n_atoms).into_iter() {
+                        //                     let index: usize = 3 * a + dir_xyz;
+                        //
+                        //                     // term_1[index] = fragments[ind_k].final_charges[a]
+                        //                     //     * g1_trimer_ka
+                        //                     //         .slice(s![index, a, ..])
+                        //                     //         .dot(&ddq_arr);
+                        //
+                        //                     term_1[index] = fragments[ind_k].final_charges[a]
+                        //                         * g1_trimer_ka_new
+                        //                             .slice(s![index, ..])
+                        //                             .dot(&ddq_arr);
+                        //                     term_1_alt[index] = g1_trimer_ka_new
+                        //                         .slice(s![index, ..])
+                        //                         .dot(&ddq_arr);
+                        //
+                        //                     // assert_eq!(term_1[index],test_term_1,"Term 1 NOT EQUAL");
+                        //
+                        //                     // let atom_type: u8 = fragments[ind_k].atomic_numbers[a];
+                        //                     // let norbs_k: usize =
+                        //                     //     fragments[ind_k].calculator.valorbs[&atom_type]
+                        //                     //         .len();
+                        //
+                        //                     // let tmp_1: Array2<f64> = w_mat_k
+                        //                     //     .slice(s![index, .., ..])
+                        //                     //     .dot(&frag_s_matrices[ind_k].t());
+                        //
+                        //                     // let tmp_2: Array2<f64> =
+                        //                     //     fragments[ind_k].final_p_matrix.dot(
+                        //                     //         &frag_gradient_results[ind_k]
+                        //                     //             .grad_s
+                        //                     //             .slice(s![index, .., ..])
+                        //                     //             .t(),
+                        //                     //     );
+                        //
+                        //                     // let sum: Array2<f64> = tmp_1 + tmp_2;
+                        //
+                        //                     // let diag: f64 = sum
+                        //                     //     .diag()
+                        //                     //     .slice(s![diag_ind..diag_ind + norbs_k])
+                        //                     //     .sum();
+                        //                     // diag_ind += norbs_k;
+                        //                     let sum: f64 =
+                        //                         frag_gradient_results[ind_k].ws_pds[[index, a]];
+                        //
+                        //                     term_2[index] =
+                        //                         sum * g0_trimer_ak.slice(s![.., a]).dot(&ddq_arr);
+                        //                 }
+                        //             }
+                        //             let embedding_part_2: Array1<f64> = term_1 + term_2;
+                        //             embedding_k_test.slice_mut(s![3 * index_frag_iter
+                        //                     ..3 * index_frag_iter + 3 * mol_k.n_atoms])
+                        //                 .add_assign(&embedding_part_2);
+                        //
+                        //             let mut temp_grad: Array1<f64> =
+                        //                 Array1::zeros(grad_total_frags.len());
+                        //
+                        //             // let index_a: usize = ind1;
+                        //             // let index_b: usize = ind2;
+                        //             // let atoms_a: usize = fragments[index_a].n_atoms;
+                        //             // let atoms_b: usize = fragments[index_b].n_atoms;
+                        //             // let index_frag_a: usize = indices_frags[index_a];
+                        //             // let index_frag_b: usize = indices_frags[index_b];
+                        //             //
+                        //             // temp_grad
+                        //             //     .slice_mut(s![
+                        //             //         3 * index_frag_a..3 * index_frag_a + 3 * atoms_a
+                        //             //     ])
+                        //             //     .add_assign(&embedding_part_1.slice(s![0..3 * atoms_a]));
+                        //             // temp_grad
+                        //             //     .slice_mut(s![
+                        //             //         3 * index_frag_b..3 * index_frag_b + 3 * atoms_b
+                        //             //     ])
+                        //             //     .add_assign(&embedding_part_1.slice(s![3 * atoms_a..]));
+                        //             temp_grad
+                        //                 .slice_mut(s![3 * index_frag_iter
+                        //                     ..3 * index_frag_iter + 3 * mol_k.n_atoms])
+                        //                 .add_assign(&embedding_part_2);
+                        //
+                        //             Some(temp_grad)
+                        //         } else {
+                        //             None
+                        //         }
+                        //     })
+                        //     .collect();
+                        // // assert_eq!(embedding_pair_ij_test,embedding_pair_ij,"Embedding not equal!!");
                         let mut embedding_gradient: Array1<f64> =
                             Array1::zeros(grad_total_frags.len());
-                        for grad in embedding_pot.iter() {
-                            embedding_gradient.add_assign(grad);
-                        }
+                        // for grad in embedding_pot.iter() {
+                        //     embedding_gradient.add_assign(grad);
+                        // }
                         embedding_gradient.slice_mut(s![3*index_pair_a..3*index_pair_a+3*frag_a_atoms]).add_assign(&embedding_pair_ij.slice(s![0..3*frag_a_atoms]));
                         embedding_gradient.slice_mut(s![3*index_pair_b..3*index_pair_b+3*frag_b_atoms]).add_assign(&embedding_pair_ij.slice(s![3*frag_a_atoms..]));
                         pair_embedding_gradient = Some(embedding_gradient);
@@ -5494,6 +5617,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         })
         .collect();
 
+    // assert!(embedding_k_test.abs_diff_eq(&embedding_k_total,1e-14),"Embedding test NOT EQUAL!!");
+
     let mut pair_result: Vec<pair_gradients_result> = Vec::new();
     for pair in result.iter_mut() {
         pair_result.append(pair);
@@ -5548,7 +5673,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                 .add_assign(&dimer_gradient.slice(s![3 * atoms_a..]));
         }
     }
-    let gradient_without_response: Array1<f64> = grad_total_frags.clone() + grad_total_dimers;
+    let gradient_without_response: Array1<f64> = grad_total_frags.clone() + embedding_k_total + grad_total_dimers;
     let gradient_monomers_real_pairs: Array1<f64> = grad_total_frags.clone() + grad_real_pairs;
 
     println!(
@@ -5680,44 +5805,44 @@ pub fn fmo_zvector_routine(
             let mut a_mat: Array4<f64> = a_mat_2d
                 .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
                 .unwrap();
-            let mut a_mat_4d: Array4<f64> = Array4::zeros((dim_virt, dim_occ, dim_virt, dim_occ));
-            let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
-                .qtrans
-                .clone()
-                .into_shape((frag.n_atoms, dim_virt, dim_occ))
-                .unwrap();
-            for k in (0..dim_virt).into_iter() {
-                for l in (0..dim_occ).into_iter() {
-                    // let esp_like:Array1<f64> = frag.g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
-                    let esp_like: Array1<f64> = frag.g0.dot(&qtrans_3d.slice(s![.., k, l]));
-                    let mut mu: usize = 0;
-                    // ao transformation
-                    let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
-                    for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
-                        for _ in &frag.calculator.valorbs[z_i] {
-                            esp_ao[mu] = esp_like[i];
-                            mu = mu + 1;
-                        }
-                    }
-                    let esp_mat_ao: Array2<f64> =
-                        &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
-                    let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind].view();
-                    let kl_term: Array2<f64> = -1.0
-                        * orbs
-                            .slice(s![.., dim_occ..])
-                            .t()
-                            .dot(&s_esp_term)
-                            .dot(&orbs.slice(s![.., 0..dim_occ]));
-                    a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
-                }
-            }
+            // let mut a_mat_4d: Array4<f64> = Array4::zeros((dim_virt, dim_occ, dim_virt, dim_occ));
+            // let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
+            //     .qtrans
+            //     .clone()
+            //     .into_shape((frag.n_atoms, dim_virt, dim_occ))
+            //     .unwrap();
+            // for k in (0..dim_virt).into_iter() {
+            //     for l in (0..dim_occ).into_iter() {
+            //         // let esp_like:Array1<f64> = frag.g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
+            //         let esp_like: Array1<f64> = frag.g0.dot(&qtrans_3d.slice(s![.., k, l]));
+            //         let mut mu: usize = 0;
+            //         // ao transformation
+            //         let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
+            //         for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
+            //             for _ in &frag.calculator.valorbs[z_i] {
+            //                 esp_ao[mu] = esp_like[i];
+            //                 mu = mu + 1;
+            //             }
+            //         }
+            //         let esp_mat_ao: Array2<f64> =
+            //             &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
+            //         let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind].view();
+            //         let kl_term: Array2<f64> = -1.0
+            //             * orbs
+            //                 .slice(s![.., dim_occ..])
+            //                 .t()
+            //                 .dot(&s_esp_term)
+            //                 .dot(&orbs.slice(s![.., 0..dim_occ]));
+            //         a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
+            //     }
+            // }
             for i in (0..dim_virt).into_iter() {
                 for j in (0..dim_occ).into_iter() {
                     for k in (0..dim_virt).into_iter() {
                         for l in (0..dim_occ).into_iter() {
                             if i == k && j == l {
                                 a_mat[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
-                                a_mat_4d[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
+                                // a_mat_4d[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
                             }
                         }
                     }
@@ -5727,10 +5852,10 @@ pub fn fmo_zvector_routine(
             // assert!(a_mat.abs_diff_eq(&a_mat_4d,1e-2),"A matrices NOT EQUAL!");
             // Solve a set of equations
             // (A^I,I).T Z^I = L^I
-            // let a_mat_2d:Array2<f64> = a_mat.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
-            let a_mat_2d: Array2<f64> = a_mat_4d
-                .into_shape((dim_virt * dim_occ, dim_virt * dim_occ))
-                .unwrap();
+            let a_mat_2d:Array2<f64> = a_mat.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
+            // let a_mat_2d: Array2<f64> = a_mat_4d
+            //     .into_shape((dim_virt * dim_occ, dim_virt * dim_occ))
+            //     .unwrap();
             // let zeros_test:Array2<f64> = Array2::zeros(a_mat_2d.raw_dim());
             // assert!(zeros_test.abs_diff_eq(&(&a_mat_2d-&a_mat_2d.t()),1e-15),"A matrix not symmetric");
             let lagrangian_1d: Array1<f64> = initial_lagrangian[ind]
@@ -5792,47 +5917,47 @@ pub fn fmo_zvector_routine(
                                     .qtrans
                                     .t()
                                     .dot(&g0.dot(&frag_gradient_results[ind].qtrans));
-                            let mut a_mat_4d: Array4<f64> =
-                                Array4::zeros((dim_virt_k, dim_occ_k, dim_virt, dim_occ));
-                            let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
-                                .qtrans
-                                .clone()
-                                .into_shape((frag.n_atoms, dim_virt, dim_occ))
-                                .unwrap();
-                            for k in (0..dim_virt).into_iter() {
-                                for l in (0..dim_occ).into_iter() {
-                                    // let esp_like:Array1<f64> = g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
-                                    let esp_like: Array1<f64> =
-                                        g0.dot(&qtrans_3d.slice(s![.., k, l]));
-                                    let mut mu: usize = 0;
-                                    // ao transformation
-                                    let mut esp_ao: Array1<f64> =
-                                        Array1::zeros(fragments[ind_k].calculator.n_orbs);
-                                    for (i, z_i) in
-                                        fragments[ind_k].atomic_numbers.iter().enumerate()
-                                    {
-                                        for _ in &fragments[ind_k].calculator.valorbs[z_i] {
-                                            esp_ao[mu] = esp_like[i];
-                                            mu = mu + 1;
-                                        }
-                                    }
-                                    let esp_mat_ao: Array2<f64> =
-                                        &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap()
-                                            + &esp_ao;
-                                    let s_esp_term: Array2<f64> =
-                                        2.0 * esp_mat_ao * s_matrices[ind_k].view();
-                                    let kl_term: Array2<f64> = -1.0
-                                        * orbs_k
-                                            .slice(s![.., dim_occ_k..])
-                                            .t()
-                                            .dot(&s_esp_term)
-                                            .dot(&orbs_k.slice(s![.., 0..dim_occ_k]));
-                                    a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
-                                }
-                            }
-                            let a_mat_2d: Array2<f64> = a_mat_4d
-                                .into_shape((dim_virt_k * dim_occ_k, dim_virt * dim_occ))
-                                .unwrap();
+                            // let mut a_mat_4d: Array4<f64> =
+                            //     Array4::zeros((dim_virt_k, dim_occ_k, dim_virt, dim_occ));
+                            // let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
+                            //     .qtrans
+                            //     .clone()
+                            //     .into_shape((frag.n_atoms, dim_virt, dim_occ))
+                            //     .unwrap();
+                            // for k in (0..dim_virt).into_iter() {
+                            //     for l in (0..dim_occ).into_iter() {
+                            //         // let esp_like:Array1<f64> = g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
+                            //         let esp_like: Array1<f64> =
+                            //             g0.dot(&qtrans_3d.slice(s![.., k, l]));
+                            //         let mut mu: usize = 0;
+                            //         // ao transformation
+                            //         let mut esp_ao: Array1<f64> =
+                            //             Array1::zeros(fragments[ind_k].calculator.n_orbs);
+                            //         for (i, z_i) in
+                            //             fragments[ind_k].atomic_numbers.iter().enumerate()
+                            //         {
+                            //             for _ in &fragments[ind_k].calculator.valorbs[z_i] {
+                            //                 esp_ao[mu] = esp_like[i];
+                            //                 mu = mu + 1;
+                            //             }
+                            //         }
+                            //         let esp_mat_ao: Array2<f64> =
+                            //             &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap()
+                            //                 + &esp_ao;
+                            //         let s_esp_term: Array2<f64> =
+                            //             2.0 * esp_mat_ao * s_matrices[ind_k].view();
+                            //         let kl_term: Array2<f64> = -1.0
+                            //             * orbs_k
+                            //                 .slice(s![.., dim_occ_k..])
+                            //                 .t()
+                            //                 .dot(&s_esp_term)
+                            //                 .dot(&orbs_k.slice(s![.., 0..dim_occ_k]));
+                            //         a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
+                            //     }
+                            // }
+                            // let a_mat_2d: Array2<f64> = a_mat_4d
+                            //     .into_shape((dim_virt_k * dim_occ_k, dim_virt * dim_occ))
+                            //     .unwrap();
                             // let a_mat: Array4<f64> = a_mat_2d
                             //     .into_shape((dim_virt_k, dim_occ_k, dim_virt, dim_occ))
                             //     .unwrap();
@@ -5875,45 +6000,45 @@ pub fn fmo_zvector_routine(
                     let mut a_mat: Array4<f64> = a_mat_2d
                         .into_shape((dim_virt, dim_occ, dim_virt, dim_occ))
                         .unwrap();
-                    let mut a_mat_4d: Array4<f64> =
-                        Array4::zeros((dim_virt, dim_occ, dim_virt, dim_occ));
-                    let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
-                        .qtrans
-                        .clone()
-                        .into_shape((frag.n_atoms, dim_virt, dim_occ))
-                        .unwrap();
-                    for k in (0..dim_virt).into_iter() {
-                        for l in (0..dim_occ).into_iter() {
-                            // let esp_like:Array1<f64> = frag.g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
-                            let esp_like: Array1<f64> = frag.g0.dot(&qtrans_3d.slice(s![.., k, l]));
-                            let mut mu: usize = 0;
-                            // ao transformation
-                            let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
-                            for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
-                                for _ in &frag.calculator.valorbs[z_i] {
-                                    esp_ao[mu] = esp_like[i];
-                                    mu = mu + 1;
-                                }
-                            }
-                            let esp_mat_ao: Array2<f64> =
-                                &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
-                            let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind].view();
-                            let kl_term: Array2<f64> = -1.0
-                                * orbs
-                                    .slice(s![.., dim_occ..])
-                                    .t()
-                                    .dot(&s_esp_term)
-                                    .dot(&orbs.slice(s![.., 0..dim_occ]));
-                            a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
-                        }
-                    }
+                    // let mut a_mat_4d: Array4<f64> =
+                    //     Array4::zeros((dim_virt, dim_occ, dim_virt, dim_occ));
+                    // let qtrans_3d: Array3<f64> = frag_gradient_results[ind]
+                    //     .qtrans
+                    //     .clone()
+                    //     .into_shape((frag.n_atoms, dim_virt, dim_occ))
+                    //     .unwrap();
+                    // for k in (0..dim_virt).into_iter() {
+                    //     for l in (0..dim_occ).into_iter() {
+                    //         // let esp_like:Array1<f64> = frag.g0.dot(&frag_gradient_results[ind].qtrans.slice(s![..,k*l]));
+                    //         let esp_like: Array1<f64> = frag.g0.dot(&qtrans_3d.slice(s![.., k, l]));
+                    //         let mut mu: usize = 0;
+                    //         // ao transformation
+                    //         let mut esp_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
+                    //         for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
+                    //             for _ in &frag.calculator.valorbs[z_i] {
+                    //                 esp_ao[mu] = esp_like[i];
+                    //                 mu = mu + 1;
+                    //             }
+                    //         }
+                    //         let esp_mat_ao: Array2<f64> =
+                    //             &esp_ao.broadcast((esp_ao.len(), esp_ao.len())).unwrap() + &esp_ao;
+                    //         let s_esp_term: Array2<f64> = 2.0 * esp_mat_ao * s_matrices[ind].view();
+                    //         let kl_term: Array2<f64> = -1.0
+                    //             * orbs
+                    //                 .slice(s![.., dim_occ..])
+                    //                 .t()
+                    //                 .dot(&s_esp_term)
+                    //                 .dot(&orbs.slice(s![.., 0..dim_occ]));
+                    //         a_mat_4d.slice_mut(s![.., .., k, l]).assign(&kl_term);
+                    //     }
+                    // }
                     for i in (0..dim_virt).into_iter() {
                         for j in (0..dim_occ).into_iter() {
                             for k in (0..dim_virt).into_iter() {
                                 for l in (0..dim_occ).into_iter() {
                                     if i == k && j == l {
                                         a_mat[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
-                                        a_mat_4d[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
+                                        // a_mat_4d[[i, j, k, l]] += orbe[j] - orbe[dim_occ + i];
                                     }
                                 }
                             }
@@ -5921,10 +6046,10 @@ pub fn fmo_zvector_routine(
                     }
                     // Solve a set of equations
                     // (A^I,I).T Z^I = L^I
-                    // let a_mat_2d:Array2<f64> = a_mat.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
-                    let a_mat_2d: Array2<f64> = a_mat_4d
-                        .into_shape((dim_virt * dim_occ, dim_virt * dim_occ))
-                        .unwrap();
+                    let a_mat_2d:Array2<f64> = a_mat.into_shape((dim_virt* dim_occ, dim_virt* dim_occ)).unwrap();
+                    // let a_mat_2d: Array2<f64> = a_mat_4d
+                    //     .into_shape((dim_virt * dim_occ, dim_virt * dim_occ))
+                    //     .unwrap();
                     let lagrangian_1d: Array1<f64> = initial_lagrangian[ind]
                         .clone()
                         .into_shape(dim_virt * dim_occ)
