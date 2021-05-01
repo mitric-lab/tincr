@@ -3750,7 +3750,6 @@ pub fn fmo_fragment_gradients(
         &molecule.calculator.hubbard_u,
         Some(0.0),
     );
-    println!("g1 {}",g1.slice(s![0..6,..,..]));
     // let (g1, g1_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
     //     &molecule.atomic_numbers,
     //     molecule.n_atoms,
@@ -5451,146 +5450,56 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         //         Some(0.0),
                         //     );
 
-                        // let mut w_mat_a: Array3<f64> = Array3::zeros((
-                        //     3 * fragments[ind1].n_atoms,
-                        //     shape_orbs_a,
-                        //     shape_orbs_a,
-                        // ));
-                        // for i in (0..3 * fragments[ind1].n_atoms).into_iter() {
-                        //     w_mat_a.slice_mut(s![i, .., ..]).assign(
-                        //         &fragments[ind1].final_p_matrix.dot(
-                        //             &frag_gradient_results[ind1]
-                        //                 .grad_s
-                        //                 .slice(s![i, .., ..])
-                        //                 .dot(&fragments[ind1].final_p_matrix),
-                        //         ),
-                        //     );
-                        // }
-                        // w_mat_a = -0.5 * w_mat_a;
+                        // let mut term_1: Array1<f64> = Array1::zeros(3 * fragments[ind1].n_atoms);
+                        // let mut term_2:Array1<f64> = Array1::zeros(3 * fragments[ind1].n_atoms);
+                        let mut term_2a: Array1<f64> = Array1::zeros(3 * fragments[ind1].n_atoms);
+                        let mut term_2b: Array1<f64> = Array1::zeros(3 * fragments[ind2].n_atoms);
+                        let term_1a_new:Array1<f64> = g1_2d.slice(s![
+                                    3 * index_pair_a..3 * index_pair_a + 3*fragments[ind1].n_atoms,
+                                    index_pair_b..index_pair_b + fragments[ind2].n_atoms])
+                                    .dot(&fragments[ind2].final_charges)
+                                    *dq_gradient_dim.slice(s![3 * index_pair_a..3 * index_pair_a + 3*fragments[ind1].n_atoms]);
+                        let term_1b_new:Array1<f64> = g1_2d.slice(s![
+                                    3 * index_pair_b..3 * index_pair_b + 3*fragments[ind2].n_atoms,
+                                    index_pair_a..index_pair_a + fragments[ind1].n_atoms])
+                                    .dot(&fragments[ind1].final_charges)
+                                    *dq_gradient_dim.slice(s![3 * index_pair_b..3 * index_pair_b + 3*fragments[ind2].n_atoms]);
 
-                        // let mut w_mat_b: Array3<f64> = Array3::zeros((
-                        //     3 * fragments[ind2].n_atoms,
-                        //     shape_orbs_b,
-                        //     shape_orbs_b,
-                        // ));
-                        // for i in (0..3 * fragments[ind2].n_atoms).into_iter() {
-                        //     w_mat_b.slice_mut(s![i, .., ..]).assign(
-                        //         &fragments[ind2].final_p_matrix.dot(
-                        //             &frag_gradient_results[ind2]
-                        //                 .grad_s
-                        //                 .slice(s![i, .., ..])
-                        //                 .dot(&fragments[ind2].final_p_matrix),
-                        //         ),
-                        //     );
-                        // }
-                        // w_mat_b = -0.5 * w_mat_b;
+                        let tmp_a:Array1<f64> = g0_dimer_ab.dot(&fragments[ind2].final_charges);
+                        let tmp_b:Array1<f64> = g0_dimer_ab.t().dot(&fragments[ind1].final_charges);
 
-                        let mut term_1: Array1<f64> = Array1::zeros(3 * fragments[ind1].n_atoms);
-                        let mut term_2: Array1<f64> = Array1::zeros(3 * fragments[ind1].n_atoms);
-                        // let term_2:Array1<f64> = g0_dimer_ab.dot(&fragments[ind2].final_charges) * frag_gradient_results[ind1].ws_pds.view();
                         for dir in (0..3).into_iter() {
                             let dir_xyz: usize = dir as usize;
                             let mut diag_ind: usize = 0;
                             for a in (0..fragments[ind1].n_atoms).into_iter() {
                                 let index: usize = 3 * a + dir_xyz;
+
+                                term_2a[index] = frag_gradient_results[ind1].ws_pds[[index, a]] * tmp_a[a];
+
                                 // term_1[index] = fragments[ind1].final_charges[a]
-                                //     * g1_dimer_ab
-                                //         .slice(s![index, a, ..])
+                                //     * g1_2d
+                                //         .slice(s![
+                                //             3 * index_pair_a + index,
+                                //             index_pair_b..index_pair_b + fragments[ind2].n_atoms
+                                //         ])
                                 //         .dot(&fragments[ind2].final_charges);
-                                // println!("g1 dot dq {}",g1_2d.slice(s![3*index_pair_a..3*index_pair_a+3*fragments[ind1].n_atoms,index_pair_b..index_pair_b+fragments[ind2].n_atoms]).dot(&fragments[ind2].final_charges) * fragments[ind1].final_charges[a]);
-                                // let test_term1:f64 = fragments[ind1].final_charges[a] * g1_2d.slice(s![3*index_pair_a+index,index_pair_b..index_pair_b+fragments[ind2].n_atoms]).dot(&fragments[ind2].final_charges);
-                                // assert_eq!(term_1[index],test_term1,"term 1 not equal with indices one : {} and two: {}",ind1,ind2);
-                                term_1[index] = fragments[ind1].final_charges[a]
-                                    * g1_2d
-                                        .slice(s![
-                                            3 * index_pair_a + index,
-                                            index_pair_b..index_pair_b + fragments[ind2].n_atoms
-                                        ])
-                                        .dot(&fragments[ind2].final_charges);
 
-                                // let atom_type: u8 = fragments[ind1].atomic_numbers[a];
-                                // let norbs_a: usize =
-                                //     fragments[ind1].calculator.valorbs[&atom_type].len();
-
-                                // let tmp_1: Array2<f64> = w_mat_a
-                                //     .slice(s![index, .., ..])
-                                //     .dot(&frag_s_matrices[ind1].t());
-                                // let tmp_2: Array2<f64> = fragments[ind1].final_p_matrix.dot(
-                                //     &frag_gradient_results[ind1]
-                                //         .grad_s
-                                //         .slice(s![index, .., ..])
-                                //         .t(),
-                                // );
-                                // let sum: Array2<f64> = tmp_1 + tmp_2;
-
-                                // let diag: f64 =
-                                //     sum.diag().slice(s![diag_ind..diag_ind + norbs_a]).sum();
-                                // diag_ind += norbs_a;
-                                let sum: f64 = frag_gradient_results[ind1].ws_pds[[index, a]];
-                                term_2[index] = sum
-                                    * g0_dimer_ab
-                                        .slice(s![a, ..])
-                                        .dot(&fragments[ind2].final_charges);
+                                // let sum: f64 = frag_gradient_results[ind1].ws_pds[[index, a]];
+                                // term_2[index] = sum
+                                //     * g0_dimer_ab
+                                //         .slice(s![a, ..])
+                                //         .dot(&fragments[ind2].final_charges);
+                            }
+                            for b in (0..fragments[ind2].n_atoms).into_iter(){
+                                let index: usize = 3 * b + dir_xyz;
+                                term_2b[index] = frag_gradient_results[ind2].ws_pds[[index, b]] * tmp_b[b];
                             }
                         }
-                        // assert_eq!(term_1,g1_2d.slice(s![3*index_pair_a..3*index_pair_a + 3*fragments[ind1].n_atoms]),"term 1 NOT EQUAL");
-                        let gradient_frag_a: Array1<f64> = term_1 + term_2;
+                        // assert_eq!(term_2,term_2a,"term 2 NOT EQUAL!!");
+                        // assert_eq!(term_1,term_1a_new,"term 1 not equal");
+                        let gradient_frag_a: Array1<f64> = term_1a_new + term_2a;
+                        let gradient_frag_b: Array1<f64> = term_1b_new + term_2b;
 
-                        let mut term_1: Array1<f64> = Array1::zeros(3 * fragments[ind2].n_atoms);
-                        let mut term_2: Array1<f64> = Array1::zeros(3 * fragments[ind2].n_atoms);
-                        // let term_2_test:Array1<f64> = frag_gradient_results[ind2].ws_pds.dot(&g0_dimer_ab.t().dot(&fragments[ind1].final_charges));
-                        for dir in (0..3).into_iter() {
-                            let dir_xyz: usize = dir as usize;
-                            let mut diag_ind: usize = 0;
-                            for a in (0..fragments[ind2].n_atoms).into_iter() {
-                                let index: usize = 3 * a + dir_xyz;
-                                // term_1[index] = fragments[ind2].final_charges[a]
-                                //     * g1_ab_2
-                                //         .slice(s![index, a, ..])
-                                //         .dot(&fragments[ind1].final_charges);
-                                // term_1[index] = fragments[ind2].final_charges[a]
-                                //     * g1_dimer_ba
-                                //         .slice(s![index, a, ..])
-                                //         .dot(&fragments[ind1].final_charges);
-
-                                term_1[index] = fragments[ind2].final_charges[a]
-                                    * g1_2d
-                                        .slice(s![
-                                            3 * index_pair_b + index,
-                                            index_pair_a..index_pair_a + fragments[ind1].n_atoms
-                                        ])
-                                        .dot(&fragments[ind1].final_charges);
-
-                                // let test_term1:f64 = fragments[ind2].final_charges[a] * g1_2d.slice(s![3*index_pair_b+index,index_pair_a..index_pair_a+fragments[ind1].n_atoms]).dot(&fragments[ind1].final_charges);
-                                // assert_eq!(term_1[index],test_term1,"term 1 not equal with indices one : {} and two: {}",ind1,ind2);
-
-                                // let atom_type: u8 = fragments[ind2].atomic_numbers[a];
-                                // let norbs_b: usize =
-                                //     fragments[ind2].calculator.valorbs[&atom_type].len();
-
-                                // let tmp_1: Array2<f64> = w_mat_b
-                                //     .slice(s![index, .., ..])
-                                //     .dot(&frag_s_matrices[ind2].t());
-                                // let tmp_2: Array2<f64> = fragments[ind2].final_p_matrix.dot(
-                                //     &frag_gradient_results[ind2]
-                                //         .grad_s
-                                //         .slice(s![index, .., ..])
-                                //         .t(),
-                                // );
-                                // let sum: Array2<f64> = tmp_1 + tmp_2;
-
-                                // let diag: f64 =
-                                //     sum.diag().slice(s![diag_ind..diag_ind + norbs_b]).sum();
-
-                                // diag_ind += norbs_b;
-                                let sum: f64 = frag_gradient_results[ind2].ws_pds[[index, a]];
-                                term_2[index] = sum
-                                    * g0_dimer_ab
-                                        .slice(s![.., a])
-                                        .dot(&fragments[ind1].final_charges);
-                            }
-                        }
-                        let gradient_frag_b: Array1<f64> = term_1 + term_2;
                         let mut dimer_gradient: Vec<f64> = Vec::new();
                         dimer_gradient.append(&mut gradient_frag_a.to_vec());
                         dimer_gradient.append(&mut gradient_frag_b.to_vec());
@@ -5682,23 +5591,41 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         molecule_timer.elapsed().as_secs_f32()
     );
     drop(molecule_timer);
-    let molecule_timer: Instant = Instant::now();
+    // let molecule_timer: Instant = Instant::now();
+    // // calculate lagrangian
+    // let lagrangian: Vec<Array2<f64>> = calculate_lagrangian_zvector(
+    //     fragments,
+    //     indices_frags,
+    //     &pair_result,
+    //     g0_total,
+    //     frag_gradient_results,
+    // );
+    // println!(
+    //     "{:>68} {:>8.2} s",
+    //     "elapsed time initial lagrangian:",
+    //     molecule_timer.elapsed().as_secs_f32()
+    // );
+    // drop(molecule_timer);
+    // let molecule_timer: Instant = Instant::now();
 
-    // calculate lagrangian
-    let lagrangian: Vec<Array2<f64>> = calculate_lagrangian_zvector(
+    let molecule_timer: Instant = Instant::now();
+    let lagrangian_new:Vec<Array2<f64>> = calculate_lagrangian_zvector_new(
         fragments,
         indices_frags,
-        &pair_result,
         g0_total,
         frag_gradient_results,
+        &ddq_arr_vec,
+        &pair_indices
     );
     println!(
         "{:>68} {:>8.2} s",
-        "elapsed time initial lagrangian:",
+        "elapsed time initial lagrangian new:",
         molecule_timer.elapsed().as_secs_f32()
     );
     drop(molecule_timer);
     let molecule_timer: Instant = Instant::now();
+
+    // assert_eq!(lagrangian[0],lagrangian_new[0],"lagrangians NOT EQUAL!!");
 
     // do self consistent z-vector routine
     let z_vectors: Vec<Array2<f64>> = fmo_zvector_routine(
@@ -5706,7 +5633,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         indices_frags,
         g0_total,
         frag_gradient_results,
-        &lagrangian,
+        &lagrangian_new,
         frag_s_matrices,
     );
     println!(
@@ -6207,6 +6134,71 @@ pub fn response_contribution_gradient(
             .assign(&frag_gradients[index]);
     }
     return response_gradient;
+}
+
+pub fn calculate_lagrangian_zvector_new(
+    fragments: &Vec<Molecule>,
+    indices_frags: &Vec<usize>,
+    g0_total: ArrayView2<f64>,
+    frag_gradient_results: &Vec<frag_gradient_result>,
+    ddq_vec:&Vec<Array1<f64>>,
+    pair_indices:&Vec<(usize,usize)>,
+) -> Vec<Array2<f64>> {
+    // calculate lagrangian
+    let lagrangian: Vec<Array2<f64>> = fragments
+        .iter()
+        .enumerate()
+        .map(|(ind, frag)| {
+            let index_frag: usize = indices_frags[ind];
+            // let mut lagrangian_arr: Array2<f64> = Array2::zeros((
+            //     frag_gradient_results[ind].dim_virt,
+            //     frag_gradient_results[ind].dim_occ,
+            // ));
+            let mut gddq_sum:Array1<f64> = Array1::zeros(frag.n_atoms);
+
+            for (index_pair,ddq) in ddq_vec.iter().enumerate(){
+                let index_a: usize = pair_indices[index_pair].0;
+                let index_b: usize = pair_indices[index_pair].1;
+                if index_a != ind && index_b != ind {
+                    let atoms_a: usize = fragments[index_a].n_atoms;
+                    let atoms_b: usize = fragments[index_b].n_atoms;
+                    let dimer_atoms: usize = atoms_a + atoms_b;
+                    let index_frag_a: usize = indices_frags[index_a];
+                    let index_frag_b: usize = indices_frags[index_b];
+
+                    let g0_a: ArrayView2<f64> = g0_total.slice(s![
+                        index_frag_a..index_frag_a + atoms_a,
+                        index_frag..index_frag + frag.n_atoms
+                    ]);
+                    let g0_b: ArrayView2<f64> = g0_total.slice(s![
+                        index_frag_b..index_frag_b + atoms_b,
+                        index_frag..index_frag + frag.n_atoms
+                    ]);
+                    let g0_trimer: Array2<f64> = stack(Axis(0), &[g0_a, g0_b]).unwrap();
+                    // let gdq_vec: Array1<f64> = ddq.dot(&g0_trimer);
+                    gddq_sum = gddq_sum + ddq.dot(&g0_trimer);
+
+                    // let lagrangian_1dim: Array1<f64> =
+                    //     gdq_vec.dot(&frag_gradient_results[ind].qtrans);
+                    // lagrangian_arr = lagrangian_arr
+                    //     + 4.0
+                    //     * lagrangian_1dim
+                    //     .into_shape((
+                    //         frag_gradient_results[ind].dim_virt,
+                    //         frag_gradient_results[ind].dim_occ,
+                    //     ))
+                    //     .unwrap();
+                }
+            }
+            let lagrangian_arr_new:Array2<f64> = 4.0 * gddq_sum.dot(&frag_gradient_results[ind].qtrans).into_shape((
+                frag_gradient_results[ind].dim_virt,
+                frag_gradient_results[ind].dim_occ,
+            )).unwrap();
+            // assert_eq!(lagrangian_arr,lagrangian_arr_new,"lagrangian NOT EQUAL!!");
+            lagrangian_arr_new
+        })
+        .collect();
+    return lagrangian;
 }
 
 pub fn calculate_lagrangian_zvector(
