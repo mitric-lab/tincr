@@ -33,11 +33,19 @@ pub trait GroundStateGradient {
 
 impl GroundStateGradient for Monomer {
     fn scc_gradient(&mut self) -> Array1<f64> {
-        // get H0 and S gradient
+        // for the evaluation of the gradient it is necessary to compute the derivatives
+        // of: - H0
+        //     - S
+        //     - Gamma
+        //     - Repulsive Potential
+        // the first three properties are calculated here at the beginning and the gradient that
+        // originates from the repulsive potential is added at the end to total gradient
+
+        // derivative of H0 and S
         let (grad_s, grad_h0) = h0_and_s_gradients(&self.atoms, self.n_orbs, &self.slako);
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
-        // into one dimension to make the dot products easier
+        // into one dimension to be able to just matrix-matrix products for the computation of the gradient
         let grad_s: Array2<f64> = grad_s
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap();
@@ -45,50 +53,56 @@ impl GroundStateGradient for Monomer {
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap();
 
-        // get the derivative of the gamma matrix and transform it in the same way to a 2D array
+        // derivative of the gamma matrix and transform it in the same way to a 2D array
         let grad_gamma: Array2<f64> =
             gamma_gradients_atomwise(&self.gammafunction, &self.atoms, self.n_atoms)
                 .into_shape([3 * self.n_atoms, self.n_atoms * self.n_atoms])
                 .unwrap();
 
-        // take references to the necessary properties from the scc calculation
+        // take references/views to the necessary properties from the scc calculation
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
         let p: ArrayView2<f64> = self.properties.p().unwrap();
         let h0: ArrayView2<f64> = self.properties.h0().unwrap();
         let dq: ArrayView1<f64> = self.properties.dq().unwrap();
+        let s: ArrayView2<f64> = self.properties.s().unwrap();
 
         // transform the expression Sum_c_in_X (gamma_AC + gamma_aC) * dq_C
-        // into matrix of the dimension (norb, norb) to do an elementwise multiplication with P
-        let esp_mat: Array2<f64> =
-            atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms);
+        // into matrix of the dimension (norb, norb) to do an element wise multiplication with P
+        let mut esp_mat: Array2<f64> =
+            atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms) * 0.5;
+        let esp_x_p: Array1<f64> = (&p * &esp_mat).into_shape([self.n_orbs * self.n_orbs]).unwrap();
+        let p_flat: ArrayView1<f64> = p.into_shape([self.n_orbs * self.n_orbs]).unwrap();
 
         // the gradient part which involves the gradient of the gamma matrix is given by:
-        // 1/2 * dq . d gamma / dR . dq
-        // the dq's are elementwise multiplied into a 2D array and reshaped into a flat one, that
+        // 1/2 * dq . dGamma / dR . dq
+        // the dq's are element wise multiplied into a 2D array and reshaped into a flat one, that
         // has the length of natoms^2. this allows to do only a single matrix vector product of
-        // 'grad_gamma' with 'dq_x_dq'
-        let dq_column = dq.clone().insert_axis(Axis(1));
+        // 'grad_gamma' with 'dq_x_dq' and avoids to reshape dGamma multiple times
+        let dq_column: ArrayView2<f64> = dq.clone().insert_axis(Axis(1));
         let dq_x_dq: Array1<f64> = (&dq_column.broadcast((self.n_atoms, self.n_atoms)).unwrap()
             * &dq)
             .into_shape([self.n_atoms * self.n_atoms])
             .unwrap();
 
-        // compute the energy weighted density matrix: 1/2 D H D
-        let w: Array2<f64> = p.dot(&(&h0 + &esp_mat)).dot(&p) * 0.5;
+        // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
+        let w: Array1<f64> = 0.5 * (p.dot(&(&h0 + &(&esp_mat * &s))).dot(&p)).into_shape([self.n_orbs * self.n_orbs]).unwrap();
 
-        // Here starts the calculation of the gradient
-        let mut gradient: Array1<f64> =
-            grad_h0.dot(&p.into_shape([self.n_orbs * self.n_orbs]).unwrap());
-        gradient = gradient - grad_s.dot(&w.into_shape([self.n_orbs * self.n_orbs]).unwrap());
-        gradient = gradient
-            + grad_s.dot(
-                &(&p * &esp_mat * 0.5)
-                    .into_shape([self.n_orbs * self.n_orbs])
-                    .unwrap(),
-            );
+        // calculation of the gradient
+        // 1st part:  dH0 / dR . P
+        let mut gradient: Array1<f64> = grad_h0.dot(&p_flat);
 
-        gradient = gradient + grad_gamma.dot(&dq_x_dq) * 0.5;
+        // 2nd part: dS / dR . W
+        gradient -= &grad_s.dot(&w);
+
+        // 3rd part: 1/2 * dS / dR * sum_c_in_X (gamma_ac + gamma_bc) * dq
+        gradient += &grad_s.dot(&esp_x_p);
+
+        // 4th part: 1/2 * dq . dGamma / dR . dq
+        gradient += &(grad_gamma.dot(&dq_x_dq) * 0.5);
+
+        // last part: dV_rep / dR
         gradient = gradient + gradient_v_rep(&self.atoms, &self.vrep);
+
         return gradient;
     }
 }

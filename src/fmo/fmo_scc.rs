@@ -54,7 +54,7 @@ impl RestrictedSCC for SuperSystem {
         let mut dq: Array1<f64> = Array1::zeros([self.atoms.len()]);
         // charge consistent loop for the monomers
         'scf_loop: for iter in 0..max_iter {
-            // the matrix vector product of the gamma matrix for all atoms and the charge diffrences
+            // the matrix vector product of the gamma matrix for all atoms and the charge differences
             // yields the electrostatic potential for all atoms. this is then converted into ao basis
             // and given to each monomer scc step
             let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
@@ -62,7 +62,7 @@ impl RestrictedSCC for SuperSystem {
                 let v_esp: Array2<f64> =
                     atomvec_to_aomat(esp_at.slice(s![mol.atom_slice]), mol.n_orbs, &mol.atoms);
                 if !converged[i] {
-                    println!("dq {}", mol.properties.dq().unwrap());
+                    println!("esp {}", &esp_at);
                     converged[i] = mol.scc_step(v_esp);
                 }
                 // save the dq's from the monomer calculation
@@ -297,6 +297,7 @@ impl Monomer {
             false
         };
 
+        self.properties.set_p(p);
         self.properties.set_dq(dq);
         self.properties.set_mixer(mixer);
         self.properties.set_last_energy(scf_energy);
