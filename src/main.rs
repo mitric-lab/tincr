@@ -22,6 +22,7 @@ use crate::scc::scc_routine::RestrictedSCC;
 use crate::fmo::SuperSystem;
 use crate::utils::Timer;
 use crate::scc::gamma_approximation::gamma_atomwise;
+use crate::fmo::fmo_gradient::GroundStateGradient;
 
 mod constants;
 mod defaults;
@@ -98,6 +99,7 @@ fn main() {
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
+    println!("Grad {:?}", system.monomers[0].scc_gradient());
 
     info!("{}", timer);
     info!("{: ^80}", "");

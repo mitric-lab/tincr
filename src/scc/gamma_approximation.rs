@@ -206,25 +206,26 @@ pub fn gamma_atomwise_ab(
 }
 
 
-fn gamma_gradients_atomwise(
+pub fn gamma_gradients_atomwise(
     gamma_func: &GammaFunction,
     atoms: &[Atom],
     n_atoms: usize,
 ) -> Array3<f64> {
-    let mut g0: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1_val: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
     let mut g1: Array3<f64> = Array3::zeros((3 * n_atoms, n_atoms, n_atoms));
     for (i, atomi) in atoms.iter().enumerate() {
         for (j, atomj) in atoms.iter().enumerate() {
             if i < j {
-                let r_ij: f64 = (atomi - atomj).norm();
-                let e_ij: Vector3<f64> = atomi - atomj;
+                let r = atomi - atomj;
+                let r_ij: f64 = r.norm();
+                let e_ij: Vector3<f64> = r / r_ij;
                 g1_val[[i, j]] = gamma_func.deriv(r_ij, atomi.number, atomj.number);
                 g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
                     .assign(&Array1::from_iter( (e_ij * g1_val[[i, j]]).iter().cloned()));
-            } else {
+            } else if j < i {
                 g1_val[[i, j]] = g1_val[[j, i]];
-                let e_ij: Vector3<f64> = atomi - atomj;
+                let r = atomi - atomj;
+                let e_ij: Vector3<f64> = r / r.norm();
                 g1.slice_mut(s![(3 * i)..(3 * i + 3), i, j])
                     .assign(&Array::from_iter( (e_ij * g1_val[[i, j]]).iter().cloned()));
             }

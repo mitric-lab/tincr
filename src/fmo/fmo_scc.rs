@@ -146,6 +146,7 @@ impl RestrictedSCC for SuperSystem {
                 .slice(s![m_j.atom_slice, m_i.atom_slice])
                 .dot(&m_i.properties.dq().unwrap())
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
+            println!("ddq {}", &pair.properties.delta_dq().unwrap());
         }
         let mut esd_pair_energies: f64 = 0.0;
         for esd_pair in self.esd_pairs.iter() {
@@ -505,7 +506,7 @@ impl Pair {
 }
 
 
-fn atomvec_to_aomat(esp_atomwise: ArrayView1<f64>, n_orbs: usize, atoms: &[Atom]) -> Array2<f64> {
+pub fn atomvec_to_aomat(esp_atomwise: ArrayView1<f64>, n_orbs: usize, atoms: &[Atom]) -> Array2<f64> {
     let mut esp_ao_row: Array1<f64> = Array1::zeros(n_orbs);
     let mut mu: usize = 0;
     for (atom, esp_at) in atoms.iter().zip(esp_atomwise.iter()) {
