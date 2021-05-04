@@ -71,12 +71,13 @@ pub fn fragment_trans_charges(
     s: ArrayView2<f64>,
     active_occupied_orbs: &[usize],
     active_virtual_orbs: &[usize],
-) -> (Array2<f64>) {
+) -> (Array2<f64>,Array2<f64>) {
     let n_atoms: usize = atomic_numbers.len();
     let dim_o: usize = active_occupied_orbs.len();
     let dim_v: usize = active_virtual_orbs.len();
     // transition charges between virtual and occupied orbitals
     let mut q_trans_vo: Array3<f64> = Array3::zeros([n_atoms, dim_v,dim_o]);
+    let mut q_trans_oo: Array3<f64> = Array3::zeros([n_atoms, dim_o, dim_o]);
     let s_c: Array2<f64> = s.dot(&orbs);
 
     let mut mu: usize = 0;
@@ -91,11 +92,24 @@ pub fn fragment_trans_charges(
                     );
                 }
             }
+            // occupied - occupied
+            for (i, occi) in active_occupied_orbs.iter().enumerate() {
+                for (j, occj) in active_occupied_orbs.iter().enumerate() {
+                    q_trans_oo.slice_mut(s![atom_a, i, j]).add_assign(
+                        0.5 * (orbs[[mu, *occi]] * s_c[[mu, *occj]]
+                            + orbs[[mu, *occj]] * s_c[[mu, *occi]]),
+                    );
+                }
+            }
             mu += 1;
         }
     }
     let qtrans_vo:Array2<f64> = q_trans_vo.into_shape((n_atoms,dim_o*dim_v)).unwrap();
-    return (qtrans_vo);
+    let qtrans_oo:Array2<f64> = q_trans_oo.into_shape((n_atoms,dim_o*dim_o)).unwrap();
+    // q_trans_vo.swap_axes(1,2);
+    // q_trans_vo = q_trans_vo.as_standard_layout().to_owned();
+    // let q_trans_vo_t:Array2<f64> = q_trans_vo.into_shape((n_atoms,dim_o*dim_v)).unwrap();
+    return (qtrans_vo,qtrans_oo);
 }
 
 #[test]
