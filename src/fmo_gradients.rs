@@ -6186,12 +6186,11 @@ pub fn response_contribution_gradient_new(
                             .dot(&orbs_i.slice(s![.., j]));
                     }
                 }
-                // gradient[a] = b_mat.dot(&z_vectors[ind]).sum();
                 gradient[a] = z_vectors[ind].t().dot(&b_mat).trace().unwrap();
             }
             // let gradient:Array1<f64> = b_mat.dot(&z_vectors[ind]);
             gradient_complete.slice_mut(s![3*index_frag_i..3*index_frag_i+3*atoms_i]).add_assign(&gradient);
-            gradient_complete = gradient_complete + gradient_qtrans;
+            gradient_complete = gradient_complete - gradient_qtrans;
 
             gradient_complete
         })
