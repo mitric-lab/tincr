@@ -6218,7 +6218,7 @@ pub fn response_contribution_gradient_new(
                     g1_dq[a] = g1_2d.slice(s![3*index_frag_i+index,index_frag_i..index_frag_i+atoms_i]).dot(&dq_vec[ind]);
                     // From GAMESS CODE
                     for c in (0..atoms_i).into_iter(){
-                        g1_dq[c] = g1_2d[[3*index_frag_i+index,index_frag_i+c]] * dq_vec[ind][a];
+                        g1_dq[c] = -1.0 *g1_2d[[3*index_frag_i+index,index_frag_i+c]] * dq_vec[ind][a];
                     }
                     let omega_ab:Array1<f64> = frag.g0.dot(&dq_vec[ind]);
 
