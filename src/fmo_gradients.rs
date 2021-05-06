@@ -5668,7 +5668,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         &z_vectors,
         frag_s_matrices,
         g1_2d,
-        dq_vec
+        dq_vec,
+        om_monomers,
     );
     println!(
         "{:>68} {:>8.2} s",
@@ -6123,6 +6124,7 @@ pub fn response_contribution_gradient_new(
     s_matrices: &Vec<Array2<f64>>,
     g1_2d:&Array2<f64>,
     dq_vec: &Vec<Array1<f64>>,
+    om_monomers: &Vec<Array1<f64>>,
 ) -> Array1<f64> {
     let grad_length: usize =
         3 * (indices_frags.last().unwrap() + fragments.last().unwrap().n_atoms);
@@ -6177,7 +6179,6 @@ pub fn response_contribution_gradient_new(
 
             // Gradient contribution of the derivative of dq
             let mut gradient_deriv_q: Array1<f64> = Array1::zeros(grad_length);
-            let mut gradient_deriv_omega_k:Array1<f64> = Array1::zeros(grad_length);
             for (ind_k, frag_k) in fragments.iter().enumerate() {
                 let index_frag_k: usize = indices_frags[ind_k];
                 let orbs_k: Array2<f64> = frag_k.saved_orbs.clone().unwrap();
@@ -6206,34 +6207,36 @@ pub fn response_contribution_gradient_new(
                     gradient_deriv_q.slice_mut(s![3*index_frag_k+a]).add_assign(z_vectors[ind].t().dot(&b_mat).trace().unwrap());
                 }
             }
-
+            let mut gradient_deriv_omega_k:Array1<f64> = Array1::zeros(grad_length);
             for (ind_k, frag_k) in fragments.iter().enumerate(){
-                let index_frag_k: usize = indices_frags[ind_k];
-                let atoms_k:usize = fragments[ind_k].n_atoms;
+                if ind_k != ind{
+                    let index_frag_k: usize = indices_frags[ind_k];
+                    let atoms_k:usize = fragments[ind_k].n_atoms;
 
-                for dir_xyz in (0..3).into_iter(){
-                    for a in (0..frag_k.n_atoms).into_iter(){
-                        let index:usize = 3*a+dir_xyz;
-                        // Add gradient contribution of (g1_ac + g1_bc) dq for each fragment
-                        let mut g1_temp:Array2<f64> = Array2::zeros((atoms_i,atoms_k));
-                        g1_temp.slice_mut(s![..,a]).assign(&g1_2d.slice(s![3*index_frag_k+index,index_frag_i..index_frag_i+atoms_i]));
-                        let g1_dq:Array1<f64> = g1_temp.dot(&dq_vec[ind_k]);
+                    for dir_xyz in (0..3).into_iter(){
+                        for a in (0..frag_k.n_atoms).into_iter(){
+                            let index:usize = 3*a+dir_xyz;
+                            // Add gradient contribution of (g1_ac + g1_bc) dq for each fragment
+                            let mut g1_temp:Array2<f64> = Array2::zeros((atoms_i,atoms_k));
+                            g1_temp.slice_mut(s![..,a]).assign(&g1_2d.slice(s![3*index_frag_k+index,index_frag_i..index_frag_i+atoms_i]));
+                            let g1_dq:Array1<f64> = g1_temp.dot(&dq_vec[ind_k]);
 
-                        let mut mu: usize = 0;
-                        let mut d_omega_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
-                        for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
-                            for _ in &frag.calculator.valorbs[z_i] {
-                                d_omega_ao[mu] = g1_dq[i];
-                                mu = mu + 1;
+                            let mut mu: usize = 0;
+                            let mut d_omega_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
+                            for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
+                                for _ in &frag.calculator.valorbs[z_i] {
+                                    d_omega_ao[mu] = g1_dq[i];
+                                    mu = mu + 1;
+                                }
                             }
-                        }
-                        let d_omega_arr: Array2<f64> = d_omega_ao.clone().insert_axis(Axis(1));
-                        let d_omega_mat_ao:Array2<f64> = &d_omega_arr.broadcast((d_omega_ao.len(), d_omega_ao.len())).unwrap() + &d_omega_ao;
+                            let d_omega_arr: Array2<f64> = d_omega_ao.clone().insert_axis(Axis(1));
+                            let d_omega_mat_ao:Array2<f64> = &d_omega_arr.broadcast((d_omega_ao.len(), d_omega_ao.len())).unwrap() + &d_omega_ao;
 
-                        // S * d_omega_AB
-                        let s_d_omega: Array2<f64> = 0.5 * d_omega_mat_ao * s_matrices[ind].view();
-                        let b_mat:Array2<f64> = orbs_i.slice(s![..,dim_occ..]).t().dot(&s_d_omega).dot(&orbs_i.slice(s![..,0..dim_occ]));
-                        gradient_deriv_omega_k.slice_mut(s![3*index_frag_k+a]).add_assign(z_vectors[ind].t().dot(&b_mat).trace().unwrap());
+                            // S * d_omega_AB
+                            let s_d_omega: Array2<f64> = 0.5 * d_omega_mat_ao * s_matrices[ind].view();
+                            let b_mat:Array2<f64> = orbs_i.slice(s![..,dim_occ..]).t().dot(&s_d_omega).dot(&orbs_i.slice(s![..,0..dim_occ]));
+                            gradient_deriv_omega_k.slice_mut(s![3*index_frag_k+index]).add_assign(z_vectors[ind].t().dot(&b_mat).trace().unwrap());
+                        }
                     }
                 }
             }
@@ -6258,14 +6261,18 @@ pub fn response_contribution_gradient_new(
                     //     g1_dq[c] = -1.0 *g1_2d[[3*index_frag_i+index,index_frag_i+c]] * dq_vec[ind][a];
                     // }
                     let omega_ab:Array1<f64> = frag.g0.dot(&dq_vec[ind]);
+                    // sum_K omega_AB^K
+                    let omega_sum_k:Array1<f64> = om_monomers[ind].clone();
 
                     let mut mu: usize = 0;
                     let mut d_omega_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
                     let mut omega_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
+                    let mut omega_sum_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
                     for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
                         for _ in &frag.calculator.valorbs[z_i] {
                             d_omega_ao[mu] = g1_dq[i];
                             omega_ao[mu] = omega_ab[i];
+                            omega_sum_ao[mu] = omega_sum_k[i];
                             mu = mu + 1;
                         }
                     }
@@ -6273,13 +6280,17 @@ pub fn response_contribution_gradient_new(
                     let d_omega_mat_ao:Array2<f64> = &d_omega_arr.broadcast((d_omega_ao.len(), d_omega_ao.len())).unwrap() + &d_omega_ao;
                     let omega_arr: Array2<f64> = omega_ao.clone().insert_axis(Axis(1));
                     let omega_mat_ao:Array2<f64> = &omega_arr.broadcast((omega_ao.len(), omega_ao.len())).unwrap() + &omega_ao;
+                    let omega_sum_arr: Array2<f64> = omega_sum_ao.clone().insert_axis(Axis(1));
+                    let omega_sum_mat_ao:Array2<f64> = &omega_sum_arr.broadcast((omega_sum_ao.len(), omega_sum_ao.len())).unwrap() + &omega_sum_ao;
 
                     // S * d_omega_AB
                     let s_d_omega: Array2<f64> = 0.5 * d_omega_mat_ao * s_matrices[ind].view();
                     // dS * omega_AB
                     let ds_omega:Array2<f64> = 0.5 * omega_mat_ao * grad_s.slice(s![index,..,..]);
+                    // dS * sum_K omega_ab^K
+                    let ds_omega_sum_k:Array2<f64> = 0.5 * omega_sum_mat_ao * grad_s.slice(s![index,..,..]);
                     // complete H^a
-                    let h_grad_a:Array2<f64> = &grad_h0.slice(s![index, .., ..]) + &s_d_omega + ds_omega;
+                    let h_grad_a:Array2<f64> = &grad_h0.slice(s![index, .., ..]) + &s_d_omega + ds_omega + ds_omega_sum_k;
 
                     for j in (0..dim_occ) {
                         let s_term:Array2<f64> = orbe[j] * grad_s.slice(s![index, .., ..]).to_owned();
@@ -6293,7 +6304,7 @@ pub fn response_contribution_gradient_new(
             }
 
             gradient_complete.slice_mut(s![3*index_frag_i..3*index_frag_i+3*atoms_i]).add_assign(&gradient);
-            gradient_complete = gradient_complete + gradient_deriv_q + gradient_deriv_omega_k - gradient_qtrans;
+            gradient_complete = gradient_complete + gradient_deriv_q + gradient_deriv_omega_k; // - gradient_qtrans;
 
             gradient_complete
         })
