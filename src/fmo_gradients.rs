@@ -6177,6 +6177,7 @@ pub fn response_contribution_gradient_new(
 
             // Gradient contribution of the derivative of dq
             let mut gradient_deriv_q: Array1<f64> = Array1::zeros(grad_length);
+            let mut gradient_deriv_omega_k:Array1<f64> = Array1::zeros(grad_length);
             for (ind_k, frag_k) in fragments.iter().enumerate() {
                 let index_frag_k: usize = indices_frags[ind_k];
                 let orbs_k: Array2<f64> = frag_k.saved_orbs.clone().unwrap();
@@ -6206,6 +6207,37 @@ pub fn response_contribution_gradient_new(
                 }
             }
 
+            for (ind_k, frag_k) in fragments.iter().enumerate(){
+                let index_frag_k: usize = indices_frags[ind_k];
+                let atoms_k:usize = fragments[ind_k].n_atoms;
+
+                for dir_xyz in (0..3).into_iter(){
+                    for a in (0..frag_k.n_atoms).into_iter(){
+                        let index:usize = 3*a+dir_xyz;
+                        // Add gradient contribution of (g1_ac + g1_bc) dq for each fragment
+                        let mut g1_temp:Array2<f64> = Array2::zeros((atoms_i,atoms_k));
+                        g1_temp.slice_mut(s![..,a]).assign(&g1_2d.slice(s![3*index_frag_k+index,index_frag_i..index_frag_i+atoms_i]));
+                        let g1_dq:Array1<f64> = g1_temp.dot(&dq_vec[ind_k]);
+
+                        let mut mu: usize = 0;
+                        let mut d_omega_ao: Array1<f64> = Array1::zeros(frag.calculator.n_orbs);
+                        for (i, z_i) in frag.atomic_numbers.iter().enumerate() {
+                            for _ in &frag.calculator.valorbs[z_i] {
+                                d_omega_ao[mu] = g1_dq[i];
+                                mu = mu + 1;
+                            }
+                        }
+                        let d_omega_arr: Array2<f64> = d_omega_ao.clone().insert_axis(Axis(1));
+                        let d_omega_mat_ao:Array2<f64> = &d_omega_arr.broadcast((d_omega_ao.len(), d_omega_ao.len())).unwrap() + &d_omega_ao;
+
+                        // S * d_omega_AB
+                        let s_d_omega: Array2<f64> = 0.5 * d_omega_mat_ao * s_matrices[ind].view();
+                        let b_mat:Array2<f64> = orbs_i.slice(s![..,dim_occ..]).t().dot(&s_d_omega).dot(&orbs_i.slice(s![..,0..dim_occ]));
+                        gradient_deriv_omega_k.slice_mut(s![3*index_frag_k+a]).add_assign(z_vectors[ind].t().dot(&b_mat).trace().unwrap());
+                    }
+                }
+            }
+
             // calculate Matrix B^a_ij of fragment I
             for dir_xyz in (0..3).into_iter(){
                 for a in (0.. frag.n_atoms){
@@ -6214,12 +6246,17 @@ pub fn response_contribution_gradient_new(
 
                     // sum_c (g1_ac + g1_bc) * dq_c
                     // sum_c (g0_ac + g0_bc) * dq_c
-                    let mut g1_dq:Array1<f64> = Array1::zeros(atoms_i);
-                    g1_dq[a] = g1_2d.slice(s![3*index_frag_i+index,index_frag_i..index_frag_i+atoms_i]).dot(&dq_vec[ind]);
-                    // From GAMESS CODE
-                    for c in (0..atoms_i).into_iter(){
-                        g1_dq[c] = -1.0 *g1_2d[[3*index_frag_i+index,index_frag_i+c]] * dq_vec[ind][a];
-                    }
+                    let mut g1_temp:Array2<f64> = Array2::zeros((atoms_i,atoms_i));
+                    g1_temp.slice_mut(s![a,..]).assign(&g1_2d.slice(s![3*index_frag_i+index,index_frag_i..index_frag_i+atoms_i]));
+                    g1_temp.slice_mut(s![..,a]).assign(&g1_2d.slice(s![3*index_frag_i+index,index_frag_i..index_frag_i+atoms_i]));
+                    let g1_dq:Array1<f64> = g1_temp.dot(&dq_vec[ind]);
+
+                    // let mut g1_dq:Array1<f64> = Array1::zeros(atoms_i);
+                    // g1_dq[a] = g1_2d.slice(s![3*index_frag_i+index,index_frag_i..index_frag_i+atoms_i]).dot(&dq_vec[ind]);
+                    // // From GAMESS CODE
+                    // for c in (0..atoms_i).into_iter(){
+                    //     g1_dq[c] = -1.0 *g1_2d[[3*index_frag_i+index,index_frag_i+c]] * dq_vec[ind][a];
+                    // }
                     let omega_ab:Array1<f64> = frag.g0.dot(&dq_vec[ind]);
 
                     let mut mu: usize = 0;
@@ -6256,7 +6293,7 @@ pub fn response_contribution_gradient_new(
             }
 
             gradient_complete.slice_mut(s![3*index_frag_i..3*index_frag_i+3*atoms_i]).add_assign(&gradient);
-            gradient_complete = gradient_complete + gradient_deriv_q - gradient_qtrans;
+            gradient_complete = gradient_complete + gradient_deriv_q + gradient_deriv_omega_k - gradient_qtrans;
 
             gradient_complete
         })
