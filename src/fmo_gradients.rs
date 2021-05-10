@@ -5681,7 +5681,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     // assemble total gradient
     let total_gradient: Array1<f64> =
         gradient_without_response.clone() + response_contribution.clone();
-    println!("Difference respone gradient: {}", response_contribution);
+    println!("Difference response gradient: {}", response_contribution);
 
     return (
         total_gradient,
@@ -6154,28 +6154,27 @@ pub fn response_contribution_gradient_new(
             let mut gradient_complete: Array1<f64> = Array1::zeros(grad_length);
             let mut gradient: Array1<f64> = Array1::zeros(3 * frag.n_atoms);
 
-            // calculate last term of  B^a,I_ij
-            // sum_K^N sum_{kl on K}^occ 2 * (ij|kl) * S^a,K_{kl}
-            let mut gradient_qtrans: Array1<f64> = Array1::zeros(grad_length);
-            for (ind_k, frag_k) in fragments.iter().enumerate() {
-                let index_frag_k: usize = indices_frags[ind_k];
-                let orbs_k: Array2<f64> = frag_k.saved_orbs.clone().unwrap();
-                let dim_occ_k: usize = frag_gradient_results[ind_k].dim_occ;
-                let dim_virt_k: usize = frag_gradient_results[ind_k].dim_virt;
-                let atoms_k:usize = fragments[ind_k].n_atoms;
-
-                let g0: ArrayView2<f64> = g0_total.slice(s![
-                        index_frag_i..index_frag_i + atoms_i,
-                        index_frag_k..index_frag_k + atoms_k]);
-                let qgq:Array2<f64> = frag_gradient_results[ind].qtrans.t().dot(&g0.dot(&frag_gradient_results[ind_k].qtrans_oo)) * 2.0;
-
-                for a in (0..3 * frag_k.n_atoms).into_iter(){
-                    let s_a_ij:Array2<f64> = orbs_k.slice(s![..,0..dim_occ_k]).t().dot(&frag_gradient_results[ind_k].grad_s.slice(s![a,..,..]).dot(&orbs_k.slice(s![..,0..dim_occ_k])));
-                    let s_a_1d:Array1<f64> = s_a_ij.into_shape((dim_occ_k*dim_occ_k)).unwrap();
-                    let b_a_s_qtrans:Array2<f64> = qgq.dot(&s_a_1d).into_shape((dim_virt,dim_occ)).unwrap();
-                    gradient_qtrans.slice_mut(s![3*index_frag_k+a]).add_assign(z_vectors[ind].t().dot(&b_a_s_qtrans).trace().unwrap());
-                }
-            }
+            // // sum_K^N sum_{kl on K}^occ 2 * (ij|kl) * S^a,K_{kl}
+            // let mut gradient_qtrans: Array1<f64> = Array1::zeros(grad_length);
+            // for (ind_k, frag_k) in fragments.iter().enumerate() {
+            //     let index_frag_k: usize = indices_frags[ind_k];
+            //     let orbs_k: Array2<f64> = frag_k.saved_orbs.clone().unwrap();
+            //     let dim_occ_k: usize = frag_gradient_results[ind_k].dim_occ;
+            //     let dim_virt_k: usize = frag_gradient_results[ind_k].dim_virt;
+            //     let atoms_k:usize = fragments[ind_k].n_atoms;
+            //
+            //     let g0: ArrayView2<f64> = g0_total.slice(s![
+            //             index_frag_i..index_frag_i + atoms_i,
+            //             index_frag_k..index_frag_k + atoms_k]);
+            //     let qgq:Array2<f64> = frag_gradient_results[ind].qtrans.t().dot(&g0.dot(&frag_gradient_results[ind_k].qtrans_oo)) * 2.0;
+            //
+            //     for a in (0..3 * frag_k.n_atoms).into_iter(){
+            //         let s_a_ij:Array2<f64> = orbs_k.slice(s![..,0..dim_occ_k]).t().dot(&frag_gradient_results[ind_k].grad_s.slice(s![a,..,..]).dot(&orbs_k.slice(s![..,0..dim_occ_k])));
+            //         let s_a_1d:Array1<f64> = s_a_ij.into_shape((dim_occ_k*dim_occ_k)).unwrap();
+            //         let b_a_s_qtrans:Array2<f64> = qgq.dot(&s_a_1d).into_shape((dim_virt,dim_occ)).unwrap();
+            //         gradient_qtrans.slice_mut(s![3*index_frag_k+a]).add_assign(z_vectors[ind].t().dot(&b_a_s_qtrans).trace().unwrap());
+            //     }
+            // }
 
             // Gradient contribution of the derivative of dq
             let mut gradient_deriv_q: Array1<f64> = Array1::zeros(grad_length);
@@ -6305,6 +6304,10 @@ pub fn response_contribution_gradient_new(
 
             gradient_complete.slice_mut(s![3*index_frag_i..3*index_frag_i+3*atoms_i]).add_assign(&gradient);
             gradient_complete = gradient_complete + gradient_deriv_q + gradient_deriv_omega_k; // - gradient_qtrans;
+            // gradient_complete = gradient_complete + gradient_deriv_q + gradient_deriv_omega_k;
+            // gradient_complete = gradient_complete + gradient_deriv_q - gradient_qtrans;
+            // gradient_complete = gradient_complete + gradient_deriv_q + gradient_deriv_omega_k - gradient_qtrans;
+
 
             gradient_complete
         })

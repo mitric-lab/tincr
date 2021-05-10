@@ -82,6 +82,67 @@ pub fn fmo_numerical_gradient(
     return gradient;
 }
 
+pub fn fmo_numerical_gradient_higher_accuracy(
+    atomic_numbers: &Vec<u8>,
+    positions: &Array1<f64>,
+    config: GeneralConfig,
+) -> Array1<f64> {
+    let mut gradient: Array1<f64> = Array1::zeros(positions.raw_dim());
+    let positions_len: usize = positions.len() / 3;
+    let coordinates: Array2<f64> = positions.clone().into_shape((positions_len, 3)).unwrap();
+    let subgraph: Vec<StableUnGraph<u8, f64>> =
+        create_fmo_graph(atomic_numbers.clone(), coordinates.clone());
+
+    let energy: f64 = calculate_energy_for_coordinates(
+        atomic_numbers,
+        &coordinates,
+        config.clone(),
+        subgraph.clone(),
+    );
+    println!("FMO Energy num gradient {}", energy);
+    println!("");
+    let h:f64 = 1e-4;
+
+    for ind in (0..positions.len()).into_iter() {
+        let energy_1: f64 = numerical_gradient_routine(
+            &atomic_numbers,
+            positions,
+            config.clone(),
+            subgraph.clone(),
+            2.0*h,
+            ind,
+        );
+        let energy_2: f64 = numerical_gradient_routine(
+            &atomic_numbers,
+            positions,
+            config.clone(),
+            subgraph.clone(),
+            h,
+            ind,
+        );
+        let energy_3: f64 = numerical_gradient_routine(
+            &atomic_numbers,
+            positions,
+            config.clone(),
+            subgraph.clone(),
+            -h,
+            ind,
+        );
+        let energy_4: f64 = numerical_gradient_routine(
+            &atomic_numbers,
+            positions,
+            config.clone(),
+            subgraph.clone(),
+            -2.0*h,
+            ind,
+        );
+
+        let grad_temp: f64 = (-energy_1 + 8.0*energy_2 -8.0*energy_3 + energy_4) / (12.0 * h);
+        gradient[ind] = grad_temp;
+    }
+    return gradient;
+}
+
 pub fn fmo_numerical_gradient_new(
     atomic_numbers: &Vec<u8>,
     positions: &Array1<f64>,

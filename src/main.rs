@@ -344,7 +344,7 @@ fn main() {
             println!("SCC Energy {}",energy);
 
             let coords: Array1<f64> = positions.clone().into_shape(3 * mol.n_atoms).unwrap();
-            let numerical_gradient:Array1<f64> = fmo_numerical_gradient(&atomic_numbers,&coords,config.clone());
+            let numerical_gradient:Array1<f64> = fmo_numerical_gradient_higher_accuracy(&atomic_numbers,&coords,config.clone());
             // let numerical_gradient_ridders:Array1<f64> = fmo_numerical_gradient_new(&atomic_numbers,&coords,config.clone());
             // println!("Numerical gradient fmo ridders method {}",numerical_gradient_ridders);
             // println!(" ");
