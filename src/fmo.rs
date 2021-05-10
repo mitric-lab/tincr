@@ -101,7 +101,7 @@ pub fn fmo_numerical_gradient_4th_order(
     );
     println!("FMO Energy num gradient {}", energy);
     println!("");
-    let h:f64 = 1e-3;
+    let h:f64 = 1e-4;
 
     for ind in (0..positions.len()).into_iter() {
         let energy_1: f64 = numerical_gradient_routine(
