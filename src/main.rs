@@ -311,7 +311,7 @@ fn main() {
             );
             drop(molecule_timer);
             println!("Monomer gradients {}",monomer_grad.slice(s![0..18]));
-            println!("real pairs gradient {}",monomer_grad.slice(s![0..18]));
+            println!("real pairs gradient {}",real_pairs_grad.slice(s![0..18]));
             println!("FMO gradients {}", gradients_without_response.slice(s![0..18]));
             println!("FMO gradients + response {}", gradients.slice(s![0..18]));
             println!(" ");
@@ -344,7 +344,7 @@ fn main() {
             println!("SCC Energy {}",energy);
 
             let coords: Array1<f64> = positions.clone().into_shape(3 * mol.n_atoms).unwrap();
-            let numerical_gradient:Array1<f64> = fmo_numerical_gradient_6th_order(&atomic_numbers,&coords,config.clone());
+            let numerical_gradient:Array1<f64> = fmo_numerical_gradient_4th_order(&atomic_numbers,&coords,config.clone());
             // let numerical_gradient_ridders:Array1<f64> = fmo_numerical_gradient_new(&atomic_numbers,&coords,config.clone());
             // println!("Numerical gradient fmo ridders method {}",numerical_gradient_ridders);
             // println!(" ");
@@ -378,8 +378,8 @@ fn main() {
             // let (en, grad): (f64, Array1<f64>) = optimization::get_energy_and_gradient_s0(&coords, &mut mol);
 
             println!("DFTB Gradient {}",dftb_gradient.slice(s![0..18]));
-            println!("Rmsd of difference fmo and dftb {}",(&gradients - &(&grad_e0 + &grad_vrep)).map(|val| val * val).mean().unwrap().sqrt());
-            println!("Rmsd of difference fmo without response and dftb {}",(&gradients_without_response - &(&grad_e0 + &grad_vrep)).map(|val| val * val).mean().unwrap().sqrt());
+            println!("Rmsd of difference fmo and dftb {}",(&gradients - &dftb_gradient).map(|val| val * val).mean().unwrap().sqrt());
+            println!("Rmsd of difference fmo without response and dftb {}",(&gradients_without_response - &dftb_gradient).map(|val| val * val).mean().unwrap().sqrt());
             // println!("Norm of difference numerical and dftb {}",(&numerical_gradient - &(&grad_e0 + &grad_vrep)).norm());
             let dftb_diff:Array1<f64> =&gradients_without_response - &(&grad_e0 + &grad_vrep);
             let max_gradient: f64 = dftb_diff.clone().mapv(|val|val.abs())
