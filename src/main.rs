@@ -46,7 +46,7 @@ use std::{env, fs};
 extern crate clap;
 use crate::defaults::CONFIG_FILE_NAME;
 use crate::io::{get_coordinates, write_header, GeneralConfig};
-use crate::optimization::optimize_geometry_ic;
+use crate::optimization::{optimize_geometry_ic, geometry_optimization_cartesian};
 use clap::{App, Arg};
 use env_logger::Builder;
 use log::LevelFilter;
@@ -218,6 +218,42 @@ fn main() {
                 .clone()
                 .into_shape((new_coords.len() / 3, 3))
                 .unwrap();
+            0
+        }
+        "cartesian_opt" => {
+            let mut mol: Molecule = Molecule::new(
+                atomic_numbers,
+                positions,
+                Some(config.mol.charge),
+                Some(config.mol.multiplicity),
+                Some(0.0),
+                None,
+                config,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None
+            );
+            info!(
+                "{:>68} {:>8.2} s",
+                "elapsed time:",
+                molecule_timer.elapsed().as_secs_f32()
+            );
+            drop(molecule_timer);
+
+            let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
+                scc_routine::run_scc(&mut mol);
+            mol.calculator.set_active_orbitals(f.to_vec());
+
+            let tmp: (Array2<f64>, Array1<f64>) = geometry_optimization_cartesian(Some(0),&mut mol);
+            let new_gradient: Array1<f64> = tmp.1;
+            let new_coords: Array2<f64> = tmp.0;
+
             0
         }
         "fmo_grad" => {

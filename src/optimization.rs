@@ -357,7 +357,7 @@ pub fn evaluate_step(
         // end of evaluation
     }
     // check if number of iteration is greater than maxiter
-    if iteration > 1000 {
+    if iteration > 4000 {
         // sorted eigenvalues
         opt_failed = true
     }
@@ -788,34 +788,23 @@ pub fn prepare_first_step(
 // ----------
 // [1] J. Nocedal, S. Wright, 'Numerical Optimization', Springer, 2006
 
-pub fn geometry_optimization(
+pub fn geometry_optimization_cartesian(
     state: Option<usize>,
-    coord_system: Option<String>,
     mol: &mut Molecule,
 ) -> (Array2<f64>, Array1<f64>) {
     // defaults
     let state: usize = state.unwrap_or(0);
-    let coord_system: String = coord_system.unwrap_or(String::from("internal"));
-    let mut cart_coord: bool = false;
-
     let mut final_coord: Array1<f64> = Array::zeros(3 * mol.n_atoms);
     let mut final_grad: Array1<f64> = Array::zeros(3 * mol.n_atoms);
 
-    if coord_system == "cartesian" {
-        cart_coord = true;
-        // flatten cartesian coordinates
-        let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
-        // start the geometry optimization
-        let tmp: (Array1<f64>, Array1<f64>, usize) = minimize(
-            &coords, cart_coord, state, mol, None, None, None, None, None,
-        );
-        final_coord = tmp.0;
-        final_grad = tmp.1;
-    } else {
-        // transform to internal
-
-        // and start optimization
-    }
+    // flatten cartesian coordinates
+    let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+    // start the geometry optimization
+    let tmp: (Array1<f64>, Array1<f64>, usize) = minimize(
+        &coords, state, mol, None, None, None, None, None,
+    );
+    final_coord = tmp.0;
+    final_grad = tmp.1;
     let final_cartesian: Array2<f64> = final_coord.into_shape((mol.n_atoms, 3)).unwrap();
 
     return (final_cartesian, final_grad);
@@ -920,7 +909,6 @@ pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64
 
 pub fn minimize(
     x0: &Array1<f64>,
-    cart_coord: bool,
     state: usize,
     mol: &mut Molecule,
     method: Option<String>,
@@ -939,25 +927,20 @@ pub fn minimize(
     let gtol: f64 = gtol.unwrap_or(1.0e-6);
     let ftol: f64 = ftol.unwrap_or(1.0e-8);
     let method: String = method.unwrap_or(String::from("BFGS"));
-    let line_search: String = line_search.unwrap_or(String::from("largest"));
+    let line_search: String = line_search.unwrap_or(String::from("Armijo"));
 
     let n: usize = x0.len();
     let mut xk: Array1<f64> = x0.clone();
     let mut fk: f64 = 0.0;
     let mut grad_fk: Array1<f64> = Array::zeros(n);
 
-    if cart_coord {
-        let tmp: (f64, Array1<f64>) = objective_cart(&xk, state, mol);
-        fk = tmp.0;
-        grad_fk = tmp.1;
-    }
+    let tmp: (f64, Array1<f64>) = objective_cart(&xk, state, mol);
+    fk = tmp.0;
+    grad_fk = tmp.1;
+
     println!("FK {}", &fk);
     println!("grad_fk {}", &grad_fk);
-    // else {
-    //     let tmp: (f64, Array1<f64>) = objective_intern(xk);
-    //     fk = tmp.0;
-    //     grad_fk = tmp.1;
-    // }
+
     let mut converged: bool = false;
     //smallest representable positive number such that 1.0+eps != 1.0.
     let epsilon: f64 = 1.0 + 1.0e-16;
@@ -973,10 +956,7 @@ pub fn minimize(
 
     for k in 0..maxiter {
         println!("iteration {}", k);
-        if k == 50 {
-            println!("End of opt");
-            break;
-        }
+
         if method == "BFGS" {
             if k > 0 {
                 if yk.dot(&sk) <= 0.0 {
@@ -994,13 +974,13 @@ pub fn minimize(
         if line_search == "Armijo" {
             println!("start line search");
             x_kp1 = line_search_backtracking(
-                &xk, fk, &grad_fk, &pk, None, None, None, None, cart_coord, state, mol,
+                &xk, fk, &grad_fk, &pk, None, None, None, None, state, mol,
             );
             println!("x_kp1 {}", x_kp1);
         } else if line_search == "Wolfe" {
             println!("Start WolfEE");
             x_kp1 = line_search_wolfe(
-                &xk, fk, &grad_fk, &pk, None, None, None, None, None, cart_coord, state, mol,
+                &xk, fk, &grad_fk, &pk, None, None, None, None, None, state, mol,
             );
             println!("X_KP1 {}", &x_kp1);
         } else if line_search == "largest" {
@@ -1010,17 +990,13 @@ pub fn minimize(
         }
         let mut f_kp1: f64 = 0.0;
         let mut grad_f_kp1: Array1<f64> = Array::zeros(n);
-        if cart_coord {
-            let tmp: (f64, Array1<f64>) = objective_cart(&x_kp1, state, mol);
-            f_kp1 = tmp.0;
-            grad_f_kp1 = tmp.1;
-        }
+
+        let tmp: (f64, Array1<f64>) = objective_cart(&x_kp1, state, mol);
+        f_kp1 = tmp.0;
+        grad_f_kp1 = tmp.1;
+
         println!("grad {}", grad_f_kp1);
-        // else {
-        //     let tmp: (f64, Array1<f64>) = objective_intern(&x_kp1);
-        //     f_kp1 = tmp.0;
-        //     grad_f_kp1 = tmp.1;
-        // }
+
         let f_change: f64 = (f_kp1 - fk).abs();
         let gnorm: f64 = grad_f_kp1.norm();
         if f_change < ftol && gnorm < gtol {
@@ -1038,6 +1014,10 @@ pub fn minimize(
         xk = x_kp1.clone();
         fk = f_kp1;
         grad_fk = grad_f_kp1;
+
+        let new_coords:Array2<f64> = xk.clone().into_shape((xk.len()/3,3)).unwrap();
+        println!("Coords after the optimization step: \n {}",new_coords);
+
         if converged {
             break;
         }
@@ -1091,7 +1071,6 @@ pub fn line_search_backtracking(
     rho: Option<f64>,
     c: Option<f64>,
     lmax: Option<usize>,
-    cart_coord: bool,
     state: usize,
     mol: &mut Molecule,
 ) -> Array1<f64> {
@@ -1106,32 +1085,17 @@ pub fn line_search_backtracking(
     let df: f64 = grad_fk.dot(pk);
 
     assert!(df <= 0.0, "pk = {} not a descent direction", &pk);
-
     let mut x_interp: Array1<f64> = Array::zeros(xk.len());
 
-    if cart_coord {
-        for i in 0..lmax {
-            x_interp = xk + &(a * pk);
+    for i in 0..lmax {
+        x_interp = xk + &(a * pk);
 
-            if objective_cart(&x_interp, state, mol).0 <= fk + c * a * df {
-                break;
-            } else {
-                a = a * rho;
-            }
+        if objective_cart(&x_interp, state, mol).0 <= fk + c * a * df {
+            break;
+        } else {
+            a = a * rho;
         }
     }
-    // else {
-    //     for i in 0..lmax {
-    //         x_interp = xk + &(a * pk);
-    //
-    //         if objective_intern(&x_interp) <= fk + c * a * df {
-    //             break;
-    //         }
-    //         else {
-    //             a = a * rho;
-    //         }
-    //     }
-    // }
     return x_interp;
 }
 
@@ -1145,7 +1109,6 @@ pub fn line_search_wolfe(
     c1: Option<f64>,
     c2: Option<f64>,
     lmax: Option<usize>,
-    cart_coord: bool,
     state: usize,
     mol: &mut Molecule,
 ) -> (Array1<f64>) {
@@ -1172,15 +1135,6 @@ pub fn line_search_wolfe(
 
     // Find the largest feasible step length.
     // Not for cartesian coords
-    if cart_coord == false {
-    }
-    //     // call max steplen if coords are internal
-    //     // function does not exist
-    //     amax = max_steplen(xk, pk);
-    // }
-    else {
-        // for constraints check if amax is feasible
-    }
     // The initial guess for the step length should satisfy `a0` < `amax`.
     if a0 >= amax {
         a0 = 0.5 * amax;
@@ -1197,11 +1151,11 @@ pub fn line_search_wolfe(
     println!("pk {}", pk);
 
     for i in 1..lmax {
-        let (si, dsi): (f64, f64) = s_wolfe(ai, cart_coord, xk, pk, state, mol);
+        let (si, dsi): (f64, f64) = s_wolfe(ai, xk, pk, state, mol);
         if (si > (s0 + c1 * ai * ds0)) || ((si >= sim1) && i > 1) {
             println!("Route 1");
             a_wolfe = zoom(
-                lmax, aim1, ai, sim1, si, cart_coord, &xk, &pk, s0, c1, c2, ds0, state, mol,
+                lmax, aim1, ai, sim1, si, &xk, &pk, s0, c1, c2, ds0, state, mol,
             );
             break;
         }
@@ -1213,7 +1167,7 @@ pub fn line_search_wolfe(
         if dsi >= 0.0 {
             println!("Route 3");
             a_wolfe = zoom(
-                lmax, ai, aim1, si, sim1, cart_coord, &xk, &pk, s0, c1, c2, ds0, state, mol,
+                lmax, ai, aim1, si, sim1, &xk, &pk, s0, c1, c2, ds0, state, mol,
             );
             break;
         }
@@ -1233,7 +1187,6 @@ pub fn line_search_wolfe(
 
 pub fn s_wolfe(
     a: f64,
-    cart_coord: bool,
     xk: &Array1<f64>,
     pk: &Array1<f64>,
     state: usize,
@@ -1242,20 +1195,14 @@ pub fn s_wolfe(
     // computes scalar function s: a -> f(xk + a*pk) and its derivative ds/da
     let mut fx: f64 = 0.0;
     let mut dsda: f64 = 0.0;
-    if cart_coord {
-        let tmp: (f64, Array1<f64>) = objective_cart(&(xk + &(a * pk)), state, mol);
-        fx = tmp.0;
-        let dfdx: Array1<f64> = tmp.1;
-        dsda = dfdx.dot(pk);
-        println!("fx {}", fx);
-        println!("dsda {}", dsda);
-    }
-    // else {
-    //     let tmp: (f64, Array1<f64>) = objective_intern(xk + &(a * pk));
-    //     fx = tmp.0;
-    //     let dfdx: Array1<f64> = tmp.1;
-    //     dsda = dfdx.dot(pk);
-    // }
+
+    let tmp: (f64, Array1<f64>) = objective_cart(&(xk + &(a * pk)), state, mol);
+    fx = tmp.0;
+    let dfdx: Array1<f64> = tmp.1;
+    dsda = dfdx.dot(pk);
+    println!("fx {}", fx);
+    println!("dsda {}", dsda);
+
     return (fx, dsda);
 }
 
@@ -1265,7 +1212,6 @@ pub fn zoom(
     ahi: f64,
     slo: f64,
     shi: f64,
-    cart_coord: bool,
     xk: &Array1<f64>,
     pk: &Array1<f64>,
     s0: f64,
@@ -1284,7 +1230,7 @@ pub fn zoom(
 
     for j in 0..lmax {
         let aj: f64 = 0.5 * (ahi + alo);
-        let (sj, dsj): (f64, f64) = s_wolfe(aj, cart_coord, xk, pk, state, mol);
+        let (sj, dsj): (f64, f64) = s_wolfe(aj, xk, pk, state, mol);
 
         if (sj > (s0 + c1 * aj * ds0)) || sj >= slo {
             ahi = aj;
@@ -1339,7 +1285,7 @@ fn test_optimization() {
         0.1253496008686964
     ];
 
-    let tmp = geometry_optimization(Some(0), Some(String::from("cartesian")), &mut mol);
+    let tmp = geometry_optimization_cartesian(Some(0), &mut mol);
 
     assert!(1 == 2);
 }
@@ -1539,7 +1485,7 @@ fn line_search_routine() {
     mol.calculator.set_active_orbitals(f.to_vec());
 
     let test: Array1<f64> = line_search_backtracking(
-        &xk, fk, &grad_fk, &pk, None, None, None, None, true, 0, &mut mol,
+        &xk, fk, &grad_fk, &pk, None, None, None, None,0, &mut mol,
     );
 
     assert!(test.abs_diff_eq(&x_kp1, 1e-14));
