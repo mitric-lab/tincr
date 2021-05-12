@@ -927,7 +927,7 @@ pub fn minimize(
     let gtol: f64 = gtol.unwrap_or(1.0e-6);
     let ftol: f64 = ftol.unwrap_or(1.0e-8);
     let method: String = method.unwrap_or(String::from("BFGS"));
-    let line_search: String = line_search.unwrap_or(String::from("largest"));
+    let line_search: String = line_search.unwrap_or(String::from("Armijo"));
 
     let n: usize = x0.len();
     let mut xk: Array1<f64> = x0.clone();
