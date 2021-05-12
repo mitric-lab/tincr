@@ -881,7 +881,7 @@ pub fn get_energies_and_gradient(
 }
 
 pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
-    println!("coordinate_vector {}", x);
+    // println!("coordinate_vector {}", x);
     let mut energy: f64 = 0.0;
     let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
     if state == 0 {
@@ -927,7 +927,7 @@ pub fn minimize(
     let gtol: f64 = gtol.unwrap_or(1.0e-6);
     let ftol: f64 = ftol.unwrap_or(1.0e-8);
     let method: String = method.unwrap_or(String::from("BFGS"));
-    let line_search: String = line_search.unwrap_or(String::from("Armijo"));
+    let line_search: String = line_search.unwrap_or(String::from("largest"));
 
     let n: usize = x0.len();
     let mut xk: Array1<f64> = x0.clone();
@@ -938,8 +938,8 @@ pub fn minimize(
     fk = tmp.0;
     grad_fk = tmp.1;
 
-    println!("FK {}", &fk);
-    println!("grad_fk {}", &grad_fk);
+    // println!("FK {}", &fk);
+    // println!("grad_fk {}", &grad_fk);
 
     let mut converged: bool = false;
     //smallest representable positive number such that 1.0+eps != 1.0.
@@ -952,7 +952,7 @@ pub fn minimize(
     let mut yk: Array1<f64> = Array::zeros(n);
     let mut inv_hk: Array2<f64> = Array::eye(n);
 
-    println!("Test coordinate vector x0 {}", x0);
+    // println!("Test coordinate vector x0 {}", x0);
 
     for k in 0..maxiter {
         println!("iteration {}", k);
@@ -964,19 +964,22 @@ pub fn minimize(
                     println!("sk {}", sk);
                     println!("Warning: positive definiteness of Hessian approximation lost in BFGS update, since yk.sk <= 0!")
                 }
+                // println!("Before BFGS_Update");
+                // println!("inv_hk {}, sk {}, yk {}", inv_hk,sk,yk);
                 inv_hk = bfgs_update(&inv_hk, &sk, &yk, k);
             }
             pk = inv_hk.dot(&(-&grad_fk));
+            // println!("PK value {}",pk);
         } else if method == "Steepest Descent" {
             pk = -grad_fk.clone();
         }
-        println!("pk {}", pk);
+        // println!("pk {}", pk);
         if line_search == "Armijo" {
-            println!("start line search");
+            // println!("start line search Armijo");
             x_kp1 = line_search_backtracking(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, state, mol,
             );
-            println!("x_kp1 {}", x_kp1);
+            // println!("Armijo x_kp1 {}", x_kp1);
         } else if line_search == "Wolfe" {
             println!("Start WolfEE");
             x_kp1 = line_search_wolfe(
@@ -986,7 +989,7 @@ pub fn minimize(
         } else if line_search == "largest" {
             let amax = 1.0;
             x_kp1 = &xk + &(amax * &pk);
-            println!("x_kp1 {}", x_kp1);
+            // println!("x_kp1 {}", x_kp1);
         }
         let mut f_kp1: f64 = 0.0;
         let mut grad_f_kp1: Array1<f64> = Array::zeros(n);
@@ -995,7 +998,7 @@ pub fn minimize(
         f_kp1 = tmp.0;
         grad_f_kp1 = tmp.1;
 
-        println!("grad {}", grad_f_kp1);
+        // println!("new gradient {}", grad_f_kp1);
 
         let f_change: f64 = (f_kp1 - fk).abs();
         let gnorm: f64 = grad_f_kp1.norm();
@@ -1014,10 +1017,22 @@ pub fn minimize(
         xk = x_kp1.clone();
         fk = f_kp1;
         grad_fk = grad_f_kp1;
+        println!("k = {}, f(x) = {}, |x(k+1)-x(k)| = {}, |f(k+1)-f(k)| = {}, |df/dx| = {}",k,fk,sk.norm(),f_change,gnorm);
 
-        let new_coords:Array2<f64> = xk.clone().into_shape((xk.len()/3,3)).unwrap();
-        println!("Coords after the optimization step: \n {}",new_coords);
-
+        let new_coords:Array2<f64> = BOHR_TO_ANGS * xk.clone().into_shape((xk.len()/3,3)).unwrap();
+        if log_enabled!(Level::Info) {
+            info!("Coords after the optimization step:");
+            for (ind,atom) in mol.atomic_numbers.iter().enumerate(){
+                info!(
+                    "{: >5} {:>18.10} {:>18.10} {:>18.10}",
+                    ATOM_NAMES[*atom as usize],
+                    new_coords[[ind,0]],
+                    new_coords[[ind,1]],
+                    new_coords[[ind,2]]
+                );
+            }
+            info!("");
+        }
         if converged {
             break;
         }
@@ -1042,13 +1057,13 @@ pub fn bfgs_update(
         inv_hkp1 = yk.dot(sk) / yk.dot(yk) * &id;
     } else {
         let rk: f64 = 1.0 / yk.dot(sk);
-        let u: Array2<f64> = &id
-            - &einsum("i,j->ij", &[sk, yk])
+        let u: Array2<f64> = id.clone()
+            - rk*einsum("i,j->ij", &[sk, yk])
                 .unwrap()
                 .into_dimensionality::<Ix2>()
                 .unwrap();
-        let v: Array2<f64> = &id
-            - &einsum("i,j->ij", &[yk, sk])
+        let v: Array2<f64> = id.clone()
+            - rk*einsum("i,j->ij", &[yk, sk])
                 .unwrap()
                 .into_dimensionality::<Ix2>()
                 .unwrap();
