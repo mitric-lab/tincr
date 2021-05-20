@@ -22,7 +22,7 @@ use crate::scc::scc_routine::RestrictedSCC;
 use crate::fmo::SuperSystem;
 use crate::utils::Timer;
 use crate::scc::gamma_approximation::gamma_atomwise;
-use crate::fmo::fmo_gradient::GroundStateGradient;
+use crate::fmo::gradients::GroundStateGradient;
 
 mod constants;
 mod defaults;

@@ -4,7 +4,9 @@ mod fragment;
 mod fragmentation;
 mod fmo_scc;
 pub(crate) mod fmo_gradient;
+pub(crate) mod gradients;
 
+pub use gradients::*;
 pub use fmo_scc::*;
 pub use fragment::*;
 pub use pair::*;
