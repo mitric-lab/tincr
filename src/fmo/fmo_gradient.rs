@@ -25,7 +25,7 @@ use nshare::ToNdarray1;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::IntoParallelRefMutIterator;
 use std::iter::FromIterator;
-use std::ops::{SubAssign, AddAssign};
+use std::ops::{AddAssign, SubAssign};
 
 pub trait GroundStateGradient {
     fn scc_gradient(&mut self) -> Array1<f64>;
@@ -150,39 +150,58 @@ fn gradient_v_rep(atoms: &[Atom], v_rep: &RepulsivePotential) -> Array1<f64> {
 }
 
 impl Monomer {
-    /// Compute the derivative of the partial charges according to equation 24 and 26 in
-    /// https://pubs.acs.org/doi/pdf/10.1021/ct500489d.
-    fn get_grad_dq(&mut self, grad_s: ArrayView3<f64>, d: ArrayView2<f64>) -> Array2<f64> {
-        // get the shape of the derivative of S, it should be [f, n_orb, n_orb], where f = 3 * natoms
+    /// Compute the derivative of the partial charges according to equation 24 and 26 in Ref. [1]
+    /// The result will be the derivative of the charge w.r.t. to all degree of freedoms of a single
+    /// monomer. This means that the first dimension of the Array is the degree of freedom and the
+    /// second dimension is the atom on which the charge resides.
+    /// [1]: [J. Chem. Theory Comput. 2014, 10, 4801−4812](https://pubs.acs.org/doi/pdf/10.1021/ct500489d)
+    fn get_grad_dq(&mut self, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64> {
+        // get the shape of the derivative of S, it should be [f, n_orb, n_orb], where f = 3 * n_atoms
         let (f, n_orb, _): (usize, usize, usize) = grad_s.dim();
-        // reshape S' so that the last dimension can be contracted with the density matrix
-        let grad_s: ArrayView2<f64> = grad_s.into_shape([f * n_orb, n_orb]).unwrap();
-        // compute W according to eq. 26 in the reference stated above in matrix fashion
-        // S'[f * rho, sigma] . D[sigma, nu] -> X1[f * rho, nu]
-        // X1.T[nu, f * rho]  -reshape-> X2[nu * f, rho]
-        // X2[nu * f, rho] . D[mu, rho] -> X3 [nu * f, mu];  since D is symmetric -> D = D.T
-        // X3[nu * f, mu] -reshape-> X3[nu, f * mu]
-        // X3.T[f * mu, nu] -reshape-> W[f, mu, nu]
-        let w_a_mu: Array3<f64> = -0.5 * grad_s
-            .dot(&d)
-            .reversed_axes()
-            .into_shape([norb * f, n_orb])
-            .unwrap()
-            .dot(&d)
-            .into_shape([norb, f * n_orb])
-            .unwrap()
-            .reversed_axes()
-            .into_shape([f, norb, norb]);
 
-        let mut grad_dq:  Array2<f64> = Array2::zeros([f, self.n_atoms]);
+        // reshape S' so that the last dimension can be contracted with the density matrix
+        let grad_s_2d: ArrayView2<f64> = grad_s.into_shape([f * n_orb, n_orb]).unwrap();
+
+        // compute W according to eq. 26 in the reference stated above in matrix fashion
+        // W_(mu nu)^a = -1/2 sum_(rho sigma) P_(mu rho) delS_(rho sigma) / delR_(a x) P_(sigma nu)
+        // Implementation:
+        // S'[f * rho, sigma] . P[sigma, nu] -> X1[f * rho, nu]
+        // X1.T[nu, f * rho]       --reshape--> X2[nu * f, rho]
+        // X2[nu * f, rho]    . P[mu, rho]   -> X3[nu * f, mu];  since P is symmetric -> P = P.T
+        // X3[nu * f, mu]          --reshape--> X3[nu, f * mu]
+        // X3.T[f * mu, nu]        --reshape--> W[f, mu, nu]
+        let w: Array3<f64> = -0.5
+            * grad_s_2d
+                .dot(&p)
+                .reversed_axes()
+                .into_shape([n_orb * f, n_orb])
+                .unwrap()
+                .dot(&p)
+                .into_shape([n_orb, f * n_orb])
+                .unwrap()
+                .reversed_axes()
+                .into_shape([f, n_orb, n_orb])
+                .unwrap();
+
+        // compute P . S'; it is necessary to broadcast P into the shape of S'
+        let d_grad_s: Array3<f64> = &grad_s * &p.broadcast([f, n_orb, n_orb]).unwrap();
+
+        // do the sum of both terms and sum over nu
+        let w_plus_ps: Array2<f64> = (w + d_grad_s).sum_axis(Axis(2));
+
+        // sum over mu where mu is on atom a
+        let mut grad_dq: Array2<f64> = Array2::zeros([f, self.n_atoms]);
         let mut mu: usize = 0;
         for (idx, atom) in self.atoms.iter().enumerate() {
             for _ in atom.valorbs.iter() {
-                grad_dq.slice_mut(slice![.., idx]).add_assign(w_a_mu.slice(s![.., mu]));
+                grad_dq
+                    .slice_mut(s![.., idx])
+                    .add_assign(&w_plus_ps.slice(s![.., mu]));
                 mu += 1;
             }
         }
+
+        // Shape of returned Array: [f, n_atoms], f = 3 * n_atoms
         return grad_dq;
     }
 }
-
