@@ -166,6 +166,7 @@ impl RestrictedSCC for SuperSystem {
                 .dot(&m_j.properties.dq().unwrap());
         }
         let total_energy: f64 = monomer_energies + pair_energies + embedding + esd_pair_energies;
+        self.properties.set_dq(dq);
         print_fmo_scc_end(timer, monomer_energies, pair_energies, embedding, esd_pair_energies);
         Ok(total_energy)
     }
