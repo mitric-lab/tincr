@@ -19,6 +19,8 @@ pub struct Monomer {
     pub index: usize,
     /// [Slice](ndarray::prelude::Slice) for the atoms corresponding to this monomer
     pub atom_slice: Slice,
+    /// Gradient slice, this is the atom slice multiplied by the factor 3
+    pub grad_slice: Slice,
     /// Number of atomic orbitals
     pub n_orbs: usize,
     /// [Slice](ndarray::prelude::Slice) for the orbitals corresponding to this monomer
@@ -68,6 +70,7 @@ impl Monomer {
         // get the atomic numbers and positions from the input data
         let n_atoms: usize = atoms.len();
         let atom_slice: Slice = Slice::from(at_index..(at_index+n_atoms));
+        let grad_slice: Slice = Slice::from((at_index*3)..(at_index+n_atoms)*3);
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
         // get the number of unpaired electrons from the input option
@@ -94,6 +97,7 @@ impl Monomer {
             n_atoms,
             index,
             atom_slice,
+            grad_slice,
             n_orbs,
             orb_slice,
             n_elec,

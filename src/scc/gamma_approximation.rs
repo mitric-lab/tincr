@@ -234,6 +234,35 @@ pub fn gamma_gradients_atomwise(
     return g1;
 }
 
+pub fn gamma_gradients_atomwise_2d(
+    gamma_func: &GammaFunction,
+    atoms: &[Atom],
+    n_atoms: usize,
+) -> Array2<f64> {
+    let mut g1_val: Array2<f64> = Array2::zeros((n_atoms, n_atoms));
+    let mut g1: Array2<f64> = Array2::zeros((3 * n_atoms, n_atoms));
+    for (i, atomi) in atoms.iter().enumerate() {
+        for (j, atomj) in atoms.iter().enumerate() {
+            if i < j {
+                let r = atomi - atomj;
+                let r_ij: f64 = r.norm();
+                let e_ij: Vector3<f64> = r / r_ij;
+                g1_val[[i, j]] = gamma_func.deriv(r_ij, atomi.number, atomj.number);
+                g1.slice_mut(s![(3 * i)..(3 * i + 3), j])
+                    .assign(&Array1::from_iter( (e_ij * g1_val[[i, j]]).iter().cloned()));
+            } else if j < i {
+                g1_val[[i, j]] = g1_val[[j, i]];
+                let r = atomi - atomj;
+                let e_ij: Vector3<f64> = r / r.norm();
+                g1.slice_mut(s![(3 * i)..(3 * i + 3), j])
+                    .assign(&Array::from_iter( (e_ij * g1_val[[i, j]]).iter().cloned()));
+            }
+        }
+    }
+    return g1;
+}
+
+
 pub fn gamma_ao_wise(
     gamma_func: &GammaFunction,
     atoms: &[Atom],

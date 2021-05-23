@@ -1,9 +1,7 @@
 use crate::fmo::{atomvec_to_aomat, Monomer, Pair, SuperSystem};
 use crate::initialization::parameters::RepulsivePotential;
 use crate::initialization::Atom;
-use crate::scc::gamma_approximation::{
-    gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise,
-};
+use crate::scc::gamma_approximation::{gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise, gamma_gradients_atomwise_2d};
 use crate::scc::h0_and_s::{h0_and_s, h0_and_s_ab, h0_and_s_gradients};
 use crate::scc::mixer::{BroydenMixer, Mixer};
 use crate::scc::mulliken::mulliken;
