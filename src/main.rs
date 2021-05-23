@@ -35,6 +35,7 @@ mod fmo;
 //mod gradients;
 mod param;
 mod excited_states;
+mod gradients;
 
 #[macro_use]
 extern crate clap;
@@ -99,7 +100,7 @@ fn main() {
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
-    println!("Grad {:?}", system.monomers[0].scc_gradient());
+    println!("Grad {:?}", system.ground_state_gradient());
 
     info!("{}", timer);
     info!("{: ^80}", "");

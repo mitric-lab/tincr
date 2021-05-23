@@ -1,3 +1,4 @@
+use crate::fmo::gradients::*;
 use crate::fmo::{atomvec_to_aomat, Monomer, Pair, SuperSystem};
 use crate::initialization::parameters::RepulsivePotential;
 use crate::initialization::Atom;
@@ -26,7 +27,6 @@ use rayon::iter::ParallelIterator;
 use rayon::prelude::IntoParallelRefMutIterator;
 use std::iter::FromIterator;
 use std::ops::{AddAssign, SubAssign};
-use crate::fmo::gradients::*;
 
 impl GroundStateGradient for Pair {
     fn scc_gradient(&mut self) -> Array1<f64> {
@@ -92,8 +92,8 @@ impl GroundStateGradient for Pair {
         // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
         let w: Array1<f64> = 0.5
             * (p.dot(&(&h0 + &(&esp_mat * &s))).dot(&p))
-            .into_shape([self.n_orbs * self.n_orbs])
-            .unwrap();
+                .into_shape([self.n_orbs * self.n_orbs])
+                .unwrap();
 
         // calculation of the gradient
         // 1st part:  dH0 / dR . P
@@ -136,16 +136,16 @@ impl GroundStateGradient for Pair {
         // X3.T[f * mu, nu]        --reshape--> W[f, mu, nu]
         let w: Array3<f64> = -0.5
             * grad_s_2d
-            .dot(&p)
-            .reversed_axes()
-            .into_shape([n_orb * f, n_orb])
-            .unwrap()
-            .dot(&p)
-            .into_shape([n_orb, f * n_orb])
-            .unwrap()
-            .reversed_axes()
-            .into_shape([f, n_orb, n_orb])
-            .unwrap();
+                .dot(&p)
+                .reversed_axes()
+                .into_shape([n_orb * f, n_orb])
+                .unwrap()
+                .dot(&p)
+                .into_shape([n_orb, f * n_orb])
+                .unwrap()
+                .reversed_axes()
+                .into_shape([f, n_orb, n_orb])
+                .unwrap();
 
         // compute P . S'; it is necessary to broadcast P into the shape of S'
         let d_grad_s: Array3<f64> = &grad_s * &p.broadcast([f, n_orb, n_orb]).unwrap();

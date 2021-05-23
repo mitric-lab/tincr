@@ -1,6 +1,10 @@
-mod excited_state;
-mod ground_state;
-mod helpers;
-mod grad;
+//mod excited_state;
+//mod ground_state;
+//mod helpers;
+//mod grad;
 
-pub use grad::get_gradients;
+//pub use grad::get_gradients;
+
+mod numerical;
+
+pub use numerical::*;
