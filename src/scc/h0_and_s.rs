@@ -314,7 +314,7 @@ mod tests {
         let name = molecule_and_properties.0;
         let molecule = molecule_and_properties.1;
         let props = molecule_and_properties.2;
-        let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(molecule.n_orbs, &molecule.atoms, &molecule.geometry, &molecule.slako);
+        let (s, h0): (Array2<f64>, Array2<f64>) = h0_and_s(molecule.n_orbs, &molecule.atoms,  &molecule.slako);
         let s_ref: Array2<f64> = props.get("S").unwrap().as_array2().unwrap().to_owned();
         let h0_ref: Array2<f64> = props.get("H0").unwrap().as_array2().unwrap().to_owned();
 

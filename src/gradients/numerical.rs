@@ -3,9 +3,16 @@ use ndarray_stats::QuantileExt;
 use std::cmp::max;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 
-/// Estimate first-order derivatives of a function using Ridder's finited difference method.
-/// The implementation is based on the one described in Numerical Recipes and the Python implementation
-/// [derivcheck](https://github.com/theochem/derivcheck) by Toon Verstraelen
+/// Returns the derivative of a function `function` at an Array of points `origin` by Ridder's method.
+/// The value `stepsize` is an initial stepsize, it need to be small, but should be an increment
+/// over which the `function` changes substantially. An estimate of the error in the derivative is
+/// returned. The method was developed by C.J.F Ridders in 1982 (see the original article
+/// ["Accurate computation of F′(x) and F′(x) F″(x)"](https://doi.org/10.1016/S0141-1195(82)80057-0))
+/// The implementation is based on the one described in the Book Numerical Recipes by
+/// W. H. Press and S. A. Teukolsky, the section is available as an article in
+/// [Computers in Physics](https://aip.scitation.org/doi/pdf/10.1063/1.4822971). Also the Python
+/// implementation [derivcheck](https://github.com/theochem/derivcheck) by T. Verstraelen
+/// influenced the implementation and the idea to create an `assert_deriv` function was adopted.
 fn ridders_method<F, D>(
     function: F,               // Function which should be differentiated
     origin: ArrayBase<D, Ix1>, // Origin of coordinates, that are used for the function
@@ -34,8 +41,10 @@ where
 
     let mut estimate: f64 = 0.0;
 
+    // Successive columns in the Neville tableau will go to smaller stepsizes and higher orders of
+    // extrapolations.
     'main: for i in 1..maxiter {
-        // reduce step size
+        // Try new, smaller stepsize.
         stepsize /= con;
         // first-order approximation at current step
         table.push(vec![
@@ -51,20 +60,19 @@ where
             table[i].push(tmp);
             fac *= con2;
 
-            // each new extrapolation is compared to the one order lower, both at the
-            // present stepsize and the previous one
+            // The error strategy is compare each new extrapolation to one order lower,
+            // both at the present stepsize and the previous one.
             let current: f64 = (table[i][j] - table[i][j - 1]).abs();
             let last: f64 = (table[i][j] - table[i - 1][j - 1]).abs();
             let current_error: f64 = current.max(last);
 
-            // if the error has decreased, the improved estimate is saved
+            // If error is decreased, save the improved answer.
             if j == 1 || current_error <= error {
                 error = current_error;
                 estimate = table[i][j];
             }
         }
-        // The algorithm can become numerically unstable if the highest-order estimate is growing
-        // larger than the error on the best estimate. If this is the case then the algorithm ends
+        // If higher order is worse by a significant factor `safe`, then quit early.
         if (&table[i][i] - &table[i - 1][i - 1]).abs() >= safe * error {
             break 'main;
         }
@@ -78,19 +86,18 @@ where
 /// * gradient: Computes the gradient of the function, to be tested.
 /// * origin: The point at which the derivatives are computed.
 /// * stepsize: The initial (maximal) step size for the finite difference method.
-/// * rtol: The allowed relative error on the derivative.
-/// * atol: The allowed absolute error on the derivative.
-pub fn assert_deriv<F, G, D>(
+/// * tol: The allowed relative error on the derivative.
+/// The idea of this function comes from the [derivcheck](https://github.com/theochem/derivcheck)
+/// Python package by T. Verstraelen.
+pub fn assert_deriv<F, G>(
     function: F,
     gradient: G,
     origin: Array1<f64>,
     stepsize: f64,
-    rtol: f64,
-    atol: f64,
+    tol: f64,
 ) where
     F: Fn(Array1<f64>) -> f64,
     G: Fn(Array1<f64>) -> Array1<f64>,
-    D: ndarray::Data<Elem = f64>,
 {
     // Parameters for Ridder's method,
     let con: f64 = 1.4;
@@ -104,7 +111,7 @@ pub fn assert_deriv<F, G, D>(
 
     assert!(stepsize > 0.0, "The stepsize has to be > 0.0, but it is {}", stepsize);
 
-    debug!(
+    println!(
         "{: <5} {: >18} {: >18} {: >18} {: <8}",
         "Index", "Analytic", "Numerical", "Error", "Correct?");
     // PARALLEL
@@ -112,13 +119,37 @@ pub fn assert_deriv<F, G, D>(
         // compute the numerical derivative of this function and an error estimate using
         // Ridder's method
         let (numerical_deriv, deriv_error): (f64, f64) = ridders_method(&function, origin.clone(), i, stepsize, con, safe, maxiter);
-        let correct: bool = if deriv_error >= atol && deriv_error >= rtol * numerical_deriv.abs() {false} else {true};
-        errors[i] = correct;
+        let correct: bool = if deriv_error >= tol * numerical_deriv.abs() {false} else {true};
+        errors.push(correct);
         // get the corresponding analytic derivative
         let analytic_deriv: f64 = analytic_grad[i];
-        debug!(
-            "{: >5} {:>18.12} {:>18.12} {:>18.12} {: >5}",
+        println!(
+            "{: >5} {:>18.14} {:>18.14} {:>18.14} {: >5}",
             i, analytic_deriv, numerical_deriv, deriv_error, correct);
     }
     assert!(!errors.contains(&false), "Gradient test failed")
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ndarray::prelude::*;
+
+    // returns the sum of the square of all elements: y = x * x
+    fn simple_function(values: Array1<f64>) -> f64 {
+        values.iter().fold(0.0, |n, i| n+(i.powi(2)))
+    }
+    // returns the gradient of the function above: y' = 2 * x
+    fn simple_gradient(values: Array1<f64>) -> Array1<f64> {
+        2.0 * values
+    }
+
+    #[test]
+    fn assert_deriv_simple_function() {
+        let data: Array1<f64> = array![1.0, 2.0, 3.0, 4.0];
+        assert_deriv(simple_function, simple_gradient, data, 0.01, 1e-10);
+    }
+
+
 }

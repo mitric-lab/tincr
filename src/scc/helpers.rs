@@ -200,7 +200,6 @@ mod tests {
         let props = molecule_and_properties.2;
         let e_rep: f64 = get_repulsive_energy(
             &molecule.atoms,
-            molecule.geometry.coordinates.view(),
             molecule.n_atoms,
             &molecule.vrep,
         );
