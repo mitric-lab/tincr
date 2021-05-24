@@ -99,7 +99,7 @@ fn main() {
     let mut system = SuperSystem::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
-    system.run_scc();
+    let result = system.run_scc();
     println!("Grad {:?}", system.ground_state_gradient());
 
     info!("{}", timer);

@@ -1,5 +1,6 @@
 use crate::fmo::gradients::*;
-use crate::fmo::{atomvec_to_aomat, Monomer, Pair, SuperSystem};
+use crate::fmo::scc::helpers::*;
+use crate::fmo::{Monomer, Pair, SuperSystem};
 use crate::initialization::parameters::RepulsivePotential;
 use crate::initialization::Atom;
 use crate::scc::gamma_approximation::{

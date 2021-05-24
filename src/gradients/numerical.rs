@@ -1,7 +1,6 @@
 use ndarray::prelude::*;
 use ndarray_stats::QuantileExt;
 use std::cmp::max;
-use log::{debug, error, info, log_enabled, trace, warn, Level};
 
 /// Returns the derivative of a function `function` at an Array of points `origin` by Ridder's method.
 /// The value `stepsize` is an initial stepsize, it need to be small, but should be an increment
@@ -150,6 +149,4 @@ mod tests {
         let data: Array1<f64> = array![1.0, 2.0, 3.0, 4.0];
         assert_deriv(simple_function, simple_gradient, data, 0.01, 1e-10);
     }
-
-
 }

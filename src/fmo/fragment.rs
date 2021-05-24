@@ -6,6 +6,7 @@ use crate::scc::gamma_approximation::GammaFunction;
 use chemfiles::Frame;
 use ndarray::{Slice, SliceInfo};
 use hashbrown::HashMap;
+use std::ops::Range;
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
 /// This type is only used for FMO calculations. This type is a similar to the [System] type that
@@ -18,7 +19,7 @@ pub struct Monomer {
     /// Index of the monomer in the [SuperSystem]
     pub index: usize,
     /// [Slice](ndarray::prelude::Slice) for the atoms corresponding to this monomer
-    pub atom_slice: Slice,
+    pub atom_slice: Range<usize>,
     /// Gradient slice, this is the atom slice multiplied by the factor 3
     pub grad_slice: Slice,
     /// Number of atomic orbitals
@@ -69,7 +70,7 @@ impl Monomer {
     pub fn new(config: Configuration, atoms: Vec<Atom>, index: usize, at_index: usize, orb_index: usize, slako: SlaterKoster, vrep: RepulsivePotential, gf: GammaFunction, gf_lc: Option<GammaFunction>) -> Self {
         // get the atomic numbers and positions from the input data
         let n_atoms: usize = atoms.len();
-        let atom_slice: Slice = Slice::from(at_index..(at_index+n_atoms));
+        let atom_slice: Range<usize> = at_index..(at_index+n_atoms);//Slice::from(at_index..(at_index+n_atoms));
         let grad_slice: Slice = Slice::from((at_index*3)..(at_index+n_atoms)*3);
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
