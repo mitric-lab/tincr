@@ -9,12 +9,13 @@ use crate::scc::gamma_approximation::*;
 use crate::scc::{density_matrix_ref, lc_exact_exchange, density_matrix, get_repulsive_energy, get_electronic_energy};
 use crate::scc::mixer::{BroydenMixer, Mixer};
 use crate::scc::mulliken::mulliken;
+use crate::initialization::Atom;
 
 impl Pair {
-    pub fn prepare_scc(&mut self, m1: &Monomer, m2: &Monomer) {
+    pub fn prepare_scc(&mut self, atoms: &[Atom], m1: &Monomer, m2: &Monomer) {
         // get H0 and S outer diagonal block
         let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) =
-            h0_and_s_ab(m1.n_orbs, m2.n_orbs, &m1.atoms, &m2.atoms, &m1.slako);
+            h0_and_s_ab(m1.n_orbs, m2.n_orbs, &atoms[0..m1.n_atoms], &atoms[m1.n_atoms..], &m1.slako);
         let mut s: Array2<f64> = Array2::zeros([self.n_orbs, self.n_orbs]);
         let mut h0: Array2<f64> = s.clone();
 
@@ -41,8 +42,8 @@ impl Pair {
         // get the gamma matrix
         let gamma_ab: Array2<f64> = gamma_atomwise_ab(
             &self.gammafunction,
-            &m1.atoms,
-            &m2.atoms,
+            &atoms[0..m1.n_atoms],
+            &atoms[m1.n_atoms..],
             m1.n_atoms,
             m2.n_atoms,
         );
@@ -69,7 +70,7 @@ impl Pair {
             &(&m2.properties.esp_q().unwrap() - &(gamma_ab.t().dot(&m1.properties.dq().unwrap()))),
         );
         // and convert it into a matrix in AO basis
-        let omega: Array2<f64> = atomvec_to_aomat(esp.view(), self.n_orbs, &self.atoms);
+        let omega: Array2<f64> = atomvec_to_aomat(esp.view(), self.n_orbs, &atoms);
         self.properties.set_v(omega * &s * 0.5);
 
         // and save it in the self properties
@@ -79,7 +80,7 @@ impl Pair {
         self.properties.set_gamma(gamma);
 
         // save the atomic numbers since we need them multiple times
-        let atomic_numbers: Vec<u8> = self.atoms.iter().map(|atom| atom.number).collect();
+        let atomic_numbers: Vec<u8> = atoms.iter().map(|atom| atom.number).collect();
         self.properties.set_atomic_numbers(atomic_numbers);
 
         // occupation is determined by Aufbau principle and no electronic temperature is considered
@@ -92,7 +93,7 @@ impl Pair {
         if self.gammafunction_lc.is_some() {
             let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
                 self.gammafunction_lc.as_ref().unwrap(),
-                &self.atoms,
+                &atoms,
                 self.n_atoms,
                 self.n_orbs,
             );
@@ -113,7 +114,7 @@ impl Pair {
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
             self.properties
-                .set_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
+                .set_p_ref(density_matrix_ref(self.n_orbs, &atoms));
         }
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
@@ -123,7 +124,7 @@ impl Pair {
         }
     }
 
-    pub fn run_scc(&mut self) {
+    pub fn run_scc(&mut self, atoms: &[Atom]) {
         let scf_charge_conv: f64 = self.config.scf.scf_charge_conv;
         let scf_energy_conv: f64 = self.config.scf.scf_energy_conv;
         let max_iter: usize = self.config.scf.scf_max_cycles;
@@ -145,7 +146,7 @@ impl Pair {
 
         'scf_loop: for iter in 0..max_iter {
             let h_coul: Array2<f64> =
-                atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms) * &s * 0.5;
+                atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &atoms) * &s * 0.5;
             let mut h: Array2<f64> = h_coul + &h_esp;
             if self.gammafunction_lc.is_some() {
                 let h_x: Array2<f64> =
@@ -165,7 +166,7 @@ impl Pair {
 
             // update partial charges using Mulliken analysis
             let (new_q, new_dq): (Array1<f64>, Array1<f64>) =
-                mulliken(p.view(), p0.view(), s.view(), &self.atoms, self.n_atoms);
+                mulliken(p.view(), p0.view(), s.view(), &atoms, self.n_atoms);
 
             // charge difference to previous iteration
             let delta_dq: Array1<f64> = &new_dq - &dq;
@@ -198,7 +199,7 @@ impl Pair {
 
             last_energy = scf_energy;
             if converged {
-                let e_rep: f64 = get_repulsive_energy(&self.atoms, self.n_atoms, &self.vrep);
+                let e_rep: f64 = get_repulsive_energy(&atoms, self.n_atoms, &self.vrep);
                 self.properties.set_last_energy(scf_energy + e_rep);
                 break 'scf_loop;
             }

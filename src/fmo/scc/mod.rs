@@ -43,10 +43,11 @@ impl RestrictedSCC for SuperSystem {
     /// - the density matrix and reference density matrix
     fn prepare_scc(&mut self) {
         // prepare all individual monomers
+        let atoms: &[Atom] = &self.atoms;
         self.monomers
             .par_iter_mut()
             .for_each(|mol: &mut Monomer| {
-                mol.prepare_scc(&self.atoms[mol.atom_slice.clone()]);
+                mol.prepare_scc(&atoms[mol.slice.atom_as_range()]);
             });
         println!("FINISHED");
     }

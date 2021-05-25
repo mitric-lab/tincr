@@ -27,7 +27,7 @@ use nalgebra::Vector3;
 /// It will also generate the same functions that a `Vec<Atom>` would have, and a few helper structs:
 /// `AtomSlice`, `AtomSliceMut`, `AtomRef` and `AtomRefMut` corresponding respectively
 /// to `&[Atom]`, `&mut [Atom]`, `&Atom` and `&mut Atom`.
-#[derive(StructOfArray, Clone)]
+#[derive(Clone)]
 pub struct Atom {
     /// Name of the chemical element
     pub name: &'static str,

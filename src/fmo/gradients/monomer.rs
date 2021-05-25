@@ -31,7 +31,7 @@ use std::iter::FromIterator;
 use std::ops::{AddAssign, SubAssign};
 
 impl GroundStateGradient for Monomer {
-    fn scc_gradient(&mut self) -> Array1<f64> {
+    fn scc_gradient(&mut self, atoms: &[Atom]) -> Array1<f64> {
         // for the evaluation of the gradient it is necessary to compute the derivatives
         // of: - H0
         //     - S
@@ -41,7 +41,7 @@ impl GroundStateGradient for Monomer {
         // originates from the repulsive potential is added at the end to total gradient
 
         // derivative of H0 and S
-        let (grad_s, grad_h0) = h0_and_s_gradients(&self.atoms, self.n_orbs, &self.slako);
+        let (grad_s, grad_h0) = h0_and_s_gradients(&atoms, self.n_orbs, &self.slako);
 
         // the derivatives of the charge (difference)s are computed at this point, since they depend
         // on the derivative of S and this is available here at no additional cost.
@@ -60,7 +60,7 @@ impl GroundStateGradient for Monomer {
 
         // derivative of the gamma matrix and transform it in the same way to a 2D array
         let grad_gamma: Array2<f64> =
-            gamma_gradients_atomwise(&self.gammafunction, &self.atoms, self.n_atoms)
+            gamma_gradients_atomwise(&self.gammafunction, &atoms, self.n_atoms)
                 .into_shape([3 * self.n_atoms, self.n_atoms * self.n_atoms])
                 .unwrap();
 
@@ -74,7 +74,7 @@ impl GroundStateGradient for Monomer {
         // transform the expression Sum_c_in_X (gamma_AC + gamma_aC) * dq_C
         // into matrix of the dimension (norb, norb) to do an element wise multiplication with P
         let mut esp_mat: Array2<f64> =
-            atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms) * 0.5;
+            atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &atoms) * 0.5;
         let esp_x_p: Array1<f64> = (&p * &esp_mat)
             .into_shape([self.n_orbs * self.n_orbs])
             .unwrap();
@@ -111,7 +111,7 @@ impl GroundStateGradient for Monomer {
         gradient += &(grad_gamma.dot(&dq_x_dq) * 0.5);
 
         // last part: dV_rep / dR
-        gradient = gradient + gradient_v_rep(&self.atoms, &self.vrep);
+        gradient = gradient + gradient_v_rep(&atoms, &self.vrep);
 
         return gradient;
     }
@@ -158,7 +158,7 @@ impl GroundStateGradient for Monomer {
         // sum over mu where mu is on atom a
         let mut grad_dq: Array2<f64> = Array2::zeros([f, self.n_atoms]);
         let mut mu: usize = 0;
-        for (idx, atom) in self.atoms.iter().enumerate() {
+        for (idx, atom) in atoms.iter().enumerate() {
             for _ in atom.valorbs.iter() {
                 grad_dq
                     .slice_mut(s![.., idx])

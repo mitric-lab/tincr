@@ -38,7 +38,7 @@ impl SuperSystem {
                 .into_shape([3, mol.n_atoms, mol.n_atoms])
                 .unwrap();
             grad_dq
-                .slice_mut(s![mol.grad_slice])
+                .slice_mut(s![mol.slice.grad])
                 .assign(&diag_of_last_dimensions(mol_grad_dq, mol.n_atoms));
         }
 
@@ -71,20 +71,20 @@ impl SuperSystem {
                 .into_shape([3 * pair.n_atoms])
                 .unwrap();
 
-            gradient.slice_mut(s![m_i.grad_slice]).add_assign(
+            gradient.slice_mut(s![m_i.slice.grad]).add_assign(
                 &(&delta_dq_f.slice(s![..3 * m_i.n_atoms])
-                    * &(&grad_gamma_dot_dq.slice(s![m_i.grad_slice])
+                    * &(&grad_gamma_dot_dq.slice(s![m_i.slice.grad])
                         - &grad_gamma_sparse
-                            .slice(s![m_i.grad_slice, m_i.atom_slice])
-                            .dot(&dq.slice(s![m_i.atom_slice])))),
+                            .slice(s![m_i.slice.grad, m_i.slice.atom])
+                            .dot(&dq.slice(s![m_i.slice.atom])))),
             );
 
-            gradient.slice_mut(s![m_j.grad_slice]).add_assign(
+            gradient.slice_mut(s![m_j.slice.grad]).add_assign(
                 &(&delta_dq_f.slice(s![3 * m_i.n_atoms..])
-                    * &(&grad_gamma_dot_dq.slice(s![m_j.grad_slice])
+                    * &(&grad_gamma_dot_dq.slice(s![m_j.slice.grad])
                         - &grad_gamma_sparse
-                            .slice(s![m_j.grad_slice, m_j.atom_slice])
-                            .dot(&dq.slice(s![m_j.atom_slice])))),
+                            .slice(s![m_j.slice.grad, m_j.slice.atom])
+                            .dot(&dq.slice(s![m_j.slice.atom])))),
             );
 
             // the second term...
@@ -104,10 +104,10 @@ impl SuperSystem {
                 .unwrap();
             let gddq_esp: Array1<f64> = &grad_delta_dq * &esp_ij;
             gradient
-                .slice_mut(s![m_i.grad_slice])
+                .slice_mut(s![m_i.slice.grad])
                 .add_assign(&gddq_esp.slice(s![..3 * m_i.n_atoms]));
             gradient
-                .slice_mut(s![m_j.grad_slice])
+                .slice_mut(s![m_j.slice.grad])
                 .add_assign(&gddq_esp.slice(s![3 * m_i.n_atoms..]));
 
             // if the derivative is w.r.t to an atom that is not in this pair, a -> K where K != I,J
@@ -115,17 +115,17 @@ impl SuperSystem {
 
             // A in monomer I
             let mut dg_ddq: Array1<f64> = grad_gamma_sparse
-                .slice(s![0.., m_i.atom_slice])
+                .slice(s![0.., m_i.slice.atom])
                 .dot(&delta_dq.slice(s![..m_i.n_atoms]));
 
             // A in monomer J
             dg_ddq += &grad_gamma_sparse
-                .slice(s![0.., m_j.atom_slice])
+                .slice(s![0.., m_j.slice.atom])
                 .dot(&delta_dq.slice(s![m_i.n_atoms..]));
 
             // since K != I,J => the elements were K = I,J are set to zero
-            dg_ddq.slice_mut(s![m_i.grad_slice]).assign(&m_i_zeros);
-            dg_ddq.slice_mut(s![m_j.grad_slice]).assign(&m_j_zeros);
+            dg_ddq.slice_mut(s![m_i.slice.grad]).assign(&m_i_zeros);
+            dg_ddq.slice_mut(s![m_j.slice.grad]).assign(&m_j_zeros);
 
             gradient += &(&dg_ddq * &dq_f);
 
@@ -133,16 +133,16 @@ impl SuperSystem {
             // A in monomer I
             let mut ddq_gamma: Array1<f64> = delta_dq
                 .slice(s![..m_i.n_atoms])
-                .dot(&gamma.slice(s![m_i.atom_slice, 0..]));
+                .dot(&gamma.slice(s![m_i.slice.atom, 0..]));
 
             // A in monomer J
             ddq_gamma += &delta_dq
                 .slice(s![m_i.n_atoms..])
-                .dot(&gamma.slice(s![m_j.atom_slice, 0..]));
+                .dot(&gamma.slice(s![m_j.slice.atom, 0..]));
 
             // since K != I,J => the elements were K = I,J are set to zero
-            ddq_gamma.slice_mut(s![m_i.atom_slice]).assign(&m_i_zeros);
-            ddq_gamma.slice_mut(s![m_j.atom_slice]).assign(&m_j_zeros);
+            ddq_gamma.slice_mut(s![m_i.slice.atom]).assign(&m_i_zeros);
+            ddq_gamma.slice_mut(s![m_j.slice.atom]).assign(&m_j_zeros);
 
             // transform the Array into the shape of the gradients and multiply it with the derivative
             // of the charge (differences)

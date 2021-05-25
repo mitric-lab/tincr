@@ -17,7 +17,7 @@ pub use pair::*;
 
 pub trait GroundStateGradient {
     fn get_grad_dq(&self, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;
-    fn scc_gradient(&mut self) -> Array1<f64>;
+    fn scc_gradient(&mut self, atoms: &[Atom]) -> Array1<f64>;
 }
 
 impl SuperSystem {
@@ -35,7 +35,7 @@ impl SuperSystem {
         let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
         for mol in self.monomers.iter_mut() {
             gradient
-                .slice_mut(s![mol.grad_slice])
+                .slice_mut(s![mol.slice.grad])
                 .assign(&mol.scc_gradient());
         }
         return gradient;
@@ -51,11 +51,11 @@ impl SuperSystem {
             // compute the gradient of the pair
             let pair_grad: Array1<f64> = pair.scc_gradient();
             // subtract the monomer contributions and assemble it into the gradient
-            gradient.slice_mut(s![m_i.grad_slice]).add_assign(
-                &(&pair_grad.slice(s![0..m_i.n_atoms]) - &monomer_gradient.slice(s![m_i.grad_slice])),
+            gradient.slice_mut(s![m_i.slice.grad]).add_assign(
+                &(&pair_grad.slice(s![0..m_i.n_atoms]) - &monomer_gradient.slice(s![m_i.slice.grad])),
             );
-            gradient.slice_mut(s![m_j.grad_slice]).add_assign(
-                &(&pair_grad.slice(s![m_i.n_atoms..]) - &monomer_gradient.slice(s![m_j.grad_slice])),
+            gradient.slice_mut(s![m_j.slice.grad]).add_assign(
+                &(&pair_grad.slice(s![m_i.n_atoms..]) - &monomer_gradient.slice(s![m_j.slice.grad])),
             );
         }
         return gradient;

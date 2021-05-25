@@ -18,7 +18,7 @@ pub enum PairType {
 }
 
 /// Check if the monomers are close to each other or not.
-pub fn get_pair_type(monomer1: &Monomer, monomer2: &Monomer, vdw_scaling: f64) -> PairType {
+pub fn get_pair_type(mi_atoms: &[Atom], mj_atoms: &[Atom], vdw_scaling: f64) -> PairType {
     // Check if the shortest distance between two monomers is within the sum of the van-der-Waals
     // radii of the closest atom pair multiplied by a scaling factor. This threshold in terms of
     // DFTB was taken from https://pubs.acs.org/doi/pdf/10.1021/ct500489d (see page 4805).
@@ -27,8 +27,8 @@ pub fn get_pair_type(monomer1: &Monomer, monomer2: &Monomer, vdw_scaling: f64) -
     // For every atom we do a conversion from the u8 type usize. But it was checked and it
     // it does not seem to have a large effect on the performance.
     let mut kind: PairType = PairType::ESD;
-    'pair_loop: for atomi in monomer1.atoms.iter() {
-        for atomj in monomer2.atoms.iter() {
+    'pair_loop: for atomi in mi_atoms.iter() {
+        for atomj in mj_atoms.iter() {
             if (atomi - atomj).norm() < vdw_scaling * VDW_SUM[atomi.number as usize][atomj.number as usize] {
                 kind = PairType::Pair;
                 break 'pair_loop;
@@ -68,35 +68,18 @@ impl ESDPair {
 
 
 /// Type that holds a fragment pair that contains all data for the quantum chemical routines.
-/// For this type of pair full scc are implemented. This type is only used for FMO calculations.
-/// This type is a similar to the [Monomer] type that but holds some further properties that are
-/// specific to fragment pairs
+/// For this type of pair full scc are implemented. This type is only used for FMO calculations
+/// and is a similar to the [Monomer] type that but holds less properties.
 pub struct Pair {
     /// Index of the first monomer contained in the pair
     pub i: usize,
     /// Index of the second monomer contained in the pair
     pub j: usize,
-    /// Type that holds all the input settings from the user.
-    pub config: Configuration,
     /// Number of atoms
     pub n_atoms: usize,
     /// Number of atomic orbitals
     pub n_orbs: usize,
     /// Number of valence electrons
-    pub n_elec: usize,
-    /// Number of unpaired electrons (singlet -> 0, doublet -> 1, triplet -> 2)
-    pub n_unpaired: usize,
-    /// Vector with the data of the individual atoms that are stored as [Atom] type. This is not an
-    /// efficient solution because there are only a few [Atom] types and they are copied for each
-    /// atom in the molecule. However, to the best of the authors knowledge the self referential
-    /// structs are not trivial to implement in Rust. There are ways to do this by using crates like
-    /// `owning_ref`, `rental`, or `ouroboros` or by using the [Pin](std::marker::Pin) type. The other
-    /// crates does not fit exactly to our purpose and the [Pin](std::marker::Pin) requires a lot of
-    /// extra effort. The computational cost for the clones was measured to be on the order of
-    /// ~ 0.003 seconds (on a mac mini with M1) and to consume about 9 MB of memory for 20.000 [Atoms]
-    pub atoms: Vec<Atom>,
-    /// Type that stores the  coordinates and matrices that depend on the position of the atoms
-    pub geometry: Geometry,
     /// Type that holds the calculated properties e.g. gamma matrix, overlap matrix and so on.
     pub properties: Properties,
     /// Repulsive potential type. Type that contains the repulsion energy and its derivative
@@ -117,20 +100,11 @@ impl Add for &Monomer {
     type Output = Pair;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let coordinates: Array2<f64> = stack![Axis(0), self.geometry.coordinates.view(), rhs.geometry.coordinates.view()];
-        let geom: Geometry = Geometry::from(coordinates);
-        let mut atoms: Vec<Atom> = self.atoms.clone();
-        atoms.append(&mut rhs.atoms.clone());
         Self::Output{
             i: self.index,
             j: rhs.index,
-            config: self.config.clone(),
             n_atoms: self.n_atoms + rhs.n_atoms,
             n_orbs: self.n_orbs + rhs.n_orbs,
-            n_elec: self.n_elec + rhs.n_elec,
-            n_unpaired: self.n_unpaired + rhs.n_unpaired,
-            atoms,
-            geometry: geom,
             properties: Properties::new(),
             vrep: self.vrep.clone(),
             slako: self.slako.clone(),

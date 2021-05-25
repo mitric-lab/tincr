@@ -60,13 +60,13 @@ impl RestrictedSCC for SuperSystem {
             let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
             for (i, mol) in self.monomers.iter_mut().enumerate() {
                 let v_esp: Array2<f64> =
-                    atomvec_to_aomat(esp_at.slice(s![mol.atom_slice]), mol.n_orbs, &mol.atoms);
+                    atomvec_to_aomat(esp_at.slice(s![mol.slice.atom]), mol.n_orbs, &mol.atoms);
                 if !converged[i] {
                     println!("esp {}", &esp_at);
                     converged[i] = mol.scc_step(v_esp);
                 }
                 // save the dq's from the monomer calculation
-                dq.slice_mut(s![mol.atom_slice])
+                dq.slice_mut(s![mol.slice.atom])
                     .assign(&mol.properties.dq().unwrap());
             }
             let n_converged: usize = converged.iter().filter(|&n| *n == true).count();
@@ -85,18 +85,18 @@ impl RestrictedSCC for SuperSystem {
                 .properties
                 .gamma()
                 .unwrap()
-                .slice(s![mol.atom_slice, 0..])
+                .slice(s![mol.slice.atom, 0..])
                 .dot(&dq);
             esp_slice.sub_assign(
                 &self
                     .properties
                     .gamma()
                     .unwrap()
-                    .slice(s![mol.atom_slice, mol.atom_slice])
+                    .slice(s![mol.slice.atom, mol.slice.atom])
                     .dot(&mol.properties.dq().unwrap()),
             );
             // mol.properties
-            //     .set_esp_q(esp_at.slice(s![mol.atom_slice]).to_owned());
+            //     .set_esp_q(esp_at.slice(s![mol.slice.atom]).to_owned());
             mol.properties.set_esp_q(esp_slice);
         }
         // SCC iteration for each pair that is treated exact
@@ -136,14 +136,14 @@ impl RestrictedSCC for SuperSystem {
                 .properties
                 .gamma()
                 .unwrap()
-                .slice(s![m_i.atom_slice, m_j.atom_slice])
+                .slice(s![m_i.slice.atom, m_j.slice.atom])
                 .dot(&m_j.properties.dq().unwrap())
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![..m_i.n_atoms]));
             embedding -= self
                 .properties
                 .gamma()
                 .unwrap()
-                .slice(s![m_j.atom_slice, m_i.atom_slice])
+                .slice(s![m_j.slice.atom, m_i.slice.atom])
                 .dot(&m_i.properties.dq().unwrap())
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
             println!("ddq {}", &pair.properties.delta_dq().unwrap());
@@ -161,7 +161,7 @@ impl RestrictedSCC for SuperSystem {
                         .properties
                         .gamma()
                         .unwrap()
-                        .slice(s![m_i.atom_slice, m_j.atom_slice]),
+                        .slice(s![m_i.slice.atom, m_j.slice.atom]),
                 )
                 .dot(&m_j.properties.dq().unwrap());
         }

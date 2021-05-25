@@ -1,19 +1,20 @@
-use crate::fmo::fragmentation::{Graph, build_graph, fragmentation};
-use crate::fmo::{Monomer, Pair, ESDPair, get_pair_type, PairType};
+use crate::fmo::fragmentation::{build_graph, fragmentation, Graph};
+use crate::fmo::helpers::MolecularSlice;
+use crate::fmo::{get_pair_type, ESDPair, Monomer, Pair, PairType};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::initialization::{
     get_unique_atoms, initialize_gamma_function, Atom, Geometry, Properties,
 };
-use crate::io::{frame_to_coordinates, Configuration, read_file_to_frame, frame_to_atoms};
+use crate::io::{frame_to_atoms, frame_to_coordinates, read_file_to_frame, Configuration};
 use crate::param::elements::Element;
 use crate::scc::gamma_approximation;
-use crate::scc::gamma_approximation::{GammaFunction, gamma_atomwise};
-use chemfiles::Frame;
-use ndarray::prelude::*;
-use hashbrown::HashMap;
-use itertools::Itertools;
+use crate::scc::gamma_approximation::{gamma_atomwise, GammaFunction};
 use crate::utils::Timer;
+use chemfiles::Frame;
+use hashbrown::HashMap;
+use itertools::{sorted, Itertools};
 use log::info;
+use ndarray::prelude::*;
 use std::hash::Hash;
 
 pub struct SuperSystem {
@@ -46,31 +47,38 @@ impl From<(Frame, Configuration)> for SuperSystem {
     /// Creates a new [SuperSystem] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
     fn from(input: (Frame, Configuration)) -> Self {
+        // Measure the time for the building of the struct
         let timer: Timer = Timer::start();
-        // get all [Atom]s from the Frame and also a HashMap with the unique atoms
+
+        // Get all [Atom]s from the Frame and also a HashMap with the unique atoms
         let (atoms, unique_atoms): (Vec<Atom>, Vec<Atom>) = frame_to_atoms(input.0);
-        // get the number of unpaired electrons from the input option
+
+        // Get the number of unpaired electrons from the input option
         let n_unpaired: usize = match input.1.mol.multiplicity {
             1u8 => 0,
             2u8 => 1,
             3u8 => 2,
             _ => panic!("The specified multiplicity is not implemented"),
         };
-        // Create an empty Geometry
-        let geom: Geometry = Geometry::new();
-        // Create a new and empty Properties type
+
+        // Create a new Properties type, which is empty
         let mut properties: Properties = Properties::new();
+
+        // and initialize the SlaterKoster and RepulsivePotential Tables
         let mut slako: SlaterKoster = SlaterKoster::new();
         let mut vrep: RepulsivePotential = RepulsivePotential::new();
-        // add all unique element pairs
+
+        // Find all unique pairs of atom and fill in the SK and V-Rep tables
         let element_iter = unique_atoms.iter().map(|atom| Element::from(atom.number));
         for (kind1, kind2) in element_iter.clone().cartesian_product(element_iter) {
             slako.add(kind1, kind2);
             vrep.add(kind1, kind2);
         }
 
+        // Initialize the unscreened Gamma function -> r_lr == 0.00
         let gf: GammaFunction = initialize_gamma_function(&unique_atoms, 0.0);
-        // initialize the gamma function for long-range correction if it is requested
+
+        // Initialize the screened gamma function only if LRC is requested
         let gf_lc: Option<GammaFunction> = if input.1.lc.long_range_correction {
             Some(initialize_gamma_function(
                 &unique_atoms,
@@ -80,62 +88,86 @@ impl From<(Frame, Configuration)> for SuperSystem {
             None
         };
 
+        // Get all [Atom]s of the SuperSystem in a sorted order that corresponds to the order of
+        // the monomers
+        let mut sorted_atoms: Vec<Atom> = Vec::with_capacity(atoms.len());
+
+        // Build a connectivity graph to distinguish the individual monomers from each other
         let graph: Graph = build_graph(atoms.len(), &atoms);
+
+        // Here does the fragmentation happens
         let monomer_indices: Vec<Vec<usize>> = fragmentation(&graph);
-        println!("len () {}", monomer_indices.len());
+
+        // Vec that stores all [Monomer]s
         let mut monomers: Vec<Monomer> = Vec::with_capacity(monomer_indices.len());
+
+        // The [Monomer]s are initialized
         // PARALLEL: this loop should be parallelized
         let mut at_counter: usize = 0;
         let mut orb_counter: usize = 0;
         for (idx, indices) in monomer_indices.into_iter().enumerate() {
-            let monomer_atoms: Vec<Atom> = indices.into_iter().map(|i| atoms[i].clone()).collect();
-            let current_monomer = Monomer::new(
-                input.1.clone(),
-                monomer_atoms,
-                idx,
-                at_counter,
-                orb_counter,
-                slako.clone(),
-                vrep.clone(),
-                gf.clone(),
-                gf_lc.clone(),
-            );
+
+            // Clone the atoms that belong to this monomer, they will be stored in the sorted list
+            let mut monomer_atoms: Vec<Atom> =
+                indices.into_iter().map(|i| atoms[i].clone()).collect();
+
+            // Count the number of orbitals
+            let m_n_orbs: usize = monomer_atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
+
+            // Create the slices for the atoms, grads and orbitals
+            let m_slice: MolecularSlice =
+                MolecularSlice::new(at_counter, monomer_atoms.len(), orb_counter, m_n_orbs);
+
+            // Create the Monomer object
+            let current_monomer = Monomer {
+                n_atoms: monomer_atoms.len(),
+                n_orbs: m_n_orbs,
+                index: idx,
+                slice: m_slice,
+                properties: Properties::new(),
+                vrep: vrep.clone(),
+                slako: slako.clone(),
+                gammafunction: gf.clone(),
+                gammafunction_lc: gf_lc.clone(),
+            };
+
+            // Increment the counter
             at_counter += current_monomer.n_atoms;
             orb_counter += current_monomer.n_orbs;
-            monomers.push(current_monomer);
-        }
-        // get all the [Atom]s for the SuperSystem. They are just copied from the individual monomers.
-        // This ensures that they are also grouped for each monomer and are in the same order
-        let mut atoms: Vec<Atom> = Vec::with_capacity(atoms.len());
-        monomers.iter().for_each(|monomer| {
-            monomer
-                .atoms
-                .iter()
-                .for_each(|atom| atoms.push(atom.clone()))
-        });
-        // calculate the number of atomic orbitals for the whole system as the sum of the monomer
-        // number of orbitals
-        let n_orbs: usize = monomers.iter().fold(0, |n, monomer| n + monomer.n_orbs);
-        // calculate the number of electrons
-        let n_elec: usize = monomers.iter().fold(0, |n, monomer| n + monomer.n_elec);
 
-        // Compute the gamma function between all atoms if it is requested in the user input
+            // Save the Monomer
+            monomers.push(current_monomer);
+
+            // Save the Atoms from the current Monomer
+            sorted_atoms.append(&mut monomer_atoms);
+        }
+        // Rename the sorted atoms
+        let atoms: Vec<Atom> = sorted_atoms;
+
+        // Calculate the number of atomic orbitals for the whole system as the sum of the monomer
+        // number of orbitals
+        let n_orbs: usize = orb_counter;
+
+        // Compute the Gamma function between all atoms if it is requested in the user input
         // TODO: Insert a input option for this choice
         if true {
             properties.set_gamma(gamma_atomwise(&gf, &atoms, atoms.len()));
         }
 
+        // Initialize the close pairs and the ones that are treated within the ES-dimer approx
         let mut pairs: Vec<Pair> = Vec::new();
         let mut esd_pairs: Vec<ESDPair> = Vec::new();
-        // the construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after
+        // The construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after
         // each monomer
         // TODO: Read the vdw scaling parameter from the input file instead of setting hard to 2.0
         // PARALLEL: this loop should be parallelized
-        for (i, monomer_i) in monomers.iter().enumerate() {
-            for (j, monomer_j) in monomers[(i+1)..].iter().enumerate() {
-                match get_pair_type(monomer_i, monomer_j, 1.8) {
-                    PairType::Pair => pairs.push(monomer_i + monomer_j),
-                    PairType::ESD => esd_pairs.push(ESDPair::new(i, (i+j+1), monomer_i, monomer_j)),
+        for (i, m_i) in monomers.iter().enumerate() {
+            for (j, m_j) in monomers[(i + 1)..].iter().enumerate() {
+                match get_pair_type(&atoms[m_i.slice.atom], &atoms[m_j.slice.atom], 1.8) {
+                    PairType::Pair => pairs.push(m_i + m_j),
+                    PairType::ESD => {
+                        esd_pairs.push(ESDPair::new(i, (i + j + 1), m_i, m_j))
+                    }
                     _ => {}
                 }
             }
@@ -156,7 +188,6 @@ impl From<(Frame, Configuration)> for SuperSystem {
         }
     }
 }
-
 
 impl From<(&str, Configuration)> for SuperSystem {
     /// Creates a new [SuperSystem] from a &str and

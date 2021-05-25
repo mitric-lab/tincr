@@ -4,6 +4,7 @@ use crate::fmo::scc::logging;
 use ndarray::prelude::*;
 use crate::scc::get_repulsive_energy;
 use std::ops::SubAssign;
+use crate::initialization::Atom;
 
 
 impl SuperSystem {
@@ -22,13 +23,13 @@ impl SuperSystem {
             let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
             for (i, mol) in self.monomers.iter_mut().enumerate() {
                 let v_esp: Array2<f64> =
-                    atomvec_to_aomat(esp_at.slice(s![mol.atom_slice]), mol.n_orbs, &mol.atoms);
+                    atomvec_to_aomat(esp_at.slice(s![mol.slice.atom]), mol.n_orbs, &mol.atoms);
                 if !converged[i] {
                     println!("esp {}", &esp_at);
-                    converged[i] = mol.scc_step(&self.atoms[mol.atom_slice], v_esp);
+                    converged[i] = mol.scc_step(&self.atoms[mol.slice.atom_as_range()], v_esp);
                 }
                 // save the dq's from the monomer calculation
-                dq.slice_mut(s![mol.atom_slice])
+                dq.slice_mut(s![mol.slice.atom])
                     .assign(&mol.properties.dq().unwrap());
             }
             let n_converged: usize = converged.iter().filter(|&n| *n == true).count();
@@ -58,18 +59,18 @@ impl SuperSystem {
                 .properties
                 .gamma()
                 .unwrap()
-                .slice(s![mol.atom_slice, 0..])
+                .slice(s![mol.slice.atom, 0..])
                 .dot(&dq);
             esp_slice.sub_assign(
                 &self
                     .properties
                     .gamma()
                     .unwrap()
-                    .slice(s![mol.atom_slice, mol.atom_slice])
+                    .slice(s![mol.slice.atom, mol.slice.atom])
                     .dot(&mol.properties.dq().unwrap()),
             );
             // mol.properties
-            //     .set_esp_q(esp_at.slice(s![mol.atom_slice]).to_owned());
+            //     .set_esp_q(esp_at.slice(s![mol.slice.atom]).to_owned());
             mol.properties.set_esp_q(esp_slice);
         }
         // the final scc energy of all pairs. the energies of the corresponding monomers will be
@@ -78,13 +79,22 @@ impl SuperSystem {
 
         // SCC iteration for each pair that is treated exact
         for pair in self.pairs.iter_mut() {
-            pair.prepare_scc(&self.monomers[pair.i], &self.monomers[pair.j]);
-            // do the SCC iterations
-            pair.run_scc();
 
-            // and compute the SCC energy
+            // Get references to the corresponding monomers
             let m_i: &Monomer = &self.monomers[pair.i];
             let m_j: &Monomer = &self.monomers[pair.j];
+
+            // The atoms are in general a non-contiguous range of the atoms
+            let pair_atoms: Vec<Atom> = self.atoms[m_i.slice.atom_as_range()]
+                .clone()
+                .append(self.atoms[m_j.slice.atom_as_range()].clone());
+
+            pair.prepare_scc(&*pair_atoms, m_i, m_j);
+
+            // do the SCC iterations
+            pair.run_scc(&*pair_atoms);
+
+            // and compute the SCC energy
             pair_energies += pair.properties.last_energy().unwrap()
                 - m_i.properties.last_energy().unwrap()
                 - m_j.properties.last_energy().unwrap();
@@ -112,14 +122,14 @@ impl SuperSystem {
                 .properties
                 .gamma()
                 .unwrap()
-                .slice(s![m_i.atom_slice, m_j.atom_slice])
+                .slice(s![m_i.slice.atom, m_j.slice.atom])
                 .dot(&m_j.properties.dq().unwrap())
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![..m_i.n_atoms]));
             embedding -= self
                 .properties
                 .gamma()
                 .unwrap()
-                .slice(s![m_j.atom_slice, m_i.atom_slice])
+                .slice(s![m_j.slice.atom, m_i.slice.atom])
                 .dot(&m_i.properties.dq().unwrap())
                 .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
         }
@@ -140,7 +150,7 @@ impl SuperSystem {
                         .properties
                         .gamma()
                         .unwrap()
-                        .slice(s![m_i.atom_slice, m_j.atom_slice]),
+                        .slice(s![m_i.slice.atom, m_j.slice.atom]),
                 )
                 .dot(&m_j.properties.dq().unwrap());
         }
