@@ -6,6 +6,7 @@ use std::ops::{Neg, Sub};
 use soa_derive::StructOfArray;
 use std::cmp::Ordering;
 use nalgebra::Vector3;
+use ndarray::prelude::*;
 
 /// `Atom` type that contains basic information about the chemical element as well as the
 /// data used for the semi-empirical parameters that are used in the DFTB calculations.
@@ -88,9 +89,15 @@ impl From<Element> for Atom {
 }
 
 impl Atom {
-    pub fn set_position(&mut self, position: &[f64]) {
+    pub fn position_from_slice(&mut self, position: &[f64]) {
         self.xyz = Vector3::from_iterator(position.iter().cloned());
     }
+
+    pub fn position_from_ndarray(&mut self, position: Array1<f64>) {
+        let xyz: Vector3<f64> = nalgebra::Matrix::from_vec_generic(nalgebra::Const::<3>, nalgebra::Const::<1>, position.into_raw_vec());
+        self.xyz = xyz;
+    }
+
 }
 
 impl From<&str> for Atom {

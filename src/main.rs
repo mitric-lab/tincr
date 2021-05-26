@@ -57,7 +57,7 @@ fn main() {
         )
         .get_matches();
 
-    let log_level: LevelFilter = match 0 {
+    let log_level: LevelFilter = match -2 {
         2 => LevelFilter::Trace,
         1 => LevelFilter::Debug,
         0 => LevelFilter::Info,
@@ -99,7 +99,8 @@ fn main() {
     let mut system = SuperSystem::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
-    let result = system.run_scc();
+    let result = system.test_monomer_gradient();
+    let result = system.test_embedding_gradient();
     println!("Grad {:?}", system.ground_state_gradient());
 
     info!("{}", timer);

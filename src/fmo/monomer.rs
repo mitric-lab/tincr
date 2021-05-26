@@ -11,6 +11,7 @@ use crate::fmo::helpers::MolecularSlice;
 
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
+///
 /// This type is only used for FMO calculations. This type is a similar to the [System] type that
 /// is used in non-FMO calculations
 pub struct Monomer {

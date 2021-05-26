@@ -49,7 +49,6 @@ impl RestrictedSCC for SuperSystem {
             .for_each(|mol: &mut Monomer| {
                 mol.prepare_scc(&atoms[mol.slice.atom_as_range()]);
             });
-        println!("FINISHED");
     }
 
     fn run_scc(&mut self) -> Result<f64, SCCError> {

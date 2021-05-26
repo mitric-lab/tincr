@@ -69,7 +69,7 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         let mut atoms: Vec<Atom> = Vec::with_capacity(molecule.0.len());
         molecule.0.iter().for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
         // set the positions for each atom
-        molecule.1.outer_iter().enumerate().for_each(|(idx, position)| atoms[idx].set_position(position.as_slice().unwrap()));
+        molecule.1.outer_iter().enumerate().for_each(|(idx, position)| atoms[idx].position_from_slice(position.as_slice().unwrap()));
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
         // get the number of unpaired electrons from the input option

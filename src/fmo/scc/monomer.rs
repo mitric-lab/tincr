@@ -10,6 +10,7 @@ use crate::scc::{density_matrix_ref, lc_exact_exchange, density_matrix, get_repu
 use crate::scc::mixer::{BroydenMixer, Mixer};
 use crate::scc::mulliken::mulliken;
 use crate::initialization::Atom;
+use crate::io::SccConfig;
 
 
 impl Monomer {
@@ -30,9 +31,13 @@ impl Monomer {
         let gamma: Array2<f64> = gamma_atomwise(&self.gammafunction, &atoms, self.n_atoms);
         // and save it as a `Property`
         self.properties.set_gamma(gamma);
+
+        // calculate the number of electrons
+        let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
+
         // occupation is determined by Aufbau principle and no electronic temperature is considered
         let f: Vec<f64> = (0..self.n_orbs)
-            .map(|idx| if idx < self.n_elec / 2 { 2.0 } else { 0.0 })
+            .map(|idx| if idx < n_elec / 2 { 2.0 } else { 0.0 })
             .collect();
         self.properties.set_occupation(f);
 
@@ -69,9 +74,9 @@ impl Monomer {
     }
 
     //pub fn scc_step(&mut self) -> bool {
-    pub fn scc_step(&mut self, atoms: &[Atom], v_esp: Array2<f64>) -> bool {
-        let scf_charge_conv: f64 = self.config.scf.scf_charge_conv;
-        let scf_energy_conv: f64 = self.config.scf.scf_energy_conv;
+    pub fn scc_step(&mut self, atoms: &[Atom], v_esp: Array2<f64>, config: SccConfig) -> bool {
+        let scf_charge_conv: f64 = config.scf_charge_conv;
+        let scf_energy_conv: f64 = config.scf_energy_conv;
         let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
         let mut mixer: BroydenMixer = self.properties.take_mixer().unwrap();
         let x: ArrayView2<f64> = self.properties.x().unwrap();

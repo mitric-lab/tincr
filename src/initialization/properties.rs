@@ -20,7 +20,7 @@ impl Properties {
             "H0",
             "S",
             "X",
-            "P",
+            //"P",
             "gradH0",
             "gradS",
             "gamma_atom_wise",

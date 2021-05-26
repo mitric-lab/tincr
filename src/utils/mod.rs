@@ -1,5 +1,5 @@
 mod zbrent;
-mod array_helper;
+pub(crate) mod array_helper;
 mod tests;
 
 pub use array_helper::ToOwnedF;

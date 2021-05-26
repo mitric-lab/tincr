@@ -5,6 +5,8 @@ use ndarray::prelude::*;
 use crate::scc::get_repulsive_energy;
 use std::ops::SubAssign;
 use crate::initialization::Atom;
+use crate::fmo::helpers::get_pair_slice;
+use std::sync::atomic::AtomicBool;
 
 
 impl SuperSystem {
@@ -15,6 +17,7 @@ impl SuperSystem {
         // charge differences of all atoms. these are needed to compute the electrostatic potential
         // that acts on the monomers.
         let mut dq: Array1<f64> = Array1::zeros([self.atoms.len()]);
+
         // charge consistent loop for the monomers
         'scf_loop: for iter in 0..max_iter {
             // the matrix vector product of the gamma matrix for all atoms and the charge differences
@@ -23,10 +26,9 @@ impl SuperSystem {
             let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
             for (i, mol) in self.monomers.iter_mut().enumerate() {
                 let v_esp: Array2<f64> =
-                    atomvec_to_aomat(esp_at.slice(s![mol.slice.atom]), mol.n_orbs, &mol.atoms);
+                    atomvec_to_aomat(esp_at.slice(s![mol.slice.atom]), mol.n_orbs, &self.atoms[mol.slice.atom_as_range()]);
                 if !converged[i] {
-                    println!("esp {}", &esp_at);
-                    converged[i] = mol.scc_step(&self.atoms[mol.slice.atom_as_range()], v_esp);
+                    converged[i] = mol.scc_step(&self.atoms[mol.slice.atom_as_range()], v_esp, self.config.scf);
                 }
                 // save the dq's from the monomer calculation
                 dq.slice_mut(s![mol.slice.atom])
@@ -42,7 +44,7 @@ impl SuperSystem {
         let mut monomer_energies: f64 = 0.0;
         for mol in self.monomers.iter_mut() {
             let scf_energy: f64 =  mol.properties.last_energy().unwrap();
-            let e_rep: f64 = get_repulsive_energy(&mol.atoms, mol.n_atoms, &mol.vrep);
+            let e_rep: f64 = get_repulsive_energy(&self.atoms[mol.slice.atom_as_range()], mol.n_atoms, &mol.vrep);
             mol.properties.set_last_energy(scf_energy + e_rep);
             monomer_energies += scf_energy + e_rep;
         }
@@ -77,6 +79,7 @@ impl SuperSystem {
         // subtracted from this energy
         let mut pair_energies: f64 = 0.0;
 
+        let atoms: &[Atom] = &self.atoms[..];
         // SCC iteration for each pair that is treated exact
         for pair in self.pairs.iter_mut() {
 
@@ -85,14 +88,11 @@ impl SuperSystem {
             let m_j: &Monomer = &self.monomers[pair.j];
 
             // The atoms are in general a non-contiguous range of the atoms
-            let pair_atoms: Vec<Atom> = self.atoms[m_i.slice.atom_as_range()]
-                .clone()
-                .append(self.atoms[m_j.slice.atom_as_range()].clone());
-
-            pair.prepare_scc(&*pair_atoms, m_i, m_j);
+            let pair_atoms: Vec<Atom> = get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
+            pair.prepare_scc(&pair_atoms[..], m_i, m_j);
 
             // do the SCC iterations
-            pair.run_scc(&*pair_atoms);
+            pair.run_scc(&*pair_atoms, self.config.scf);
 
             // and compute the SCC energy
             pair_energies += pair.properties.last_energy().unwrap()

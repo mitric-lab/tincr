@@ -1,6 +1,6 @@
 mod supersystem;
 mod pair;
-mod fragment;
+mod monomer;
 mod fragmentation;
 //pub(crate) mod fmo_gradient;
 pub(crate) mod gradients;
@@ -8,7 +8,7 @@ mod scc;
 mod helpers;
 
 pub use gradients::*;
-pub use fragment::*;
+pub use monomer::*;
 pub use pair::*;
 pub use supersystem::*;
 pub use fragmentation::*;

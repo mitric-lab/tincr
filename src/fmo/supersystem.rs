@@ -16,6 +16,8 @@ use itertools::{sorted, Itertools};
 use log::info;
 use ndarray::prelude::*;
 use std::hash::Hash;
+use std::result::IntoIter;
+use std::vec;
 
 pub struct SuperSystem {
     /// Type that holds all the input settings from the user.
@@ -35,8 +37,6 @@ pub struct SuperSystem {
     pub esd_pairs: Vec<ESDPair>,
     /// Type that can hold calculated properties e.g. gamma matrix for the whole FMO system
     pub properties: Properties,
-    /// Type that stores the coordinates of the whole FMO system
-    pub geometry: Geometry,
     /// Type of Gamma function. This can be either `Gaussian` or `Slater` type.
     pub gammafunction: GammaFunction,
     /// Gamma function for the long-range correction. Only used if long-range correction is requested
@@ -94,7 +94,6 @@ impl From<(Frame, Configuration)> for SuperSystem {
 
         // Build a connectivity graph to distinguish the individual monomers from each other
         let graph: Graph = build_graph(atoms.len(), &atoms);
-
         // Here does the fragmentation happens
         let monomer_indices: Vec<Vec<usize>> = fragmentation(&graph);
 
@@ -106,7 +105,6 @@ impl From<(Frame, Configuration)> for SuperSystem {
         let mut at_counter: usize = 0;
         let mut orb_counter: usize = 0;
         for (idx, indices) in monomer_indices.into_iter().enumerate() {
-
             // Clone the atoms that belong to this monomer, they will be stored in the sorted list
             let mut monomer_atoms: Vec<Atom> =
                 indices.into_iter().map(|i| atoms[i].clone()).collect();
@@ -163,11 +161,13 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // PARALLEL: this loop should be parallelized
         for (i, m_i) in monomers.iter().enumerate() {
             for (j, m_j) in monomers[(i + 1)..].iter().enumerate() {
-                match get_pair_type(&atoms[m_i.slice.atom], &atoms[m_j.slice.atom], 1.8) {
+                match get_pair_type(
+                    &atoms[m_i.slice.atom_as_range()],
+                    &atoms[m_j.slice.atom_as_range()],
+                    1.8,
+                ) {
                     PairType::Pair => pairs.push(m_i + m_j),
-                    PairType::ESD => {
-                        esd_pairs.push(ESDPair::new(i, (i + j + 1), m_i, m_j))
-                    }
+                    PairType::ESD => esd_pairs.push(ESDPair::new(i, (i + j + 1), m_i, m_j)),
                     _ => {}
                 }
             }
@@ -179,7 +179,6 @@ impl From<(Frame, Configuration)> for SuperSystem {
             atoms: atoms,
             n_mol: monomers.len(),
             monomers: monomers,
-            geometry: geom,
             properties: properties,
             gammafunction: gf,
             gammafunction_lc: gf_lc,
@@ -195,5 +194,30 @@ impl From<(&str, Configuration)> for SuperSystem {
     fn from(filename_and_config: (&str, Configuration)) -> Self {
         let frame: Frame = read_file_to_frame(filename_and_config.0);
         Self::from((frame, filename_and_config.1))
+    }
+}
+
+impl SuperSystem {
+    pub fn update_xyz(&mut self, coordinates: Array1<f64>) {
+        let coordinates: Array2<f64> = coordinates.into_shape([self.atoms.len(), 3]).unwrap();
+        // TODO: The IntoIterator trait was released for ndarray 0.15. The dependencies should be
+        // updated, so that this can be used. At the moment of writing ndarray-linalg is not yet
+        // compatible with ndarray 0.15x
+        // PARALLEL
+        for (atom, xyz) in self.atoms
+            .iter_mut()
+            .zip(coordinates.outer_iter()){
+            atom.position_from_ndarray(xyz.to_owned());
+        }
+            //.for_each(|(atom, xyz)| atom.position_from_ndarray(xyz.to_owned()))
+    }
+
+    pub fn get_xyz(&self) -> Array1<f64> {
+        let xyz_list: Vec<Vec<f64>> = self
+            .atoms
+            .iter()
+            .map(|atom| atom.xyz.iter().cloned().collect())
+            .collect();
+        Array1::from_shape_vec((3 * self.atoms.len()), itertools::concat(xyz_list)).unwrap()
     }
 }

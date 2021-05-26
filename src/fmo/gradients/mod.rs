@@ -10,13 +10,15 @@ use std::ops::AddAssign;
 mod embedding;
 mod monomer;
 mod pair;
+mod numerical;
 // mod numerical;
 
 pub use monomer::*;
 pub use pair::*;
+use crate::fmo::helpers::get_pair_slice;
 
 pub trait GroundStateGradient {
-    fn get_grad_dq(&self, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;
+    fn get_grad_dq(&self, atoms: &[Atom], grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;
     fn scc_gradient(&mut self, atoms: &[Atom]) -> Array1<f64>;
 }
 
@@ -33,29 +35,33 @@ impl SuperSystem {
 
     fn monomer_gradients(&mut self) -> Array1<f64> {
         let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
+        let atoms: &[Atom] = &self.atoms[..];
         for mol in self.monomers.iter_mut() {
             gradient
                 .slice_mut(s![mol.slice.grad])
-                .assign(&mol.scc_gradient());
+                .assign(&mol.scc_gradient(&atoms[mol.slice.atom_as_range()]));
         }
         return gradient;
     }
 
     fn pair_gradients(&mut self, monomer_gradient: ArrayView1<f64>) -> Array1<f64> {
         let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
+        let atoms: &[Atom] = &self.atoms[..];
         for pair in self.pairs.iter_mut() {
             // get references to the corresponding monomers
             let m_i: &Monomer = &self.monomers[pair.i];
             let m_j: &Monomer = &self.monomers[pair.j];
 
+
+            let pair_atoms: Vec<Atom> = get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
             // compute the gradient of the pair
-            let pair_grad: Array1<f64> = pair.scc_gradient();
+            let pair_grad: Array1<f64> = pair.scc_gradient(&pair_atoms[..]);
             // subtract the monomer contributions and assemble it into the gradient
             gradient.slice_mut(s![m_i.slice.grad]).add_assign(
-                &(&pair_grad.slice(s![0..m_i.n_atoms]) - &monomer_gradient.slice(s![m_i.slice.grad])),
+                &(&pair_grad.slice(s![0..(3*m_i.n_atoms)]) - &monomer_gradient.slice(s![m_i.slice.grad])),
             );
             gradient.slice_mut(s![m_j.slice.grad]).add_assign(
-                &(&pair_grad.slice(s![m_i.n_atoms..]) - &monomer_gradient.slice(s![m_j.slice.grad])),
+                &(&pair_grad.slice(s![(3*m_i.n_atoms)..]) - &monomer_gradient.slice(s![m_j.slice.grad])),
             );
         }
         return gradient;

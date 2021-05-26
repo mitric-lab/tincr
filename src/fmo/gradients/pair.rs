@@ -45,7 +45,7 @@ impl GroundStateGradient for Pair {
         // the derivatives of the charge (difference)s are computed at this point, since they depend
         // on the derivative of S and this is available here at no additional cost.
         let p: ArrayView2<f64> = self.properties.p().unwrap();
-        let grad_dq: Array2<f64> = self.get_grad_dq(grad_s.view(), p.view());
+        let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, grad_s.view(), p.view());
         self.properties.set_grad_dq(grad_dq);
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
@@ -120,7 +120,7 @@ impl GroundStateGradient for Pair {
     /// monomer. This means that the first dimension of the Array is the degree of freedom and the
     /// second dimension is the atom on which the charge resides.
     /// [1]: [J. Chem. Theory Comput. 2014, 10, 4801−4812](https://pubs.acs.org/doi/pdf/10.1021/ct500489d)
-    fn get_grad_dq(&self, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64> {
+    fn get_grad_dq(&self, atoms: &[Atom], grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64> {
         // get the shape of the derivative of S, it should be [f, n_orb, n_orb], where f = 3 * n_atoms
         let (f, n_orb, _): (usize, usize, usize) = grad_s.dim();
 

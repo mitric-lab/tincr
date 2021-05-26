@@ -43,7 +43,7 @@ pub fn frame_to_atoms(frame: Frame) -> (Vec<Atom>, Vec<Atom>) {
             unique_atoms.push(Atom::from(number));
         }
         let mut atom: Atom = unique_atoms_map.get(&number).unwrap().clone();
-        atom.set_position(&frame.positions()[i]);
+        atom.position_from_slice(&frame.positions()[i]);
         // Convert angstrom to bohr. Assert that the coordinates are given in Angstrom
         atom.xyz /= BOHR_TO_ANGS;
         atoms.push(atom);

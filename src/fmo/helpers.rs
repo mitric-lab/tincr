@@ -1,5 +1,19 @@
+use crate::fmo::SuperSystem;
+use crate::initialization::Atom;
 use ndarray::Slice;
 use std::ops::Range;
+
+
+/// The atoms in the pair are two blocks in the Vec<Atom>, but these two blocks are in general not
+/// connected. Since non-contiguous views of data structures are not trivial, the blocks are just
+/// sliced individually and then appended afterwards.
+pub fn get_pair_slice(atoms: &[Atom], mi_range: Range<usize>, mj_range: Range<usize>) -> Vec<Atom> {
+    atoms[mi_range]
+        .iter()
+        .map(|x| x.clone())
+        .chain(atoms[mj_range].iter().map(|x| x.clone()))
+        .collect()
+}
 
 /// Type that holds different Slices that are frequently used for indexing of molecular subunits
 pub struct MolecularSlice {
@@ -15,12 +29,12 @@ pub struct MolecularSlice {
 }
 
 impl MolecularSlice {
-    pub fn new(at_index: usize, n_atoms: usize, orb_index:usize, n_orb: usize) -> Self {
-        MolecularSlice{
-            atom: Slice::from(at_index..(at_index+n_atoms)),
-            atom_range: at_index..(at_index+n_atoms),
-            grad: Slice::from((at_index*3)..(at_index+n_atoms)*3),
-            orb: Slice::from(orb_index..(orb_index+n_orbs))
+    pub fn new(at_index: usize, n_atoms: usize, orb_index: usize, n_orbs: usize) -> Self {
+        MolecularSlice {
+            atom: Slice::from(at_index..(at_index + n_atoms)),
+            atom_range: at_index..(at_index + n_atoms),
+            grad: Slice::from((at_index * 3)..(at_index + n_atoms) * 3),
+            orb: Slice::from(orb_index..(orb_index + n_orbs)),
         }
     }
 

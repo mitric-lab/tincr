@@ -10,6 +10,7 @@ use crate::scc::{density_matrix_ref, lc_exact_exchange, density_matrix, get_repu
 use crate::scc::mixer::{BroydenMixer, Mixer};
 use crate::scc::mulliken::mulliken;
 use crate::initialization::Atom;
+use crate::io::SccConfig;
 
 impl Pair {
     pub fn prepare_scc(&mut self, atoms: &[Atom], m1: &Monomer, m2: &Monomer) {
@@ -83,9 +84,12 @@ impl Pair {
         let atomic_numbers: Vec<u8> = atoms.iter().map(|atom| atom.number).collect();
         self.properties.set_atomic_numbers(atomic_numbers);
 
+        // calculate the number of electrons
+        let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
+
         // occupation is determined by Aufbau principle and no electronic temperature is considered
         let f: Vec<f64> = (0..self.n_orbs)
-            .map(|idx| if idx < self.n_elec / 2 { 2.0 } else { 0.0 })
+            .map(|idx| if idx < n_elec / 2 { 2.0 } else { 0.0 })
             .collect();
         self.properties.set_occupation(f);
 
@@ -124,10 +128,10 @@ impl Pair {
         }
     }
 
-    pub fn run_scc(&mut self, atoms: &[Atom]) {
-        let scf_charge_conv: f64 = self.config.scf.scf_charge_conv;
-        let scf_energy_conv: f64 = self.config.scf.scf_energy_conv;
-        let max_iter: usize = self.config.scf.scf_max_cycles;
+    pub fn run_scc(&mut self, atoms: &[Atom], config: SccConfig) {
+        let scf_charge_conv: f64 = config.scf_charge_conv;
+        let scf_energy_conv: f64 = config.scf_energy_conv;
+        let max_iter: usize = config.scf_max_cycles;
         // Create a copy of the dq's as they will be used later for the calculation of the
         // Delta dq
         let mut dq: Array1<f64> = self.properties.dq().unwrap().to_owned();
@@ -201,11 +205,12 @@ impl Pair {
             if converged {
                 let e_rep: f64 = get_repulsive_energy(&atoms, self.n_atoms, &self.vrep);
                 self.properties.set_last_energy(scf_energy + e_rep);
+                self.properties.set_p(p);
                 break 'scf_loop;
             }
         }
         // only remove the large arrays not the energy or charges
-        self.properties.reset();
+        //self.properties.reset();
         self.properties
             .set_delta_dq(&dq - &self.properties.dq().unwrap());
         self.properties.set_dq(dq);

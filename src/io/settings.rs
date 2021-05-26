@@ -143,7 +143,7 @@ impl Configuration {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct MoleculeConfig {
     #[serde(default = "default_charge")]
     pub charge: i8,
@@ -151,7 +151,7 @@ pub struct MoleculeConfig {
     pub multiplicity: u8,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct SccConfig {
     #[serde(default = "default_scf_max_cycles")]
     pub scf_max_cycles: usize,
@@ -163,7 +163,7 @@ pub struct SccConfig {
     pub electronic_temperature: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct OptConfig {
     #[serde(default = "default_geom_opt_max_cycles")]
     pub geom_opt_max_cycles: usize,
@@ -175,7 +175,7 @@ pub struct OptConfig {
     pub geom_opt_tol_energy: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct LCConfig {
     #[serde(default = "default_long_range_correction")]
     pub long_range_correction: bool,
@@ -183,7 +183,7 @@ pub struct LCConfig {
     pub long_range_radius: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct ExcitedStatesConfig {
     #[serde(default = "default_nstates")]
     pub nstates: usize,

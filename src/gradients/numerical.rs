@@ -1,6 +1,8 @@
 use ndarray::prelude::*;
 use ndarray_stats::QuantileExt;
 use std::cmp::max;
+use crate::scc::scc_routine::RestrictedSCC;
+use crate::fmo::GroundStateGradient;
 
 /// Returns the derivative of a function `function` at an Array of points `origin` by Ridder's method.
 /// The value `stepsize` is an initial stepsize, it need to be small, but should be an increment
@@ -12,7 +14,8 @@ use std::cmp::max;
 /// [Computers in Physics](https://aip.scitation.org/doi/pdf/10.1063/1.4822971). Also the Python
 /// implementation [derivcheck](https://github.com/theochem/derivcheck) by T. Verstraelen
 /// influenced the implementation and the idea to create an `assert_deriv` function was adopted.
-fn ridders_method<F, D>(
+fn ridders_method<S, F, D>(
+    system: &mut S,
     function: F,               // Function which should be differentiated
     origin: ArrayBase<D, Ix1>, // Origin of coordinates, that are used for the function
     index: usize,              // Index for which the derivative is computed
@@ -22,7 +25,8 @@ fn ridders_method<F, D>(
     maxiter: usize, // Maximum number of iterations/function calls/order in Neville method
 ) -> (f64, f64)
 where
-    F: Fn(Array1<f64>) -> f64,
+    S: RestrictedSCC,
+    F: Fn(&mut S, Array1<f64>) -> f64,
     D: ndarray::Data<Elem = f64>,
 {
     // make the stepsize mutable
@@ -35,7 +39,7 @@ where
     let mut error: f64 = 0.0;
 
     let mut table: Vec<Vec<f64>> = vec![vec![
-        (function(&origin + &(&step * stepsize)) - function(&origin - &(&step * stepsize))) / (2.0 * stepsize),
+        (function(system, &origin + &(&step * stepsize)) - function(system, &origin - &(&step * stepsize))) / (2.0 * stepsize),
     ]];
 
     let mut estimate: f64 = 0.0;
@@ -47,7 +51,7 @@ where
         stepsize /= con;
         // first-order approximation at current step
         table.push(vec![
-            (function(&origin + &(&step * stepsize)) - function(&origin - &(&step * stepsize))) / (2.0 * stepsize),
+            (function(system, &origin + &(&step * stepsize)) - function(system, &origin - &(&step * stepsize))) / (2.0 * stepsize),
         ]);
 
         // compute higher orders
@@ -88,15 +92,17 @@ where
 /// * tol: The allowed relative error on the derivative.
 /// The idea of this function comes from the [derivcheck](https://github.com/theochem/derivcheck)
 /// Python package by T. Verstraelen.
-pub fn assert_deriv<F, G>(
+pub fn assert_deriv<S, F, G>(
+    system: &mut S,
     function: F,
     gradient: G,
     origin: Array1<f64>,
     stepsize: f64,
     tol: f64,
 ) where
-    F: Fn(Array1<f64>) -> f64,
-    G: Fn(Array1<f64>) -> Array1<f64>,
+    S: RestrictedSCC,
+    F: Fn(&mut S, Array1<f64>) -> f64,
+    G: Fn(&mut S) -> Array1<f64>,
 {
     // Parameters for Ridder's method,
     let con: f64 = 1.4;
@@ -104,27 +110,29 @@ pub fn assert_deriv<F, G>(
     let maxiter: usize = 15;
 
     // compute the analytic gradient
-    let analytic_grad: Array1<f64> = gradient(origin.clone());
+    let analytic_grad: Array1<f64> = gradient(system);
     // initialize numerical grad
     let mut errors: Vec<bool> = Vec::with_capacity(origin.len());
 
     assert!(stepsize > 0.0, "The stepsize has to be > 0.0, but it is {}", stepsize);
 
     println!(
-        "{: <5} {: >18} {: >18} {: >18} {: <8}",
-        "Index", "Analytic", "Numerical", "Error", "Correct?");
+        "{: <5} {: >18} {: >18} {: >18} {: >18} {: <8}",
+        "Index", "Analytic", "Numerical", "Error", "Acc. Num.", "Correct?");
     // PARALLEL
     for i in 0..origin.len() {
-        // compute the numerical derivative of this function and an error estimate using
-        // Ridder's method
-        let (numerical_deriv, deriv_error): (f64, f64) = ridders_method(&function, origin.clone(), i, stepsize, con, safe, maxiter);
-        let correct: bool = if deriv_error >= tol * numerical_deriv.abs() {false} else {true};
-        errors.push(correct);
         // get the corresponding analytic derivative
         let analytic_deriv: f64 = analytic_grad[i];
+        // compute the numerical derivative of this function and an error estimate using
+        // Ridder's method
+        let (numerical_deriv, deriv_error): (f64, f64) = ridders_method(system, &function, origin.clone(), i, stepsize, con, safe, maxiter);
+        let diff: f64 = (numerical_deriv - analytic_deriv).abs();
+        let correct: bool = if diff >= deriv_error {false} else {true};
+        errors.push(correct);
+
         println!(
-            "{: >5} {:>18.14} {:>18.14} {:>18.14} {: >5}",
-            i, analytic_deriv, numerical_deriv, deriv_error, correct);
+            "{: >5} {:>18.14} {:>18.14} {:>18.14} {:>18.14} {: >5}",
+            i, analytic_deriv, numerical_deriv, diff, deriv_error, correct);
     }
     assert!(!errors.contains(&false), "Gradient test failed")
 }

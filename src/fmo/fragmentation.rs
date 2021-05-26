@@ -39,7 +39,9 @@ pub fn fragmentation(graph: &Graph) -> Vec<Vec<usize>> {
             monomer.push(nx);
             indices.remove(&nx);
         }
+        monomer.sort_unstable();
         monomers.push(monomer);
     }
+    monomers.sort_unstable();
     monomers
 }

@@ -8,19 +8,21 @@ use ndarray::prelude::*;
 use ndarray::RawData;
 use std::iter::FromIterator;
 use std::ops::AddAssign;
+use crate::utils::array_helper::ToOwnedF;
 
 impl SuperSystem {
     pub fn embedding_gradient(&mut self) -> Array1<f64> {
         // initialize the gradient of the embedding energy array with zeros
-        let mut gradient: Array1<f64> = Array1::zeros([self.atoms.len()]);
+        let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
         let dq: ArrayView1<f64> = self.properties.dq().unwrap();
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
 
         // broadcast the charge differences into the shape of the gradients (n_atoms -> 3 * n_atoms)
-        let dq_f: ArrayView1<f64> = dq
+        let dq_f: Array1<f64> = dq
             .broadcast([3, self.atoms.len()])
             .unwrap()
             .reversed_axes()
+            .to_owned_f()
             .into_shape([3 * self.atoms.len()])
             .unwrap();
 
@@ -55,19 +57,16 @@ impl SuperSystem {
             let m_i: &Monomer = &self.monomers[pair.i];
             let m_j: &Monomer = &self.monomers[pair.j];
 
-            // initialize Arrays of length I or J with zeros to set matrix elements later to zero
-            let m_i_zeros: Array1<f64> = Array1::zeros([3 * m_i.n_atoms]);
-            let m_j_zeros: Array1<f64> = Array1::zeros([3 * m_j.n_atoms]);
-
             // if the derivative is w.r.t to an atom that is within this pair:
             // the first part of the equation reads:
             // dDeltaE_IJ^V/dR_a x = DDq_a^IJ sum_(K!=I,J)^(N) sum_(C in K) Dq_C^K dgamma_(a C)/dR_(a x)
             let delta_dq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
             // broadcast Delta dq into the shape of the gradients
-            let delta_dq_f: ArrayView1<f64> = delta_dq
+            let delta_dq_f: Array1<f64> = delta_dq
                 .broadcast([3, pair.n_atoms])
                 .unwrap()
                 .reversed_axes()
+                .to_owned_f()
                 .into_shape([3 * pair.n_atoms])
                 .unwrap();
 
@@ -96,16 +95,18 @@ impl SuperSystem {
             esp_ij
                 .slice_mut(s![m_i.n_atoms..])
                 .assign(&m_j.properties.esp_q().unwrap());
-            esp_ij
+            let esp_ij: Array1<f64> = esp_ij
                 .broadcast([3, pair.n_atoms])
                 .unwrap()
                 .reversed_axes()
+                .to_owned_f()
                 .into_shape([3 * pair.n_atoms])
                 .unwrap();
             let gddq_esp: Array1<f64> = &grad_delta_dq * &esp_ij;
             gradient
                 .slice_mut(s![m_i.slice.grad])
                 .add_assign(&gddq_esp.slice(s![..3 * m_i.n_atoms]));
+
             gradient
                 .slice_mut(s![m_j.slice.grad])
                 .add_assign(&gddq_esp.slice(s![3 * m_i.n_atoms..]));
@@ -124,8 +125,8 @@ impl SuperSystem {
                 .dot(&delta_dq.slice(s![m_i.n_atoms..]));
 
             // since K != I,J => the elements were K = I,J are set to zero
-            dg_ddq.slice_mut(s![m_i.slice.grad]).assign(&m_i_zeros);
-            dg_ddq.slice_mut(s![m_j.slice.grad]).assign(&m_j_zeros);
+            dg_ddq.slice_mut(s![m_i.slice.grad]).assign(&Array1::zeros([3 * m_i.n_atoms]));
+            dg_ddq.slice_mut(s![m_j.slice.grad]).assign(&Array1::zeros([3 * m_j.n_atoms]));
 
             gradient += &(&dg_ddq * &dq_f);
 
@@ -141,17 +142,18 @@ impl SuperSystem {
                 .dot(&gamma.slice(s![m_j.slice.atom, 0..]));
 
             // since K != I,J => the elements were K = I,J are set to zero
-            ddq_gamma.slice_mut(s![m_i.slice.atom]).assign(&m_i_zeros);
-            ddq_gamma.slice_mut(s![m_j.slice.atom]).assign(&m_j_zeros);
+            ddq_gamma.slice_mut(s![m_i.slice.atom]).assign(&Array1::zeros([m_i.n_atoms]));
+            ddq_gamma.slice_mut(s![m_j.slice.atom]).assign(&Array1::zeros([m_j.n_atoms]));
 
             // transform the Array into the shape of the gradients and multiply it with the derivative
             // of the charge (differences)
             gradient += &(&grad_dq
                 * &ddq_gamma
-                    .broadcast([3, pair.n_atoms])
+                    .broadcast([3, self.atoms.len()])
                     .unwrap()
                     .reversed_axes()
-                    .into_shape([3 * pair.n_atoms])
+                .to_owned_f()
+                    .into_shape([3 * self.atoms.len()])
                     .unwrap());
         }
 
