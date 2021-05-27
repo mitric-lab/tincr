@@ -99,8 +99,9 @@ fn main() {
     let mut system = SuperSystem::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
-    let result = system.test_monomer_gradient();
+    //let result = system.test_monomer_gradient();
     let result = system.test_embedding_gradient();
+    //let result = system.test_esd_gradient();
     println!("Grad {:?}", system.ground_state_gradient());
 
     info!("{}", timer);

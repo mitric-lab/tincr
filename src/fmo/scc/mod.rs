@@ -44,6 +44,7 @@ impl RestrictedSCC for SuperSystem {
     fn prepare_scc(&mut self) {
         // prepare all individual monomers
         let atoms: &[Atom] = &self.atoms;
+        self.properties.set_gamma(gamma_atomwise(&self.gammafunction, &atoms, self.atoms.len()));
         self.monomers
             .par_iter_mut()
             .for_each(|mol: &mut Monomer| {
@@ -58,6 +59,8 @@ impl RestrictedSCC for SuperSystem {
         let temperature: f64 = self.config.scf.electronic_temperature;
         let max_iter: usize = self.config.scf.scf_max_cycles;
         logging::fmo_scc_init(max_iter);
+
+
 
         // Assembling of the energy following Eq. 11 in
         // https://pubs.acs.org/doi/pdf/10.1021/ct500489d

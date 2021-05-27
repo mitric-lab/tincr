@@ -11,14 +11,16 @@ mod embedding;
 mod monomer;
 mod pair;
 mod numerical;
+mod es_dimer;
 // mod numerical;
 
 pub use monomer::*;
 pub use pair::*;
 use crate::fmo::helpers::get_pair_slice;
+use crate::fmo::gradients::embedding::diag_of_last_dimensions;
 
 pub trait GroundStateGradient {
-    fn get_grad_dq(&self, atoms: &[Atom], grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;
+    fn get_grad_dq(&self, atoms: &[Atom], s: ArrayView2<f64>, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;
     fn scc_gradient(&mut self, atoms: &[Atom]) -> Array1<f64>;
 }
 
@@ -36,11 +38,30 @@ impl SuperSystem {
     fn monomer_gradients(&mut self) -> Array1<f64> {
         let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
         let atoms: &[Atom] = &self.atoms[..];
+        // The derivative of the charge differences is initialized as an array with zeros.
+        let mut grad_dq: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
+
+        // PARALLEL or this could also be done at once instead of getting the diag in the loop. However
+        // the disadvantage would be that we need to create the 3D Array and store it temporarily.
+        // The derivative is collected from the monomers and only the diagonal elements are used.
         for mol in self.monomers.iter_mut() {
             gradient
                 .slice_mut(s![mol.slice.grad])
                 .assign(&mol.scc_gradient(&atoms[mol.slice.atom_as_range()]));
+
+            let mol_grad_dq: ArrayView3<f64> = mol
+                .properties
+                .grad_dq()
+                .unwrap()
+                .into_shape([3, mol.n_atoms, mol.n_atoms])
+                .unwrap();
+
+            grad_dq
+                .slice_mut(s![mol.slice.grad])
+                .assign(&diag_of_last_dimensions(mol_grad_dq));
         }
+        self.properties.set_grad_dq_diag(grad_dq);
+
         return gradient;
     }
 

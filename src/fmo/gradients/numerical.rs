@@ -30,6 +30,7 @@ impl SuperSystem {
     }
 
     pub fn embedding_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
+        self.properties.reset();
         self.update_xyz(geometry);
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
@@ -40,10 +41,10 @@ impl SuperSystem {
     }
 
     pub fn esd_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
+        self.properties.reset();
         self.update_xyz(geometry);
         self.prepare_scc();
-        let maxiter: usize = self.config.scf.scf_max_cycles;
-        let (_energy, _dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
+        //println!("{}", self.properties.gamma().unwrap());
         self.esd_pair_energy()
     }
 
@@ -69,6 +70,18 @@ impl SuperSystem {
         self.pair_gradients(m_gradients.view());
 
         assert_deriv(self, SuperSystem::embedding_energy_wrapper, SuperSystem::embedding_gradient, self.get_xyz(), 0.01, 1e-6);
+    }
+
+    pub  fn test_esd_gradient(&mut self) {
+        self.prepare_scc();
+        let maxiter: usize = self.config.scf.scf_max_cycles;
+        let (_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
+
+        println!("ESD ENERGY {}", self.esd_pair_energy());
+        self.properties.set_dq(dq);
+        let m_gradients: Array1<f64> = self.monomer_gradients();
+
+        assert_deriv(self, SuperSystem::esd_energy_wrapper, SuperSystem::es_dimer_gradient, self.get_xyz(), 0.01, 1e-6);
     }
 
 }

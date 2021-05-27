@@ -288,6 +288,16 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to the diagonal of the derivative of charge (differences) w.r.t. to the
+    /// degrees of freedom per atom. The first dimension is dof and the second one is the atom
+    /// where the charge resides.
+    pub fn grad_dq_diag(&self) -> Option<ArrayView1<f64>> {
+        match self.get("grad_dq_diag") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _=> None,
+        }
+    }
+
     /// Returns a reference to the differences of charges differences between the pair and the
     /// corresponding monomers per atom.
     pub fn delta_dq(&self) -> Option<ArrayView1<f64>> {
@@ -442,6 +452,9 @@ impl Properties {
 
     /// Set the derivative of the charge (differences) w.r.t. to degrees of freedom per atom
     pub fn set_grad_dq(&mut self, grad_dq: Array2<f64>) { self.set("grad_dq", Property::from(grad_dq))}
+
+    /// Set the diagonal of the derivative of the charge (differences) w.r.t. to degrees of freedom per atom
+    pub fn set_grad_dq_diag(&mut self, grad_dq_diag: Array1<f64>) { self.set("grad_dq_diag", Property::from(grad_dq_diag))}
 
     /// Set the difference of charge differences between the pair dq and the dq's from the
     /// corresponding monomers per atom.

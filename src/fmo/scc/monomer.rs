@@ -28,6 +28,7 @@ impl Monomer {
         let atomic_numbers: Vec<u8> = atoms.iter().map(|atom| atom.number).collect();
         self.properties.set_atomic_numbers(atomic_numbers);
         // get the gamma matrix
+
         let gamma: Array2<f64> = gamma_atomwise(&self.gammafunction, &atoms, self.n_atoms);
         // and save it as a `Property`
         self.properties.set_gamma(gamma);

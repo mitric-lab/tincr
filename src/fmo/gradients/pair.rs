@@ -28,6 +28,8 @@ use rayon::iter::ParallelIterator;
 use rayon::prelude::IntoParallelRefMutIterator;
 use std::iter::FromIterator;
 use std::ops::{AddAssign, SubAssign};
+use crate::utils::array_helper::ToOwnedF;
+
 
 impl GroundStateGradient for Pair {
     fn scc_gradient(&mut self, atoms: &[Atom]) -> Array1<f64> {
@@ -45,7 +47,9 @@ impl GroundStateGradient for Pair {
         // the derivatives of the charge (difference)s are computed at this point, since they depend
         // on the derivative of S and this is available here at no additional cost.
         let p: ArrayView2<f64> = self.properties.p().unwrap();
-        let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, grad_s.view(), p.view());
+        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
+        drop(s);
         self.properties.set_grad_dq(grad_dq);
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
@@ -120,7 +124,7 @@ impl GroundStateGradient for Pair {
     /// monomer. This means that the first dimension of the Array is the degree of freedom and the
     /// second dimension is the atom on which the charge resides.
     /// [1]: [J. Chem. Theory Comput. 2014, 10, 4801−4812](https://pubs.acs.org/doi/pdf/10.1021/ct500489d)
-    fn get_grad_dq(&self, atoms: &[Atom], grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64> {
+    fn get_grad_dq(&self, atoms: &[Atom], s: ArrayView2<f64>, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64> {
         // get the shape of the derivative of S, it should be [f, n_orb, n_orb], where f = 3 * n_atoms
         let (f, n_orb, _): (usize, usize, usize) = grad_s.dim();
 
@@ -148,11 +152,15 @@ impl GroundStateGradient for Pair {
                 .into_shape([f, n_orb, n_orb])
                 .unwrap();
 
+        // Compute W . S, and contract their last dimension
+        let w_s: Array2<f64> = w.into_shape([f * n_orb, n_orb]).unwrap().dot(&s);
+
         // compute P . S'; it is necessary to broadcast P into the shape of S'
-        let d_grad_s: Array3<f64> = &grad_s * &p.broadcast([f, n_orb, n_orb]).unwrap();
+        let d_grad_s: Array2<f64> = grad_s_2d.dot(&p);
+        //println!("pair d_grad_s {}", w);
 
         // do the sum of both terms and sum over nu
-        let w_plus_ps: Array2<f64> = (w + d_grad_s).sum_axis(Axis(2));
+        let w_plus_ps: Array3<f64> = (&w_s + &d_grad_s).into_shape([f, n_orb, n_orb]).unwrap();
 
         // sum over mu where mu is on atom a
         let mut grad_dq: Array2<f64> = Array2::zeros([f, self.n_atoms]);
@@ -161,7 +169,7 @@ impl GroundStateGradient for Pair {
             for _ in atom.valorbs.iter() {
                 grad_dq
                     .slice_mut(s![.., idx])
-                    .add_assign(&w_plus_ps.slice(s![.., mu]));
+                    .add_assign(&w_plus_ps.slice(s![.., mu, mu]));
                 mu += 1;
             }
         }
