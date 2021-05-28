@@ -138,22 +138,23 @@ impl GroundStateGradient for Pair {
         // X1.T[nu, f * rho]       --reshape--> X2[nu * f, rho]
         // X2[nu * f, rho]    . P[mu, rho]   -> X3[nu * f, mu];  since P is symmetric -> P = P.T
         // X3[nu * f, mu]          --reshape--> X3[nu, f * mu]
-        // X3.T[f * mu, nu]        --reshape--> W[f, mu, nu]
-        let w: Array3<f64> = -0.5
+        // W.T[f * mu, nu]    . S[mu, nu|    -> WS[f * mu, mu] since S is symmetric -> S = S.T
+        let w_s: Array2<f64> = -0.5
             * grad_s_2d
-                .dot(&p)
-                .reversed_axes()
-                .into_shape([n_orb * f, n_orb])
-                .unwrap()
-                .dot(&p)
-                .into_shape([n_orb, f * n_orb])
-                .unwrap()
-                .reversed_axes()
-                .into_shape([f, n_orb, n_orb])
-                .unwrap();
+            .dot(&p)
+            .reversed_axes()
+            .as_standard_layout()
+            .to_owned()
+            .into_shape([n_orb * f, n_orb])
+            .unwrap()
+            .dot(&p)
+            .into_shape([n_orb, f * n_orb])
+            .unwrap()
+            .reversed_axes()
+            .as_standard_layout()
+            .to_owned()
+            .dot(&s);
 
-        // Compute W . S, and contract their last dimension
-        let w_s: Array2<f64> = w.into_shape([f * n_orb, n_orb]).unwrap().dot(&s);
 
         // compute P . S'; it is necessary to broadcast P into the shape of S'
         let d_grad_s: Array2<f64> = grad_s_2d.dot(&p);
@@ -173,6 +174,7 @@ impl GroundStateGradient for Pair {
                 mu += 1;
             }
         }
+        //println!("grad dq pair {}", grad_dq);
 
         // Shape of returned Array: [f, n_atoms], f = 3 * n_atoms
         return grad_dq;
