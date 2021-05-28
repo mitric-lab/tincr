@@ -144,7 +144,6 @@ impl GroundStateGradient for Monomer {
             .dot(&p)
             .reversed_axes()
             .as_standard_layout()
-            .to_owned()
             .into_shape([n_orb * f, n_orb])
             .unwrap()
             .dot(&p)
@@ -152,7 +151,6 @@ impl GroundStateGradient for Monomer {
             .unwrap()
             .reversed_axes()
             .as_standard_layout()
-            .to_owned()
             .dot(&s);
 
         // compute P . S' and contract their last dimension
