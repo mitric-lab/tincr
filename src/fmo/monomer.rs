@@ -39,15 +39,13 @@ pub struct Monomer {
 
 
 impl Monomer {
-    pub fn set_electronic_data(&mut self, n_elec: usize, n_unpaired: usize, n_orbs: usize, orb_index: usize) {
+    pub fn set_mo_indices(&mut self, n_elec: usize) {
         // get the indices of the occupied and virtual orbitals
         let mut occ_indices: Vec<usize> = Vec::new();
         let mut virt_indices: Vec<usize> = Vec::new();
-        (0..n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
-        // TODO: Get the number of active occupied and virtual orbitals for FMO
-        let first_active_occ = occ_indices.len() - 0;
-        let active_virt = 0;
-        // TODO: PUSH the values into the properties
+        (0..self.n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
+        self.properties.set_occ_indices(occ_indices);
+        self.properties.set_virt_indices(virt_indices);
     }
 }
 

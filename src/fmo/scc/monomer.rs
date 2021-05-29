@@ -36,6 +36,9 @@ impl Monomer {
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
 
+        // Set the indices of the occupied and virtual orbitals based on the number of electrons.
+        self.set_mo_indices(n_elec);
+
         // occupation is determined by Aufbau principle and no electronic temperature is considered
         let f: Vec<f64> = (0..self.n_orbs)
             .map(|idx| if idx < n_elec / 2 { 2.0 } else { 0.0 })
@@ -144,6 +147,7 @@ impl Monomer {
             false
         };
 
+        self.properties.set_orbs(orbs);
         self.properties.set_p(p);
         self.properties.set_dq(dq);
         self.properties.set_mixer(mixer);

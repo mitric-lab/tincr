@@ -94,7 +94,11 @@ pub struct Pair {
     pub gammafunction_lc: Option<GammaFunction>,
 }
 
-
+impl PartialEq for Pair {
+    fn eq(&self, other: &Self) -> bool {
+        self.i == other.i && self.j == other.j
+    }
+}
 
 impl Add for &Monomer {
     type Output = Pair;

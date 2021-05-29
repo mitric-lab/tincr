@@ -238,6 +238,14 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to the MO coefficients.
+    pub fn orbs(&self) -> Option<ArrayView2<f64>> {
+        match self.get("orbs") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference to the overlap matrix in AO basis.
     pub fn s(&self) -> Option<ArrayView2<f64>> {
         match self.get("S") {
@@ -311,6 +319,22 @@ impl Properties {
     pub fn esp_q(&self) -> Option<ArrayView1<f64>> {
         match self.get("esp_charges") {
             Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the indices of the occupied orbitals.
+    pub fn occ_indices(&self) -> Option<&[usize]> {
+        match self.get("occ_indices") {
+            Some(value) => Some(value.as_vec_usize().unwrap()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the indices of the virtual orbitals.
+    pub fn virt_indices(&self) -> Option<&[usize]> {
+        match self.get("virt_indices") {
+            Some(value) => Some(value.as_vec_usize().unwrap()),
             _ => None,
         }
     }
@@ -430,6 +454,11 @@ impl Properties {
         self.set("S", Property::from(s));
     }
 
+    /// Set the MO coefficients from the SCC calculation.
+    pub fn set_orbs(&mut self, orbs: Array2<f64>) {
+        self.set("orbs", Property::from(orbs));
+    }
+
     /// Set the S^-1/2 in AO basis.
     pub fn set_x(&mut self, x: Array2<f64>) {
         self.set("X", Property::from(x));
@@ -460,6 +489,16 @@ impl Properties {
     /// corresponding monomers per atom.
     pub fn set_delta_dq(&mut self, delta_dq: Array1<f64>) {
         self.set("delta_dq", Property::from(delta_dq));
+    }
+
+    /// Set the indices of the occupied orbitals, starting at 0.
+    pub fn set_occ_indices(&mut self, occ_indices: Vec<usize>) {
+        self.set("occ_indices", Property::from(occ_indices));
+    }
+
+    /// Set the indices of the virtual orbitals.
+    pub fn set_virt_indices(&mut self, virt_indices: Vec<usize>) {
+        self.set("virt_indices", Property::from(virt_indices));
     }
 
     /// Set the esp charges per atom

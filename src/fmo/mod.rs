@@ -6,6 +6,7 @@ mod fragmentation;
 pub(crate) mod gradients;
 mod scc;
 mod helpers;
+mod coulomb_integrals;
 
 pub use gradients::*;
 pub use monomer::*;

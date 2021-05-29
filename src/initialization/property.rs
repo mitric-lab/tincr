@@ -36,6 +36,8 @@ pub enum Property {
     String(String),
     /// Vector property of u8 type
     VecU8(Vec<u8>),
+    /// Vector property of usize type
+    VecUsize(Vec<usize>),
     /// Vector property of f64 type
     VecF64(Vec<f64>),
     /// Arraybase<f64, Ix1> property
@@ -76,6 +78,9 @@ impl From<String> for Property {
 
 impl From<Vec<u8>> for Property {
     fn from(value: Vec<u8>) -> Self {Property::VecU8(value)}
+}
+impl From<Vec<usize>> for Property {
+    fn from(value: Vec<usize>) -> Self {Property::VecUsize(value)}
 }
 
 impl From<Vec<f64>> for Property {
