@@ -17,11 +17,16 @@ impl SuperSystem {
     /// where N_M/N_P is the number of monomers/pairs, respectively. Instead, first the product of
     /// difference charge differences and the gamma matrix is calculated for all pairs. Afterwards,
     /// the lagrangian is computed for each monomer from this pre calculated product and the term
-    /// in which the monomer is in one of the pairs is substracted. This will reduce the scaling to
+    /// in which the monomer is in one of the pairs is subtracted. This will reduce the scaling to
     /// O(N_M' + N_P).
     ///
+    /// Requires (precomputed quantities):
+    ///  - SuperSystem: dq, gamma
+    ///  - Monomer's: q_vo,
+    ///  - Pair's: ddq
+    ///
     /// [1]: J. Phys. Chem. Lett. 2015, 6, 5034--5039, DOI: 10.1021/acs.jpclett.5b02490
-    pub fn response_lagrangian(&mut self) {
+    pub fn response_lagrangian(&mut self) -> Vec<Array1<f64>> {
         // Reference to the gamma matrix.
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
 
@@ -66,8 +71,9 @@ impl SuperSystem {
                 .dot(&gamma.slice(s![m_j.slice.atom, 0..]));
         }
 
+        // PARALLEL
         // Loop over all monomers to compute the product with the transition charges
-        for (idx, mol) in self.monomers.iter().enumerate() {
+        let lagrangians: Vec<Array1<f64>> = self.monomers.iter().enumerate().map(|(idx, mol)| {
             // New array for the corrected ddq.
             let mut ddq_gamma_mol: Array1<f64> = ddq_gamma.slice(s![mol.slice.atom]).to_owned();
 
@@ -101,13 +107,14 @@ impl SuperSystem {
             }
 
             // Reference to the transition charges.
-            //let q_vo: ArrayView2<f64> = self.properties.q_vo().unwrap();
+            let q_vo: ArrayView2<f64> = self.properties.q_vo().unwrap();
 
             // Vector matrix product of the pre computed term and the transition charges.
-            //let l: Array1<f64> = ddq_gamma_mol.dot(&q_vo);
+            ddq_gamma_mol.dot(&q_vo)
 
-            // Save the Lagrangian for this monomer
-            //mol.properties.set_l(l);
-        }
+        }).collect();
+
+        // Returns the Lagrangian's for each monomer
+        lagrangians
     }
 }

@@ -315,6 +315,38 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to the transition charges between occupied and virtual orbitaös
+    pub fn q_ov(&self) -> Option<ArrayView2<f64>> {
+        match self.get("q_ov") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the transition charges between virtual and occupied orbitals
+    pub fn q_vo(&self) -> Option<ArrayView2<f64>> {
+        match self.get("q_vo") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the transition charges between occupied orbitals
+    pub fn q_oo(&self) -> Option<ArrayView2<f64>> {
+        match self.get("q_oo") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the transition charges between virtual orbitals
+    pub fn q_vv(&self) -> Option<ArrayView2<f64>> {
+        match self.get("q_vv") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference to the esp charges per atom
     pub fn esp_q(&self) -> Option<ArrayView1<f64>> {
         match self.get("esp_charges") {
@@ -489,6 +521,26 @@ impl Properties {
     /// corresponding monomers per atom.
     pub fn set_delta_dq(&mut self, delta_dq: Array1<f64>) {
         self.set("delta_dq", Property::from(delta_dq));
+    }
+
+    /// Set the transition charges between occupied and virtual orbitals
+    pub fn set_q_ov(&mut self, q_ov: Array2<f64>) {
+        self.set("q_ov", Property::from(q_ov));
+    }
+
+    /// Set the transition charges between virtual and occupied orbitals
+    pub fn set_q_vo(&mut self, q_vo: Array2<f64>) {
+        self.set("q_vo", Property::from(q_vo));
+    }
+
+    /// Set the transition charges between occupied orbitals
+    pub fn set_q_oo(&mut self, q_oo: Array2<f64>) {
+        self.set("q_oo", Property::from(q_oo));
+    }
+
+    /// Set the transition charges between virtual orbitals
+    pub fn set_q_vv(&mut self, q_vv: Array2<f64>) {
+        self.set("q_vv", Property::from(q_vv));
     }
 
     /// Set the indices of the occupied orbitals, starting at 0.
