@@ -27,6 +27,12 @@ pub trait GroundStateGradient {
 
 impl SuperSystem {
     pub fn ground_state_gradient(&mut self) -> Array1<f64> {
+        let atoms: &[Atom] = &self.atoms[..];
+        for mol in self.monomers.iter_mut() {
+            let q_vo: Array2<f64> = mol.compute_q_vo(&atoms[mol.slice.atom_as_range()], None);
+            mol.properties.set_q_vo(q_vo);
+        }
+        self.self_consistent_z_vector(1e-10);
 
         let monomer_gradient: Array1<f64> = self.monomer_gradients();
         let pair_gradient: Array1<f64> = self.pair_gradients(monomer_gradient.view());

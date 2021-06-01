@@ -246,6 +246,14 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to the MO energies.
+    pub fn orbe(&self) -> Option<ArrayView1<f64>> {
+        match self.get("orbe") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference to the overlap matrix in AO basis.
     pub fn s(&self) -> Option<ArrayView2<f64>> {
         match self.get("S") {
@@ -343,6 +351,14 @@ impl Properties {
     pub fn q_vv(&self) -> Option<ArrayView2<f64>> {
         match self.get("q_vv") {
             Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the converged Z-vector from the FMO grad. response term.
+    pub fn z_vector(&self) -> Option<ArrayView1<f64>> {
+        match self.get("z_vector") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
             _ => None,
         }
     }
@@ -491,6 +507,11 @@ impl Properties {
         self.set("orbs", Property::from(orbs));
     }
 
+    /// Set the MO energies from the SCC calculation.
+    pub fn set_orbe(&mut self, orbe: Array1<f64>) {
+        self.set("orbe", Property::from(orbe));
+    }
+
     /// Set the S^-1/2 in AO basis.
     pub fn set_x(&mut self, x: Array2<f64>) {
         self.set("X", Property::from(x));
@@ -541,6 +562,11 @@ impl Properties {
     /// Set the transition charges between virtual orbitals
     pub fn set_q_vv(&mut self, q_vv: Array2<f64>) {
         self.set("q_vv", Property::from(q_vv));
+    }
+
+    /// Set the converged Z-vector from the FMO gradient response term.
+    pub fn set_z_vector(&mut self, z_vector: Array1<f64>) {
+        self.set("z_vector", Property::from(z_vector));
     }
 
     /// Set the indices of the occupied orbitals, starting at 0.
