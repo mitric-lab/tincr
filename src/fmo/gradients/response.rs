@@ -120,7 +120,7 @@ impl SuperSystem {
                 let q_vo: ArrayView2<f64> = mol.properties.q_vo().unwrap();
 
                 // Vector matrix product of the pre computed term and the transition charges.
-                ddq_gamma_mol.dot(&q_vo)
+                4.0 * ddq_gamma_mol.dot(&q_vo)
             })
             .collect();
 
