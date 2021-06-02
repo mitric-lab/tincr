@@ -981,11 +981,11 @@ pub fn minimize(
             );
             // println!("Armijo x_kp1 {}", x_kp1);
         } else if line_search == "Wolfe" {
-            println!("Start WolfEE");
+            // println!("Start WolfEE");
             x_kp1 = line_search_wolfe(
                 &xk, fk, &grad_fk, &pk, None, None, None, None, None, state, mol,
             );
-            println!("X_KP1 {}", &x_kp1);
+            // println!("X_KP1 {}", &x_kp1);
         } else if line_search == "largest" {
             let amax = 1.0;
             x_kp1 = &xk + &(amax * &pk);

@@ -4095,6 +4095,7 @@ pub fn fmo_fragments_gradients_ncc(
                 &s_matrices[index],
                 &grad_s,
             );
+            println!("frag {} ws_dds {}",index,ws_pds);
 
             let result = frag_gradient_result::new(
                 gradient,
@@ -5483,33 +5484,33 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         let tmp_a:Array1<f64> = g0_dimer_ab.dot(&fragments[ind2].final_charges);
                         let tmp_b:Array1<f64> = g0_dimer_ab.t().dot(&fragments[ind1].final_charges);
 
-                        for dir in (0..3).into_iter() {
-                            let dir_xyz: usize = dir as usize;
-                            let mut diag_ind: usize = 0;
-                            for a in (0..fragments[ind1].n_atoms).into_iter() {
-                                let index: usize = 3 * a + dir_xyz;
-
-                                term_2a[index] = frag_gradient_results[ind1].ws_pds[[index, a]] * tmp_a[a];
-
-                                // term_1[index] = fragments[ind1].final_charges[a]
-                                //     * g1_2d
-                                //         .slice(s![
-                                //             3 * index_pair_a + index,
-                                //             index_pair_b..index_pair_b + fragments[ind2].n_atoms
-                                //         ])
-                                //         .dot(&fragments[ind2].final_charges);
-
-                                // let sum: f64 = frag_gradient_results[ind1].ws_pds[[index, a]];
-                                // term_2[index] = sum
-                                //     * g0_dimer_ab
-                                //         .slice(s![a, ..])
-                                //         .dot(&fragments[ind2].final_charges);
-                            }
-                            for b in (0..fragments[ind2].n_atoms).into_iter(){
-                                let index: usize = 3 * b + dir_xyz;
-                                term_2b[index] = frag_gradient_results[ind2].ws_pds[[index, b]] * tmp_b[b];
-                            }
-                        }
+                        // for dir in (0..3).into_iter() {
+                        //     let dir_xyz: usize = dir as usize;
+                        //     let mut diag_ind: usize = 0;
+                        //     for a in (0..fragments[ind1].n_atoms).into_iter() {
+                        //         let index: usize = 3 * a + dir_xyz;
+                        //
+                        //         term_2a[index] = frag_gradient_results[ind1].ws_pds[[index, a]] * tmp_a[a];
+                        //
+                        //         // term_1[index] = fragments[ind1].final_charges[a]
+                        //         //     * g1_2d
+                        //         //         .slice(s![
+                        //         //             3 * index_pair_a + index,
+                        //         //             index_pair_b..index_pair_b + fragments[ind2].n_atoms
+                        //         //         ])
+                        //         //         .dot(&fragments[ind2].final_charges);
+                        //
+                        //         // let sum: f64 = frag_gradient_results[ind1].ws_pds[[index, a]];
+                        //         // term_2[index] = sum
+                        //         //     * g0_dimer_ab
+                        //         //         .slice(s![a, ..])
+                        //         //         .dot(&fragments[ind2].final_charges);
+                        //     }
+                        //     for b in (0..fragments[ind2].n_atoms).into_iter(){
+                        //         let index: usize = 3 * b + dir_xyz;
+                        //         term_2b[index] = frag_gradient_results[ind2].ws_pds[[index, b]] * tmp_b[b];
+                        //     }
+                        // }
                         // assert_eq!(term_2,term_2a,"term 2 NOT EQUAL!!");
                         // assert_eq!(term_1,term_1a_new,"term 1 not equal");
                         let gradient_frag_a: Array1<f64> = term_1a_new + term_2a;
@@ -5551,6 +5552,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
 
     let mut grad_total_dimers: Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
     let mut grad_real_pairs: Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
+    let mut grad_esdim_pairs:Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
+    let mut grad_embedding:Array1<f64> = Array1::zeros(grad_total_frags.raw_dim());
 
     for (index, pair) in pair_result.iter().enumerate() {
         let index_a: usize = pair.frag_a_index;
@@ -5587,6 +5590,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         - &frag_gradient_results[index_b].gradient),
                 );
             let embedding_gradient: Array1<f64> = pair.embedding_gradient.clone().unwrap();
+            grad_embedding.add_assign(&embedding_gradient);
             grad_total_dimers.add_assign(&embedding_gradient);
         } else {
             grad_total_dimers
@@ -5595,8 +5599,17 @@ pub fn fmo_gradient_pairs_embedding_esdim(
             grad_total_dimers
                 .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
                 .add_assign(&dimer_gradient.slice(s![3 * atoms_a..]));
+            grad_esdim_pairs
+                .slice_mut(s![3 * index_frag_a..3 * index_frag_a + 3 * atoms_a])
+                .add_assign(&dimer_gradient.slice(s![0..3 * atoms_a]));
+            grad_esdim_pairs
+                .slice_mut(s![3 * index_frag_b..3 * index_frag_b + 3 * atoms_b])
+                .add_assign(&dimer_gradient.slice(s![3 * atoms_a..]));
         }
     }
+    grad_embedding = &grad_embedding + &embedding_k_total;
+    println!("Embedding gradient {}",grad_embedding);
+    println!("ESDIM gradient {}",grad_esdim_pairs);
     let gradient_without_response: Array1<f64> = grad_total_frags.clone() + embedding_k_total + grad_total_dimers;
     let gradient_monomers_real_pairs: Array1<f64> = grad_total_frags.clone() + grad_real_pairs;
 
@@ -6201,6 +6214,7 @@ pub fn response_contribution_gradient_new(
                     }
                     let q_deriv_arr: Array2<f64> = q_deriv_ao.clone().insert_axis(Axis(1));
                     let q_deriv_mat_ao:Array2<f64> = &q_deriv_arr.broadcast((q_deriv_ao.len(), q_deriv_ao.len())).unwrap() + &q_deriv_ao;
+                    // let s_deriv_q:Array2<f64> = 0.5 * q_deriv_mat_ao * s_matrices[ind].view();
                     let s_deriv_q:Array2<f64> = 0.5 * q_deriv_mat_ao * s_matrices[ind].view();
                     let b_mat:Array2<f64> = orbs_i.slice(s![..,dim_occ..]).t().dot(&s_deriv_q).dot(&orbs_i.slice(s![..,0..dim_occ]));
                     gradient_deriv_q.slice_mut(s![3*index_frag_k+a]).add_assign(z_vectors[ind].t().dot(&b_mat).trace().unwrap());
