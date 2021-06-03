@@ -253,10 +253,59 @@ impl SuperSystem {
     }
 
     /// The third part of the B-matrix times the Z-vector is calculated.
-    pub fn response_embedding_gradient(&mut self) {
+    pub fn response_embedding_gradient(&mut self) -> Array1<f64> {
         // Reference to the gamma matrix.
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
 
+        // Initialize the gradient
+        let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
 
+        // Reference to the atoms
+        let atoms: &[Atom] = &self.atoms;
+
+        // PARALLEL
+        for m_i in self.monomers.iter() {
+            // Initialize the product of Gamma matrix with the derivative of the charges.
+            let mut grad_esp: Array2<f64> = Array2::zeros([3 * self.atoms.len(), m_i.n_atoms]);
+            // The column slice of the Gamma matrix that corresponds to the Monomer I.
+            let gamma_i: ArrayView2<f64> = gamma.slice(s![0.., m_i.slice.atom]);
+            // Reference to the overlap matrix of Monomer I, reshaped into a vector.
+            let s_i: ArrayView1<f64> = m_i.properties.s().unwrap().into_shape([m_i.n_orbs.pow(2)]).unwrap();
+
+            // Reference to the Z-vector of Monomer I.
+            let z_i: ArrayView1<f64> = m_i.properties.z_vector().unwrap();
+
+            // Loop over all Monomers to sum up the matrix product.
+            for m_j in self.monomers.iter() {
+                // Reference to the charge derivatives of Monomer J
+                let grad_dq_j: ArrayView2<f64> = m_j.properties.grad_dq().unwrap();
+                // Compute the product of the charge derivative and the Gamma matrix.
+                grad_esp.slice_mut(s![m_j.slice.grad, 0..]).add_assign(&grad_dq_j.dot(&gamma_i.slice(s![m_j.slice.atom, 0..])));
+            }
+            // The second axis is transformed from the shape of natoms_I into n_orbs_I * norbs_I, by
+            // computing the dyadic tensor of the Vector.
+            let grad_esp_ao: Array2<f64> = grad_atomvec_to_aomat(grad_esp, m_i.n_orbs, &atoms[m_i.slice.atom_as_range()], 3 * self.atoms.len());
+
+            // The product of the overlap matrix and the Z-vector is computed and contracted with
+            // the gradient contribution
+            gradient += &grad_esp_ao.dot(&(&z_i * &s_i));
+        }
+        // Returns the gradient.
+        gradient
     }
+}
+
+
+fn grad_atomvec_to_aomat(esp_atomwise: Array2<f64>, n_orbs: usize, atoms: &[Atom], f: usize) -> Array2<f64> {
+    let mut esp_ao_row: Array2<f64> = Array2::zeros([f, n_orbs]);
+    let mut mu: usize = 0;
+    for (atom, grad_esp_at) in atoms.iter().zip(esp_atomwise.axis_iter(Axis(1))) {
+        for _ in 0..atom.n_orbs {
+            esp_ao_row.slice_mut(s![0.., mu]).add_assign(&grad_esp_at);
+            mu = mu + 1;
+        }
+    }
+    let esp_ao_column: Array3<f64> = esp_ao_row.clone().insert_axis(Axis(2));
+    let esp_ao: Array3<f64> = &esp_ao_column.t().broadcast((n_orbs, n_orbs, f)).unwrap() + &esp_ao_row.t();
+    return esp_ao.t().as_standard_layout().into_shape([f, n_orbs * n_orbs]).unwrap().to_owned();
 }

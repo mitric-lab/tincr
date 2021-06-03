@@ -22,15 +22,16 @@ impl SuperSystem {
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
 
         // The charge differences are broadcast into the shape the gradients.
-        let dq_f: Array1<f64> = dq
+        let dq_f = dq
             .broadcast([3, self.atoms.len()])
             .unwrap()
             .reversed_axes()
-            .to_owned()
+            .as_standard_layout()
             .into_shape([3 * self.atoms.len()])
-            .unwrap();
+            .unwrap()
+            .to_owned();
 
-        // The derivative of the charge differences is initialized as an array with zeros.
+        // Reference to the derivative of the charges.
         let mut grad_dq: ArrayView1<f64> = self.properties.grad_dq_diag().unwrap();
 
         // TODO: it is not neccessary to calculate the derivative of gamma two times. this should be
@@ -54,13 +55,14 @@ impl SuperSystem {
             let delta_dq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
 
             // DDq is broadcasted into the shape of the gradients.
-            let delta_dq_f: Array1<f64> = delta_dq
+            let delta_dq_f = delta_dq
                 .broadcast([3, pair.n_atoms])
                 .unwrap()
                 .reversed_axes()
-                .to_owned()
+                .as_standard_layout()
                 .into_shape([3 * pair.n_atoms])
-                .unwrap();
+                .unwrap()
+                .to_owned();
 
             // The gradient for a in I is computed and assigned.
             gradient.slice_mut(s![m_i.slice.grad]).add_assign(
@@ -83,39 +85,41 @@ impl SuperSystem {
             // Right hand side of Eq. 24, but a is still in I,J
             // The difference between the derivative of the charge differences between the monomer
             // and the dimer is computed.
-            // let grad_delta_dq: Array1<f64> = get_grad_delta_dq(pair, m_i, m_j);
-            //
-            // // The electrostatic potential (ESP) is collected from the corresponding monomers.
-            // let mut esp_ij: Array1<f64> = Array1::zeros([pair.n_atoms]);
-            // esp_ij
-            //     .slice_mut(s![..m_i.n_atoms])
-            //     .assign(&m_i.properties.esp_q().unwrap());
-            // esp_ij
-            //     .slice_mut(s![m_i.n_atoms..])
-            //     .assign(&m_j.properties.esp_q().unwrap());
-            //
-            // // The ESP is transformed into the shape of the gradient.
-            // let esp_ij: Array1<f64> = esp_ij
-            //     .broadcast([3, pair.n_atoms])
-            //     .unwrap()
-            //     .reversed_axes()
-            //     .to_owned_f()
-            //     .into_shape([3 * pair.n_atoms])
-            //     .unwrap();
-            //
-            // // The (elementwise) product of the ESP with the derivative of the pair charge
-            // // differences is computed.
-            // let gddq_esp: Array1<f64> = &grad_delta_dq * &esp_ij;
-            //
-            // // The gradient of the rhs for a in I is assigned.
-            // gradient
-            //     .slice_mut(s![m_i.slice.grad])
-            //     .add_assign(&gddq_esp.slice(s![..3 * m_i.n_atoms]));
-            //
-            // // The gradient of the rhs for a in J is assigned.
-            // gradient
-            //     .slice_mut(s![m_j.slice.grad])
-            //     .add_assign(&gddq_esp.slice(s![3 * m_i.n_atoms..]));
+            let grad_delta_dq: Array1<f64> = get_grad_delta_dq(pair, m_i, m_j);
+            println!("grad delta dq {}", grad_delta_dq);
+
+            // The electrostatic potential (ESP) is collected from the corresponding monomers.
+            let mut esp_ij: Array1<f64> = Array1::zeros([pair.n_atoms]);
+            esp_ij
+                .slice_mut(s![..m_i.n_atoms])
+                .assign(&m_i.properties.esp_q().unwrap());
+            esp_ij
+                .slice_mut(s![m_i.n_atoms..])
+                .assign(&m_j.properties.esp_q().unwrap());
+
+            // The ESP is transformed into the shape of the gradient.
+            let esp_ij = esp_ij
+                .broadcast([3, pair.n_atoms])
+                .unwrap()
+                .reversed_axes()
+                .as_standard_layout()
+                .into_shape([3 * pair.n_atoms])
+                .unwrap()
+                .to_owned();
+
+            // The (elementwise) product of the ESP with the derivative of the pair charge
+            // differences is computed.
+            let gddq_esp: Array1<f64> = &grad_delta_dq * &esp_ij;
+
+            // The gradient of the rhs for a in I is assigned.
+            gradient
+                .slice_mut(s![m_i.slice.grad])
+                .add_assign(&gddq_esp.slice(s![..3 * m_i.n_atoms]));
+
+            // The gradient of the rhs for a in J is assigned.
+            gradient
+                .slice_mut(s![m_j.slice.grad])
+                .add_assign(&gddq_esp.slice(s![3 * m_i.n_atoms..]));
 
             // Start of the computation if the derivative is w.r.t to an atom that is not in
             // this pair. So that a in K where K != I,J.
@@ -159,7 +163,7 @@ impl SuperSystem {
                     .broadcast([3, self.atoms.len()])
                     .unwrap()
                     .reversed_axes()
-                .to_owned()
+                .as_standard_layout()
                     .into_shape([3 * self.atoms.len()])
                     .unwrap());
         }
@@ -179,14 +183,14 @@ fn get_grad_delta_dq(pair: &Pair, m_i: &Monomer, m_j: &Monomer) -> Array1<f64> {
     let mut grad_delta_dq_2d: Array2<f64> = grad_dq.to_owned();
 
     // difference for monomer i
-    grad_delta_dq_2d
-        .slice_mut(s![..(3 * m_i.n_atoms), ..m_i.n_atoms])
-        .sub_assign(&grad_dq_i);
-
-    // difference for monomer j
-    grad_delta_dq_2d
-        .slice_mut(s![(3 * m_i.n_atoms).., m_i.n_atoms..])
-        .sub_assign(&grad_dq_j);
+    // grad_delta_dq_2d
+    //     .slice_mut(s![..(3 * m_i.n_atoms), ..m_i.n_atoms])
+    //     .sub_assign(&grad_dq_i);
+    //
+    // // difference for monomer j
+    // grad_delta_dq_2d
+    //     .slice_mut(s![(3 * m_i.n_atoms).., m_i.n_atoms..])
+    //     .sub_assign(&grad_dq_j);
 
     let grad_delta_dq_3d: Array3<f64> = grad_delta_dq_2d
         .into_shape([3, pair.n_atoms, pair.n_atoms])

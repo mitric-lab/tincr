@@ -103,7 +103,9 @@ fn main() {
     //let result = system.test_monomer_gradient();
     //let result = system.test_embedding_gradient();
     //let result = system.test_esd_gradient();
-    println!("Grad {:?}", system.ground_state_gradient());
+    //system.test_pair_gradient();
+    system.test_embedding_gradient();
+    println!("Grad {:?}", system.test_total_gradient());
 
     info!("{}", timer);
     info!("{: ^80}", "");

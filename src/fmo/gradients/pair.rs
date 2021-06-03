@@ -44,11 +44,13 @@ impl GroundStateGradient for Pair {
         // derivative of H0 and S
         let (grad_s, grad_h0) = h0_and_s_gradients(&atoms, self.n_orbs, &self.slako);
 
+        // Reference to the difference of the density matrix of the pair and the corresponding monomers.
+        let dp: ArrayView2<f64> = self.properties.delta_p().unwrap();
+
         // the derivatives of the charge (difference)s are computed at this point, since they depend
         // on the derivative of S and this is available here at no additional cost.
-        let p: ArrayView2<f64> = self.properties.p().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
+        let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), dp.view());
         drop(s);
         self.properties.set_grad_dq(grad_dq);
 
@@ -179,4 +181,5 @@ impl GroundStateGradient for Pair {
         // Shape of returned Array: [f, n_atoms], f = 3 * n_atoms
         return grad_dq;
     }
+
 }

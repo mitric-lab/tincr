@@ -49,6 +49,7 @@ impl GroundStateGradient for Monomer {
         let p: ArrayView2<f64> = self.properties.p().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
+        println!("Grad dq {}", grad_dq);
         drop(s);
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
@@ -115,20 +116,20 @@ impl GroundStateGradient for Monomer {
         // last part: dV_rep / dR
         gradient = gradient + gradient_v_rep(&atoms, &self.vrep);
 
-        // Response part
-        let z_vector: ArrayView1<f64> = self.properties.z_vector().unwrap();
-
-        // 1st part: dH0 / dR . Z
-        let mut response: Array1<f64> = grad_h0.dot(&z_vector);
-
-        // 2nd part: - e_j dS / dR . Z
-        response -= &grad_s.dot(&(&w * &z_vector));
+        // // Response part
+        // let z_vector: ArrayView1<f64> = self.properties.z_vector().unwrap();
+        //
+        // // 1st part: dH0 / dR . Z
+        // let mut response: Array1<f64> = grad_h0.dot(&z_vector);
+        //
+        // // 2nd part: - e_j dS / dR . Z
+        // response -= &grad_s.dot(&(&w * &z_vector));
 
         // The third part is calculated at a latter stage, where all grad_dq are accessible.
 
         self.properties.set_grad_dq(grad_dq);
 
-        return gradient + response;
+        return gradient;// + response;
     }
 
     /// Compute the derivative of the partial charges according to equation 24 and 26 in Ref. [1]

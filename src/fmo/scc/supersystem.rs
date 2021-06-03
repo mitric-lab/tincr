@@ -98,6 +98,14 @@ impl SuperSystem {
             pair_energies += pair.properties.last_energy().unwrap()
                 - m_i.properties.last_energy().unwrap()
                 - m_j.properties.last_energy().unwrap();
+
+            // Difference between density matrix of the pair and the density matrix of the
+            // corresponding monomers
+            let p: ArrayView2<f64> = pair.properties.p().unwrap();
+            let mut delta_p: Array2<f64> = p.to_owned();
+            delta_p.slice_mut(s![0..m_i.n_orbs, 0..m_i.n_orbs]).sub_assign(&m_i.properties.p().unwrap());
+            delta_p.slice_mut(s![m_i.n_orbs.., m_i.n_orbs..]).sub_assign(&m_j.properties.p().unwrap());
+            pair.properties.set_delta_p(delta_p);
         }
         return pair_energies;
     }

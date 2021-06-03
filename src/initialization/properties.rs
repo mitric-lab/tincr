@@ -403,6 +403,14 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to the difference density matrix in AO basis.
+    pub fn delta_p(&self) -> Option<ArrayView2<f64>> {
+        match self.get("diff_density_matrix") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference to the gamma matrix in atomic basis.
     pub fn gamma(&self) -> Option<ArrayView2<f64>> {
         match self.get("gamma_atom_wise") {
@@ -490,6 +498,11 @@ impl Properties {
     /// Set the reference density matrix
     pub fn set_p_ref(&mut self, ref_p: Array2<f64>) {
         self.set("ref_density_matrix", Property::from(ref_p))
+    }
+
+    /// Set the the difference of the density matrix between the pair and the corresponding monomers
+    pub fn set_delta_p(&mut self, delta_p: Array2<f64>) {
+        self.set("diff_density_matrix", Property::from(delta_p))
     }
 
     /// Set the H0 matrix in AO basis.

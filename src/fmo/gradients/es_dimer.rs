@@ -26,9 +26,10 @@ impl SuperSystem {
             .broadcast([3, self.atoms.len()])
             .unwrap()
             .reversed_axes()
-            .to_owned()
+            .as_standard_layout()
             .into_shape([3 * self.atoms.len()])
-            .unwrap();
+            .unwrap()
+            .to_owned();
 
         // TODO: it is not neccessary to calculate the derivative of gamma two times. this should be
         // improved! it is already computed in the gradient of the monomer/pair
@@ -57,7 +58,7 @@ impl SuperSystem {
                     .broadcast([3, m_i.n_atoms])
                     .unwrap()
                     .reversed_axes()
-                .to_owned_f()
+                .as_standard_layout()
                     .into_shape([3 * m_i.n_atoms])
                     .unwrap());
 
@@ -70,6 +71,7 @@ impl SuperSystem {
                         .slice(s![m_j.slice.grad, m_i.slice.atom])
                         .dot(&dq.slice(s![m_i.slice.atom])));
 
+
             // rhs of Eq. 30 in Ref [1]
             gradient_slice += &(&grad_dq.slice(s![m_j.slice.grad])
                 * &gamma
@@ -78,7 +80,7 @@ impl SuperSystem {
                     .broadcast([3, m_j.n_atoms])
                     .unwrap()
                     .reversed_axes()
-                .to_owned_f()
+                .as_standard_layout()
                     .into_shape([3 * m_j.n_atoms])
                     .unwrap());
         }

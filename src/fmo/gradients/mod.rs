@@ -37,8 +37,10 @@ impl SuperSystem {
         let monomer_gradient: Array1<f64> = self.monomer_gradients();
         let pair_gradient: Array1<f64> = self.pair_gradients(monomer_gradient.view());
         let embedding_gradient: Array1<f64> = self.embedding_gradient();
+        let esd_gradient: Array1<f64> = self.es_dimer_gradient();
+        let response_gradient: Array1<f64> = self.response_embedding_gradient();
 
-        return monomer_gradient;
+        return monomer_gradient;// + pair_gradient + embedding_gradient + esd_gradient;// + response_gradient;
     }
 
 
@@ -73,6 +75,30 @@ impl SuperSystem {
     }
 
     fn pair_gradients(&mut self, monomer_gradient: ArrayView1<f64>) -> Array1<f64> {
+        let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
+        let atoms: &[Atom] = &self.atoms[..];
+        for pair in self.pairs.iter_mut() {
+            // get references to the corresponding monomers
+            let m_i: &Monomer = &self.monomers[pair.i];
+            let m_j: &Monomer = &self.monomers[pair.j];
+
+
+            let pair_atoms: Vec<Atom> = get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
+            // compute the gradient of the pair
+            let pair_grad: Array1<f64> = pair.scc_gradient(&pair_atoms[..]);
+            // subtract the monomer contributions and assemble it into the gradient
+            gradient.slice_mut(s![m_i.slice.grad]).add_assign(
+                &(&pair_grad.slice(s![0..(3*m_i.n_atoms)]) - &monomer_gradient.slice(s![m_i.slice.grad])),
+            );
+            gradient.slice_mut(s![m_j.slice.grad]).add_assign(
+                &(&pair_grad.slice(s![(3*m_i.n_atoms)..]) - &monomer_gradient.slice(s![m_j.slice.grad])),
+            );
+        }
+        return gradient;
+    }
+
+    pub fn pair_gradients_for_testing(&mut self) -> Array1<f64> {
+        let monomer_gradient = self.monomer_gradients();
         let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
         let atoms: &[Atom] = &self.atoms[..];
         for pair in self.pairs.iter_mut() {
