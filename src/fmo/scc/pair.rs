@@ -200,7 +200,6 @@ impl Pair {
             } else {
                 false
             };
-
             last_energy = scf_energy;
             if converged {
                 let e_rep: f64 = get_repulsive_energy(&atoms, self.n_atoms, &self.vrep);

@@ -20,6 +20,8 @@ impl Properties {
             "H0",
             "S",
             "X",
+            "dq",
+            "delta_dq",
             //"P",
             "gradH0",
             "gradS",

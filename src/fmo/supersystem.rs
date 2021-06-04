@@ -164,7 +164,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
                 match get_pair_type(
                     &atoms[m_i.slice.atom_as_range()],
                     &atoms[m_j.slice.atom_as_range()],
-                    1.8,
+                    2.0,
                 ) {
                     PairType::Pair => pairs.push(m_i + m_j),
                     PairType::ESD => esd_pairs.push(ESDPair::new(i, (i + j + 1), m_i, m_j)),

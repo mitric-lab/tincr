@@ -1,5 +1,5 @@
 use ndarray::prelude::*;
-use ndarray_stats::QuantileExt;
+use ndarray_stats::{QuantileExt, DeviationExt};
 use std::cmp::max;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::fmo::GroundStateGradient;
@@ -116,6 +116,9 @@ pub fn assert_deriv<S, F, G>(
 
     assert!(stepsize > 0.0, "The stepsize has to be > 0.0, but it is {}", stepsize);
 
+    // The differences are stored in an Array
+    let mut error_values: Array1<f64> = Array1::zeros([origin.len()]);
+
     println!(
         "{: <5} {: >18} {: >18} {: >18} {: >18} {: <8}",
         "Index", "Analytic", "Numerical", "Error", "Acc. Num.", "Correct?");
@@ -129,11 +132,18 @@ pub fn assert_deriv<S, F, G>(
         let diff: f64 = (numerical_deriv - analytic_deriv).abs();
         let correct: bool = if diff >= deriv_error && diff > 1e-10 {false} else {true};
         errors.push(correct);
+        error_values[i] = diff;
 
         println!(
             "{: >5} {:>18.14} {:>18.14} {:>18.14} {:>18.14} {: >5}",
             i, analytic_deriv, numerical_deriv, diff, deriv_error, correct);
     }
+    let rmsd: f64 = (&error_values * &error_values).mean().unwrap().sqrt();
+    let max: f64 = *error_values.max().unwrap();
+
+    println!("{: <30} {:>18.4e}", "RMSD of Gradient", rmsd);
+    println!("{: <30} {:18.4e}", "Max deviation of Gradient", max);
+
     assert!(!errors.contains(&false), "Gradient test failed")
 }
 

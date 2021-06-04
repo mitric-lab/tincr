@@ -46,11 +46,11 @@ impl GroundStateGradient for Pair {
 
         // Reference to the difference of the density matrix of the pair and the corresponding monomers.
         let dp: ArrayView2<f64> = self.properties.delta_p().unwrap();
-
+        let p: ArrayView2<f64> = self.properties.p().unwrap();
         // the derivatives of the charge (difference)s are computed at this point, since they depend
         // on the derivative of S and this is available here at no additional cost.
         let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), dp.view());
+        let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
         drop(s);
         self.properties.set_grad_dq(grad_dq);
 
@@ -113,7 +113,7 @@ impl GroundStateGradient for Pair {
         gradient += &grad_s.dot(&esp_x_p);
 
         // 4th part: 1/2 * dq . dGamma / dR . dq
-        gradient += &(grad_gamma.dot(&dq_x_dq) * 0.5);
+        gradient += &(grad_gamma.dot(&dq_x_dq));
 
         // last part: dV_rep / dR
         gradient = gradient + gradient_v_rep(&atoms, &self.vrep);
@@ -146,7 +146,6 @@ impl GroundStateGradient for Pair {
             .dot(&p)
             .reversed_axes()
             .as_standard_layout()
-            .to_owned()
             .into_shape([n_orb * f, n_orb])
             .unwrap()
             .dot(&p)
@@ -154,15 +153,12 @@ impl GroundStateGradient for Pair {
             .unwrap()
             .reversed_axes()
             .as_standard_layout()
-            .to_owned()
             .dot(&s);
 
-
-        // compute P . S'; it is necessary to broadcast P into the shape of S'
+        // compute P . S' and contract their last dimension
         let d_grad_s: Array2<f64> = grad_s_2d.dot(&p);
-        //println!("pair d_grad_s {}", w);
 
-        // do the sum of both terms and sum over nu
+        // do the sum of both terms
         let w_plus_ps: Array3<f64> = (&w_s + &d_grad_s).into_shape([f, n_orb, n_orb]).unwrap();
 
         // sum over mu where mu is on atom a
@@ -176,7 +172,6 @@ impl GroundStateGradient for Pair {
                 mu += 1;
             }
         }
-        //println!("grad dq pair {}", grad_dq);
 
         // Shape of returned Array: [f, n_atoms], f = 3 * n_atoms
         return grad_dq;

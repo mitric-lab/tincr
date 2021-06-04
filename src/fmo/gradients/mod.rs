@@ -40,7 +40,7 @@ impl SuperSystem {
         let esd_gradient: Array1<f64> = self.es_dimer_gradient();
         let response_gradient: Array1<f64> = self.response_embedding_gradient();
 
-        return monomer_gradient;// + pair_gradient + embedding_gradient + esd_gradient;// + response_gradient;
+        return monomer_gradient + pair_gradient + embedding_gradient + esd_gradient + response_gradient;
     }
 
 

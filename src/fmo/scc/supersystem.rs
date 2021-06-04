@@ -6,7 +6,6 @@ use crate::scc::get_repulsive_energy;
 use std::ops::SubAssign;
 use crate::initialization::Atom;
 use crate::fmo::helpers::get_pair_slice;
-use std::sync::atomic::AtomicBool;
 
 
 impl SuperSystem {
@@ -111,35 +110,48 @@ impl SuperSystem {
     }
 
     pub fn embedding_energy(&self) -> f64 {
+        // Reference to the Gamma matrix of the full system.
+        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        // The embedding energy is initialized to zero.
         let mut embedding: f64 = 0.0;
         for pair in self.pairs.iter() {
-            // and compute the SCC energy
+            // Reference to Monomer I.
             let m_i: &Monomer = &self.monomers[pair.i];
+            // Reference to Monomer J.
             let m_j: &Monomer = &self.monomers[pair.j];
-            embedding += m_i
-                .properties
-                .esp_q()
-                .unwrap()
-                .dot(&pair.properties.delta_dq().unwrap().slice(s![..m_i.n_atoms]));
-            embedding += m_j
-                .properties
-                .esp_q()
-                .unwrap()
-                .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
-            embedding -= self
-                .properties
-                .gamma()
-                .unwrap()
-                .slice(s![m_i.slice.atom, m_j.slice.atom])
-                .dot(&m_j.properties.dq().unwrap())
-                .dot(&pair.properties.delta_dq().unwrap().slice(s![..m_i.n_atoms]));
-            embedding -= self
-                .properties
-                .gamma()
-                .unwrap()
-                .slice(s![m_j.slice.atom, m_i.slice.atom])
-                .dot(&m_i.properties.dq().unwrap())
-                .dot(&pair.properties.delta_dq().unwrap().slice(s![m_i.n_atoms..]));
+            // Reference to the charge differences of Monomer I.
+            let dq_i: ArrayView1<f64> = m_i.properties.dq().unwrap();
+            // Reference to the charge differences of Monomer J.
+            let dq_j: ArrayView1<f64> = m_j.properties.dq().unwrap();
+            // Electrostatic potential that acts on I without the self interaction with I.
+            let esp_q_i: ArrayView1<f64> = m_i.properties.esp_q().unwrap();
+            // ESP that acts on J without self-interaction.
+            let esp_q_j: ArrayView1<f64> = m_j.properties.esp_q().unwrap();
+            // Difference between the charge differences of the pair and the corresp. monomers
+            let ddq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
+            // The interaction with the other Monomer in the pair is subtracted.
+            let esp_q_i: Array1<f64> = &esp_q_i - &gamma.slice(s![m_i.slice.atom, m_j.slice.atom]).dot(&dq_j);
+            let esp_q_j: Array1<f64> = &esp_q_j - &gamma.slice(s![m_j.slice.atom, m_i.slice.atom]).dot(&dq_i);
+            // The embedding energy for Monomer I in the pair is computed.
+            embedding += esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
+            // The embedding energy for Monomer J in the pair is computed.
+            embedding += esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
+
+            // println!("DDQ {} = {}", pair.i, &ddq.slice(s![..m_i.n_atoms]));
+            // println!("DDQ {} = {}", pair.j, &ddq.slice(s![m_i.n_atoms..]));
+            // println!("ESP I {} = {}", pair.i, esp_q_i);
+            // println!("ESP J {} = {}", pair.j, esp_q_j);
+
+
+
+            // let pair_energy: f64 = esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms])) + esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
+            // let i_energy: f64 = esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
+            // let j_energy: f64 = esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
+            // println!("FRAG {} EMB Energy {}", pair.i, i_energy);
+            // println!("FRAG {} EMB Energy {}", pair.j, j_energy);
+            // println!("PAIR EMB Energy {}", pair_energy);
+
+
         }
         return embedding;
     }

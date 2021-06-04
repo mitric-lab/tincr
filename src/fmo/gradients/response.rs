@@ -215,7 +215,6 @@ impl SuperSystem {
                 // Compute the new Z-vector.
                 let z_i: Array1<f64> = a_ii.solveh(&x_i).unwrap();
 
-                println!("RMSD {}", z_i.root_mean_sq_err(&z_vectors[i]).unwrap());
                 // Check if the Z-vector is converged.
                 converged[i] = z_i.root_mean_sq_err(&z_vectors[i]).unwrap() < epsilon;
 

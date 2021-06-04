@@ -49,7 +49,7 @@ impl GroundStateGradient for Monomer {
         let p: ArrayView2<f64> = self.properties.p().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
-        println!("Grad dq {}", grad_dq);
+
         drop(s);
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
@@ -73,14 +73,29 @@ impl GroundStateGradient for Monomer {
         let h0: ArrayView2<f64> = self.properties.h0().unwrap();
         let dq: ArrayView1<f64> = self.properties.dq().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let esp_q: ArrayView1<f64> = self.properties.esp_q().unwrap();
+        // Response part
+        let z_vector: ArrayView1<f64> = self.properties.z_vector().unwrap();
 
         // transform the expression Sum_c_in_X (gamma_AC + gamma_aC) * dq_C
         // into matrix of the dimension (norb, norb) to do an element wise multiplication with P
-        let mut esp_mat: Array2<f64> =
+        let mut coulomb_mat: Array2<f64> =
             atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &atoms) * 0.5;
-        let esp_x_p: Array1<f64> = (&p * &esp_mat)
+        // Transform the Equation sum_K sum_c_in_K (gamma_ac + gamma_Ac) * dq_c into the dimension
+        // of the AOs.
+        let mut esp_mat: Array2<f64> = atomvec_to_aomat(esp_q.view(), self.n_orbs, &atoms) * 0.5;
+        esp_mat += &coulomb_mat;
+
+        // The product of the Coulomb interaction matrix and the density matrix flattened as vector.
+        let coulomb_x_p: Array1<f64> = (&p * &coulomb_mat)
             .into_shape([self.n_orbs * self.n_orbs])
             .unwrap();
+
+        // Product of the ESP (the Coulomb interaction within the monomer is included) and the
+        // Z-vector.
+        let esp_x_z: Array1<f64> = &z_vector * &esp_mat.into_shape([self.n_orbs * self.n_orbs]).unwrap();
+
+        // The density matrix in vector form.
         let p_flat: ArrayView1<f64> = p.into_shape([self.n_orbs * self.n_orbs]).unwrap();
 
         // the gradient part which involves the gradient of the gamma matrix is given by:
@@ -96,7 +111,7 @@ impl GroundStateGradient for Monomer {
 
         // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
         let w: Array1<f64> = 0.5
-            * (p.dot(&(&h0 + &(&esp_mat * &s))).dot(&p))
+            * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
                 .into_shape([self.n_orbs * self.n_orbs])
                 .unwrap();
 
@@ -107,29 +122,28 @@ impl GroundStateGradient for Monomer {
         // 2nd part: dS / dR . W
         gradient -= &grad_s.dot(&w);
 
-        // 3rd part: 1/2 * dS / dR * sum_c_in_X (gamma_ac + gamma_bc) * dq
-        gradient += &grad_s.dot(&esp_x_p);
+        // 3rd part: 1/2 * dS / dR * sum_c_in_X (gamma_ac + gamma_bc) * dq_c
+        gradient += &grad_s.dot(&coulomb_x_p);
 
         // 4th part: 1/2 * dq . dGamma / dR . dq
-        gradient += &(grad_gamma.dot(&dq_x_dq) * 0.5);
+        gradient += &(grad_gamma.dot(&dq_x_dq));
 
         // last part: dV_rep / dR
         gradient = gradient + gradient_v_rep(&atoms, &self.vrep);
 
-        // // Response part
-        // let z_vector: ArrayView1<f64> = self.properties.z_vector().unwrap();
-        //
-        // // 1st part: dH0 / dR . Z
-        // let mut response: Array1<f64> = grad_h0.dot(&z_vector);
-        //
-        // // 2nd part: - e_j dS / dR . Z
-        // response -= &grad_s.dot(&(&w * &z_vector));
+        // 1st part: dH0 / dR . Z
+        let mut response: Array1<f64> = grad_h0.dot(&z_vector);
 
-        // The third part is calculated at a latter stage, where all grad_dq are accessible.
+        // 2nd part: - e_j dS / dR . Z
+        response -= &grad_s.dot(&(&w * &z_vector));
+
+        // 3rd part: dS / dR * sum_K sum_c_in_K (gamma_ac + gamma_bc) * dq_c
+        response += &grad_s.dot(&esp_x_z);
 
         self.properties.set_grad_dq(grad_dq);
 
-        return gradient;// + response;
+
+        return gradient + response;
     }
 
     /// Compute the derivative of the partial charges according to equation 24 and 26 in Ref. [1]

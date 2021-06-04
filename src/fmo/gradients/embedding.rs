@@ -64,38 +64,45 @@ impl SuperSystem {
                 .unwrap()
                 .to_owned();
 
+            let self_interaction_i: Array1<f64> = &grad_gamma_sparse
+                .slice(s![m_i.slice.grad, m_i.slice.atom])
+                .dot(&dq.slice(s![m_i.slice.atom])) + &grad_gamma_sparse
+                .slice(s![m_i.slice.grad, m_j.slice.atom])
+                .dot(&dq.slice(s![m_j.slice.atom]));
+
+            let self_interaction_j: Array1<f64> =  &grad_gamma_sparse
+                .slice(s![m_j.slice.grad, m_i.slice.atom])
+                .dot(&dq.slice(s![m_i.slice.atom])) + &grad_gamma_sparse
+                .slice(s![m_j.slice.grad, m_j.slice.atom])
+                .dot(&dq.slice(s![m_j.slice.atom]));
+
             // The gradient for a in I is computed and assigned.
             gradient.slice_mut(s![m_i.slice.grad]).add_assign(
                 &(&delta_dq_f.slice(s![..3 * m_i.n_atoms])
                     * &(&grad_gamma_dot_dq.slice(s![m_i.slice.grad])
-                        - &grad_gamma_sparse
-                            .slice(s![m_i.slice.grad, m_i.slice.atom])
-                            .dot(&dq.slice(s![m_i.slice.atom])))),
+                        - &self_interaction_i)),
             );
 
             // The gradient for a in J is computed and assigned.
             gradient.slice_mut(s![m_j.slice.grad]).add_assign(
                 &(&delta_dq_f.slice(s![3 * m_i.n_atoms..])
                     * &(&grad_gamma_dot_dq.slice(s![m_j.slice.grad])
-                        - &grad_gamma_sparse
-                            .slice(s![m_j.slice.grad, m_j.slice.atom])
-                            .dot(&dq.slice(s![m_j.slice.atom])))),
+                        - &self_interaction_j)),
             );
 
             // Right hand side of Eq. 24, but a is still in I,J
             // The difference between the derivative of the charge differences between the monomer
             // and the dimer is computed.
             let grad_delta_dq: Array1<f64> = get_grad_delta_dq(pair, m_i, m_j);
-            println!("grad delta dq {}", grad_delta_dq);
 
             // The electrostatic potential (ESP) is collected from the corresponding monomers.
             let mut esp_ij: Array1<f64> = Array1::zeros([pair.n_atoms]);
             esp_ij
                 .slice_mut(s![..m_i.n_atoms])
-                .assign(&m_i.properties.esp_q().unwrap());
+                .assign(&(&m_i.properties.esp_q().unwrap() - &gamma.slice(s![m_i.slice.atom, m_j.slice.atom]).dot(&dq.slice(s![m_j.slice.atom]))));
             esp_ij
                 .slice_mut(s![m_i.n_atoms..])
-                .assign(&m_j.properties.esp_q().unwrap());
+                .assign(&(&m_j.properties.esp_q().unwrap() - &gamma.slice(s![m_j.slice.atom, m_i.slice.atom]).dot(&dq.slice(s![m_i.slice.atom]))));
 
             // The ESP is transformed into the shape of the gradient.
             let esp_ij = esp_ij
@@ -182,15 +189,15 @@ fn get_grad_delta_dq(pair: &Pair, m_i: &Monomer, m_j: &Monomer) -> Array1<f64> {
     // compute the difference between dimers and monomers and take the diagonal values
     let mut grad_delta_dq_2d: Array2<f64> = grad_dq.to_owned();
 
-    // difference for monomer i
-    // grad_delta_dq_2d
-    //     .slice_mut(s![..(3 * m_i.n_atoms), ..m_i.n_atoms])
-    //     .sub_assign(&grad_dq_i);
-    //
-    // // difference for monomer j
-    // grad_delta_dq_2d
-    //     .slice_mut(s![(3 * m_i.n_atoms).., m_i.n_atoms..])
-    //     .sub_assign(&grad_dq_j);
+    //difference for monomer i
+    grad_delta_dq_2d
+        .slice_mut(s![..(3 * m_i.n_atoms), ..m_i.n_atoms])
+        .sub_assign(&grad_dq_i);
+
+    // difference for monomer j
+    grad_delta_dq_2d
+        .slice_mut(s![(3 * m_i.n_atoms).., m_i.n_atoms..])
+        .sub_assign(&grad_dq_j);
 
     let grad_delta_dq_3d: Array3<f64> = grad_delta_dq_2d
         .into_shape([3, pair.n_atoms, pair.n_atoms])
