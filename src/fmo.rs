@@ -2598,6 +2598,8 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                         .cloned()
                         .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
                         .unwrap();
+                    // println!("min dist {}",min_dist);
+                    // println!("distance mat {}",distance_between_pair);
 
                     let index_min_vec: Vec<(usize, usize)> = distance_between_pair
                         .indexed_iter()
@@ -2605,6 +2607,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             |(index, &item)| if item == min_dist { Some(index) } else { None },
                         )
                         .collect();
+                    // println!("Index min vec {:?}",index_min_vec);
                     let index_min = index_min_vec[0];
 
                     let vdw_radii_sum: f64 = (constants::VDW_RADII
@@ -2623,6 +2626,24 @@ pub fn fmo_ncc_pairs_esdim_embedding(
 
                     // do scc routine for pair if mininmal distance is below threshold
                     if (min_dist / vdw_radii_sum) < 2.0 {
+                        // let mut pair: Molecule = Molecule::new(
+                        //     atomic_numbers,
+                        //     positions,
+                        //     Some(config.mol.charge),
+                        //     Some(config.mol.multiplicity),
+                        //     Some(0.0),
+                        //     None,
+                        //     config.clone(),
+                        //     saved_calc,
+                        //     Some(connectivity_matrix),
+                        //     Some(graph_new),
+                        //     Some(graph_indexes),
+                        //     Some(subgraph),
+                        //     Some(distance_frag),
+                        //     Some(dir_frag),
+                        //     Some(prox_frag),
+                        //     None,
+                        // );
                         let mut pair: Molecule = Molecule::new(
                             atomic_numbers,
                             positions,
@@ -2636,9 +2657,9 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             Some(graph_new),
                             Some(graph_indexes),
                             Some(subgraph),
-                            Some(distance_frag),
-                            Some(dir_frag),
-                            Some(prox_frag),
+                            None,
+                            None,
+                            None,
                             None,
                         );
 
@@ -2653,6 +2674,8 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                         dq.slice_mut(s![mol_a.n_atoms..])
                             .assign(&mol_b.final_charges);
                         pair.set_final_charges(dq);
+
+                        // println!("Indicex are {} and {}",ind1,ind2);
 
                         let (energy, s): (f64, Array2<f64>) = fmo_pair_scc(
                             &mut pair,
@@ -2695,6 +2718,7 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             })
                             .collect();
                         let ddq_arr: Array1<f64> = Array::from(ddq_vec);
+                        // println!("DDQ {}",ddq_arr);
 
                         // let embedding_pot: Vec<f64> = fragments
                         //     .iter()
@@ -2783,7 +2807,15 @@ pub fn fmo_ncc_pairs_esdim_embedding(
                             &(&om_monomers[ind2] - &g0_a_2.t().dot(&molecule_a.final_charges)),
                         );
                         let embedding_tot: f64 = embedding_a + embedding_b;
-                        //assert_eq!(embedding_tot_2,embedding_tot,"NOT EQUAL");
+
+                        // println!("ESP of {} is {}",ind1,&om_monomers[ind1] - &g0_a_2.dot(&molecule_b.final_charges));
+                        // println!("ESP of {} is {}",ind2,&om_monomers[ind2] - &g0_a_2.t().dot(&molecule_a.final_charges));
+                        // println!("DDQ is {}",ddq_arr);
+                        // //assert_eq!(embedding_tot_2,embedding_tot,"NOT EQUAL");
+                        // println!("Embedding of {} is {}",ind1,embedding_a);
+                        // println!("Embedding of {} is {}",ind2,embedding_b);
+                        // println!("Embedding of {} and {} is {}",ind1,ind2,embedding_tot);
+                        // println!("Real pair energy {}",pair_energy);
 
                         //let embedding_pot_sum: f64 = embedding_pot.sum();
                         //assert_eq!(embedding_tot,embedding_pot_sum,"EMBEDDING NOT EQUAL!!");
@@ -2839,10 +2871,6 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     let real_pairs: Array1<f64> = Array::from(real_pairs);
     let embedding_en: Array1<f64> = Array::from(embedding_vecs);
 
-    // println!("Real pairs energy: {}", real_pairs.sum());
-    // println!("Esd pairs energy {}", esd_pairs.sum());
-    // println!("Embedding energy {}", embedding_en.sum());
-
     // transform Vec<Vec> back to Vec<>
     let mut pair_result: Vec<f64> = Vec::new();
     for pair in result.iter_mut() {
@@ -2850,6 +2878,12 @@ pub fn fmo_ncc_pairs_esdim_embedding(
     }
     let energy_monomers: f64 = monomer_energies.sum();
     let mut total_energy: f64 = pair_result.sum() + energy_monomers;
+
+    // println!("Number of real pairs: {}",embedding_en.len());
+    // println!("Real pairs energy: {}", real_pairs.sum());
+    // println!("Esd pairs energy {}", esd_pairs.sum());
+    // println!("Embedding energy {}", embedding_en.sum());
+    // println!("Monomer energy {}",monomer_energies.sum());
 
     return (total_energy);
 }

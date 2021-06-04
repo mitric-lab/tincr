@@ -521,6 +521,7 @@ pub fn fmo_pair_scc(
         if converged {
             molecule.set_final_charges(dq);
             molecule.set_final_p_mat(p);
+            // println!("Iterations pair scc {}",i);
             break 'scf_loop;
         }
     }

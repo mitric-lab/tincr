@@ -490,15 +490,15 @@ fn main() {
                 molecule_timer.elapsed().as_secs_f32()
             );
             drop(molecule_timer);
-            let molecule_timer: Instant = Instant::now();
-            let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
-
-            println!(
-                "{:>68} {:>8.2} s",
-                "elapsed time calculate monomers",
-                molecule_timer.elapsed().as_secs_f32()
-            );
-            drop(molecule_timer);
+            // let molecule_timer: Instant = Instant::now();
+            // let fragments_data: cluster_frag_result = fmo_calculate_fragments(&mut fragments);
+            //
+            // println!(
+            //     "{:>68} {:>8.2} s",
+            //     "elapsed time calculate monomers",
+            //     molecule_timer.elapsed().as_secs_f32()
+            // );
+            // drop(molecule_timer);
             let molecule_timer: Instant = Instant::now();
 
             let (frag_energies,s_matrices,om_matrices,dq_vec):(Array1<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>,Vec<Array1<f64>>) = fmo_calculate_fragments_ncc(&mut fragments,gamma_total.view(),&indices_frags);
@@ -521,39 +521,33 @@ fn main() {
                 molecule_timer.elapsed().as_secs_f32()
             );
             drop(molecule_timer);
-            let molecule_timer: Instant = Instant::now();
-
-            let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
-                fmo_calculate_pairwise_par(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags);
-
-            println!(
-                "{:>68} {:>8.2} s",
-                "elapsed time calculate dimers",
-                molecule_timer.elapsed().as_secs_f32()
-            );
-            drop(molecule_timer);
-            let molecule_timer: Instant = Instant::now();
-            let energy: f64 = fmo_gs_energy(
-                &fragments,
-                &fragments_data,
-                &pairs_data,
-                &indices_frags,
-                gamma_total,
-                prox_mat,
-            );
-            println!(
-                "{:>68} {:>8.2} s",
-                "elapsed time calculate total and embedding:",
-                molecule_timer.elapsed().as_secs_f32()
-            );
-            drop(molecule_timer);
-            drop(fragments);
-            drop(fragments_data);
-            drop(dist_mat);
-            drop(direct_mat);
-            drop(indices_frags);
-
-            println!("FMO Energy {}", energy);
+            // let molecule_timer: Instant = Instant::now();
+            //
+            // let (h0, pairs_data): (Array2<f64>, Vec<pair_result>) =
+            //     fmo_calculate_pairwise_par(&fragments, &fragments_data, config.clone(), &dist_mat, &direct_mat, &prox_mat, &indices_frags);
+            //
+            // println!(
+            //     "{:>68} {:>8.2} s",
+            //     "elapsed time calculate dimers",
+            //     molecule_timer.elapsed().as_secs_f32()
+            // );
+            // drop(molecule_timer);
+            // let molecule_timer: Instant = Instant::now();
+            // let energy: f64 = fmo_gs_energy(
+            //     &fragments,
+            //     &fragments_data,
+            //     &pairs_data,
+            //     &indices_frags,
+            //     gamma_total,
+            //     prox_mat,
+            // );
+            // println!(
+            //     "{:>68} {:>8.2} s",
+            //     "elapsed time calculate total and embedding:",
+            //     molecule_timer.elapsed().as_secs_f32()
+            // );
+            // drop(molecule_timer);
+            // println!("FMO Energy {}", energy);
 
             let molecule_timer: Instant = Instant::now();
             let subgraph:Vec<StableUnGraph<u8, f64>> =create_fmo_graph(atomic_numbers.clone(), positions.clone());

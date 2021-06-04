@@ -4478,7 +4478,6 @@ pub fn fmo_gradient_pairs_embedding_esdim(
             }
         }
     }
-
     println!(
         "{:>68} {:>8.2} s",
         "elapsed time matching for all pairs and calculation of ddq for real pairs",
@@ -4615,6 +4614,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         embedding_k_total.append(frag_k);
     }
     let embedding_k_total:Array1<f64> = Array::from(embedding_k_total);
+    // println!("Embedding on K {}",embedding_k_total);
+
     println!(
         "{:>68} {:>8.2} s",
         "elapsed time build embedding part k",
@@ -5029,7 +5030,6 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                                 }
                             }
                         }
-
                         let mut embedding_pair_ij:Array1<f64> = Array1::zeros(3*pair_atoms);
                         for dir in (0..3).into_iter() {
                             let dir_xyz: usize = dir as usize;
@@ -5610,8 +5610,8 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     grad_embedding = &grad_embedding + &embedding_k_total;
     println!("Embedding gradient {}",grad_embedding);
     println!("ESDIM gradient {}",grad_esdim_pairs);
-    let gradient_without_response: Array1<f64> = grad_total_frags.clone() + embedding_k_total + grad_total_dimers;
-    let gradient_monomers_real_pairs: Array1<f64> = grad_total_frags.clone() + grad_real_pairs;
+    let gradient_without_response: Array1<f64> = grad_total_frags.clone() + grad_total_dimers+ embedding_k_total;
+    // let gradient_monomers_real_pairs: Array1<f64> = grad_total_frags.clone() + grad_real_pairs;
 
     println!(
         "{:>68} {:>8.2} s",
@@ -5654,6 +5654,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
     let molecule_timer: Instant = Instant::now();
 
     // assert_eq!(lagrangian[0],lagrangian_new[0],"lagrangians NOT EQUAL!!");
+    // println!("Lagrangian {:?}",lagrangian_new);
 
     // do self consistent z-vector routine
     let z_vectors: Vec<Array2<f64>> = fmo_zvector_routine(
@@ -5664,6 +5665,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         &lagrangian_new,
         frag_s_matrices,
     );
+    // println!("Zvectors {:?}",z_vectors);
     println!(
         "{:>68} {:>8.2} s",
         "elapsed time z_vector routine:",
@@ -5700,7 +5702,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
         total_gradient,
         gradient_without_response,
         grad_total_frags,
-        gradient_monomers_real_pairs,
+        grad_real_pairs,
     );
 }
 
