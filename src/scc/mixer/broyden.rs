@@ -22,7 +22,7 @@ pub struct BroydenMixer {
     max_weight: f64,
     // numerator of the weight
     weight_factor: f64,
-    ww: Array1<f64>,
+    weights: Array1<f64>,
     // charge difference in last iteration
     delta_q_old: Array1<f64>,
     // input charges in last iteration
@@ -45,7 +45,7 @@ impl Mixer for BroydenMixer {
             min_weight: defaults::BROYDEN_MIN_WEIGHT,
             max_weight: defaults::BROYDEN_MAX_WEIGHT,
             weight_factor: defaults::BROYDEN_WEIGHT_FACTOR,
-            ww: Array1::zeros([defaults::MAX_ITER - 1]),
+            weights: Array1::zeros([defaults::MAX_ITER - 1]),
             delta_q_old: Array1::zeros([n_atoms]),
             q_old: Array1::zeros([n_atoms]),
             a_mat: Array2::zeros([defaults::MAX_ITER - 1, defaults::MAX_ITER - 1]),
@@ -61,7 +61,7 @@ impl Mixer for BroydenMixer {
 
     fn reset(&mut self, n_atoms: usize) {
         self.iter = 0;
-        self.ww = Array1::zeros([self.maxiter - 1]);
+        self.weights = Array1::zeros([self.maxiter - 1]);
         self.a_mat = Array2::zeros([self.maxiter - 1, self.maxiter - 1]);
         self.delta_q_old = Array1::zeros([n_atoms]);
         self.q_old = Array1::zeros([n_atoms]);
@@ -108,53 +108,53 @@ impl Mixer for BroydenMixer {
                     weight = self.min_weight;
                 }
                 // Store the current weight in the Struct.
-                self.ww[idx] = weight;
+                self.weights[idx] = weight;
 
                 // Build |DF(idx)>.
-                let mut df_uu: Array1<f64> = &delta_q - &self.delta_q_old;
+                let mut df_idx: Array1<f64> = &delta_q - &self.delta_q_old;
                 // Normalize it.
-                let mut inv_norm: f64 = df_uu.dot(&df_uu).sqrt();
+                let mut inv_norm: f64 = df_idx.dot(&df_idx).sqrt();
                 // Prevent division by zero.
                 inv_norm = if inv_norm > 1e-14 { inv_norm } else { 1e-14 };
                 // Take the inverse of the vector norm, since it is used later again.
                 inv_norm = 1.0 / inv_norm;
-                df_uu = &df_uu * inv_norm;
+                df_idx = &df_idx * inv_norm;
 
                 let mut c: Array1<f64> = Array1::zeros([self.iter]);
                 // Build a, beta, c, and gamma
                 for i in 0..idx {
-                    self.a_mat[[i, idx]] = self.df.slice(s![.., i]).dot(&df_uu);
+                    self.a_mat[[i, idx]] = self.df.slice(s![.., i]).dot(&df_idx);
                     self.a_mat[[idx, i]] = self.a_mat[[i, idx]];
-                    c[i] = self.ww[i] * self.df.slice(s![.., i]).dot(&delta_q);
-                    //println!("CC {} DF dot qdiff {} ww {} len df {}", c[i], self.df.slice(s![.., i]).dot(&delta_q), self.ww[i], delta_q.dot(&delta_q));
+                    c[i] = self.weights[i] * self.df.slice(s![.., i]).dot(&delta_q);
+                    //println!("CC {} DF dot qdiff {} weights {} len df {}", c[i], self.df.slice(s![.., i]).dot(&delta_q), self.weights[i], delta_q.dot(&delta_q));
                 }
                 self.a_mat[[idx, idx]] = 1.0;
-                c[idx] = self.ww[idx] * df_uu.dot(&delta_q);
+                c[idx] = self.weights[idx] * df_idx.dot(&delta_q);
 
                 let mut beta: Array2<f64> = Array2::zeros([self.iter, self.iter]);
                 for i in 0..self.iter {
                     beta.slice_mut(s![0.., i]).assign(
-                        &(self.ww[i] * &(&self.ww.slice(s![0..self.iter]) * &self.a_mat.slice(s![0..self.iter, i])))
+                        &(self.weights[i] * &(&self.weights.slice(s![0..self.iter]) * &self.a_mat.slice(s![0..self.iter, i])))
                     );
                     beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2);
                 }
-
+                // The inverse of the matrix is computed.
                 beta = beta.inv().unwrap();
                 let gamma: Array1<f64> = c.dot(&beta);
                 // Store |dF(m-1)>
-                self.df.slice_mut(s![.., idx]).assign(&df_uu);
+                self.df.slice_mut(s![.., idx]).assign(&df_idx);
 
                 // Create |u(m-1)>
-                self.uu.slice_mut(s![.., idx]).assign(&(&(&df_uu * self.alpha) + &((&q - &self.q_old) * inv_norm)));
+                self.uu.slice_mut(s![.., idx]).assign(&(&(&df_idx * self.alpha) + &((&q - &self.q_old) * inv_norm)));
                 // Save charge vectors before overwriting
                 self.q_old = q.clone();
                 self.delta_q_old = delta_q.clone();
 
                 // Build new vector
-                q = &(self.alpha * &delta_q) + &q;
+                q = &q + &(self.alpha * &delta_q);
                 for i in 0..self.iter {
-                    //println!("UU {} WW {} CC {} GAMMA {} Q {} MINUS {}", self.uu.slice(s![.., i]), self.ww[i], c[i],gamma[i], q, &(&self.uu.slice(s![.., i]) * self.ww[i] * gamma[i]));
-                    q = q - &(&self.uu.slice(s![.., i]) * self.ww[i] * gamma[i]);
+                    //println!("UU {} WW {} CC {} GAMMA {} Q {} MINUS {}", self.uu.slice(s![.., i]), self.weights[i], c[i],gamma[i], q, &(&self.uu.slice(s![.., i]) * self.weights[i] * gamma[i]));
+                    q = q - &(&self.uu.slice(s![.., i]) * self.weights[i] * gamma[i]);
                 }
                 Ok(q)
             },
