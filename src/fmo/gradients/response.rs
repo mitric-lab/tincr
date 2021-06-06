@@ -6,7 +6,7 @@ use crate::utils::Timer;
 use nalgebra::Vector3;
 use ndarray::prelude::*;
 use ndarray::RawData;
-use ndarray_linalg::SolveH;
+use ndarray_linalg::Solve;
 use ndarray_stats::DeviationExt;
 use std::iter::FromIterator;
 use std::ops::{AddAssign, SubAssign};
@@ -174,7 +174,7 @@ impl SuperSystem {
                         .t()
                         .dot(&gamma.slice(s![m_i.slice.atom, m_i.slice.atom]).dot(&q_vo_i));
             // Solve the linear system to get the Z-vector and save it.
-            z_vectors.push(a_ii.solveh(&lagrangians[i]).unwrap());
+            z_vectors.push(a_ii.solve(&lagrangians[i]).unwrap());
         }
 
         let mut converged: Vec<bool> = vec![false; self.n_mol];
@@ -213,7 +213,7 @@ impl SuperSystem {
                             .dot(&gamma.slice(s![m_i.slice.atom, m_i.slice.atom]).dot(&q_vo_i));
 
                 // Compute the new Z-vector.
-                let z_i: Array1<f64> = a_ii.solveh(&x_i).unwrap();
+                let z_i: Array1<f64> = a_ii.solve(&x_i).unwrap();
 
                 // Check if the Z-vector is converged.
                 converged[i] = z_i.root_mean_sq_err(&z_vectors[i]).unwrap() < epsilon;
@@ -240,9 +240,13 @@ impl SuperSystem {
                 // Transform the Z-Vector in the n_virt, n_occ shape.
                 let z: Array2<f64> = (z_i).into_shape([n_virt, n_occ]).unwrap();
                 // Basis transformation from MO basis to AO basis.
-                let z_vector: Array1<f64> = orbs
+                let mut z_vector: Array2<f64> = orbs
                     .slice(s![0.., n_occ..])
-                    .dot(&(z.dot(&orbs.slice(s![0.., ..n_occ]).t())))
+                    .dot(&(z.dot(&orbs.slice(s![0.., ..n_occ]).t())));
+                // Symmetrize the Z-vector.
+                z_vector = 0.5 * (&z_vector + &z_vector.t());
+                // Flatten the Array into a one dimensional vector.
+                let z_vector: Array1<f64> = z_vector
                     .into_shape([mol.n_orbs.pow(2)])
                     .unwrap();
                 // Save the transformed Z-vectors for each monomer.

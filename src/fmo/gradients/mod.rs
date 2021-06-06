@@ -6,6 +6,7 @@ use nalgebra::Vector3;
 use ndarray::prelude::*;
 use std::iter::FromIterator;
 use std::ops::AddAssign;
+use log::info;
 
 mod embedding;
 mod monomer;
@@ -32,15 +33,33 @@ impl SuperSystem {
             let q_vo: Array2<f64> = mol.compute_q_vo(&atoms[mol.slice.atom_as_range()], None);
             mol.properties.set_q_vo(q_vo);
         }
-        self.self_consistent_z_vector(1e-10);
+        // let timer: Timer = Timer::start();
+        // self.self_consistent_z_vector(1e-10);
+        // info!("Z-vector: {}", timer);
 
+        let timer: Timer = Timer::start();
         let monomer_gradient: Array1<f64> = self.monomer_gradients();
-        let pair_gradient: Array1<f64> = self.pair_gradients(monomer_gradient.view());
-        let embedding_gradient: Array1<f64> = self.embedding_gradient();
-        let esd_gradient: Array1<f64> = self.es_dimer_gradient();
-        let response_gradient: Array1<f64> = self.response_embedding_gradient();
+        info!("Monomer : {}", timer);
 
-        return monomer_gradient + pair_gradient + embedding_gradient + esd_gradient + response_gradient;
+        let timer: Timer = Timer::start();
+        let pair_gradient: Array1<f64> = self.pair_gradients(monomer_gradient.view());
+        info!("Pair : {}", timer);
+
+        let timer: Timer = Timer::start();
+        let embedding_gradient: Array1<f64> = self.embedding_gradient();
+        info!("Embedding : {}", timer);
+
+        let timer: Timer = Timer::start();
+        let esd_gradient: Array1<f64> = self.es_dimer_gradient();
+        info!("ESD : {}", timer);
+
+        // let timer: Timer = Timer::start();
+        // let response_gradient: Array1<f64> = self.response_embedding_gradient();
+        // info!("Response : {}", timer);
+
+
+
+        return monomer_gradient + pair_gradient + embedding_gradient + esd_gradient;// + response_gradient;
     }
 
 

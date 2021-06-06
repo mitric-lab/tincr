@@ -10,6 +10,7 @@ use ndarray::prelude::*;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::gradients::assert_deriv;
 use crate::initialization::Atom;
+use crate::constants::BOHR_TO_ANGS;
 
 
 impl SuperSystem {
@@ -84,7 +85,7 @@ impl SuperSystem {
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
         }
-        self.update_xyz(geometry);
+        self.update_xyz(geometry.clone());
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
         let (monomer_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
@@ -92,6 +93,11 @@ impl SuperSystem {
         self.properties.set_dq(dq);
         let emb_energy:f64 = self.embedding_energy();
         let esd_energy: f64 = self.esd_pair_energy();
+        // println!("LEN {}", geometry.len());
+        // for (atom, coord) in self.atoms.iter().zip(geometry.into_shape([self.atoms.len(), 3]).unwrap().axis_iter(Axis(0))) {
+        //     println!("{:<6} {:>12.6} {:>12.6} {:>12.6}", atom.name, coord[0] * BOHR_TO_ANGS, coord[1] * BOHR_TO_ANGS, coord[2]*BOHR_TO_ANGS);
+        // }
+        // println!("{} {} {} {}", monomer_energy, pair_energy, esd_energy, emb_energy);
         monomer_energy + pair_energy + esd_energy +emb_energy
     }
 

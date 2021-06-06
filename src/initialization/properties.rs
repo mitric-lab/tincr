@@ -22,6 +22,7 @@ impl Properties {
             "X",
             "dq",
             "delta_dq",
+            "mixer",
             //"P",
             "gradH0",
             "gradS",

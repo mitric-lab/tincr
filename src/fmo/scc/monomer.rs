@@ -1,7 +1,7 @@
 use ndarray::prelude::*;
 use ndarray_linalg::*;
 use ndarray::stack;
-use ndarray_stats::QuantileExt;
+use ndarray_stats::{QuantileExt, DeviationExt};
 use crate::fmo::scc::helpers::*;
 use crate::fmo::{Pair, Monomer};
 use crate::scc::h0_and_s::*;
@@ -121,11 +121,11 @@ impl Monomer {
         // charge difference to previous iteration
         let delta_dq: Array1<f64> = &new_dq - &dq;
 
-        let delta_dq_max: f64 = *delta_dq.map(|x| x.abs()).max().unwrap();
-
         // Broyden mixing of partial charges # changed new_dq to dq
         dq = mixer.next(dq, delta_dq);
         let q: Array1<f64> = new_q;
+
+        let diff_dq_max: f64 = dq.root_mean_sq_err(&mixer.q_old).unwrap();
 
         // compute electronic energy
         let scf_energy = get_electronic_energy(
@@ -139,7 +139,7 @@ impl Monomer {
         );
 
         // check if charge difference to the previous iteration is lower than 1e-5
-        let converged: bool = if (delta_dq_max < scf_charge_conv)
+        let converged: bool = if (diff_dq_max < scf_charge_conv)
             && (last_energy - scf_energy).abs() < scf_energy_conv
         {
             true

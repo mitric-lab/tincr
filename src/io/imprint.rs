@@ -10,15 +10,13 @@ pub fn write_header() {
     info!("{: ^80}", "");
     info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
     info!("{: ^80}", "::           Roland Mitric          ::");
-    info!("{: ^80}", "::  Chair of theoretical chemistry  ::");
-    info!("{: ^80}", "::      University of Wuerzburg     ::");
-    info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
-    // info!("{: ^80}", ":::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
-    // info!("{: ^80}", ":: Authors:                                            ::");
-    // info!("{: ^80}", ":: Joscha Hoche <joscha.hoche@uni-wuerzburg.de>        ::");
-    // info!("{: ^80}", ":: Richard Einsele <richard.einsele@uni-wuerzburg.de>  ::");
-    // info!("{: ^80}", ":: Richard Einsele <richard.einsele@uni-wuerzburg.de>  ::");
-    // info!("{: ^80}", ":: Xincheng Miao <xincheng.miao@uni-wuerzburg.de>      ::");
-    // info!("{: ^80}", ":::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
+    info!("{: ^80}", "::  Chair of Theoretical Chemistry  ::");
+    info!("{: ^80}", "::       University of Würzburg     ::");
+    info!("{: ^80}", "::::::::::::..................................::::::::::::");
+    info!("{: ^80}", ":: Authors:                                             ::");
+    info!("{: ^80}", ":: --------                                             ::");
+    info!("{: ^80}", ":: Joscha Hoche         <joscha.hoche@uni-wuerzburg.de> ::");
+    info!("{: ^80}", ":: Richard Einsele   <richard.einsele@uni-wuerzburg.de> ::");
+    info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
     info!("{: ^80}", "");
 }

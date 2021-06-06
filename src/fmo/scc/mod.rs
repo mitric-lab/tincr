@@ -69,6 +69,7 @@ impl RestrictedSCC for SuperSystem {
         // Do the self-consistent monomer calculations
         let (monomer_energies, dq): (f64, Array1<f64>) = self.monomer_scc(max_iter);
 
+        panic!("STOP");
         // Do the SCC-calculation for each pair individually
         let mut pair_energies: f64 = self.pair_scc(dq.view());
 

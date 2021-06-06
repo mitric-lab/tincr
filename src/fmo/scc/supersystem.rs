@@ -26,9 +26,7 @@ impl SuperSystem {
             for (i, mol) in self.monomers.iter_mut().enumerate() {
                 let v_esp: Array2<f64> =
                     atomvec_to_aomat(esp_at.slice(s![mol.slice.atom]), mol.n_orbs, &self.atoms[mol.slice.atom_as_range()]);
-                if !converged[i] {
-                    converged[i] = mol.scc_step(&self.atoms[mol.slice.atom_as_range()], v_esp, self.config.scf);
-                }
+                converged[i] = mol.scc_step(&self.atoms[mol.slice.atom_as_range()], v_esp, self.config.scf);
                 // save the dq's from the monomer calculation
                 dq.slice_mut(s![mol.slice.atom])
                     .assign(&mol.properties.dq().unwrap());
