@@ -3882,8 +3882,8 @@ pub fn fmo_fragments_gradients_ncc(
     let ncc_mats: Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
 
     'ncc_loop: for i in 0..max_iter {
-        let energies_vec: Vec<f64> = fragments
-            .iter_mut()
+        let monomer_iter: Vec<monomer_grad_result> = fragments
+            .par_iter_mut()
             .enumerate()
             .map(|(index, frag)| {
                 let mut energy: f64 = 0.0;
@@ -3936,42 +3936,103 @@ pub fn fmo_fragments_gradients_ncc(
                     //     println!("Gradient of monomer: {}",gradient);
                     // }
                 }
-
-                // calculate dq diff and pmat diff
-                if i == 0 {
-                    let dq_diff: Array1<f64> = frag.final_charges.clone();
-                    let p_diff: Array2<f64> = frag.final_p_matrix.clone();
-                    // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
-                    dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
-                    p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
-
-                    dq_old.push(frag.final_charges.clone());
-                    pmat_old.push(frag.final_p_matrix.clone());
-                    s_matrices.push(s);
-                    om_monomer_matrices.push(Array1::zeros(length));
-                    dq_arr
-                        .slice_mut(s![frag_index..frag_index + frag.n_atoms])
-                        .assign(&frag.final_charges);
-                } else {
-                    let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
-                    let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
-                    // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
-                    dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
-                    p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
-
-                    dq_old[index] = frag.final_charges.clone();
-                    pmat_old[index] = frag.final_p_matrix.clone();
-
-                    om_monomer_matrices[index] = om_monomer;
-                    dq_arr
-                        .slice_mut(s![frag_index..frag_index + frag.n_atoms])
-                        .assign(&frag.final_charges);
+                let mut dq_diff: Array1<f64> = frag.final_charges.clone();
+                let mut p_diff: Array2<f64> = frag.final_p_matrix.clone();
+                if i != 0{
+                    dq_diff = dq_diff - dq_old[index].clone();
+                    p_diff = p_diff - pmat_old[index].clone();
                 }
-                energy
+                let dq_rmsd_val:f64 = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                let p_rmsd_val:f64 = p_diff.map(|val| val * val).mean().unwrap().sqrt();
+                let monomer_grad_result:monomer_grad_result = monomer_grad_result::new(
+                    frag.final_charges.clone(),
+                    frag.final_p_matrix.clone(),
+                    s,
+                    om_monomer.clone(),
+                    p_rmsd_val,
+                    dq_rmsd_val,
+                    energy
+                );
+
+                // // calculate dq diff and pmat diff
+                // if i == 0 {
+                //     let dq_diff: Array1<f64> = frag.final_charges.clone();
+                //     let p_diff: Array2<f64> = frag.final_p_matrix.clone();
+                //     // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
+                //     let dq_rmsd_val:f64 = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                //     let p_rmsd_val:f64 = p_diff.map(|val| val * val).mean().unwrap().sqrt();
+                //     // dq_rmsd[index] = dq_rmsd_val;
+                //     // p_rmsd[index] = p_rmsd_val;
+                //     let monomer_grad_result:monomer_grad_result = monomer_grad_result::new(
+                //         frag.final_charges.clone(),
+                //         frag.final_p_matrix.clone(),
+                //         s,
+                //         om_monomer.clone(),
+                //         p_rmsd_val,
+                //         dq_rmsd_val,
+                //         energy
+                //     );
+                //     //monomer_iter.push(monomer_grad_result);
+                //     // dq_old.push(frag.final_charges.clone());
+                //     // pmat_old.push(frag.final_p_matrix.clone());
+                //     // s_matrices.push(s);
+                //     // om_monomer_matrices.push(Array1::zeros(length));
+                //     // dq_arr
+                //     //     .slice_mut(s![frag_index..frag_index + frag.n_atoms])
+                //     //     .assign(&frag.final_charges);
+                // } else {
+                //     let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
+                //     let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
+                //     // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
+                //     let dq_rmsd_val:f64 = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                //     let p_rmsd_val:f64 = p_diff.map(|val| val * val).mean().unwrap().sqrt();
+                //     // dq_rmsd[index] = dq_rmsd_val;
+                //     // p_rmsd[index] = p_rmsd_val;
+                //     let monomer_grad_result:monomer_grad_result = monomer_grad_result::new(
+                //         frag.final_charges.clone(),
+                //         frag.final_p_matrix.clone(),
+                //         s,
+                //         om_monomer.clone(),
+                //         p_rmsd_val,
+                //         dq_rmsd_val,
+                //         energy
+                //     );
+                //     //monomer_iter.push(monomer_grad_result);
+                //     // dq_old[index] = frag.final_charges.clone();
+                //     // pmat_old[index] = frag.final_p_matrix.clone();
+                //     // om_monomer_matrices[index] = om_monomer;
+                //     // dq_arr
+                //     //     .slice_mut(s![frag_index..frag_index + frag.n_atoms])
+                //     //     .assign(&frag.final_charges);
+                // }
+                monomer_grad_result
             })
             .collect();
 
-        let energies_arr: Array1<f64> = Array::from(energies_vec); // + embedding_arr;
+        let mut energies_arr:Array1<f64> = Array1::zeros(length);
+        for (index,item) in monomer_iter.iter().enumerate(){
+            energies_arr[index] = item.energy;
+            dq_rmsd[index] = item.dq_diff;
+            p_rmsd[index] = item.p_rmsd;
+            let frag_index: usize = frag_indices[index];
+            let frag_atoms:usize = fragments[index].n_atoms;
+            dq_arr.slice_mut(s![frag_index..frag_index + frag_atoms])
+                .assign(&item.dq_old);
+
+            if i == 0{
+                dq_old.push(item.dq_old.clone());
+                pmat_old.push(item.p_mat_old.clone());
+                s_matrices.push(item.s_mat.clone());
+                om_monomer_matrices.push(Array1::zeros(frag_atoms));
+            }
+            else{
+                dq_old[index] = item.dq_old.clone();
+                pmat_old[index] = item.p_mat_old.clone();
+                om_monomer_matrices[index] = item.om_monomer.clone();
+            }
+        }
+
+        // let energies_arr: Array1<f64> = Array::from(energies_vec); // + embedding_arr;
         let energy_diff: Array1<f64> = (&energies_arr - &energy_old).mapv(|val| val.abs());
         energy_old = energies_arr;
         // println!("energies of the monomers {}",energy_old);
@@ -4046,7 +4107,7 @@ pub fn fmo_fragments_gradients_ncc(
         .collect();
 
     let gradients_vec: Vec<frag_gradient_result> = fragments
-        .iter_mut()
+        .par_iter_mut()
         .enumerate()
         .map(|(index, frag)| {
             // calculate om_monomers
@@ -4095,7 +4156,7 @@ pub fn fmo_fragments_gradients_ncc(
                 &s_matrices[index],
                 &grad_s,
             );
-            println!("frag {} ws_dds {}",index,ws_pds);
+            // println!("frag {} ws_dds {}",index,ws_pds);
 
             let result = frag_gradient_result::new(
                 gradient,
@@ -4222,28 +4283,23 @@ pub fn fmo_gradient_pairs_embedding_esdim(
             if ind1 < ind2 {
                 let mut use_saved_calc: bool = false;
                 let mut saved_calc: Option<DFTBCalculator> = None;
-
-                //let molecule_timer: Instant = Instant::now();
+                    //let molecule_timer: Instant = Instant::now();
                 let mut atomic_numbers: Vec<u8> = Vec::new();
                 atomic_numbers.append(&mut molecule_a.atomic_numbers.clone());
                 atomic_numbers.append(&mut molecule_b.atomic_numbers.clone());
-
-                let mut positions: Array2<f64> =
+                    let mut positions: Array2<f64> =
                     Array2::zeros((molecule_a.n_atoms + molecule_b.n_atoms, 3));
-
-                positions
+                    positions
                     .slice_mut(s![0..molecule_a.n_atoms, ..])
                     .assign(&molecule_a.positions);
                 positions
                     .slice_mut(s![molecule_a.n_atoms.., ..])
                     .assign(&molecule_b.positions);
-
-                let mut distance_frag: Array2<f64> = Array2::zeros((
+                    let mut distance_frag: Array2<f64> = Array2::zeros((
                     molecule_a.n_atoms + molecule_b.n_atoms,
                     molecule_a.n_atoms + molecule_b.n_atoms,
                 ));
-
-                distance_frag
+                    distance_frag
                     .slice_mut(s![0..molecule_a.n_atoms, 0..molecule_a.n_atoms])
                     .assign(&dist_mat.slice(s![
                         indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
@@ -4267,8 +4323,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
                     ]));
-
-                let mut dir_frag: Array3<f64> = Array3::zeros((
+                    let mut dir_frag: Array3<f64> = Array3::zeros((
                     molecule_a.n_atoms + molecule_b.n_atoms,
                     molecule_a.n_atoms + molecule_b.n_atoms,
                     3,
@@ -4280,8 +4335,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                     ),
                     false,
                 );
-
-                dir_frag
+                    dir_frag
                     .slice_mut(s![0..molecule_a.n_atoms, 0..molecule_a.n_atoms, ..])
                     .assign(&direct_mat.slice(s![
                         indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
@@ -4309,8 +4363,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
                         ..
                     ]));
-
-                prox_frag
+                    prox_frag
                     .slice_mut(s![0..molecule_a.n_atoms, 0..molecule_a.n_atoms])
                     .assign(&prox_mat.slice(s![
                         indices_frags[ind1]..indices_frags[ind1] + molecule_a.n_atoms,
@@ -4334,22 +4387,18 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms,
                         indices_frags[ind2]..indices_frags[ind2] + molecule_b.n_atoms
                     ]));
-
-                let connectivity_matrix: Array2<bool> = build_connectivity_matrix(
+                    let connectivity_matrix: Array2<bool> = build_connectivity_matrix(
                     atomic_numbers.len(),
                     &distance_frag,
                     &atomic_numbers,
                 );
-
-                let (graph_new, graph_indexes, subgraph): (
+                    let (graph_new, graph_indexes, subgraph): (
                     StableUnGraph<u8, f64>,
                     Vec<NodeIndex>,
                     Vec<StableUnGraph<u8, f64>>,
                 ) = build_graph(&atomic_numbers, &connectivity_matrix, &distance_frag);
-
-                let graph: Graph<u8, f64, Undirected> = Graph::from(graph_new.clone());
-
-                if saved_graphs.len() > 0 {
+                    let graph: Graph<u8, f64, Undirected> = Graph::from(graph_new.clone());
+                    if saved_graphs.len() > 0 {
                     for (ind_g, saved_graph) in saved_graphs.iter().enumerate() {
                         if is_isomorphic_matching(
                             &graph,
@@ -4373,16 +4422,14 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                     .cloned()
                     .min_by(|a, b| a.partial_cmp(b).expect("Tried to compare a NaN"))
                     .unwrap();
-
-                let index_min_vec: Vec<(usize, usize)> = distance_between_pair
+                    let index_min_vec: Vec<(usize, usize)> = distance_between_pair
                     .indexed_iter()
                     .filter_map(
                         |(index, &item)| if item == min_dist { Some(index) } else { None },
                     )
                     .collect();
                 let index_min = index_min_vec[0];
-
-                let vdw_radii_sum: f64 = (constants::VDW_RADII
+                    let vdw_radii_sum: f64 = (constants::VDW_RADII
                     [&molecule_a.atomic_numbers[index_min.0]]
                     + constants::VDW_RADII[&molecule_b.atomic_numbers[index_min.1]])
                     / constants::BOHR_TO_ANGS;
@@ -4396,8 +4443,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                 let mut pair_n_orbs: Option<usize> = None;
                 let mut pair_gradient: Option<Array1<f64>> = None;
                 let mut pair_embedding_gradient: Option<Array1<f64>> = None;
-
-                // do scc routine for pair if mininmal distance is below threshold
+                    // do scc routine for pair if mininmal distance is below threshold
                 if (min_dist / vdw_radii_sum) < 2.0 {
                     let mut pair: Molecule = Molecule::new(
                         atomic_numbers,
@@ -4443,22 +4489,19 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                     );
                     energy_pair = Some(energy);
                     pair_density = Some(pair.final_p_matrix.clone());
-
-                    let (gradient_dimer, grad_s, grad_h0): (
-                        Array1<f64>,
-                        Array3<f64>,
-                        Array3<f64>,
-                    ) = fmo_fragment_gradients(&pair, s.view());
-                    drop(grad_h0);
-
-                    let pair_atoms: usize = pair.n_atoms;
+                        // let (gradient_dimer, grad_s, grad_h0): (
+                    //     Array1<f64>,
+                    //     Array3<f64>,
+                    //     Array3<f64>,
+                    // ) = fmo_fragment_gradients(&pair, s.view());
+                    // drop(grad_h0);
+                        let pair_atoms: usize = pair.n_atoms;
                     let pair_charges: Array1<f64> = pair.final_charges.clone();
-                    let dimer_pmat: Array2<f64> = pair.final_p_matrix.clone();
-                    let pair_smat: Array2<f64> = s;
                     let frag_a_atoms: usize = fragments[ind1].n_atoms;
-                    let frag_b_atoms: usize = fragments[ind2].n_atoms;
-
-                    let ddq_vec: Vec<f64> = (0..pair_atoms)
+                    // let dimer_pmat: Array2<f64> = pair.final_p_matrix.clone();
+                    // let pair_smat: Array2<f64> = s;
+                    // let frag_b_atoms: usize = fragments[ind2].n_atoms;
+                        let ddq_vec: Vec<f64> = (0..pair_atoms)
                         .into_iter()
                         .map(|a| {
                             let mut ddq: f64 = 0.0;
@@ -4474,7 +4517,7 @@ pub fn fmo_gradient_pairs_embedding_esdim(
                     let ddq_arr: Array1<f64> = Array::from(ddq_vec);
                     ddq_arr_vec.push(ddq_arr);
                     pair_indices.push((ind1,ind2));
-                }
+                    }
             }
         }
     }
@@ -6765,5 +6808,37 @@ impl pair_gradients_result {
             dimer_gradient: dimer_gradient,
         };
         return result;
+    }
+}
+
+pub struct monomer_grad_result{
+    dq_old:Array1<f64>,
+    p_mat_old:Array2<f64>,
+    s_mat:Array2<f64>,
+    om_monomer:Array1<f64>,
+    p_rmsd:f64,
+    dq_diff:f64,
+    energy:f64
+}
+
+impl monomer_grad_result{
+    pub fn new(
+        dq_old:Array1<f64>,
+        p_mat_old:Array2<f64>,
+        s_mat:Array2<f64>,
+        om_monomer:Array1<f64>,
+        p_rmsd:f64,
+        dq_diff:f64,
+        energy:f64,
+    )->monomer_grad_result{
+        monomer_grad_result{
+            dq_old:dq_old,
+            p_mat_old:p_mat_old,
+            s_mat:s_mat,
+            om_monomer:om_monomer,
+            p_rmsd:p_rmsd,
+            dq_diff:dq_diff,
+            energy:energy
+        }
     }
 }
