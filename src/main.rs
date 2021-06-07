@@ -62,7 +62,7 @@ use crate::calculator::gamma_gradient_dot_dq;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(12)
+        .num_threads(1)
         .build_global()
         .unwrap();
 

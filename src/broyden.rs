@@ -133,7 +133,7 @@ impl BroydenMixer {
                     &(&self.ww.slice(s![..self.iter]).mapv(|x| x * self.ww[i])
                         * &self.a_mat.slice(s![..self.iter, i])),
                 );
-                beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2) + 1.0;
+                beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2);
             }
 
             beta = beta.inv().unwrap();

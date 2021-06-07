@@ -2315,22 +2315,22 @@ pub fn fmo_calculate_fragments_ncc(
         //     && converged_p.len() == length
         if !converged.contains(&false)
         {
-            // println!("Iteration {}", i);
-            // println!(
-            //     "Number of converged fragment energies {}, charges {} and pmatrices {}",
-            //     converged_energies.len(),
-            //     converged_dq.len(),
-            //     converged_p.len()
-            // );
+            println!("Iteration {}", i);
+            println!(
+                "Number of converged fragment energies {}, charges {} and pmatrices {}",
+                converged_energies.len(),
+                converged_dq.len(),
+                converged_p.len()
+            );
             break 'ncc_loop;
         } else {
-            // println!("Iteration {}", i);
-            // println!(
-            //     "Number of converged fragment energies {}, charges {} and pmatrices {}",
-            //     converged_energies.len(),
-            //     converged_dq.len(),
-            //     converged_p.len()
-            // );
+            println!("Iteration {}", i);
+            println!(
+                "Number of converged fragment energies {}, charges {} and pmatrices {}",
+                converged_energies.len(),
+                converged_dq.len(),
+                converged_p.len()
+            );
         }
     }
     let om_monomers: Vec<Array1<f64>> = fragments
