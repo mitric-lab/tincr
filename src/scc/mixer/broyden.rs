@@ -77,9 +77,9 @@ impl Mixer for BroydenMixer {
         delta_q: Array1<f64>,
     ) -> Array1<f64> {
         let mut q: Array1<f64> = q;
-        if self.iter > 14 {
-            println!("iter {} QINP {} QDIFF {} QINPLAST {} ", self.iter, q, delta_q, self.q_old);
-        }
+        // if self.iter > 14 {
+        //     println!("iter {} QINP {} QDIFF {} QINPLAST {} ", self.iter, q, delta_q, self.q_old);
+        // }
 
         let q_out: Result<Array1<f64>, _> = match self.iter {
             // In the first iteration a linear damping scheme is used.
@@ -96,7 +96,7 @@ impl Mixer for BroydenMixer {
             _ if self.iter < self.maxiter - 1  => {
                 // Index variable to acess the matrix/vector element of the current iteration.
                 let idx: usize = self.iter - 1;
-                
+
                 // Create the weight factor of the current iteration.
                 let mut weight: f64 = delta_q.dot(&delta_q).sqrt();
                 if weight > self.weight_factor / self.max_weight {
@@ -133,7 +133,7 @@ impl Mixer for BroydenMixer {
 
                 let mut beta: Array2<f64> = Array2::zeros([self.iter, self.iter]);
                 for i in 0..self.iter {
-                    beta.slice_mut(s![0.., i]).assign(
+                    beta.slice_mut(s![i, 0..]).assign(
                         &(self.weights[i] * &(&self.weights.slice(s![0..self.iter]) * &self.a_mat.slice(s![0..self.iter, i])))
                     );
                     beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2);
@@ -165,4 +165,3 @@ impl Mixer for BroydenMixer {
     }
 
 }
-
