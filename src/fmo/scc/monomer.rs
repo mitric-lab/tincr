@@ -121,11 +121,12 @@ impl Monomer {
         // charge difference to previous iteration
         let delta_dq: Array1<f64> = &new_dq - &dq;
 
+        let diff_dq_max: f64 = dq.root_mean_sq_err(&new_dq).unwrap();
+
         // Broyden mixing of partial charges # changed new_dq to dq
         dq = mixer.next(dq, delta_dq);
         let q: Array1<f64> = new_q;
 
-        let diff_dq_max: f64 = dq.root_mean_sq_err(&mixer.q_old).unwrap();
 
         // compute electronic energy
         let scf_energy = get_electronic_energy(

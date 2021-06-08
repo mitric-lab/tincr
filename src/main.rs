@@ -57,7 +57,7 @@ fn main() {
         )
         .get_matches();
 
-    let log_level: LevelFilter = match 0 {
+    let log_level: LevelFilter = match -2 {
         2 => LevelFilter::Trace,
         1 => LevelFilter::Debug,
         0 => LevelFilter::Info,
@@ -105,8 +105,8 @@ fn main() {
     //let result = system.test_esd_gradient();
     //system.test_pair_gradient();
     //system.test_embedding_gradient();
-    println!("{}", system.ground_state_gradient());
-    //println!("Grad {:?}", system.test_total_gradient());
+    //println!("{}", system.ground_state_gradient());
+    println!("Grad {:?}", system.test_total_gradient());
 
     info!("{}", timer);
     info!("{: ^80}", "");
