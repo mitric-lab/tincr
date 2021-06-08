@@ -55,7 +55,6 @@ impl Mixer for BroydenMixer {
     }
 
     fn next(&mut self, q: Array1<f64>, delta_q: Array1<f64>) -> Array1<f64> {
-        self.iter += 1;
         self.mix(q, delta_q)
     }
 
@@ -160,7 +159,7 @@ impl Mixer for BroydenMixer {
             },
             _ => Err("SCC did not converge"),
         };
-
+        self.iter += 1;
         return q_out.unwrap();
     }
 
