@@ -37,6 +37,7 @@ pub fn generate_initial_fmo_monomer_guess(fragments: &mut Vec<Molecule>) -> (Vec
                 Option<Array1<f64>>,
             ) = fmo_ncc(frag, None, None, None, None, None, None, false, None);
             let matrices: ncc_matrices = ncc_matrices::new(s, h, x_option);
+            frag.broyden_mixer.reset(frag.n_atoms);
             matrices
         })
         .collect();

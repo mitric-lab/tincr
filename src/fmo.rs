@@ -2166,8 +2166,10 @@ pub fn fmo_calculate_fragments_ncc(
     let ncc_mats: Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
     let mut converged:Vec<bool> = vec![false;length];
     let mut old_energies:Array1<f64> = Array1::zeros(length);
+    println!("Before monomer iteration!");
 
     'ncc_loop: for i in 0..max_iter {
+        println!("Start of Iteration {}",i);
         let energies_vec: Vec<f64> = fragments
             .iter_mut()
             .enumerate()
@@ -2315,7 +2317,7 @@ pub fn fmo_calculate_fragments_ncc(
         //     && converged_p.len() == length
         if !converged.contains(&false)
         {
-            println!("Iteration {}", i);
+            println!("End of Iteration {}", i);
             println!(
                 "Number of converged fragment energies {}, charges {} and pmatrices {}",
                 converged_energies.len(),
@@ -2324,7 +2326,7 @@ pub fn fmo_calculate_fragments_ncc(
             );
             break 'ncc_loop;
         } else {
-            println!("Iteration {}", i);
+            println!("End of Iteration {}", i);
             println!(
                 "Number of converged fragment energies {}, charges {} and pmatrices {}",
                 converged_energies.len(),

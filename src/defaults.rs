@@ -24,7 +24,7 @@ pub const REPPOT_SCALING: f64 = 1.0;
 
 // SCF ITERATION
 // stop SCF calculation after maxiter iterations
-pub const MAX_ITER: usize = 250;
+pub const MAX_ITER: usize = 20;
 // convergence threshold for relative change in SCF-calculation
 pub const SCF_CHARGE_CONV: f64 = 1.0e-5;
 pub const SCF_ENERGY_CONV: f64 = 1.0e-5;
@@ -50,7 +50,7 @@ pub const BROYDEN_OMEGA0: f64 = 0.01;
 pub const BROYDEN_MIN_WEIGHT: f64 = 1.0;
 pub const BROYDEN_MAX_WEIGHT: f64 = 1.0e5;
 pub const BROYDEN_WEIGHT_FACTOR: f64 = 1.0e-2;
-pub const BROYDEN_MIXING_PARAMETER: f64 = 0.25;
+pub const BROYDEN_MIXING_PARAMETER: f64 = 0.35;
 
 pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
 
