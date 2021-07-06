@@ -287,18 +287,20 @@ pub fn get_slako_table_mio(element1: &str, element2: &str) -> SlaterKosterTable 
     println!("filename {}",filename);
     let path: &Path = Path::new(&filename);
     let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let mut slako_table: SlaterKosterTable = read_mio_slako_data(&data,element1,element2,"ab",None);
+    let mut slako_table_final: SlaterKosterTable = read_mio_slako_data(&data,element1,element2,"ab",None);
 
-    let element_1:String = some_kind_of_uppercase_first_letter(element2);
-    let element_2:String = some_kind_of_uppercase_first_letter(element1);
-    let filename: String = format!(
-        "{}/{}-{}.skf",
-        path_prefix, element_1, element_2
-    );
-    println!("filename {}",filename);
-    let path: &Path = Path::new(&filename);
-    let data: String = fs::read_to_string(path).expect("Unable to read file");
-    let slako_table_final: SlaterKosterTable = read_mio_slako_data(&data,element1,element2,"ba",Some(slako_table));
+    if element1 != element2{
+        let element_1:String = some_kind_of_uppercase_first_letter(element2);
+        let element_2:String = some_kind_of_uppercase_first_letter(element1);
+        let filename: String = format!(
+            "{}/{}-{}.skf",
+            path_prefix, element_1, element_2
+        );
+        println!("filename {}",filename);
+        let path: &Path = Path::new(&filename);
+        let data: String = fs::read_to_string(path).expect("Unable to read file");
+        slako_table_final = read_mio_slako_data(&data,element1,element2,"ba",Some(slako_table_final.clone()));
+    }
     return slako_table_final;
 }
 
