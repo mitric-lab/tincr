@@ -21,6 +21,33 @@ pub const ATOM_NAMES: [&str; 87] = [
     "hg", "tl", "pb", "bi", "po", "at", "rn",
 ];
 
+pub const TAUSYMBOLS_AB: [&str;10] = ["dd_sigma", "dd_pi", "dd_delta",   "pd_sigma", "pd_pi", "pp_sigma", "pp_pi", "sd_sigma", "sp_sigma", "ss_sigma"];
+pub const TAUSYMBOLS_BA: [&str;10] = ["dd_sigma", "dd_pi", "dd_delta",   "dp_sigma", "dp_pi", "pp_sigma", "pp_pi", "ds_sigma", "ps_sigma", "ss_sigma"];
+
+pub static SYMBOL_2_TAU:phf::Map<&'static str,(u8,i32,u8,i32)> = phf_map!{
+    "ss_sigma" => (0,0,0,0),
+    "sp_sigma" => (0,0,1,0),
+    "ps_sigma" => (1,0,0,0),
+    "pp_pi"    => (1,-1,1,-1),
+    "pp_sigma" => (1,0,1,0),
+    "ds_sigma" => (2,0,0,0),
+    "sd_sigma" => (0,0,2,0),
+    "dp_pi"    => (2,-1,1,-1),
+    "pd_pi"    => (1,-1,2,-1),
+    "dp_sigma" => (2,0,1,0),
+    "pd_sigma" => (1,0,2,0),
+    "dd_delta" => (2,-2,2,-2),
+    "dd_pi"    => (2,-1,2,-1),
+    "dd_sigma" => (2,0,2,0),
+};
+
+pub static ELEMENT_TO_Z: phf::Map<&'static str, u8> = phf_map! {
+    "h"  => 1, "he" => 2,
+    "li" => 3, "be" => 4,
+    "b"  => 5, "c"  => 6,
+    "n"  => 7, "o"  => 8,
+    "f"  => 9, "ne" => 10,
+};
 // I believe these masses are averaged over isotopes weighted with their abundances
 pub static ATOMIC_MASSES_OLD: phf::Map<&'static str, f64> = phf_map! {
     "H"  => 1.837362128065067E+03, "he" => 7.296296732461748E+03,

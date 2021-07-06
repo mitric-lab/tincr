@@ -110,9 +110,6 @@ impl BroydenMixer {
             }
             self.ww[nn_1] = ww_at_n1;
 
-            println!("Dq dot dq {}",q_diff.dot(&q_diff).sqrt());
-            println!("Weights {}",self.ww);
-
             // Build |DF(m-1)> and  (m is the current iteration number)
             let mut df_uu: Array1<f64> = &q_diff - &self.q_diff_last;
             let mut inv_norm: f64 = df_uu.dot(&df_uu).sqrt();
@@ -136,7 +133,7 @@ impl BroydenMixer {
                     &(&self.ww.slice(s![..self.iter]).mapv(|x| x * self.ww[i])
                         * &self.a_mat.slice(s![..self.iter, i])),
                 );
-                beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2);
+                beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2)+1.0;
             }
             // println!("Beta {}",beta);
             beta = beta.inv().unwrap();
@@ -167,7 +164,6 @@ impl BroydenMixer {
             // Save |u(m-1)>
             self.uu.slice_mut(s![.., nn_1]).assign(&df_uu);
         }
-
         return q_inp_result;
     }
 }

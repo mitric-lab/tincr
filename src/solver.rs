@@ -18,6 +18,7 @@ use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::ops::{AddAssign, DivAssign};
 use std::time::Instant;
+use arpack_interface::*;
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -654,6 +655,9 @@ pub fn casida(
     // (A-B)^(1/2) (A+B) (A-B)^(1/2) F = Omega^2 F
     let R: Array2<f64> = sqAmB.dot(&ApB.dot(&sqAmB));
     let (omega2, F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Lower).unwrap();
+    println!("omega2 {}",omega2);
+
+    let test = R.eigenvectors(&Which::SmallestAlgebraic, 3, 4, 100).unwrap();
 
     let omega: Array1<f64> = omega2.mapv(f64::sqrt);
     //let omega: Array1<f64> = omega2.map(|omega2| ndarray_linalg::Scalar::sqrt(omega2));
@@ -2888,6 +2892,7 @@ fn excited_energies_casida_routine() {
 
     let (omega_out, c_ij, XmY, XpY) =
         get_exc_energies(&f_occ.to_vec(), &mol, None, &S, &orbe, &orbs, false, None);
+    assert!( 1 == 2);
     println!("omega_out{}", &omega_out);
     println!("omega_diff {}", &omega_out - &omega_ref_out);
     assert!(omega_out.abs_diff_eq(&omega_ref_out, 1e-10));

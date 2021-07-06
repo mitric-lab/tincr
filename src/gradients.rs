@@ -2167,7 +2167,7 @@ fn get_gradients_gs_routine() {
         Array1<f64>,
         Array1<f64>,
         Array3<f64>,
-    ) = get_gradients(&orbe, &orbs, &S, &mol, &None, &None, None, &None, None);
+    ) = get_gradients(&orbe, &orbs, &S, &mut mol, &None, &None, None, &None, None);
 
     println!("grad_e0 {}", grad_e0);
     assert!(grad_e0.abs_diff_eq(&gradE0_ref, 1e-12));
@@ -2410,7 +2410,7 @@ fn get_gradients_exc_no_lc_restricted_space_routine() {
         &orbe,
         &orbs,
         &S,
-        &mol,
+        &mut mol,
         &Some(XmY),
         &Some(XpY),
         Some(0),
@@ -2731,7 +2731,7 @@ fn get_gradients_exc_no_lc_routine() {
         &orbe,
         &orbs,
         &S,
-        &mol,
+        &mut mol,
         &Some(XmY),
         &Some(XpY),
         Some(0),
@@ -2983,7 +2983,7 @@ fn get_gradients_exc_lc_restricted_space_routine() {
         &orbe,
         &orbs,
         &S,
-        &mol,
+        &mut mol,
         &Some(XmY),
         &Some(XpY),
         Some(0),
@@ -3299,7 +3299,7 @@ fn get_gradients_exc_routine() {
         &orbe,
         &orbs,
         &S,
-        &mol,
+        &mut mol,
         &Some(XmY),
         &Some(XpY),
         Some(0),
@@ -3317,7 +3317,7 @@ fn get_gradients_exc_routine() {
 
 #[test]
 fn gs_gradients_no_lc_routine() {
-    let mol: Molecule = get_water_molecule();
+    let mut mol: Molecule = get_water_molecule();
 
     let S: Array2<f64> = array![
         [
@@ -3449,7 +3449,7 @@ fn gs_gradients_no_lc_routine() {
         Array3<f64>,
         Array3<f64>,
         Array3<f64>,
-    ) = gradient_lc_gs(&mol, &orbe_occ, &orbe_virt, &orbs_occ, &S, Some(0.0));
+    ) = gradient_lc_gs(&mut mol, &orbe_occ, &orbe_virt, &orbs_occ, &S, Some(0.0));
     println!("gradE0 {}", gradE0);
     println!("gradE0_ref {}", gradE0_ref);
     assert!(gradE0.abs_diff_eq(&gradE0_ref, 1.0e-14));
@@ -3457,7 +3457,7 @@ fn gs_gradients_no_lc_routine() {
 }
 #[test]
 fn gs_gradients_lc_routine() {
-    let mol: Molecule = get_water_molecule();
+    let mut mol: Molecule = get_water_molecule();
 
     let S: Array2<f64> = array![
         [
@@ -3596,7 +3596,7 @@ fn gs_gradients_lc_routine() {
         Array3<f64>,
         Array3<f64>,
         Array3<f64>,
-    ) = gradient_lc_gs(&mol, &orbe_occ, &orbe_virt, &orbs_occ, &S, Some(1.0));
+    ) = gradient_lc_gs(&mut mol, &orbe_occ, &orbe_virt, &orbs_occ, &S, Some(1.0));
     println!("gradE0 {}", gradE0);
     println!("gradE0_ref {}", gradE0_ref);
     assert!(gradE0.abs_diff_eq(&gradE0_ref, 1.0e-14));

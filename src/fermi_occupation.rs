@@ -19,9 +19,42 @@ use std::cmp::{max, min};
 ///
 /// Returns:
 /// ========
-/// mu: chemical potential
+/// mu: chemical potential024
 /// f: list of occupations f[a] for orbitals (in the same order as the energies in orbe)
 pub fn fermi_occupation(
+    orbe: ArrayView1<f64>,
+    n_elec_paired: usize,
+    n_elec_unpaired: usize,
+    t: f64,
+) -> (f64, Vec<f64>) {
+    let mut fermi_occ: Vec<f64> = Vec::new();
+    let mut mu: f64 = 0.0;
+    if t == 0.0 {
+        let result: (f64, Vec<f64>) = fermi_occupation_t0(orbe, n_elec_paired, n_elec_unpaired);
+        mu = result.0;
+        fermi_occ = result.1;
+    } else {
+        let n_elec: usize = n_elec_paired + n_elec_unpaired;
+        let sort_indx: Vec<usize> = argsort(&orbe.to_vec());
+        // highest doubly occupied orbital
+        let h_idx: usize = max((n_elec / 2) - 1, 0);
+        let homo: f64 = orbe[sort_indx[h_idx]];
+        // LUMO + 1
+        let lp1_idx: usize = max((n_elec / 2) + 1, sort_indx.len() - 1);
+        let lumop1: f64 = orbe[sort_indx[lp1_idx]];
+        // search for fermi energy in the interval [HOMO, LUMO+1]
+        let func = |x: f64| -> f64 { fa_minus_nelec(x, orbe.view(), fermi, t, n_elec) };
+        mu = zbrent(func, homo, lumop1, 1.0e-08, 100);
+        let dn: f64 = func(mu);
+        assert!(dn.abs() <= 1.0e-08);
+        for en in orbe.iter() {
+            fermi_occ.push(fermi(*en, mu, t));
+        }
+    }
+    return (mu, fermi_occ);
+}
+
+pub fn fermi_occupation_unrestricted(
     orbe: ArrayView1<f64>,
     n_elec_paired: usize,
     n_elec_unpaired: usize,

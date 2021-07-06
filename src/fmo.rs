@@ -249,7 +249,7 @@ pub fn fmo_numerical_gradient_new(
     let con_2: f64 = con.powi(2);
     let ntab: usize = 20;
     let safe: f64 = 2.0;
-    let h: f64 = 5e-3;
+    let h: f64 = 1e-4;
     let big: f64 = 1e30;
 
     for ind in (0..positions.len()).into_iter() {
@@ -2151,7 +2151,6 @@ pub fn fmo_calculate_fragments_ncc(
     Vec<Array1<f64>>,
     Vec<Array1<f64>>,
 ) {
-    let mut converged: bool = false;
     let max_iter: usize = 250;
     let mut energy_old: Array1<f64> = Array1::zeros(fragments.len());
     let mut dq_old: Vec<Array1<f64>> = Vec::new();
@@ -2161,110 +2160,116 @@ pub fn fmo_calculate_fragments_ncc(
     let mut dq_arr: Array1<f64> =
         Array1::zeros(*frag_indices.last().unwrap() + fragments.last().unwrap().n_atoms);
     let mut s_matrices: Vec<Array2<f64>> = Vec::new();
-    let conv: f64 = 1e-6;
+    let conv: f64 = fragments[0].config.scf.scf_energy_conv;
     let length: usize = fragments.len();
     let ncc_mats: Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
     let mut converged:Vec<bool> = vec![false;length];
     let mut old_energies:Array1<f64> = Array1::zeros(length);
-    println!("Before monomer iteration!");
 
     'ncc_loop: for i in 0..max_iter {
-        println!("Start of Iteration {}",i);
+        // println!("Start of Iteration {}",i);
         let energies_vec: Vec<f64> = fragments
             .iter_mut()
             .enumerate()
             .map(|(index, frag)| {
                 let mut energy: f64 = 0.0;
-                if converged[index] == false{
-                    let mut s: Array2<f64> =
-                        Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
-                    let frag_index: usize = frag_indices[index];
-                    if i == 0 {
-                        let (energy_temp, s_temp, x_opt, h0, om_monomer): (
-                            f64,
-                            Array2<f64>,
-                            Option<Array2<f64>>,
-                            Option<Array2<f64>>,
-                            Option<Array1<f64>>,
-                        ) = fmo_ncc(
-                            frag,
-                            ncc_mats[index].x.clone(),
-                            Some(ncc_mats[index].s.clone()),
-                            ncc_mats[index].h0.clone(),
-                            None,
-                            None,
-                            None,
-                            false,
-                            Some(dq_arr.view()),
-                        );
-                        energy = energy_temp;
-                        s = s_temp;
-                    } else {
-                        let (energy_temp, s_temp, x_opt, h0, om_temp): (
-                            f64,
-                            Array2<f64>,
-                            Option<Array2<f64>>,
-                            Option<Array2<f64>>,
-                            Option<Array1<f64>>,
-                        ) = fmo_ncc(
-                            frag,
-                            ncc_mats[index].x.clone(),
-                            Some(ncc_mats[index].s.clone()),
-                            ncc_mats[index].h0.clone(),
-                            Some(g0_total),
-                            Some(index),
-                            Some(frag_indices.clone()),
-                            true,
-                            Some(dq_arr.view()),
-                        );
-                        energy = energy_temp;
-                        // if i == 6{
-                        //     let (gradient,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),s_temp.view());
-                        //     println!("Gradient of monomer: {}",gradient);
-                        // }
-                    }
-
-                    // calculate dq diff and pmat diff
-                    if i == 0 {
-                        let energy_diff:f64 = (energy-old_energies[index]).abs();
-                        old_energies[index] = energy;
-                        let dq_diff: Array1<f64> = frag.final_charges.clone();
-                        let p_diff: Array2<f64> = frag.final_p_matrix.clone();
-                        // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
-                        dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
-                        p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
-
-                        dq_old.push(frag.final_charges.clone());
-                        pmat_old.push(frag.final_p_matrix.clone());
-                        s_matrices.push(s);
-                        dq_arr
-                            .slice_mut(s![frag_index..frag_index + frag.n_atoms])
-                            .assign(&frag.final_charges);
-                    } else {
-                        let energy_diff:f64 = (energy-old_energies[index]).abs();
-                        old_energies[index] = energy;
-                        let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
-                        let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
-                        // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
-                        dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
-                        p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
-
-                        if energy_diff < conv && dq_rmsd[index] < conv && p_rmsd[index] < conv{
-                            converged[index] = true;
-                        }
-                        dq_old[index] = frag.final_charges.clone();
-                        pmat_old[index] = frag.final_p_matrix.clone();
-                        dq_arr
-                            .slice_mut(s![frag_index..frag_index + frag.n_atoms])
-                            .assign(&frag.final_charges);
-                    }
+                // if converged[index] == false{
+                let mut s: Array2<f64> =
+                    Array2::zeros((frag.calculator.n_orbs, frag.calculator.n_orbs));
+                let frag_index: usize = frag_indices[index];
+                if i == 0 {
+                    let (energy_temp, s_temp, x_opt, h0, om_monomer): (
+                        f64,
+                        Array2<f64>,
+                        Option<Array2<f64>>,
+                        Option<Array2<f64>>,
+                        Option<Array1<f64>>,
+                    ) = fmo_ncc(
+                        frag,
+                        ncc_mats[index].x.clone(),
+                        Some(ncc_mats[index].s.clone()),
+                        ncc_mats[index].h0.clone(),
+                        None,
+                        None,
+                        None,
+                        false,
+                        None,
+                    );
+                    energy = energy_temp;
+                    s = s_temp;
+                } else {
+                    let (energy_temp, s_temp, x_opt, h0, om_temp): (
+                        f64,
+                        Array2<f64>,
+                        Option<Array2<f64>>,
+                        Option<Array2<f64>>,
+                        Option<Array1<f64>>,
+                    ) = fmo_ncc(
+                        frag,
+                        ncc_mats[index].x.clone(),
+                        Some(ncc_mats[index].s.clone()),
+                        ncc_mats[index].h0.clone(),
+                        Some(g0_total),
+                        Some(index),
+                        Some(frag_indices.clone()),
+                        true,
+                        Some(dq_arr.view()),
+                    );
+                    energy = energy_temp;
+                    // if i == 6{
+                    //     let (gradient,grad_s):(Array1<f64>,Array3<f64>) = fmo_fragment_gradients(&frag,h0_coul.unwrap().view(),s_temp.view());
+                    //     println!("Gradient of monomer: {}",gradient);
+                    // }
                 }
-                else{
-                    energy = old_energies[index];
+
+                // calculate dq diff and pmat diff
+                if i == 0 {
+                    let energy_diff:f64 = (energy-old_energies[index]).abs();
+                    old_energies[index] = energy;
+                    let dq_diff: Array1<f64> = frag.final_charges.clone();
+                    let p_diff: Array2<f64> = frag.final_p_matrix.clone();
+                    // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
+                    dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                    p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
+
+                    dq_old.push(frag.final_charges.clone());
+                    pmat_old.push(frag.final_p_matrix.clone());
+                    s_matrices.push(s);
+                    // dq_arr
+                    //     .slice_mut(s![frag_index..frag_index + frag.n_atoms])
+                    //     .assign(&frag.final_charges);
+                } else {
+                    let energy_diff:f64 = (energy-old_energies[index]).abs();
+                    old_energies[index] = energy;
+                    let dq_diff: Array1<f64> = &frag.final_charges - &dq_old[index];
+                    let p_diff: Array2<f64> = &frag.final_p_matrix - &pmat_old[index];
+                    // dq_rmsd[index] = dq_diff.map(|val| val*val).mean().unwrap().sqrt();
+                    dq_rmsd[index] = dq_diff.map(|x| x.abs()).max().unwrap().to_owned();
+                    p_rmsd[index] = p_diff.map(|val| val * val).mean().unwrap().sqrt();
+
+                    if energy_diff < conv && dq_rmsd[index] < conv && p_rmsd[index] < conv{
+                        converged[index] = true;
+                    }
+                    dq_old[index] = frag.final_charges.clone();
+                    pmat_old[index] = frag.final_p_matrix.clone();
+                    // dq_arr
+                    //     .slice_mut(s![frag_index..frag_index + frag.n_atoms])
+                    //     .assign(&frag.final_charges);
                 }
+                // }
+                // else{
+                //     energy = old_energies[index];
+                // }
                 energy
             })
             .collect();
+
+        for (index,frag) in fragments.iter().enumerate(){
+            let frag_index: usize = frag_indices[index];
+            dq_arr
+                .slice_mut(s![frag_index..frag_index + frag.n_atoms])
+                .assign(&frag.final_charges);
+        }
 
         // calculate embedding energy
         // let embedding_vec: Vec<f64> = fragments
@@ -2297,6 +2302,9 @@ pub fn fmo_calculate_fragments_ncc(
         let energies_arr: Array1<f64> = Array::from(energies_vec); // + embedding_arr;
         let energy_diff: Array1<f64> = (&energies_arr - &energy_old).mapv(|val| val.abs());
         energy_old = energies_arr;
+        // println!("old energies {}",energy_old);
+        // println!("dq arr {}",dq_arr);
+
         // println!("energies of the monomers {}",energy_old);
         // check convergence
         let converged_energies: Array1<usize> = energy_diff
@@ -2317,22 +2325,22 @@ pub fn fmo_calculate_fragments_ncc(
         //     && converged_p.len() == length
         if !converged.contains(&false)
         {
-            println!("End of Iteration {}", i);
-            println!(
-                "Number of converged fragment energies {}, charges {} and pmatrices {}",
-                converged_energies.len(),
-                converged_dq.len(),
-                converged_p.len()
-            );
+            // println!("End of Iteration {}", i);
+            // println!(
+            //     "Number of converged fragment energies {}, charges {} and pmatrices {}",
+            //     converged_energies.len(),
+            //     converged_dq.len(),
+            //     converged_p.len()
+            // );
             break 'ncc_loop;
         } else {
-            println!("End of Iteration {}", i);
-            println!(
-                "Number of converged fragment energies {}, charges {} and pmatrices {}",
-                converged_energies.len(),
-                converged_dq.len(),
-                converged_p.len()
-            );
+            // println!("End of Iteration {}", i);
+            // println!(
+            //     "Number of converged fragment energies {}, charges {} and pmatrices {}",
+            //     converged_energies.len(),
+            //     converged_dq.len(),
+            //     converged_p.len()
+            // );
         }
     }
     let om_monomers: Vec<Array1<f64>> = fragments

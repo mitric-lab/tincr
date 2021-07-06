@@ -3877,11 +3877,12 @@ pub fn fmo_fragments_gradients_ncc(
     let mut om_monomer_matrices: Vec<Array1<f64>> = Vec::new();
     let mut dq_arr: Array1<f64> =
         Array1::zeros(*frag_indices.last().unwrap() + fragments.last().unwrap().n_atoms);
-    let conv: f64 = 1e-6;
+    let conv: f64 = fragments[0].config.scf.scf_energy_conv;
     let length: usize = fragments.len();
     let ncc_mats: Vec<ncc_matrices> = generate_initial_fmo_monomer_guess(fragments);
 
     'ncc_loop: for i in 0..max_iter {
+        println!("Start of Iteration {}",i);
         let monomer_iter: Vec<monomer_grad_result> = fragments
             .par_iter_mut()
             .enumerate()
@@ -4035,6 +4036,9 @@ pub fn fmo_fragments_gradients_ncc(
         // let energies_arr: Array1<f64> = Array::from(energies_vec); // + embedding_arr;
         let energy_diff: Array1<f64> = (&energies_arr - &energy_old).mapv(|val| val.abs());
         energy_old = energies_arr;
+        // println!("old energies {}",energy_old);
+        // println!("dq arr {}",dq_arr);
+
         // println!("energies of the monomers {}",energy_old);
         // check convergence
         let converged_energies: Array1<usize> = energy_diff
@@ -4054,7 +4058,7 @@ pub fn fmo_fragments_gradients_ncc(
             && converged_dq.len() == length
             && converged_p.len() == length
         {
-            println!("Iteration {}", i);
+            println!("End of Iteration {}", i);
             println!(
                 "Number of converged fragment energies {}, charges {} and pmatrices {}",
                 converged_energies.len(),
@@ -4063,7 +4067,7 @@ pub fn fmo_fragments_gradients_ncc(
             );
             break 'ncc_loop;
         } else {
-            println!("Iteration {}", i);
+            println!("End of Iteration {}", i);
             println!(
                 "Number of converged fragment energies {}, charges {} and pmatrices {}",
                 converged_energies.len(),

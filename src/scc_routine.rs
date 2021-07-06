@@ -144,6 +144,7 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
 
         // calculate the density matrix
         p = density_matrix(orbs.view(), &f[..]);
+
         //println!("P {}", p);
         //println!("F {:?}", f);
         // update partial charges using Mulliken analysis
