@@ -438,7 +438,9 @@ fn get_parameters(
         slako_module.h_spline = slako_module.spline_hamiltonian();
         // load repulsive potential table
         let reppot_module: RepulsivePotentialTable =
-            get_reppot_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+            get_reppot_table_mio(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+        // let reppot_module: RepulsivePotentialTable =
+        //     get_reppot_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
         skt.insert((zi, zj), slako_module);
         v_rep.insert((zi, zj), reppot_module);
     }

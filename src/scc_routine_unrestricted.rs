@@ -79,9 +79,9 @@ pub fn run_unrestricted_scc(
         &molecule.calculator.skt,
         &molecule.calculator.orbital_energies,
     );
-    println!("S mat {}",s);
-    println!("h mat {}",h0);
-    assert!(1==2);
+    // println!("S mat {}",s);
+    // println!("h mat {}",h0);
+    // assert!(1==2);
 
     let (gm, gm_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
         &molecule.atomic_numbers,
