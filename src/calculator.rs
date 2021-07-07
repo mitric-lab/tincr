@@ -74,6 +74,7 @@ impl DFTBCalculator {
             HashMap<(u8, u8), SlaterKosterTable>,
             HashMap<(u8, u8), RepulsivePotentialTable>,
         ) = get_parameters(unique_numbers);
+        // assert!(1==2);
         let mut n_orbs: usize = 0;
         for zi in atomic_numbers {
             n_orbs = n_orbs + &valorbs[zi].len();
@@ -429,11 +430,16 @@ fn get_parameters(
             continue 'pair_loop;
         }
         // load precalculated slako table
-        let mut slako_module: SlaterKosterTable =
-            get_slako_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
         // let mut slako_module: SlaterKosterTable =
-        //     get_slako_table_mio(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+        //     get_slako_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+        let mut slako_module: SlaterKosterTable =
+            get_slako_table_mio(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+        // println!("elements {} {}",zi,zj);
+        // println!("s spline {:?}",slako_module.s);
+        // println!("h spline {:?}",slako_module.h);
         // assert!(1==2);
+        // println!("s keys {:?}",slako_module.s.keys());
+        // println!("h keys {:?}",slako_module.h.keys());
         slako_module.s_spline = slako_module.spline_overlap();
         slako_module.h_spline = slako_module.spline_hamiltonian();
         // load repulsive potential table

@@ -91,8 +91,8 @@ pub struct PseudoAtom {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SlaterKosterTable {
     dipole: HashMap<(u8, u8, u8), Vec<f64>>,
-    h: HashMap<(u8, u8, u8), Vec<f64>>,
-    s: HashMap<(u8, u8, u8), Vec<f64>>,
+    pub h: HashMap<(u8, u8, u8), Vec<f64>>,
+    pub s: HashMap<(u8, u8, u8), Vec<f64>>,
     z1: u8,
     z2: u8,
     d: Vec<f64>,
@@ -311,21 +311,35 @@ pub fn get_slako_table_mio(element1: &str, element2: &str) -> SlaterKosterTable 
     let mut slako_table_final: SlaterKosterTable =
         read_mio_slako_data(&data, element1, element2, "ab", None);
 
-    if element1 != element2 {
-        let element_1: String = some_kind_of_uppercase_first_letter(element2);
-        let element_2: String = some_kind_of_uppercase_first_letter(element1);
-        let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
-        println!("filename {}", filename);
-        let path: &Path = Path::new(&filename);
-        let data: String = fs::read_to_string(path).expect("Unable to read file");
-        slako_table_final = read_mio_slako_data(
-            &data,
-            element1,
-            element2,
-            "ba",
-            Some(slako_table_final.clone()),
-        );
-    }
+    // if element1 != element2 {
+    //     let element_1: String = some_kind_of_uppercase_first_letter(element2);
+    //     let element_2: String = some_kind_of_uppercase_first_letter(element1);
+    //     let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
+    //     println!("filename {}", filename);
+    //     let path: &Path = Path::new(&filename);
+    //     let data: String = fs::read_to_string(path).expect("Unable to read file");
+    //     slako_table_final = read_mio_slako_data(
+    //         &data,
+    //         element1,
+    //         element2,
+    //         "ba",
+    //         Some(slako_table_final.clone()),
+    //     );
+    // }
+    let element_1: String = some_kind_of_uppercase_first_letter(element2);
+    let element_2: String = some_kind_of_uppercase_first_letter(element1);
+    let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
+    println!("filename {}", filename);
+    let path: &Path = Path::new(&filename);
+    let data: String = fs::read_to_string(path).expect("Unable to read file");
+    slako_table_final = read_mio_slako_data(
+        &data,
+        element1,
+        element2,
+        "ba",
+        Some(slako_table_final.clone()),
+    );
+
     return slako_table_final;
 }
 
@@ -387,7 +401,7 @@ pub fn read_mio_slako_data(
     let temp_vec: Vec<f64> = Array1::zeros(npoints).to_vec();
 
     for it in (0..npoints) {
-        let next_line: Vec<f64> = process_slako_line(strings[0]);
+        let next_line: Vec<f64> = process_slako_line(strings[it]);
         for (pos, tausym) in tausymbols.slice(s![-10..]).iter().enumerate() {
             let symbol: (u8, i32, u8, i32) = SYMBOL_2_TAU[*tausym];
             let l1: u8 = symbol.0;
@@ -399,7 +413,7 @@ pub fn read_mio_slako_data(
             } else {
                 orbital_parity = 1.0;
             }
-            // let index:u8 = get_tau_2_index(symbol);
+            let index:u8 = get_tau_2_index(symbol);
             // h[&(l1,l2,index)][it] = orbital_parity * next_line[pos];
             // s[&(l1,l2,index)][it] = orbital_parity * next_line[length_tau+pos];
             vec_h_arrays[pos][it] = orbital_parity * next_line[pos];
@@ -410,8 +424,12 @@ pub fn read_mio_slako_data(
         let symbol: (u8, i32, u8, i32) = SYMBOL_2_TAU[*tausymbol];
         // println!("Symbol {:?}",symbol);
         let index: u8 = get_tau_2_index(symbol);
-        h.insert((symbol.0, symbol.2, index), vec_h_arrays[pos].to_vec());
-        s.insert((symbol.0, symbol.2, index), vec_s_arrays[pos].to_vec());
+        if !h.contains_key(&(symbol.0, symbol.2, index)){
+            h.insert((symbol.0, symbol.2, index), vec_h_arrays[pos].to_vec());
+        }
+        if !s.contains_key(&(symbol.0, symbol.2, index)){
+            s.insert((symbol.0, symbol.2, index), vec_s_arrays[pos].to_vec());
+        }
         dipole.insert((symbol.0, symbol.2, index), temp_vec.clone());
     }
 
