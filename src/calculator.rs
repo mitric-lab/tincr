@@ -1,4 +1,4 @@
-use crate::constants::ATOM_NAMES;
+use crate::constants::{ATOM_NAMES, SPIN_COUPLING};
 use crate::defaults;
 use crate::gamma_approximation;
 use crate::molecule::Molecule;
@@ -57,7 +57,7 @@ impl DFTBCalculator {
             HashMap<u8, HashMap<(i8, i8), f64>>,
             HashMap<u8, f64>,
             HashMap<u8, f64>,
-        ) = get_electronic_configuration(&atomtypes);
+        ) = get_electronic_configuration_mio(&atomtypes);
         // NOTE: The spin-coupling constants are taken from
         // https://dftb.org/fileadmin/DFTB/public/slako/mio/mio-1-1.spinw.txt
         // However, the coupling constants are only tabulated there on an angular momentum level
@@ -435,8 +435,8 @@ fn get_parameters(
         let mut slako_module: SlaterKosterTable =
             get_slako_table_mio(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
         // println!("elements {} {}",zi,zj);
-        // println!("s spline {:?}",slako_module.s);
-        // println!("h spline {:?}",slako_module.h);
+        // println!("s spline {:?}",slako_module.s[&(0,0,0)]);
+        // println!("h spline {:?}",slako_module.h[&(0,0,0)]);
         // assert!(1==2);
         // println!("s keys {:?}",slako_module.s.keys());
         // println!("h keys {:?}",slako_module.h.keys());
@@ -494,6 +494,62 @@ fn get_electronic_configuration(
             .nshell
             .iter()
             .zip(free_atom.angular_momenta.iter().zip(free_atom.energies))
+        {
+            energies_zi.insert((*n - 1, *l), en);
+        }
+        orbital_energies.insert(*zi, energies_zi);
+    }
+    return (
+        valorbs,
+        valorbs_occupation,
+        ne_val,
+        orbital_energies,
+        hubbard_u,
+        spin_couplings,
+    );
+}
+
+fn get_electronic_configuration_mio(
+    atomtypes: &HashMap<u8, String>,
+) -> (
+    HashMap<u8, Vec<(i8, i8, i8)>>,
+    HashMap<u8, Vec<f64>>,
+    HashMap<u8, i8>,
+    HashMap<u8, HashMap<(i8, i8), f64>>,
+    HashMap<u8, f64>,
+    HashMap<u8, f64>,
+) {
+    // find quantum numbers of valence orbitals
+    let mut valorbs: HashMap<u8, Vec<(i8, i8, i8)>> = HashMap::new();
+    let mut valorbs_occupation: HashMap<u8, Vec<f64>> = HashMap::new();
+    let mut ne_val: HashMap<u8, i8> = HashMap::new();
+    let mut orbital_energies: HashMap<u8, HashMap<(i8, i8), f64>> = HashMap::new();
+    let mut hubbard_u: HashMap<u8, f64> = HashMap::new();
+    let mut spin_couplings: HashMap<u8, f64> = HashMap::new();
+    for (zi, symbol) in atomtypes.iter() {
+        let atom:PseudoAtomMio = get_pseudo_atom_mio(zi);
+        let mut occ: Vec<f64> = Vec::new();
+        let mut vo_vec: Vec<(i8, i8, i8)> = Vec::new();
+        let mut val_e: i8 = 0;
+        hubbard_u.insert(*zi, atom.hubbard_u);
+        spin_couplings.insert(*zi, SPIN_COUPLING[zi]);
+        for i in atom.valence_orbitals {
+            let n: i8 = atom.nshell[i as usize];
+            let l: i8 = atom.angular_momenta[i as usize];
+            for m in l.neg()..l + 1 {
+                vo_vec.push((n - 1, l, m));
+                occ.push(atom.orbital_occupation[i as usize] as f64 / (2 * l + 1) as f64);
+            }
+            val_e += atom.orbital_occupation[i as usize];
+        }
+        valorbs.insert(*zi, vo_vec);
+        valorbs_occupation.insert(*zi, occ);
+        ne_val.insert(*zi, val_e);
+        let mut energies_zi: HashMap<(i8, i8), f64> = HashMap::new();
+        for (n, (l, en)) in atom
+            .nshell
+            .iter()
+            .zip(atom.angular_momenta.iter().zip(atom.energies))
         {
             energies_zi.insert((*n - 1, *l), en);
         }

@@ -146,6 +146,12 @@ pub fn run_unrestricted_scc(
         let mut h_alpha: Array2<f64> = h_coul.clone() + h_exchange.view() + h0.view();
         let mut h_beta: Array2<f64> = h_coul - h_exchange.view() + h0.view();
 
+        println!("smat {}",s);
+        println!("h0 {}",h0.clone()/2.0);
+        println!("halpha {}",h_alpha.clone()/2.0);
+        println!("h beta {}",h_beta.clone()/2.0);
+        assert!( 1== 2);
+
         // println!("Diff alpha beta {}",&h_alpha -&h_beta);
         // H' = X^t.H.X
         let hp_alpha: Array2<f64> = x.t().dot(&h_alpha).dot(&x);
@@ -247,11 +253,11 @@ pub fn run_unrestricted_scc(
         q_alpha = new_q_alpha;
         q_beta = new_q_beta;
 
-        // println!(" ");
-        // println!("q_alpha {}",q_alpha);
-        // println!("dq alpha {}",dq_alpha);
-        // println!("q_beta {}",q_beta);
-        // println!("dq beta {}",dq_beta);
+        println!(" ");
+        println!("q_alpha {}",q_alpha);
+        println!("dq alpha {}",dq_alpha);
+        println!("q_beta {}",q_beta);
+        println!("dq beta {}",dq_beta);
 
         // compute electronic energy from alpha and beta electrons
         scf_energy = get_electronic_energy(

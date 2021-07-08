@@ -141,6 +141,14 @@ pub static ATOMIC_MASSES: phf::Map<u8, f64> = phf_map! {
     85u8 => 3.828065627851500E+05, 86u8 => 4.010354467273000E+05
 };
 
+// Spin coupling constants taken from dftb+ manual
+pub static SPIN_COUPLING: phf::Map<u8, f64> = phf_map! {
+    1u8  => -0.072,
+    6u8  => -0.023,
+    7u8  => -0.026,
+    8u8  => -0.028,
+};
+
 // taken from
 // Beatriz Cordero, Ver ́onica G ́omez, Ana E. Platero-Prats, Marc Rev ́es, Jorge Echeverr ́ıa, Eduard Cremades,Flavia Barrag ́an and Santiago Alvarez
 // Covalent radii revisited, Dalton Trans., 2008, 2832–2838

@@ -88,6 +88,41 @@ pub struct PseudoAtom {
     orbital_3d: Vec<f64>,
 }
 
+#[derive(Clone)]
+pub struct PseudoAtomMio {
+    z: u8,
+    pub hubbard_u: f64,
+    n_elec: u8,
+    pub energies: Vec<f64>,
+    pub angular_momenta: Vec<i8>,
+    pub valence_orbitals: Vec<u8>,
+    pub nshell: Vec<i8>,
+    pub orbital_occupation: Vec<i8>,
+}
+
+impl PseudoAtomMio{
+    pub fn new(
+        z: u8,
+        hubbard_u: f64,
+        energies: Vec<f64>,
+        angular_momenta: Vec<i8>,
+        valence_orbitals: Vec<u8>,
+        nshell: Vec<i8>,
+        orbital_occupation: Vec<i8>,
+    )->PseudoAtomMio{
+        PseudoAtomMio{
+            z:z,
+            n_elec:z,
+            hubbard_u:hubbard_u,
+            energies:energies,
+            angular_momenta:angular_momenta,
+            valence_orbitals:valence_orbitals,
+            nshell:nshell,
+            orbital_occupation:orbital_occupation,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SlaterKosterTable {
     dipole: HashMap<(u8, u8, u8), Vec<f64>>,
@@ -353,12 +388,9 @@ pub fn read_mio_slako_data(
     let mut strings: Vec<&str> = data.split("\n").collect();
     // first line
     let first_line: Vec<f64> = process_slako_line(strings[0]);
+    // println!("grid dist {} and npoints {}",grid_dist,npoints);
     let grid_dist: f64 = first_line[0];
     let npoints: usize = first_line[1] as usize;
-    // println!("grid dist {} and npoints {}",grid_dist,npoints);
-
-    // create grid
-    let d_arr: Array1<f64> = Array1::linspace(0.0, grid_dist * ((npoints - 1) as f64), npoints);
 
     // remove first line
     strings.remove(0);
@@ -368,6 +400,9 @@ pub fn read_mio_slako_data(
     }
     // remove second/third line
     strings.remove(0);
+
+    // create grid
+    let d_arr: Array1<f64> = Array1::linspace(0.02, grid_dist * ((npoints - 1) as f64), npoints);
 
     let next_line: Vec<f64> = process_slako_line(strings[0]);
     let length: usize = next_line.len() / 2;
@@ -413,7 +448,7 @@ pub fn read_mio_slako_data(
             } else {
                 orbital_parity = 1.0;
             }
-            let index:u8 = get_tau_2_index(symbol);
+            // let index:u8 = get_tau_2_index(symbol);
             // h[&(l1,l2,index)][it] = orbital_parity * next_line[pos];
             // s[&(l1,l2,index)][it] = orbital_parity * next_line[length_tau+pos];
             vec_h_arrays[pos][it] = orbital_parity * next_line[pos];
@@ -513,6 +548,74 @@ pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTab
     reppot_table.spline_rep();
     reppot_table.dmax = reppot_table.d[reppot_table.d.len() - 1];
     return reppot_table;
+}
+
+pub fn get_pseudo_atom_mio(zi:&u8)->PseudoAtomMio{
+    let z:usize = zi.clone() as usize;
+    let element:String = some_kind_of_uppercase_first_letter(ATOM_NAMES[z]);
+    let path_prefix: String = String::from("/home/einseler/software/mio-0-1");
+    let filename: String = format!("{}/{}-{}.skf", path_prefix, element, element);
+    println!("filename {}", filename);
+    let path: &Path = Path::new(&filename);
+    let data: String = fs::read_to_string(path).expect("Unable to read file");
+
+    let pseudo_atom:PseudoAtomMio = read_mio_pseudo_atom(&data,zi);
+    return pseudo_atom;
+}
+
+fn read_mio_pseudo_atom(data: &String,zi:&u8)->PseudoAtomMio{
+    let mut strings: Vec<&str> = data.split("\n").collect();
+    // read Ed Ep Es SPE Ud Up Us fd fp fs from the second line
+    // of the slater koster file
+    // Ed Ep Es: one-site energies
+    // Ud Up Us: Hubbard Us of the different angular momenta
+    // fd fp fs: occupation numbers of the orbitals
+    let second_line:Vec<f64> = process_slako_line(strings[1]);
+    let energies:Array1<f64> = array![second_line[2],second_line[1],second_line[0]];
+    let occupations_numbers:Array1<i8> = array![second_line[9] as i8,second_line[8] as i8,second_line[7] as i8];
+    let hubbard_u:Array1<f64> = array![second_line[6],second_line[5],second_line[4]];
+
+    let electron_count:u8 = zi.clone();
+    let mut valence_orbitals:Vec<u8> = Vec::new();
+    let mut nshell:Vec<i8> = Vec::new();
+    // set nshell depending on the electron count of the atom
+    if electron_count < 3{
+        nshell.push(1);
+    }
+    else if electron_count < 11{
+        nshell.push(2);
+        nshell.push(2);
+    }
+    else if electron_count < 19{
+        nshell.push(3);
+        nshell.push(3);
+    }
+    let mut angular_momenta:Vec<i8> = Vec::new();
+    for (it,occ) in occupations_numbers.iter().enumerate(){
+        if occ > &0{
+            valence_orbitals.push(it as u8);
+            if it == 0{
+                angular_momenta.push(0);
+            }
+            else if it == 1{
+                angular_momenta.push(1);
+            }
+            else if it == 2{
+                angular_momenta.push(2);
+            }
+        }
+    }
+    let pseudo_atom:PseudoAtomMio = PseudoAtomMio::new(
+        *zi,
+        hubbard_u[0],
+        energies.to_vec(),
+        angular_momenta,
+        valence_orbitals,
+        nshell,
+        occupations_numbers.to_vec(),
+    );
+
+    return pseudo_atom;
 }
 
 pub fn get_reppot_table_mio(element1: &str, element2: &str) -> RepulsivePotentialTable {
