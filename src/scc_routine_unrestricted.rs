@@ -146,11 +146,11 @@ pub fn run_unrestricted_scc(
         let mut h_alpha: Array2<f64> = h_coul.clone() + h_exchange.view() + h0.view();
         let mut h_beta: Array2<f64> = h_coul - h_exchange.view() + h0.view();
 
-        println!("smat {}",s);
-        println!("h0 {}",h0.clone()/2.0);
-        println!("halpha {}",h_alpha.clone()/2.0);
-        println!("h beta {}",h_beta.clone()/2.0);
-        assert!( 1== 2);
+        // println!("smat {}",s);
+        // println!("h0 {}",h0.clone()/2.0);
+        // println!("halpha {}",h_alpha.clone()/2.0);
+        // println!("h beta {}",h_beta.clone()/2.0);
+        // assert!( 1== 2);
 
         // println!("Diff alpha beta {}",&h_alpha -&h_beta);
         // H' = X^t.H.X
@@ -248,8 +248,10 @@ pub fn run_unrestricted_scc(
         }
 
         // Broyden mixing of partial charges
-        dq_alpha = broyden_mixer_alpha.next(dq_alpha, dq_diff_alpha);
-        dq_beta = broyden_mixer_beta.next(dq_beta, dq_diff_beta);
+        // dq_alpha = broyden_mixer_alpha.next(dq_alpha, dq_diff_alpha);
+        // dq_beta = broyden_mixer_beta.next(dq_beta, dq_diff_beta);
+        dq_alpha = dq_alpha + dq_diff_alpha * defaults::BROYDEN_MIXING_PARAMETER;
+        dq_beta = dq_beta + dq_diff_beta * defaults::BROYDEN_MIXING_PARAMETER;
         q_alpha = new_q_alpha;
         q_beta = new_q_beta;
 
@@ -410,61 +412,17 @@ fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
 fn density_matrix_ref(mol: &Molecule) -> (Array2<f64>,Array2<f64>) {
     let mut p0_alpha: Array2<f64> = Array2::zeros((mol.calculator.n_orbs, mol.calculator.n_orbs));
     let mut p0_beta: Array2<f64> = Array2::zeros((mol.calculator.n_orbs, mol.calculator.n_orbs));
-    if mol.multiplicity == 1{
-        // iterate over orbitals on center i
-        let mut idx: usize = 0;
-        for zi in mol.atomic_numbers.iter() {
-            // how many electrons are put into the nl-shell
-            for (iv, _) in mol.calculator.valorbs[zi].iter().enumerate() {
-                p0_alpha[[idx, idx]] = 0.5 *mol.calculator.valorbs_occupation[zi][iv] as f64;
-                idx += 1;
-            }
-        }
-        p0_beta = p0_alpha.clone();
-    }
-    else if mol.multiplicity == 3{
-        // iterate over orbitals on center i
-        let value:f64 = 1.0/mol.calculator.n_orbs as f64;
-        let mut idx: usize = 0;
-        for zi in mol.atomic_numbers.iter() {
-            // how many electrons are put into the nl-shell
-            for (iv, _) in mol.calculator.valorbs[zi].iter().enumerate() {
-                p0_alpha[[idx, idx]] = 0.5 *mol.calculator.valorbs_occupation[zi][iv] as f64;
-                p0_beta[[idx, idx]] = 0.5 *mol.calculator.valorbs_occupation[zi][iv] as f64;
-                p0_alpha[[idx, idx]] += value;
-                p0_beta[[idx, idx]] -= value;
-                idx += 1;
-            }
+
+    // iterate over orbitals on center i
+    let mut idx: usize = 0;
+    for zi in mol.atomic_numbers.iter() {
+        // how many electrons are put into the nl-shell
+        for (iv, _) in mol.calculator.valorbs[zi].iter().enumerate() {
+            p0_alpha[[idx, idx]] = 0.5 *mol.calculator.valorbs_occupation[zi][iv] as f64;
+            idx += 1;
         }
     }
-    else if mol.multiplicity == 2 && mol.charge == 1{
-        // iterate over orbitals on center i
-        let value:f64 = 1.0/mol.calculator.n_orbs as f64;
-        let mut idx: usize = 0;
-        for zi in mol.atomic_numbers.iter() {
-            // how many electrons are put into the nl-shell
-            for (iv, _) in mol.calculator.valorbs[zi].iter().enumerate() {
-                p0_alpha[[idx, idx]] = 0.5 *mol.calculator.valorbs_occupation[zi][iv] as f64;
-                p0_beta[[idx, idx]] = 0.5 *mol.calculator.valorbs_occupation[zi][iv] as f64;
-                p0_beta[[idx, idx]] -= value;
-                idx += 1;
-            }
-        }
-    }
-    else if mol.multiplicity == 2 && mol.charge == -1{
-        // iterate over orbitals on center i
-        let value:f64 = 1.0/mol.calculator.n_orbs as f64;
-        let mut idx: usize = 0;
-        for zi in mol.atomic_numbers.iter() {
-            // how many electrons are put into the nl-shell
-            for (iv, _) in mol.calculator.valorbs[zi].iter().enumerate() {
-                p0_alpha[[idx, idx]] = 0.5 *mol.calculator.valorbs_occupation[zi][iv] as f64;
-                p0_beta[[idx, idx]] = 0.5 *mol.calculator.valorbs_occupation[zi][iv] as f64;
-                p0_alpha[[idx, idx]] += value;
-                idx += 1;
-            }
-        }
-    }
+    p0_beta = p0_alpha.clone();
 
     return (p0_alpha,p0_beta);
 }
