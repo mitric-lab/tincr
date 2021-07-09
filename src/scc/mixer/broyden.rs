@@ -1,7 +1,8 @@
-use ndarray::*;
-use ndarray_linalg::{Inverse};
 use crate::defaults;
 use crate::scc::mixer::Mixer;
+use ndarray::*;
+use ndarray_linalg::{Inverse, Norm};
+use ndarray_stats::QuantileExt;
 
 /// Modified Broyden mixer
 ///
@@ -11,7 +12,7 @@ use crate::scc::mixer::Mixer;
 #[derive(Debug, Clone)]
 pub struct BroydenMixer {
     // current iteration
-    iter: usize,
+    iter: i32,
     maxiter: usize,
     omega0: f64,
     // mixing parameter
@@ -38,7 +39,7 @@ pub struct BroydenMixer {
 impl Mixer for BroydenMixer {
     fn new(n_atoms: usize) -> BroydenMixer {
         BroydenMixer {
-            iter: 0,
+            iter: -1,
             maxiter: defaults::MAX_ITER,
             omega0: defaults::BROYDEN_OMEGA0,
             alpha: defaults::BROYDEN_MIXING_PARAMETER,
@@ -55,7 +56,6 @@ impl Mixer for BroydenMixer {
     }
 
     fn next(&mut self, q: Array1<f64>, delta_q: Array1<f64>) -> Array1<f64> {
-        self.iter += 1;
         self.mix(q, delta_q)
     }
 
@@ -71,19 +71,25 @@ impl Mixer for BroydenMixer {
     }
 
     /// Mixes dq from current diagonalization and the difference to the last iteration
-    fn mix(
-        &mut self,
-        q: Array1<f64>,
-        delta_q: Array1<f64>,
-    ) -> Array1<f64> {
+    fn mix(&mut self, q: Array1<f64>, delta_q: Array1<f64>) -> Array1<f64> {
+        let q_in: Array1<f64> = q.clone();
         let mut q: Array1<f64> = q;
-        // if self.iter > 14 {
-        //     println!("iter {} QINP {} QDIFF {} QINPLAST {} ", self.iter, q, delta_q, self.q_old);
-        // }
+
+        let rel_change: f64 = &delta_q.norm() / &self.delta_q_old.norm();
+
+        // it is sometimes beneficial to restart the Broyden mixer, to prevent convergence problems
+        if self.iter > 0 && rel_change > 1.0 {
+            self.reset(q.len());
+        }
 
         let q_out: Result<Array1<f64>, _> = match self.iter {
+            -1 => {
+                self.q_old = delta_q.clone();
+                self.delta_q_old = delta_q.clone();
+                Ok(delta_q)
+            }
             // In the first iteration a linear damping scheme is used.
-            // q = q + alpha * Delta q, where alpha is the Broyden mixing parameter
+            // q = q + alpha * Delta q, where alpha is the Broyden mixing parameter.
             0 => {
                 // The current q is stored for the next iteration.
                 self.q_old = q.clone();
@@ -91,11 +97,12 @@ impl Mixer for BroydenMixer {
                 self.delta_q_old = delta_q.clone();
                 // Linear interpolation/damping.
                 Ok(&q + &(&delta_q * self.alpha))
-            },
+            }
             // For all other iterations the Broyden mixing is used.
-            _ if self.iter < self.maxiter - 1  => {
-                // Index variable to acess the matrix/vector element of the current iteration.
-                let idx: usize = self.iter - 1;
+            _ if (self.iter as usize) < self.maxiter - 1 => {
+                let iter_usize: usize = self.iter as usize;
+                // Index variable to access the matrix/vector element of the current iteration.
+                let idx: usize = iter_usize - 1;
 
                 // Create the weight factor of the current iteration.
                 let mut weight: f64 = delta_q.dot(&delta_q).sqrt();
@@ -113,28 +120,24 @@ impl Mixer for BroydenMixer {
                 // Build |DF(idx)>.
                 let mut df_idx: Array1<f64> = &delta_q - &self.delta_q_old;
                 // Normalize it.
-                let mut inv_norm: f64 = df_idx.dot(&df_idx).sqrt();
-                // Prevent division by zero.
-                inv_norm = if inv_norm > 1e-14 { inv_norm } else { 1e-14 };
-                // Take the inverse of the vector norm, since it is used later again.
-                inv_norm = 1.0 / inv_norm;
+                let inv_norm: f64 = 1.0 / df_idx.dot(&df_idx).sqrt();
                 df_idx = &df_idx * inv_norm;
 
-                let mut c: Array1<f64> = Array1::zeros([self.iter]);
+                let mut c: Array1<f64> = Array1::zeros([iter_usize]);
                 // Build a, beta, c, and gamma
                 for i in 0..idx {
                     self.a_mat[[i, idx]] = self.df.slice(s![.., i]).dot(&df_idx);
                     self.a_mat[[idx, i]] = self.a_mat[[i, idx]];
                     c[i] = self.weights[i] * self.df.slice(s![.., i]).dot(&delta_q);
-                    //println!("CC {} DF dot qdiff {} weights {} len df {}", c[i], self.df.slice(s![.., i]).dot(&delta_q), self.weights[i], delta_q.dot(&delta_q));
                 }
                 self.a_mat[[idx, idx]] = 1.0;
                 c[idx] = self.weights[idx] * df_idx.dot(&delta_q);
-
-                let mut beta: Array2<f64> = Array2::zeros([self.iter, self.iter]);
-                for i in 0..self.iter {
+                let mut beta: Array2<f64> = Array2::zeros([iter_usize, iter_usize]);
+                for i in 0..iter_usize {
                     beta.slice_mut(s![i, 0..]).assign(
-                        &(self.weights[i] * &(&self.weights.slice(s![0..self.iter]) * &self.a_mat.slice(s![0..self.iter, i])))
+                        &(self.weights[i]
+                            * &(&self.weights.slice(s![0..iter_usize])
+                                * &self.a_mat.slice(s![0..iter_usize, i]))),
                     );
                     beta[[i, i]] = beta[[i, i]] + self.omega0.powi(2);
                 }
@@ -145,23 +148,23 @@ impl Mixer for BroydenMixer {
                 self.df.slice_mut(s![.., idx]).assign(&df_idx);
 
                 // Create |u(m-1)>
-                self.uu.slice_mut(s![.., idx]).assign(&(&(&df_idx * self.alpha) + &((&q - &self.q_old) * inv_norm)));
+                self.uu
+                    .slice_mut(s![.., idx])
+                    .assign(&(&(&df_idx * self.alpha) + &((&q - &self.q_old) * inv_norm)));
                 // Save charge vectors before overwriting
                 self.q_old = q.clone();
                 self.delta_q_old = delta_q.clone();
 
                 // Build new vector
                 q = &q + &(self.alpha * &delta_q);
-                for i in 0..self.iter {
-                    //println!("UU {} WW {} CC {} GAMMA {} Q {} MINUS {}", self.uu.slice(s![.., i]), self.weights[i], c[i],gamma[i], q, &(&self.uu.slice(s![.., i]) * self.weights[i] * gamma[i]));
+                for i in 0..iter_usize {
                     q = q - &(&self.uu.slice(s![.., i]) * self.weights[i] * gamma[i]);
                 }
                 Ok(q)
-            },
+            }
             _ => Err("SCC did not converge"),
         };
-
+        self.iter += 1;
         return q_out.unwrap();
     }
-
 }

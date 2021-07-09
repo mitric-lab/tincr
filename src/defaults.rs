@@ -46,7 +46,7 @@ pub const LINEAR_MIXING_COEFFICIENT: f64 = 0.33;
 pub const DIIS_LIMIT: usize = 8;
 
 // Broyden Mixer
-pub const BROYDEN_OMEGA0: f64 = 0.01;
+pub const BROYDEN_OMEGA0: f64 = 1.0e-2;
 pub const BROYDEN_MIN_WEIGHT: f64 = 1.0;
 pub const BROYDEN_MAX_WEIGHT: f64 = 1.0e5;
 pub const BROYDEN_WEIGHT_FACTOR: f64 = 1.0e-2;

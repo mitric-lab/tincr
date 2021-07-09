@@ -123,10 +123,11 @@ impl Monomer {
 
         let diff_dq_max: f64 = dq.root_mean_sq_err(&new_dq).unwrap();
 
+        let dq_old = dq.clone();
+        let delta_q_old = delta_dq.clone();
         // Broyden mixing of partial charges # changed new_dq to dq
         dq = mixer.next(dq, delta_dq);
         let q: Array1<f64> = new_q;
-
 
         // compute electronic energy
         let scf_energy = get_electronic_energy(
@@ -139,14 +140,10 @@ impl Monomer {
             self.properties.gamma_lr_ao(),
         );
 
-        // check if charge difference to the previous iteration is lower than 1e-5
-        let converged: bool = if (diff_dq_max < scf_charge_conv)
-            && (last_energy - scf_energy).abs() < scf_energy_conv
-        {
-            true
-        } else {
-            false
-        };
+        // check if charge difference to the previous iteration is lower than threshold
+        let conv_charge: bool = diff_dq_max < scf_charge_conv;
+        // same check for the electronic energy
+        let conv_energy: bool = (last_energy - scf_energy).abs() < scf_energy_conv;
 
         self.properties.set_orbs(orbs);
         self.properties.set_orbe(orbe);
@@ -154,6 +151,8 @@ impl Monomer {
         self.properties.set_dq(dq);
         self.properties.set_mixer(mixer);
         self.properties.set_last_energy(scf_energy);
-        return converged;
+
+        // scc (for one fragment) is converged if both criteria are passed
+        conv_charge && conv_energy
     }
 }

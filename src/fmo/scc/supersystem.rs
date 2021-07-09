@@ -1,12 +1,11 @@
-use crate::fmo::{SuperSystem, Monomer};
+use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::scc::helpers::*;
 use crate::fmo::scc::logging;
-use ndarray::prelude::*;
-use crate::scc::get_repulsive_energy;
-use std::ops::SubAssign;
+use crate::fmo::{Monomer, SuperSystem};
 use crate::initialization::Atom;
-use crate::fmo::helpers::get_pair_slice;
-
+use crate::scc::get_repulsive_energy;
+use ndarray::prelude::*;
+use std::ops::SubAssign;
 
 impl SuperSystem {
     pub fn monomer_scc(&mut self, max_iter: usize) -> (f64, Array1<f64>) {
@@ -24,9 +23,18 @@ impl SuperSystem {
             // and given to each monomer scc step
             let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
             for (i, mol) in self.monomers.iter_mut().enumerate() {
-                let v_esp: Array2<f64> =
-                    atomvec_to_aomat(esp_at.slice(s![mol.slice.atom]), mol.n_orbs, &self.atoms[mol.slice.atom_as_range()]);
-                converged[i] = mol.scc_step(&self.atoms[mol.slice.atom_as_range()], v_esp, self.config.scf);
+                let v_esp: Array2<f64> = atomvec_to_aomat(
+                    esp_at.slice(s![mol.slice.atom]),
+                    mol.n_orbs,
+                    &self.atoms[mol.slice.atom_as_range()],
+                );
+                if !converged[i] {
+                    converged[i] = mol.scc_step(
+                        &self.atoms[mol.slice.atom_as_range()],
+                        v_esp,
+                        self.config.scf,
+                    );
+                }
                 // save the dq's from the monomer calculation
                 dq.slice_mut(s![mol.slice.atom])
                     .assign(&mol.properties.dq().unwrap());
@@ -40,8 +48,12 @@ impl SuperSystem {
         }
         let mut monomer_energies: f64 = 0.0;
         for mol in self.monomers.iter_mut() {
-            let scf_energy: f64 =  mol.properties.last_energy().unwrap();
-            let e_rep: f64 = get_repulsive_energy(&self.atoms[mol.slice.atom_as_range()], mol.n_atoms, &mol.vrep);
+            let scf_energy: f64 = mol.properties.last_energy().unwrap();
+            let e_rep: f64 = get_repulsive_energy(
+                &self.atoms[mol.slice.atom_as_range()],
+                mol.n_atoms,
+                &mol.vrep,
+            );
             mol.properties.set_last_energy(scf_energy + e_rep);
             monomer_energies += scf_energy + e_rep;
         }
@@ -79,13 +91,13 @@ impl SuperSystem {
         let atoms: &[Atom] = &self.atoms[..];
         // SCC iteration for each pair that is treated exact
         for pair in self.pairs.iter_mut() {
-
             // Get references to the corresponding monomers
             let m_i: &Monomer = &self.monomers[pair.i];
             let m_j: &Monomer = &self.monomers[pair.j];
 
             // The atoms are in general a non-contiguous range of the atoms
-            let pair_atoms: Vec<Atom> = get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
+            let pair_atoms: Vec<Atom> =
+                get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
             pair.prepare_scc(&pair_atoms[..], m_i, m_j);
 
             // do the SCC iterations
@@ -100,8 +112,12 @@ impl SuperSystem {
             // corresponding monomers
             let p: ArrayView2<f64> = pair.properties.p().unwrap();
             let mut delta_p: Array2<f64> = p.to_owned();
-            delta_p.slice_mut(s![0..m_i.n_orbs, 0..m_i.n_orbs]).sub_assign(&m_i.properties.p().unwrap());
-            delta_p.slice_mut(s![m_i.n_orbs.., m_i.n_orbs..]).sub_assign(&m_j.properties.p().unwrap());
+            delta_p
+                .slice_mut(s![0..m_i.n_orbs, 0..m_i.n_orbs])
+                .sub_assign(&m_i.properties.p().unwrap());
+            delta_p
+                .slice_mut(s![m_i.n_orbs.., m_i.n_orbs..])
+                .sub_assign(&m_j.properties.p().unwrap());
             pair.properties.set_delta_p(delta_p);
         }
         return pair_energies;
@@ -128,8 +144,10 @@ impl SuperSystem {
             // Difference between the charge differences of the pair and the corresp. monomers
             let ddq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
             // The interaction with the other Monomer in the pair is subtracted.
-            let esp_q_i: Array1<f64> = &esp_q_i - &gamma.slice(s![m_i.slice.atom, m_j.slice.atom]).dot(&dq_j);
-            let esp_q_j: Array1<f64> = &esp_q_j - &gamma.slice(s![m_j.slice.atom, m_i.slice.atom]).dot(&dq_i);
+            let esp_q_i: Array1<f64> =
+                &esp_q_i - &gamma.slice(s![m_i.slice.atom, m_j.slice.atom]).dot(&dq_j);
+            let esp_q_j: Array1<f64> =
+                &esp_q_j - &gamma.slice(s![m_j.slice.atom, m_i.slice.atom]).dot(&dq_i);
             // The embedding energy for Monomer I in the pair is computed.
             embedding += esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
             // The embedding energy for Monomer J in the pair is computed.
@@ -140,16 +158,12 @@ impl SuperSystem {
             // println!("ESP I {} = {}", pair.i, esp_q_i);
             // println!("ESP J {} = {}", pair.j, esp_q_j);
 
-
-
             // let pair_energy: f64 = esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms])) + esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
             // let i_energy: f64 = esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
             // let j_energy: f64 = esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
             // println!("FRAG {} EMB Energy {}", pair.i, i_energy);
             // println!("FRAG {} EMB Energy {}", pair.j, j_energy);
             // println!("PAIR EMB Energy {}", pair_energy);
-
-
         }
         return embedding;
     }
@@ -174,5 +188,4 @@ impl SuperSystem {
         }
         return esd_energy;
     }
-
 }

@@ -1,17 +1,17 @@
-use crate::fmo::{SuperSystem, Monomer};
-use ndarray::prelude::*;
-use hashbrown::HashMap;
-use crate::scc::h0_and_s::h0_and_s_ab;
+use crate::fmo::{Monomer, SuperSystem};
 use crate::initialization::Atom;
+use crate::scc::h0_and_s::h0_and_s_ab;
+use hashbrown::HashMap;
 use itertools::chain;
+use ndarray::prelude::*;
+use ndarray_linalg::{Eigh, UPLO};
 
 impl SuperSystem {
-
     pub fn build_lcmo_hamiltonian(&self) -> Array2<f64> {
         // TODO: READ THIS FROM THE INPUT FILE
         // Number of active orbitals per monomer
         let n_occ_m: usize = 1;
-        let n_virt_m: usize= 1;
+        let n_virt_m: usize = 1;
         let n_active_m: usize = n_occ_m + n_virt_m;
 
         // Reference to the atoms.
@@ -57,8 +57,13 @@ impl SuperSystem {
             // Reference to monomer J.
             let m_j: &Monomer = &self.monomers[pair.j];
             // Compute the overlap matrix and H0 matrix elements between both fragments.
-            let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) =
-                h0_and_s_ab(m_i.n_orbs, m_j.n_orbs, &atoms[0..m_i.n_atoms], &atoms[m_i.n_atoms..], &m_i.slako);
+            let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) = h0_and_s_ab(
+                m_i.n_orbs,
+                m_j.n_orbs,
+                &atoms[0..m_i.n_atoms],
+                &atoms[m_i.n_atoms..],
+                &m_i.slako,
+            );
             // Reference to the MO coefficients of monomer I.
             let orbs_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
             // Reference to the MO coefficients of monomer J.
@@ -72,16 +77,14 @@ impl SuperSystem {
 
             // The list with indices of occupied and virtual orbitals of monomer I is created.
             let indices_i: Vec<usize> = (0..n_occ_m)
-                .map(|i| occ_indices_i[occ_indices_i.len() - (i+1)])
-                .chain((0..n_virt_m)
-                .map(|i| virt_indices_i[i]))
+                .map(|i| occ_indices_i[occ_indices_i.len() - (i + 1)])
+                .chain((0..n_virt_m).map(|i| virt_indices_i[i]))
                 .collect::<Vec<usize>>();
 
             // The same list for monomer J is createsd.
             let indices_j: Vec<usize> = (0..n_occ_m)
-                .map(|j| occ_indices_j[occ_indices_j.len() - (j+1)])
-                .chain((0..n_virt_m)
-                    .map(|j| virt_indices_j[j]))
+                .map(|j| occ_indices_j[occ_indices_j.len() - (j + 1)])
+                .chain((0..n_virt_m).map(|j| virt_indices_j[j]))
                 .collect::<Vec<usize>>();
 
             // Iterate trough the active orbitals of monomer I and J and set the coupling elements.
@@ -92,7 +95,10 @@ impl SuperSystem {
                     // Index to the column of the Hamiltonian.
                     let column: usize = pair.j * n_active_m + j;
                     // Contract the H0 matrix with the MO coefficients of both monomers.
-                    h[[row, column]] = orbs_i.slice(s![0.., *occ_i]).t().dot(&h0_ab.dot(&orbs_j.slice(s![0.., *occ_j])));
+                    h[[row, column]] = orbs_i
+                        .slice(s![0.., *occ_i])
+                        .t()
+                        .dot(&h0_ab.dot(&orbs_j.slice(s![0.., *occ_j])));
                     h[[row, column]] = h[[column, row]];
                 }
             }
@@ -101,5 +107,11 @@ impl SuperSystem {
         h
     }
 
+    pub fn compute_mos(&self, h: Array2<f64>) -> () {
+        // The Hamiltonian is diagonalized.
+        let (mo_e, mo_c): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
 
+        let n_orbs: usize = self.monomers.iter().map(|mol| mol.n_orbs).sum();
+
+    }
 }
