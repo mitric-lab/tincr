@@ -209,7 +209,7 @@ pub fn fmo_ncc(
     let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
         orbe.view(),
         molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
-        molecule.calculator.nr_unpaired_electrons,
+        molecule.calculator.nr_unpaired_electrons as f64,
         temperature,
     );
     let f: Vec<f64> = tmp.1;
@@ -438,7 +438,7 @@ pub fn fmo_pair_scc(
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
             orbe.view(),
             molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
-            molecule.calculator.nr_unpaired_electrons,
+            molecule.calculator.nr_unpaired_electrons as f64,
             temperature,
         );
         f = tmp.1;
@@ -658,7 +658,7 @@ pub fn fmo_pair_ncc(
     let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
         orbe.view(),
         molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
-        molecule.calculator.nr_unpaired_electrons,
+        molecule.calculator.nr_unpaired_electrons as f64,
         temperature,
     );
     let f: Vec<f64> = tmp.1;

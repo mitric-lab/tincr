@@ -31,23 +31,23 @@ pub fn run_unrestricted_scc(
 
     let number_electrons:usize = molecule.calculator.q0.iter().sum::<f64>() as usize;
     println!("number electrons {}",number_electrons);
-    let mut alpha_electrons:usize = 0;
-    let mut beta_electrons:usize = 0;
+    let mut alpha_electrons:f64 = 0.0;
+    let mut beta_electrons:f64 = 0.0;
     if molecule.multiplicity == 1 && molecule.charge == 0 {
-        alpha_electrons = number_electrons/2;
-        beta_electrons = number_electrons/2;
+        alpha_electrons = (number_electrons/2) as f64;
+        beta_electrons = (number_electrons/2) as f64;
     }
     else if molecule.multiplicity == 3 && molecule.charge == 0{
-        alpha_electrons = number_electrons/2 +1;
-        beta_electrons = number_electrons/2 -1;
+        alpha_electrons = (number_electrons/2) as f64 +0.5 ;
+        beta_electrons = (number_electrons/2) as f64 -0.5;
     }
     else if molecule.multiplicity == 2 && molecule.charge == 1{
-        alpha_electrons = number_electrons/2;
-        beta_electrons = number_electrons/2 -1;
+        alpha_electrons = (number_electrons/2) as f64;
+        beta_electrons = (number_electrons/2 -1) as f64;
     }
     else if molecule.multiplicity == 2 && molecule.charge == -1{
-        alpha_electrons = number_electrons/2 +1;
-        beta_electrons = number_electrons/2;
+        alpha_electrons = (number_electrons/2 +1) as f64;
+        beta_electrons = (number_electrons/2) as f64;
     }
     println!("alpha electrons {}",alpha_electrons);
     println!("beta electrons {}",beta_electrons);

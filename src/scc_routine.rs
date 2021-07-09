@@ -132,7 +132,7 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
         let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
             orbe.view(),
             molecule.calculator.q0.iter().sum::<f64>() as usize - molecule.charge as usize,
-            molecule.calculator.nr_unpaired_electrons,
+            molecule.calculator.nr_unpaired_electrons as f64,
             temperature,
         );
         let mu: f64 = tmp.0;
