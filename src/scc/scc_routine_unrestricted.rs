@@ -169,7 +169,8 @@ impl<'a> UnrestrictedSCC for System{
         let rep_energy: f64 = get_repulsive_energy(&self.atoms, self.n_atoms, &self.vrep);
 
         // initialize the charge mixer
-        let mut broyden_mixer: BroydenMixer = BroydenMixer::new(self.n_atoms);
+        let mut broyden_mixer_alpha: BroydenMixer = BroydenMixer::new(self.n_atoms);
+        let mut broyden_mixer_beta: BroydenMixer = BroydenMixer::new(self.n_atoms);
 
         if log_enabled!(Level::Info) {
             print_scc_init(max_iter, temperature, rep_energy);
@@ -254,11 +255,9 @@ impl<'a> UnrestrictedSCC for System{
             }
 
             // Broyden mixing of partial charges # changed new_dq to dq
-            // dq_alpha = broyden_mixer.next(dq_alpha, delta_dq_alpha);
-            dq_alpha = dq_alpha + delta_dq_alpha * 0.35;
+            dq_alpha = broyden_mixer_alpha.next(dq_alpha, delta_dq_alpha);
             q_alpha = new_q_alpha;
-            // dq_beta = broyden_mixer.next(dq_beta, delta_dq_beta);
-            dq_beta = dq_beta + delta_dq_beta * 0.35;
+            dq_beta = broyden_mixer_beta.next(dq_beta, delta_dq_beta);
             q_beta = new_q_beta;
 
             if log_enabled!(Level::Debug) {
