@@ -21,6 +21,8 @@ impl Properties {
             "S",
             "X",
             "dq",
+            "dq_alpha",
+            "dq_beta",
             "delta_dq",
             "mixer",
             //"P",
@@ -129,9 +131,41 @@ impl Properties {
         }
     }
 
+    /// Returns the charge differences per atom.
+    pub fn take_dq_alpha(&mut self) -> Result<Array1<f64>, Property> {
+        match self.take("dq_alpha") {
+            Some(value) => value.into_array1(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Returns the charge differences per atom.
+    pub fn take_dq_beta(&mut self) -> Result<Array1<f64>, Property> {
+        match self.take("dq_beta") {
+            Some(value) => value.into_array1(),
+            _ => Err(Property::default()),
+        }
+    }
+
     /// Returns the density matrix in AO basis.
     pub fn take_p(&mut self) -> Result<Array2<f64>, Property> {
         match self.take("P") {
+            Some(value) => value.into_array2(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Returns the density matrix of the alpha electrons in AO basis.
+    pub fn take_p_alpha(&mut self) -> Result<Array2<f64>, Property> {
+        match self.take("P_alpha") {
+            Some(value) => value.into_array2(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Returns the density matrix of the beta electrons in AO basis.
+    pub fn take_p_beta(&mut self) -> Result<Array2<f64>, Property> {
+        match self.take("P_beta") {
             Some(value) => value.into_array2(),
             _ => Err(Property::default()),
         }
@@ -297,6 +331,22 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to the charge differences per atom.
+    pub fn dq_alpha(&self) -> Option<ArrayView1<f64>> {
+        match self.get("dq_alpha") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the charge differences per atom.
+    pub fn dq_beta(&self) -> Option<ArrayView1<f64>> {
+        match self.get("dq_beta") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference to the derivative of the charge (differences) w.r.t. to the degrees
     /// of freedom per atom. The first dimension is dof and the second one is the atom where the charge
     /// resides.
@@ -401,6 +451,22 @@ impl Properties {
     /// Returns a reference to the density matrix in AO basis.
     pub fn p(&self) -> Option<ArrayView2<f64>> {
         match self.get("P") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the density matrix of the alpha electrons in AO basis.
+    pub fn p_alpha(&self) -> Option<ArrayView2<f64>> {
+        match self.get("P_alpha") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the density matrix of the beta electrons in AO basis.
+    pub fn p_beta(&self) -> Option<ArrayView2<f64>> {
+        match self.get("P_beta") {
             Some(value) => Some(value.as_array2().unwrap().view()),
             _ => None,
         }
@@ -548,6 +614,16 @@ impl Properties {
         self.set("dq", Property::from(dq));
     }
 
+    /// Set the charge differences per atom.
+    pub fn set_dq_alpha(&mut self, dq: Array1<f64>) {
+        self.set("dq_alpha", Property::from(dq));
+    }
+
+    /// Set the charge differences per atom.
+    pub fn set_dq_beta(&mut self, dq: Array1<f64>) {
+        self.set("dq_beta", Property::from(dq));
+    }
+
     /// Set the derivative of the charge (differences) w.r.t. to degrees of freedom per atom
     pub fn set_grad_dq(&mut self, grad_dq: Array2<f64>) { self.set("grad_dq", Property::from(grad_dq))}
 
@@ -603,6 +679,16 @@ impl Properties {
     /// Set the density matrix in AO basis.
     pub fn set_p(&mut self, p: Array2<f64>) {
         self.set("P", Property::from(p));
+    }
+
+    /// Set the density matrix of the alpha electrons in AO basis.
+    pub fn set_p_alpha(&mut self, p: Array2<f64>) {
+        self.set("P_alpha", Property::from(p));
+    }
+
+    /// Set the density matrix of the beta electrons in AO basis.
+    pub fn set_p_beta(&mut self, p: Array2<f64>) {
+        self.set("P_beta", Property::from(p));
     }
 
     /// Set the electrostatic potential in AO basis.

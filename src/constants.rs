@@ -236,6 +236,14 @@ pub static VDW_RADII: phf::Map<u8, f64> = phf_map! {
     10u8 =>1.54,
 };
 
+// Spin coupling constants taken from dftb+ manual
+pub static SPIN_COUPLING: phf::Map<u8, f64> = phf_map! {
+    1u8  => -0.072,
+    6u8  => -0.023,
+    7u8  => -0.026,
+    8u8  => -0.028,
+};
+
 // //  occupation numbers of valence orbitals
 // //  which are used to assign the correct occupation to orbitals loaded from hotbit .elm files
 // pub static OCCUPATION_NUMBERS: phf::Map<&'static str, f64> = phf_map! {

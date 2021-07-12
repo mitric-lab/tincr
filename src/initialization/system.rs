@@ -10,7 +10,8 @@ use ndarray::prelude::*;
 use hashbrown::HashMap;
 use crate::scc::gamma_approximation::GammaFunction;
 use crate::scc::gamma_approximation;
-use crate::initialization::{get_unique_atoms, initialize_gamma_function};
+use crate::initialization::{get_unique_atoms, initialize_gamma_function,initialize_unrestricted_elec};
+use std::borrow::BorrowMut;
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
 /// This type is only used for non-FMO calculations. In the case of FMO based calculation
@@ -26,6 +27,12 @@ pub struct System {
     pub n_elec: usize,
     /// Number of unpaired electrons (singlet -> 0, doublet -> 1, triplet -> 2)
     pub n_unpaired: usize,
+    /// Number of alpha electrons in an unrestricted calculation
+    pub alpha_elec:f64,
+    /// Number of beta electrons in an unrestricted calculation
+    pub beta_elec:f64,
+    /// Charge of the system
+    pub charge:i8,
     /// Indices of occupied orbitals starting from zero
     pub occ_indices: Vec<usize>,
     /// Indices of virtual orbitals
@@ -79,6 +86,11 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
             3u8 => 2,
             _=> panic!("The specified multiplicity is not implemented")
         };
+        // set charge of the system
+        let charge:i8 = molecule.2.mol.charge;
+        // set alpha and beta electrons of the system
+        let (alpha_elec,beta_elec):(f64,f64) = initialize_unrestricted_elec(charge,n_elec,molecule.2.mol.multiplicity);
+
         // calculate the number of atomic orbitals for the whole system as the sum of the atomic
         // orbitals per atom
         let n_orbs: usize = atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
@@ -119,6 +131,9 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
             n_orbs: n_orbs,
             n_elec: n_elec,
             n_unpaired: n_unpaired,
+            alpha_elec:alpha_elec,
+            beta_elec:beta_elec,
+            charge:charge,
             occ_indices: occ_indices,
             virt_indices: virt_indices,
             first_active_occ: first_active_occ,

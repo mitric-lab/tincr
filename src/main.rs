@@ -23,6 +23,7 @@ use crate::fmo::SuperSystem;
 use crate::utils::Timer;
 use crate::scc::gamma_approximation::gamma_atomwise;
 use crate::fmo::gradients::GroundStateGradient;
+use crate::scc::scc_routine_unrestricted::UnrestrictedSCC;
 
 mod constants;
 mod defaults;
@@ -96,10 +97,10 @@ fn main() {
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
     let timer: Timer = Timer::start();
-    let mut system = SuperSystem::from((frame, config));
+    let mut system = System::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
-    system.prepare_scc();
-    system.run_scc();
+    system.prepare_unrestricted_scc();
+    system.run_unrestricted_scc();
     //let result = system.test_monomer_gradient();
     //let result = system.test_embedding_gradient();
     //let result = system.test_esd_gradient();

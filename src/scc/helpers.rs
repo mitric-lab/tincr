@@ -80,6 +80,33 @@ pub fn get_electronic_energy(
     return e_elec;
 }
 
+pub fn get_electronic_energy_unrestricted(
+    p_alpha: ArrayView2<f64>,
+    p_beta: ArrayView2<f64>,
+    h0: ArrayView2<f64>,
+    dq_alpha: ArrayView1<f64>,
+    dq_beta: ArrayView1<f64>,
+    gamma: ArrayView2<f64>,
+    spin_couplings:ArrayView1<f64>,
+) -> f64 {
+    let dq:Array1<f64> = &dq_alpha + &dq_beta;
+    let m_squared: Array1<f64> = (&dq_alpha - &dq_beta).iter().map(|x| x * x).collect();
+
+    // band structure energy
+    let e_band_structure: f64 = (&(&p_alpha+&p_beta) * &h0).sum();
+
+    // Coulomb energy from monopoles
+    let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
+
+    // Spin polarization energy
+    let e_spin: f64 = 0.5 * m_squared.dot(&spin_couplings);
+
+    // electronic energy as sum of band structure energy and Coulomb energy
+    let mut e_elec: f64 = e_band_structure + e_coulomb + e_spin;
+
+    return e_elec;
+}
+
 /// Construct part of the Hamiltonian corresponding to long range
 /// Hartree-Fock exchange
 /// H^x_mn = -1/2 sum_ab (P_ab-P0_ab) (ma|bn)_lr
@@ -171,6 +198,31 @@ pub fn construct_h1(
         }
     }
     return h1;
+}
+
+pub fn construct_h_magnetization(
+    n_orbs: usize,
+    atoms: &[Atom],
+    dq: ArrayView1<f64>,
+    spin_couplings:ArrayView1<f64>
+) -> Array2<f64> {
+    let pot: Array1<f64> = &dq * &spin_couplings;
+    let mut h: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
+    let mut mu: usize = 0;
+    let mut nu: usize;
+    for (i, atomi) in atoms.iter().enumerate() {
+        for _ in 0..(atomi.n_orbs) {
+            nu = 0;
+            for (j, atomj) in atoms.iter().enumerate() {
+                for _ in 0..(atomj.n_orbs) {
+                    h[[mu, nu]] = 0.5 * (pot[i] + pot[j]);
+                    nu = nu + 1;
+                }
+            }
+            mu = mu + 1;
+        }
+    }
+    return h;
 }
 
 pub(crate) fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> bool {

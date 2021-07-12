@@ -7,6 +7,7 @@ use soa_derive::StructOfArray;
 use std::cmp::Ordering;
 use nalgebra::Vector3;
 use ndarray::prelude::*;
+use crate::constants;
 
 /// `Atom` type that contains basic information about the chemical element as well as the
 /// data used for the semi-empirical parameters that are used in the DFTB calculations.
@@ -49,7 +50,8 @@ pub struct Atom {
     /// Number of valence electrons
     pub n_elec: usize,
     /// Position of the atom in bohr
-    pub xyz: Vector3<f64> ,
+    pub xyz: Vector3<f64>,
+    pub spin_coupling:f64,
 }
 
 impl From<Element> for Atom {
@@ -74,6 +76,8 @@ impl From<Element> for Atom {
             n_elec += confined_atom.orbital_occupation[*i as usize] as usize;
         }
         let n_orbs: usize = valorbs.len();
+        let spin_coupling:f64 = constants::SPIN_COUPLING[&element.number()];
+
         Atom {
             name: symbol,
             number: element.number(),
@@ -84,6 +88,7 @@ impl From<Element> for Atom {
             valorbs_occupation: occupation,
             n_elec: n_elec,
             xyz: Vector3::<f64>::zeros(),
+            spin_coupling:spin_coupling,
         }
     }
 }

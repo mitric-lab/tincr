@@ -31,3 +31,28 @@ pub fn initialize_gamma_function(unique_atoms: &[Atom], r_lr: f64) -> GammaFunct
     gf.initialize();
     gf
 }
+
+pub fn initialize_unrestricted_elec(charge:i8,n_elec:usize,multiplicity:u8)->(f64,f64){
+    let mut alpha_electrons:f64 = 0.0;
+    let mut beta_electrons:f64 = 0.0;
+
+    if multiplicity == 1 && charge == 0{
+        alpha_electrons = (n_elec/2) as f64;
+        beta_electrons = (n_elec/2) as f64;
+    }
+    else if multiplicity == 3 && charge == 0{
+        alpha_electrons =(n_elec/2) as f64 +0.5;
+        beta_electrons = (n_elec/2) as f64 -0.5;
+    }
+    else if multiplicity == 2{
+        if charge == 1{
+            alpha_electrons = (n_elec/2) as f64;
+            beta_electrons = (n_elec/2) as f64 -1.0;
+        }
+        else if charge == -1{
+            alpha_electrons = (n_elec/2) as f64 +1.0;
+            beta_electrons = (n_elec/2) as f64;
+        }
+    }
+    return (alpha_electrons,beta_electrons);
+}

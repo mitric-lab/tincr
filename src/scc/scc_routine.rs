@@ -205,7 +205,7 @@ impl<'a> RestrictedSCC for System {
             let tmp: (f64, Vec<f64>) = fermi_occupation::fermi_occupation(
                 orbe.view(),
                 self.n_elec,
-                self.n_unpaired,
+                self.n_unpaired as f64,
                 temperature,
             );
             f = tmp.1;
