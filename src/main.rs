@@ -128,7 +128,7 @@ fn main() {
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
                 Some(0.0),
-                None,
+                Some((30,30)),
                 config,
                 None,
                 None,
@@ -173,10 +173,11 @@ fn main() {
             // println!("numerical dftb gradient {}",num_grad);
             // println!("");
             // println!("Norm of difference: {}", (grad_e0+ grad_vrep-num_grad).norm());
-            //mol.calculator.set_active_orbitals(f.to_vec());
-            //let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
-            //    get_exc_energies(&f, &mol, Some(4), &s, &orbe, &orbs, false, None);
-
+            mol.calculator.set_active_orbitals(f.to_vec());
+            let excited_timer: Instant = Instant::now();
+            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
+               get_exc_energies(&f, &mol, None, &s, &orbe, &orbs, false, None);
+            println!("{:>68} {:>8.6} s","elapsed time exited states:",excited_timer.elapsed().as_secs_f32());
             0
         }
         "unrestricted" => {

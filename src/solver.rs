@@ -19,6 +19,7 @@ use std::cmp::Ordering;
 use std::ops::{AddAssign, DivAssign};
 use std::time::Instant;
 use arpack_interface::*;
+use ndarray_linalg::krylov::arnoldi_mgs;
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -654,7 +655,22 @@ pub fn casida(
     // construct hermitian eigenvalue problem
     // (A-B)^(1/2) (A+B) (A-B)^(1/2) F = Omega^2 F
     let R: Array2<f64> = sqAmB.dot(&ApB.dot(&sqAmB));
+
+    // let excited_timer: Instant = Instant::now();
     let (omega2, F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Lower).unwrap();
+
+    // println!("{:>68} {:>8.6} s","elapsed time calculate eigh:",excited_timer.elapsed().as_secs_f32());
+    // drop(excited_timer);
+    // let excited_timer: Instant = Instant::now();
+    //
+    // let v:Array1<f64> = Array1::ones(R.dim().0);
+    // let test = arnoldi_mgs(R,v,1e-9);
+    // let tmp_test:(Array1<f64>,Array2<f64>) = test.1.eigh(UPLO::Lower).unwrap();
+    // println!("{:>68} {:>8.6} s","elapsed time calculate arnoldi + eigh:",excited_timer.elapsed().as_secs_f32());
+    // drop(excited_timer);
+    //
+    // println!("omega2 {}",omega2);
+    // println!("omega ar {}",tmp_test.0);
 
     let omega: Array1<f64> = omega2.mapv(f64::sqrt);
     //let omega: Array1<f64> = omega2.map(|omega2| ndarray_linalg::Scalar::sqrt(omega2));
