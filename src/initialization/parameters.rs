@@ -147,7 +147,7 @@ impl SlaterKoster {
 
     pub fn add_from_handler(&mut self, kind1: Element, kind2: Element,handler:SkfHandler,optional_table:Option<SlaterKosterTable>,order:&str){
         self.map
-            .insert((kind1, kind2), SlaterKosterTable::from((handler,optional_table,order)));
+            .insert((kind1, kind2), SlaterKosterTable::from((&handler,optional_table,order)));
     }
 
     pub fn get(&self, kind1: Element, kind2: Element) -> &SlaterKosterTable {
@@ -371,8 +371,8 @@ impl RepulsivePotentialTable {
     }
 }
 
-impl From<SkfHandler> for PseudoAtomMio {
-    fn from(skf_handler: SkfHandler) -> Self {
+impl From<&SkfHandler> for PseudoAtomMio {
+    fn from(skf_handler: &SkfHandler) -> Self {
         // split skf data in lines
         let lines: Vec<&str> = skf_handler.data_string.split("\n").collect();
 
@@ -434,8 +434,8 @@ impl From<SkfHandler> for PseudoAtomMio {
     }
 }
 
-impl From<SkfHandler> for RepulsivePotentialTable {
-    fn from(skf_handler: SkfHandler) -> Self {
+impl From<&SkfHandler> for RepulsivePotentialTable {
+    fn from(skf_handler: &SkfHandler) -> Self {
         // split skf data in lines
         let lines: Vec<&str> = skf_handler.data_string.split("\n").collect();
 
@@ -520,8 +520,8 @@ impl From<SkfHandler> for RepulsivePotentialTable {
     }
 }
 
-impl From<(SkfHandler, Option<SlaterKosterTable>, &str)> for SlaterKosterTable {
-    fn from(skf: (SkfHandler, Option<SlaterKosterTable>, &str)) -> Self {
+impl From<(&SkfHandler, Option<SlaterKosterTable>, &str)> for SlaterKosterTable {
+    fn from(skf: (&SkfHandler, Option<SlaterKosterTable>, &str)) -> Self {
         // split skf data in lines
         let mut lines: Vec<&str> = skf.0.data_string.split("\n").collect();
 

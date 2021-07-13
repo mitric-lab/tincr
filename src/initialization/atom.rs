@@ -93,12 +93,12 @@ impl From<Element> for Atom {
     }
 }
 
-impl From<(Element,SkfHandler)> for Atom {
+impl From<(Element,&SkfHandler)> for Atom {
     /// Create a new [Atom] from the chemical [Element](crate::initialization::elements::Element) and
     /// the [SkfHandler](crate::initialization::parameters::SkfHandler).
     /// The parameterization from the parameter files is loaded and the Hubbard parameter
     /// and the valence orbitals are stored in this type.
-    fn from (tuple:(Element,SkfHandler)) -> Self {
+    fn from (tuple:(Element,&SkfHandler)) -> Self {
         let element:Element = tuple.0;
         let symbol: &'static str = element.symbol();
         let pseudo_atom:PseudoAtomMio = PseudoAtomMio::from(tuple.1);

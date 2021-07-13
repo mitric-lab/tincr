@@ -155,14 +155,14 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
 
         // add all unique element pairs
         if molecule.2.slater_koster.use_mio == true {
-            for handler in skf_handlers.iter_mut() {
+            for handler in skf_handlers.iter() {
                 // in the heteronuclear case, the slako tables of the element combinations "AB"
                 // and "BA" must be combined
                 if handler.element_a == handler.element_b {
                     let repot_table: RepulsivePotentialTable =
-                        RepulsivePotentialTable::from(handler.clone());
+                        RepulsivePotentialTable::from(handler);
                     let slako_table: SlaterKosterTable =
-                        SlaterKosterTable::from((handler.clone(), None, "ab"));
+                        SlaterKosterTable::from((handler, None, "ab"));
 
                     // insert the tables into the hashmaps
                     slako
@@ -174,16 +174,16 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
                         .insert((handler.element_a, handler.element_b), repot_table);
                 } else {
                     let repot_table: RepulsivePotentialTable =
-                        RepulsivePotentialTable::from(handler.clone());
+                        RepulsivePotentialTable::from(handler);
                     let slako_table_ab: SlaterKosterTable =
-                        SlaterKosterTable::from((handler.clone(), None, "ab"));
+                        SlaterKosterTable::from((handler, None, "ab"));
                     let slako_handler_ba: SkfHandler = SkfHandler::new(
                         handler.element_b,
                         handler.element_a,
                         molecule.2.slater_koster.mio_directory.clone(),
                     );
                     let slako_table: SlaterKosterTable =
-                        SlaterKosterTable::from((slako_handler_ba, Some(slako_table_ab), "ba"));
+                        SlaterKosterTable::from((&slako_handler_ba, Some(slako_table_ab), "ba"));
 
                     // insert the tables into the hashmaps
                     slako

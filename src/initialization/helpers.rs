@@ -60,7 +60,7 @@ pub fn get_unique_atoms_mio(
         .iter()
         .map(|handler| {
             let element: Element = handler.element_a.clone();
-            Atom::from((element, handler.clone()))
+            Atom::from((element, handler))
         })
         .collect();
     let mut num_to_atom: HashMap<u8, Atom> = HashMap::with_capacity(unique_numbers.len());
