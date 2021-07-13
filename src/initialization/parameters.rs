@@ -382,7 +382,7 @@ impl From<SkfHandler> for PseudoAtomMio{
         let occupations_numbers:Array1<i8> = array![second_line[9] as i8,second_line[8] as i8,second_line[7] as i8];
         let hubbard_u:Array1<f64> = array![second_line[6],second_line[5],second_line[4]];
 
-        let electron_count:u8 = skf_handler.z1.clone();
+        let electron_count:u8 = skf_handler.element_a.number();
         let mut valence_orbitals:Vec<u8> = Vec::new();
         let mut nshell:Vec<i8> = Vec::new();
         // set nshell depending on the electron count of the atom
@@ -417,14 +417,14 @@ impl From<SkfHandler> for PseudoAtomMio{
 
         // create PseudoAtom
         let pseudo_atom:PseudoAtomMio = PseudoAtomMio{
-            z:skf_handler.z1,
+            z:skf_handler.element_a.number(),
             hubbard_u:hubbard_u[0],
             energies:energies.to_vec(),
             angular_momenta:angular_momenta,
             valence_orbitals:valence_orbitals,
             nshell:nshell,
             orbital_occupation:occupations_numbers.to_vec(),
-            n_elec:skf_handler.z1
+            n_elec:skf_handler.element_a.number()
         };
         pseudo_atom
     }
@@ -506,8 +506,8 @@ impl From<SkfHandler> for RepulsivePotentialTable{
         let mut rep_table:RepulsivePotentialTable =
             RepulsivePotentialTable{
             dmax:dmax,
-            z1:skf_handler.z1,
-            z2:skf_handler.z2,
+            z1:skf_handler.element_a.number(),
+            z2:skf_handler.element_b.number(),
             vrep:v_rep.to_vec(),
             d:d_arr.to_vec(),
             spline_rep:None,
@@ -531,7 +531,7 @@ impl From<(SkfHandler,Option<SlaterKosterTable>,&str)> for SlaterKosterTable{
 
         // remove first line
         lines.remove(0);
-        if skf.0.z1 == skf.0.z2 {
+        if skf.0.element_a.number() == skf.0.element_b.number() {
             // remove second line
             lines.remove(0);
         }
@@ -617,8 +617,8 @@ impl From<(SkfHandler,Option<SlaterKosterTable>,&str)> for SlaterKosterTable{
             h:h,
             d:d_arr.to_vec(),
             dmax:dmax,
-            z1:skf.0.z1,
-            z2:skf.0.z2,
+            z1:skf.0.element_a.number(),
+            z2:skf.0.element_b.number(),
             h_spline: init_hashmap(),
             s_spline: init_hashmap(),
             index_to_symbol:get_index_to_symbol()
@@ -632,26 +632,26 @@ impl From<(SkfHandler,Option<SlaterKosterTable>,&str)> for SlaterKosterTable{
 }
 
 pub struct SkfHandler{
-    z1:u8,
-    z2:u8,
+    element_a:Element,
+    element_b:Element,
     data_string:String,
 }
 
 impl SkfHandler{
     pub fn new(
-        z1:u8,
-        z2:u8,
+        element_a:Element,
+        element_b:Element,
     )->SkfHandler{
         let path_prefix: String = String::from(defaults::MIO_DIR);
-        let element_1:&str = constants::ATOM_NAMES_UPPER[z1 as usize];
-        let element_2:&str = constants::ATOM_NAMES_UPPER[z2 as usize];
+        let element_1:&str = element_a.symbol();
+        let element_2:&str = element_b.symbol();
         let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
         let path: &Path = Path::new(&filename);
         let data: String = fs::read_to_string(path).expect("Unable to read file");
 
         SkfHandler{
-            z1:z1,
-            z2:z2,
+            element_a:element_a,
+            element_b:element_b,
             data_string:data,
         }
     }

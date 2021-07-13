@@ -106,7 +106,7 @@ impl From<(Element,SkfHandler)> for Atom {
         let mut occupation: Vec<f64> = Vec::new();
         let mut n_elec: usize = 0;
         for (i, j) in pseudo_atom.valence_orbitals.iter().zip(pseudo_atom.valence_orbitals.iter()) {
-            let n: i8 =pseudo_atom.nshell[*i as usize];
+            let n: i8 = pseudo_atom.nshell[*i as usize];
             let l: i8 = pseudo_atom.angular_momenta[*i as usize];
             let energy: f64 = pseudo_atom.energies[*j as usize];
             for m in l.neg()..(l + 1) {
