@@ -1,6 +1,7 @@
-use crate::param::Element;
 use crate::constants;
 use crate::defaults;
+use crate::param::Element;
+use crate::utils::get_path_prefix;
 use ndarray::prelude::*;
 use ron::de::from_str;
 use rusty_fitpack;
@@ -8,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use crate::utils::get_path_prefix;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -127,8 +127,8 @@ pub struct PseudoAtomMio {
 /// This is basically a struct that allows to get the [SlaterKosterTable] without a strict
 /// order of the [Element] tuple.
 #[derive(Clone)]
-pub struct SlaterKoster{
-    map: HashMap<(Element, Element), SlaterKosterTable>,
+pub struct SlaterKoster {
+    pub map: HashMap<(Element, Element), SlaterKosterTable>,
 }
 
 impl SlaterKoster {
@@ -145,10 +145,15 @@ impl SlaterKoster {
             .insert((kind1, kind2), SlaterKosterTable::new(kind1, kind2));
     }
 
+    pub fn add_from_handler(&mut self, kind1: Element, kind2: Element,handler:SkfHandler,optional_table:Option<SlaterKosterTable>,order:&str){
+        self.map
+            .insert((kind1, kind2), SlaterKosterTable::from((handler,optional_table,order)));
+    }
+
     pub fn get(&self, kind1: Element, kind2: Element) -> &SlaterKosterTable {
         self.map
             .get(&(kind1, kind2))
-            .unwrap_or(self.map.get(&(kind2, kind1)).unwrap())
+            .unwrap_or_else(||self.map.get(&(kind2, kind1)).unwrap())
     }
 }
 
@@ -186,7 +191,7 @@ impl SlaterKosterTable {
         let path_prefix: String = get_path_prefix();
         let (kind1, kind2) = if kind1 > kind2 {
             (kind2, kind1)
-        } else{
+        } else {
             (kind1, kind2)
         };
         let filename: String = format!(
@@ -196,10 +201,11 @@ impl SlaterKosterTable {
             kind2.symbol().to_lowercase()
         );
         let path: &Path = Path::new(&filename);
-        let data: String = fs::read_to_string(path).expect(&*format! {"Unable to read file {}", &filename});
+        let data: String =
+            fs::read_to_string(path).expect(&*format! {"Unable to read file {}", &filename});
         let mut slako_table: SlaterKosterTable =
             from_str(&data).expect("RON file was not well-formatted");
-        slako_table.dmax = slako_table.d[slako_table.d.len()-1];
+        slako_table.dmax = slako_table.d[slako_table.d.len() - 1];
         slako_table.s_spline = slako_table.spline_overlap();
         slako_table.h_spline = slako_table.spline_hamiltonian();
         slako_table
@@ -241,7 +247,7 @@ impl SlaterKosterTable {
 /// order of the [Element] tuple.
 #[derive(Clone)]
 pub struct RepulsivePotential {
-    map: HashMap<(Element, Element), RepulsivePotentialTable>,
+    pub map: HashMap<(Element, Element), RepulsivePotentialTable>,
 }
 
 impl RepulsivePotential {
@@ -254,10 +260,8 @@ impl RepulsivePotential {
 
     /// Add a [RepulsivePotentialTable] from a pair of two [Element]s
     pub fn add(&mut self, kind1: Element, kind2: Element) {
-        self.map.insert(
-            (kind1, kind2),
-            RepulsivePotentialTable::new(kind1, kind2),
-        );
+        self.map
+            .insert((kind1, kind2), RepulsivePotentialTable::new(kind1, kind2));
     }
 
     /// Return the [RepulsivePotentialTable] for the tuple of two [Element]s. The order of
@@ -265,7 +269,7 @@ impl RepulsivePotential {
     pub fn get(&self, kind1: Element, kind2: Element) -> &RepulsivePotentialTable {
         self.map
             .get(&(kind1, kind2))
-            .unwrap_or(self.map.get(&(kind2, kind1)).unwrap())
+            .unwrap_or_else(||self.map.get(&(kind2, kind1)).unwrap())
     }
 }
 
@@ -297,7 +301,7 @@ impl RepulsivePotentialTable {
         let path_prefix: String = get_path_prefix();
         let (kind1, kind2) = if kind1 > kind2 {
             (kind2, kind1)
-        } else{
+        } else {
             (kind1, kind2)
         };
         let filename: String = format!(
@@ -311,7 +315,7 @@ impl RepulsivePotentialTable {
         let mut reppot_table: RepulsivePotentialTable =
             from_str(&data).expect("RON file was not well-formatted");
         reppot_table.spline_rep();
-        reppot_table.dmax = reppot_table.d[reppot_table.d.len()-1];
+        reppot_table.dmax = reppot_table.d[reppot_table.d.len() - 1];
         return reppot_table;
     }
 
@@ -367,73 +371,73 @@ impl RepulsivePotentialTable {
     }
 }
 
-impl From<SkfHandler> for PseudoAtomMio{
-    fn from(skf_handler:SkfHandler)->Self{
+impl From<SkfHandler> for PseudoAtomMio {
+    fn from(skf_handler: SkfHandler) -> Self {
         // split skf data in lines
-        let lines:Vec<&str> = skf_handler.data_string.split("\n").collect();
+        let lines: Vec<&str> = skf_handler.data_string.split("\n").collect();
 
         // read Ed Ep Es SPE Ud Up Us fd fp fs from the second line
         // of the slater koster file
         // Ed Ep Es: one-site energies
         // Ud Up Us: Hubbard Us of the different angular momenta
         // fd fp fs: occupation numbers of the orbitals
-        let second_line:Vec<f64> = process_slako_line(lines[1]);
-        let energies:Array1<f64> = array![second_line[2],second_line[1],second_line[0]];
-        let occupations_numbers:Array1<i8> = array![second_line[9] as i8,second_line[8] as i8,second_line[7] as i8];
-        let hubbard_u:Array1<f64> = array![second_line[6],second_line[5],second_line[4]];
+        let second_line: Vec<f64> = process_slako_line(lines[1]);
+        let energies: Array1<f64> = array![second_line[2], second_line[1], second_line[0]];
+        let occupations_numbers: Array1<i8> = array![
+            second_line[9] as i8,
+            second_line[8] as i8,
+            second_line[7] as i8
+        ];
+        let hubbard_u: Array1<f64> = array![second_line[6], second_line[5], second_line[4]];
 
-        let electron_count:u8 = skf_handler.element_a.number();
-        let mut valence_orbitals:Vec<u8> = Vec::new();
-        let mut nshell:Vec<i8> = Vec::new();
+        let electron_count: u8 = skf_handler.element_a.number();
+        let mut valence_orbitals: Vec<u8> = Vec::new();
+        let mut nshell: Vec<i8> = Vec::new();
         // set nshell depending on the electron count of the atom
-        if electron_count < 3{
+        if electron_count < 3 {
             nshell.push(1);
-        }
-        else if electron_count < 11{
+        } else if electron_count < 11 {
             nshell.push(2);
             nshell.push(2);
-        }
-        else if electron_count < 19{
+        } else if electron_count < 19 {
             nshell.push(3);
             nshell.push(3);
         }
 
         // fill angular momenta
-        let mut angular_momenta:Vec<i8> = Vec::new();
-        for (it,occ) in occupations_numbers.iter().enumerate(){
-            if occ > &0{
+        let mut angular_momenta: Vec<i8> = Vec::new();
+        for (it, occ) in occupations_numbers.iter().enumerate() {
+            if occ > &0 {
                 valence_orbitals.push(it as u8);
-                if it == 0{
+                if it == 0 {
                     angular_momenta.push(0);
-                }
-                else if it == 1{
+                } else if it == 1 {
                     angular_momenta.push(1);
-                }
-                else if it == 2{
+                } else if it == 2 {
                     angular_momenta.push(2);
                 }
             }
         }
 
         // create PseudoAtom
-        let pseudo_atom:PseudoAtomMio = PseudoAtomMio{
-            z:skf_handler.element_a.number(),
-            hubbard_u:hubbard_u[0],
-            energies:energies.to_vec(),
-            angular_momenta:angular_momenta,
-            valence_orbitals:valence_orbitals,
-            nshell:nshell,
-            orbital_occupation:occupations_numbers.to_vec(),
-            n_elec:skf_handler.element_a.number()
+        let pseudo_atom: PseudoAtomMio = PseudoAtomMio {
+            z: skf_handler.element_a.number(),
+            hubbard_u: hubbard_u[0],
+            energies: energies.to_vec(),
+            angular_momenta: angular_momenta,
+            valence_orbitals: valence_orbitals,
+            nshell: nshell,
+            orbital_occupation: occupations_numbers.to_vec(),
+            n_elec: skf_handler.element_a.number(),
         };
         pseudo_atom
     }
 }
 
-impl From<SkfHandler> for RepulsivePotentialTable{
-    fn from(skf_handler:SkfHandler)->Self{
+impl From<SkfHandler> for RepulsivePotentialTable {
+    fn from(skf_handler: SkfHandler) -> Self {
         // split skf data in lines
-        let lines:Vec<&str> = skf_handler.data_string.split("\n").collect();
+        let lines: Vec<&str> = skf_handler.data_string.split("\n").collect();
 
         let mut count: usize = 0;
         // search beginning of repulsive potential in the skf file
@@ -445,9 +449,9 @@ impl From<SkfHandler> for RepulsivePotentialTable{
         }
 
         // get number of points and the cutoff from the second line
-        let second_line:Vec<f64> = process_slako_line(lines[count+1]);
-        let n_int:usize = second_line[0] as usize;
-        let cutoff:f64 = second_line[1];
+        let second_line: Vec<f64> = process_slako_line(lines[count + 1]);
+        let n_int: usize = second_line[0] as usize;
+        let cutoff: f64 = second_line[1];
 
         // Line 3: V(r < r0) = exp(-a1*r+a2) + a3   is r too small to be covered by the spline
         let third_line: Vec<f64> = process_slako_line(lines[count + 2]);
@@ -501,26 +505,25 @@ impl From<SkfHandler> for RepulsivePotentialTable{
             }
         }
 
-        let dmax:f64 = d_arr[d_arr.len()-1];
+        let dmax: f64 = d_arr[d_arr.len() - 1];
 
-        let mut rep_table:RepulsivePotentialTable =
-            RepulsivePotentialTable{
-            dmax:dmax,
-            z1:skf_handler.element_a.number(),
-            z2:skf_handler.element_b.number(),
-            vrep:v_rep.to_vec(),
-            d:d_arr.to_vec(),
-            spline_rep:None,
+        let mut rep_table: RepulsivePotentialTable = RepulsivePotentialTable {
+            dmax: dmax,
+            z1: skf_handler.element_a.number(),
+            z2: skf_handler.element_b.number(),
+            vrep: v_rep.to_vec(),
+            d: d_arr.to_vec(),
+            spline_rep: None,
         };
         rep_table.spline_rep();
         rep_table
     }
 }
 
-impl From<(SkfHandler,Option<SlaterKosterTable>,&str)> for SlaterKosterTable{
-    fn from(skf:(SkfHandler,Option<SlaterKosterTable>,&str))->Self{
+impl From<(SkfHandler, Option<SlaterKosterTable>, &str)> for SlaterKosterTable {
+    fn from(skf: (SkfHandler, Option<SlaterKosterTable>, &str)) -> Self {
         // split skf data in lines
-        let mut lines:Vec<&str> = skf.0.data_string.split("\n").collect();
+        let mut lines: Vec<&str> = skf.0.data_string.split("\n").collect();
 
         // read the first line of the skf file
         // it contains the r0 parameter/the grid distance and
@@ -539,14 +542,15 @@ impl From<(SkfHandler,Option<SlaterKosterTable>,&str)> for SlaterKosterTable{
         lines.remove(0);
 
         // create grid
-        let d_arr: Array1<f64> = Array1::linspace(0.02, grid_dist * ((npoints - 1) as f64), npoints);
+        let d_arr: Array1<f64> =
+            Array1::linspace(0.02, grid_dist * ((npoints - 1) as f64), npoints);
 
         let next_line: Vec<f64> = process_slako_line(lines[0]);
         let length: usize = next_line.len() / 2;
         assert!(length == 10);
 
         // create vector of tausymbols, which correspond to the orbital combinations
-        let tausymbols:Array1<&str> = match (skf.2) {
+        let tausymbols: Array1<&str> = match (skf.2) {
             ("ab") => (constants::TAUSYMBOLS_AB.iter().cloned().collect()),
             ("ba") => (constants::TAUSYMBOLS_BA.iter().cloned().collect()),
             _ => panic!("Wrong order specified! Only 'ab' or 'ba' is allowed!"),
@@ -560,8 +564,8 @@ impl From<(SkfHandler,Option<SlaterKosterTable>,&str)> for SlaterKosterTable{
 
         // Fill hashmaps for h and s with the values of the slako table
         // for the order 'ab' to combine them with 'ba'
-        if skf.1.is_some(){
-            let slako_table:SlaterKosterTable = skf.1.unwrap();
+        if skf.1.is_some() {
+            let slako_table: SlaterKosterTable = skf.1.unwrap();
             h = slako_table.h.clone();
             s = slako_table.s.clone();
             dipole = slako_table.dipole.clone();
@@ -600,59 +604,56 @@ impl From<(SkfHandler,Option<SlaterKosterTable>,&str)> for SlaterKosterTable{
         for (pos, tausymbol) in tausymbols.slice(s![-10..]).iter().enumerate() {
             let symbol: (u8, i32, u8, i32) = constants::SYMBOL_2_TAU[*tausymbol];
             let index: u8 = get_tau_2_index(symbol);
-            if !h.contains_key(&(symbol.0, symbol.2, index)){
+            if !h.contains_key(&(symbol.0, symbol.2, index)) {
                 h.insert((symbol.0, symbol.2, index), vec_h_arrays[pos].to_vec());
             }
-            if !s.contains_key(&(symbol.0, symbol.2, index)){
+            if !s.contains_key(&(symbol.0, symbol.2, index)) {
                 s.insert((symbol.0, symbol.2, index), vec_s_arrays[pos].to_vec());
             }
             dipole.insert((symbol.0, symbol.2, index), temp_vec.clone());
         }
 
         //create Slako table
-        let dmax:f64 = d_arr[d_arr.len()-1];
-        let slako:SlaterKosterTable = SlaterKosterTable{
-            dipole:dipole,
-            s:s,
-            h:h,
-            d:d_arr.to_vec(),
-            dmax:dmax,
-            z1:skf.0.element_a.number(),
-            z2:skf.0.element_b.number(),
+        let dmax: f64 = d_arr[d_arr.len() - 1];
+        let mut slako: SlaterKosterTable = SlaterKosterTable {
+            dipole: dipole,
+            s: s,
+            h: h,
+            d: d_arr.to_vec(),
+            dmax: dmax,
+            z1: skf.0.element_a.number(),
+            z2: skf.0.element_b.number(),
             h_spline: init_hashmap(),
             s_spline: init_hashmap(),
-            index_to_symbol:get_index_to_symbol()
+            index_to_symbol: get_index_to_symbol(),
         };
-        if skf.2 == "ba"{
-            slako.spline_overlap();
-            slako.spline_hamiltonian();
+        if skf.2 == "ba" || (skf.0.element_a == skf.0.element_b) {
+            slako.s_spline = slako.spline_overlap();
+            slako.h_spline = slako.spline_hamiltonian();
         }
         slako
     }
 }
 
-pub struct SkfHandler{
-    element_a:Element,
-    element_b:Element,
-    data_string:String,
+#[derive(Clone)]
+pub struct SkfHandler {
+    pub element_a: Element,
+    pub element_b: Element,
+    pub data_string: String,
 }
 
-impl SkfHandler{
-    pub fn new(
-        element_a:Element,
-        element_b:Element,
-    )->SkfHandler{
-        let path_prefix: String = String::from(defaults::MIO_DIR);
-        let element_1:&str = element_a.symbol();
-        let element_2:&str = element_b.symbol();
+impl SkfHandler {
+    pub fn new(element_a: Element, element_b: Element, path_prefix: String) -> SkfHandler {
+        let element_1: &str = element_a.symbol();
+        let element_2: &str = element_b.symbol();
         let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
         let path: &Path = Path::new(&filename);
         let data: String = fs::read_to_string(path).expect("Unable to read file");
 
-        SkfHandler{
-            element_a:element_a,
-            element_b:element_b,
-            data_string:data,
+        SkfHandler {
+            element_a: element_a,
+            element_b: element_b,
+            data_string: data,
         }
     }
 }
@@ -717,7 +718,7 @@ fn get_tau_2_index(tuple: (u8, i32, u8, i32)) -> u8 {
     return value;
 }
 
-fn get_index_to_symbol()->HashMap<u8,String>{
+fn get_index_to_symbol() -> HashMap<u8, String> {
     let mut index_to_symbol: HashMap<u8, String> = HashMap::new();
     index_to_symbol.insert(0, String::from("ss_sigma"));
     index_to_symbol.insert(2, String::from("ss_sigma"));

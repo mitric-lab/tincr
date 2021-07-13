@@ -97,7 +97,7 @@ fn main() {
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
     let timer: Timer = Timer::start();
-    let mut system = SuperSystem::from((frame, config));
+    let mut system = System::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();

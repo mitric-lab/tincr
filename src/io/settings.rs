@@ -78,6 +78,8 @@ fn default_restricted_active_space() -> bool {
 fn default_nstates() -> usize {
     EXCITED_STATES
 }
+fn default_use_mio() -> bool { USE_MIO }
+fn default_mio_directory() ->String { String::from( MIO_DIR ) }
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
     return mol_config;
@@ -97,6 +99,10 @@ fn default_lc_config() -> LCConfig {
 fn default_excited_state_config() -> ExcitedStatesConfig {
     let excited_config: ExcitedStatesConfig = toml::from_str("").unwrap();
     return excited_config;
+}
+fn default_slater_koster_config()->SlaterKosterConfig{
+    let slako_config:SlaterKosterConfig = toml::from_str("").unwrap();
+    return slako_config;
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -119,6 +125,8 @@ pub struct Configuration {
     pub lc: LCConfig,
     #[serde(default = "default_excited_state_config")]
     pub excited: ExcitedStatesConfig,
+    #[serde(default = "default_slater_koster_config")]
+    pub slater_koster:SlaterKosterConfig
 }
 
 impl Configuration {
@@ -195,4 +203,12 @@ pub struct ExcitedStatesConfig {
     pub nr_active_occ: usize,
     #[serde(default = "default_nr_active_virt")]
     pub nr_active_virt: usize,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SlaterKosterConfig{
+    #[serde(default = "default_use_mio")]
+    pub use_mio:bool,
+    #[serde(default = "default_mio_directory")]
+    pub mio_directory:String,
 }

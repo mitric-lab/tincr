@@ -69,4 +69,5 @@ pub const GEOM_OPT_TOL_GRADIENT: f64 = 0.0;
 pub const GEOM_OPT_TOL_ENERGY: f64 = 0.0;
 
 // Directory of the mio parameters
-pub const MIO_DIR:&str = "/home/einseler/software/mio-0-1";
+pub const MIO_DIR:&str = " ";
+pub const USE_MIO:bool = false;
