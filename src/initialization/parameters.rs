@@ -358,6 +358,7 @@ impl RepulsivePotentialTable {
 
 impl From<SkfHandler> for RepulsivePotentialTable{
     fn from(skf_handler:SkfHandler)->Self{
+        // split skf data in lines
         let lines:Vec<&str> = skf_handler.data_string.split("\n").collect();
 
         let mut count: usize = 0;
@@ -428,14 +429,131 @@ impl From<SkfHandler> for RepulsivePotentialTable{
 
         let dmax:f64 = d_arr[d_arr.len()-1];
 
-        Self{
+        let mut rep_table:RepulsivePotentialTable =
+            RepulsivePotentialTable{
             dmax:dmax,
             z1:skf_handler.z1,
             z2:skf_handler.z2,
             vrep:v_rep.to_vec(),
             d:d_arr.to_vec(),
             spline_rep:None,
+        };
+        rep_table.spline_rep();
+        rep_table
+    }
+}
+
+impl From<(SkfHandler,Option<SlaterKosterTable>,&str)> for SlaterKosterTable{
+    fn from(skf:(SkfHandler,Option<SlaterKosterTable>,&str))->Self{
+        // split skf data in lines
+        let mut lines:Vec<&str> = skf.0.data_string.split("\n").collect();
+
+        // read the first line of the skf file
+        // it contains the r0 parameter/the grid distance and
+        // the number of grid points
+        let first_line: Vec<f64> = process_slako_line(lines[0]);
+        let grid_dist: f64 = first_line[0];
+        let npoints: usize = first_line[1] as usize;
+
+        // remove first line
+        lines.remove(0);
+        if skf.0.z1 == skf.0.z2 {
+            // remove second line
+            lines.remove(0);
         }
+        // remove second/third line
+        lines.remove(0);
+
+        // create grid
+        let d_arr: Array1<f64> = Array1::linspace(0.02, grid_dist * ((npoints - 1) as f64), npoints);
+
+        let next_line: Vec<f64> = process_slako_line(lines[0]);
+        let length: usize = next_line.len() / 2;
+        assert!(length == 10);
+
+        // create vector of tausymbols, which correspond to the orbital combinations
+        let tausymbols:Array1<&str> = match (skf.2) {
+            ("ab") => (constants::TAUSYMBOLS_AB.iter().cloned().collect()),
+            ("ba") => (constants::TAUSYMBOLS_BA.iter().cloned().collect()),
+            _ => panic!("Wrong order specified! Only 'ab' or 'ba' is allowed!"),
+        };
+        let length_tau: usize = tausymbols.len();
+
+        // define hashmaps for h, s and dipole
+        let mut h: HashMap<(u8, u8, u8), Vec<f64>> = HashMap::new();
+        let mut s: HashMap<(u8, u8, u8), Vec<f64>> = HashMap::new();
+        let mut dipole: HashMap<(u8, u8, u8), Vec<f64>> = HashMap::new();
+
+        // Fill hashmaps for h and s with the values of the slako table
+        // for the order 'ab' to combine them with 'ba'
+        if skf.1.is_some(){
+            let slako_table:SlaterKosterTable = skf.1.unwrap();
+            h = slako_table.h.clone();
+            s = slako_table.s.clone();
+            dipole = slako_table.dipole.clone();
+        }
+
+        // create Vector of arrays for the spline values of h and s
+        // for each of the corresponding tausymbols
+        let mut vec_h_arrays: Vec<Array1<f64>> = Vec::new();
+        let mut vec_s_arrays: Vec<Array1<f64>> = Vec::new();
+        for it in (0..10) {
+            vec_s_arrays.push(Array1::zeros(npoints));
+            vec_h_arrays.push(Array1::zeros(npoints));
+        }
+        let temp_vec: Vec<f64> = Array1::zeros(npoints).to_vec();
+
+        // fill all arrays with spline values
+        for it in (0..npoints) {
+            let next_line: Vec<f64> = process_slako_line(lines[it]);
+            for (pos, tausym) in tausymbols.slice(s![-10..]).iter().enumerate() {
+                let symbol: (u8, i32, u8, i32) = constants::SYMBOL_2_TAU[*tausym];
+                let l1: u8 = symbol.0;
+                let l2: u8 = symbol.2;
+
+                let mut orbital_parity: f64 = 0.0;
+                if skf.2 == "ba" {
+                    orbital_parity = -1.0_f64.powi((l1 + l2) as i32);
+                } else {
+                    orbital_parity = 1.0;
+                }
+                vec_h_arrays[pos][it] = orbital_parity * next_line[pos];
+                vec_s_arrays[pos][it] = orbital_parity * next_line[length_tau + pos];
+            }
+        }
+
+        // fill hashmaps with the spline values
+        for (pos, tausymbol) in tausymbols.slice(s![-10..]).iter().enumerate() {
+            let symbol: (u8, i32, u8, i32) = constants::SYMBOL_2_TAU[*tausymbol];
+            let index: u8 = get_tau_2_index(symbol);
+            if !h.contains_key(&(symbol.0, symbol.2, index)){
+                h.insert((symbol.0, symbol.2, index), vec_h_arrays[pos].to_vec());
+            }
+            if !s.contains_key(&(symbol.0, symbol.2, index)){
+                s.insert((symbol.0, symbol.2, index), vec_s_arrays[pos].to_vec());
+            }
+            dipole.insert((symbol.0, symbol.2, index), temp_vec.clone());
+        }
+
+        //create Slako table
+        let dmax:f64 = d_arr[d_arr.len()-1];
+        let slako:SlaterKosterTable = SlaterKosterTable{
+            dipole:dipole,
+            s:s,
+            h:h,
+            d:d_arr.to_vec(),
+            dmax:dmax,
+            z1:skf.0.z1,
+            z2:skf.0.z2,
+            h_spline: init_hashmap(),
+            s_spline: init_hashmap(),
+            index_to_symbol:get_index_to_symbol()
+        };
+        if skf.2 == "ba"{
+            slako.spline_overlap();
+            slako.spline_hamiltonian();
+        }
+        slako
     }
 }
 
@@ -495,3 +613,51 @@ pub fn process_slako_line(line: &str) -> Vec<f64> {
     return float_vec;
 }
 
+fn get_tau_2_index(tuple: (u8, i32, u8, i32)) -> u8 {
+    let v1: u8 = tuple.0;
+    let v2: i32 = tuple.1;
+    let v3: u8 = tuple.2;
+    let v4: i32 = tuple.3;
+    let value: u8 = match (v1, v2, v3, v4) {
+        (0, 0, 0, 0) => 0,
+        (0, 0, 1, 0) => 2,
+        (0, 0, 2, 0) => 3,
+        (1, 0, 0, 0) => 4,
+        (1, -1, 1, -1) => 5,
+        (1, 0, 1, 0) => 6,
+        (1, 1, 1, 1) => 5,
+        (1, -1, 2, -1) => 7,
+        (1, 0, 2, 0) => 8,
+        (1, 1, 2, 1) => 7,
+        (2, 0, 0, 0) => 9,
+        (2, -1, 1, -1) => 10,
+        (2, 0, 1, 0) => 11,
+        (2, 1, 1, 1) => 10,
+        (2, -2, 2, -2) => 12,
+        (2, -1, 2, -1) => 13,
+        (2, 0, 2, 0) => 14,
+        (2, 1, 2, 1) => 13,
+        (2, 2, 2, 2) => 12,
+        _ => panic!("false combination for tau_2_index!"),
+    };
+    return value;
+}
+
+fn get_index_to_symbol()->HashMap<u8,String>{
+    let mut index_to_symbol: HashMap<u8, String> = HashMap::new();
+    index_to_symbol.insert(0, String::from("ss_sigma"));
+    index_to_symbol.insert(2, String::from("ss_sigma"));
+    index_to_symbol.insert(3, String::from("sp_sigma"));
+    index_to_symbol.insert(4, String::from("sd_sigma"));
+    index_to_symbol.insert(5, String::from("ps_sigma"));
+    index_to_symbol.insert(6, String::from("pp_pi"));
+    index_to_symbol.insert(7, String::from("pp_sigma"));
+    index_to_symbol.insert(8, String::from("pd_pi"));
+    index_to_symbol.insert(9, String::from("pd_sigma"));
+    index_to_symbol.insert(10, String::from("ds_sigma"));
+    index_to_symbol.insert(11, String::from("dp_pi"));
+    index_to_symbol.insert(12, String::from("dp_sigma"));
+    index_to_symbol.insert(13, String::from("dd_delta"));
+    index_to_symbol.insert(14, String::from("dd_pi"));
+    index_to_symbol
+}
