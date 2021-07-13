@@ -655,9 +655,6 @@ pub fn casida(
     // (A-B)^(1/2) (A+B) (A-B)^(1/2) F = Omega^2 F
     let R: Array2<f64> = sqAmB.dot(&ApB.dot(&sqAmB));
     let (omega2, F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Lower).unwrap();
-    println!("omega2 {}",omega2);
-
-    let test = R.eigenvectors(&Which::SmallestAlgebraic, 3, 4, 100).unwrap();
 
     let omega: Array1<f64> = omega2.mapv(f64::sqrt);
     //let omega: Array1<f64> = omega2.map(|omega2| ndarray_linalg::Scalar::sqrt(omega2));
