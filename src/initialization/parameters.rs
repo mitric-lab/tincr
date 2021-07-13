@@ -1,4 +1,6 @@
 use crate::param::Element;
+use crate::constants;
+use crate::defaults;
 use ndarray::prelude::*;
 use ron::de::from_str;
 use rusty_fitpack;
@@ -352,5 +354,144 @@ impl RepulsivePotentialTable {
             None => panic!("No spline representation available"),
         }
     }
+}
+
+impl From<SkfHandler> for RepulsivePotentialTable{
+    fn from(skf_handler:SkfHandler)->Self{
+        let lines:Vec<&str> = skf_handler.data_string.split("\n").collect();
+
+        let mut count: usize = 0;
+        // search beginning of repulsive potential in the skf file
+        for (it, line) in lines.iter().enumerate() {
+            if line.contains("Spline") {
+                count = it;
+                break;
+            }
+        }
+
+        // get number of points and the cutoff from the second line
+        let second_line:Vec<f64> = process_slako_line(lines[count+1]);
+        let n_int:usize = second_line[0] as usize;
+        let cutoff:f64 = second_line[1];
+
+        // Line 3: V(r < r0) = exp(-a1*r+a2) + a3   is r too small to be covered by the spline
+        let third_line: Vec<f64> = process_slako_line(lines[count + 2]);
+        let a_1: f64 = third_line[0];
+        let a_2: f64 = third_line[1];
+        let a_3: f64 = third_line[2];
+
+        // read spline values from the skf file
+        let mut rs: Array1<f64> = Array1::zeros(n_int);
+        let mut cs: Array2<f64> = Array2::zeros((4, n_int));
+        // start from the 4th line after "Spline"
+        count = count + 3;
+        let mut end: f64 = 0.0;
+        let mut iteration_count: usize = 0;
+        for it in (count..(n_int + count)) {
+            let next_line: Vec<f64> = process_slako_line(lines[it]);
+            rs[iteration_count] = next_line[0];
+            let array: Array1<f64> = array![next_line[2], next_line[3], next_line[4], next_line[5]];
+            cs.slice_mut(s![.., iteration_count]).assign(&array);
+            end = next_line[1];
+
+            iteration_count += 1;
+        }
+        assert!(end == cutoff);
+
+        // Now we evaluate the spline on a equidistant grid
+        let npoints: usize = 100;
+        let d_arr: Array1<f64> = Array1::linspace(0.0, cutoff, npoints);
+        let mut v_rep: Array1<f64> = Array1::zeros(npoints);
+
+        let mut spline_counter: usize = 0;
+        for (i, di) in d_arr.iter().enumerate() {
+            if di < &rs[0] {
+                v_rep[i] = (-&a_1 * di + a_2).exp() + a_3;
+            } else {
+                // find interval such that r[j] <= di < r[j+1]
+                while di >= &rs[spline_counter + 1] && spline_counter < (n_int - 2) {
+                    spline_counter += 1;
+                }
+                if spline_counter < (n_int - 2) {
+                    assert!(rs[spline_counter] <= *di);
+                    assert!(di < &rs[spline_counter + 1]);
+                    let c_arr: ArrayView1<f64> = cs.slice(s![.., spline_counter]);
+                    v_rep[i] = c_arr[0]
+                        + c_arr[1] * (di - rs[spline_counter])
+                        + c_arr[2] * (di - rs[spline_counter]).powi(2)
+                        + c_arr[3] * (di - rs[spline_counter]).powi(3);
+                } else {
+                    v_rep[i] = 0.0;
+                }
+            }
+        }
+
+        let dmax:f64 = d_arr[d_arr.len()-1];
+
+        Self{
+            dmax:dmax,
+            z1:skf_handler.z1,
+            z2:skf_handler.z2,
+            vrep:v_rep.to_vec(),
+            d:d_arr.to_vec(),
+            spline_rep:None,
+        }
+    }
+}
+
+pub struct SkfHandler{
+    z1:u8,
+    z2:u8,
+    data_string:String,
+}
+
+impl SkfHandler{
+    pub fn new(
+        z1:u8,
+        z2:u8,
+    )->SkfHandler{
+        let path_prefix: String = String::from(defaults::MIO_DIR);
+        let element_1:&str = constants::ATOM_NAMES_UPPER[z1 as usize];
+        let element_2:&str = constants::ATOM_NAMES_UPPER[z2 as usize];
+        let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
+        let path: &Path = Path::new(&filename);
+        let data: String = fs::read_to_string(path).expect("Unable to read file");
+
+        SkfHandler{
+            z1:z1,
+            z2:z2,
+            data_string:data,
+        }
+    }
+}
+
+pub fn process_slako_line(line: &str) -> Vec<f64> {
+    // convert a line into a list of column values respecting the
+    // strange format conventions used in DFTB+ Slater-Koster files.
+    // In Slater-Koster files used by DFTB+ zero columns
+    // are not written: e.g. 4*0.0 has to be replaced
+    // by four columns with zeros 0.0 0.0 0.0 0.0.
+
+    let line: String = line.replace(",", " ");
+    let new_line: Vec<&str> = line.split(" ").collect();
+    // println!("new line {:?}",new_line);
+    let mut float_vec: Vec<f64> = Vec::new();
+    for string in new_line {
+        if string.contains("*") {
+            let temp: Vec<&str> = string.split("*").collect();
+            let count: usize = temp[0].trim().parse::<usize>().unwrap();
+            let value: f64 = temp[1].trim().parse::<f64>().unwrap();
+            for it in (0..count) {
+                float_vec.push(value);
+            }
+        } else {
+            if string.len() > 0 && string.contains("\t") == false {
+                // println!("string {:?}",string);
+                let value: f64 = string.trim().parse::<f64>().unwrap();
+                float_vec.push(value);
+            }
+        }
+    }
+    return float_vec;
 }
 
