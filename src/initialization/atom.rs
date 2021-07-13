@@ -1,5 +1,5 @@
 use crate::initialization::parameters::{
-    PseudoAtom,
+    PseudoAtom,SkfHandler,PseudoAtomMio
 };
 use crate::param::elements::Element;
 use std::ops::{Neg, Sub};
@@ -83,6 +83,46 @@ impl From<Element> for Atom {
             number: element.number(),
             kind: element,
             hubbard: confined_atom.hubbard_u,
+            valorbs: valorbs,
+            n_orbs: n_orbs,
+            valorbs_occupation: occupation,
+            n_elec: n_elec,
+            xyz: Vector3::<f64>::zeros(),
+            spin_coupling:spin_coupling,
+        }
+    }
+}
+
+impl From<(Element,SkfHandler)> for Atom {
+    /// Create a new [Atom] from the chemical [Element](crate::initialization::elements::Element) and
+    /// the [SkfHandler](crate::initialization::parameters::SkfHandler).
+    /// The parameterization from the parameter files is loaded and the Hubbard parameter
+    /// and the valence orbitals are stored in this type.
+    fn from (tuple:(Element,SkfHandler)) -> Self {
+        let element:Element = tuple.0;
+        let symbol: &'static str = element.symbol();
+        let pseudo_atom:PseudoAtomMio = PseudoAtomMio::from(tuple.1);
+        let mut valorbs: Vec<AtomicOrbital> = Vec::new();
+        let mut occupation: Vec<f64> = Vec::new();
+        let mut n_elec: usize = 0;
+        for (i, j) in pseudo_atom.valence_orbitals.iter().zip(pseudo_atom.valence_orbitals.iter()) {
+            let n: i8 =pseudo_atom.nshell[*i as usize];
+            let l: i8 = pseudo_atom.angular_momenta[*i as usize];
+            let energy: f64 = pseudo_atom.energies[*j as usize];
+            for m in l.neg()..(l + 1) {
+                valorbs.push(AtomicOrbital::from(((n - 1, l, m), energy)));
+                occupation.push(pseudo_atom.orbital_occupation[*i as usize] as f64 / (2 * l + 1) as f64);
+            }
+            n_elec += pseudo_atom.orbital_occupation[*i as usize] as usize;
+        }
+        let n_orbs: usize = valorbs.len();
+        let spin_coupling:f64 = constants::SPIN_COUPLING[&element.number()];
+
+        Atom {
+            name: symbol,
+            number: element.number(),
+            kind: element,
+            hubbard: pseudo_atom.hubbard_u,
             valorbs: valorbs,
             n_orbs: n_orbs,
             valorbs_occupation: occupation,
