@@ -1,6 +1,5 @@
 use crate::constants;
 use crate::defaults;
-use crate::gradients;
 use crate::io::GeneralConfig;
 use crate::molecule::distance_matrix;
 use crate::test::get_water_molecule;

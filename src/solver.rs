@@ -721,7 +721,7 @@ pub fn casida(
     let excited_timer: Instant = Instant::now();
     let tolerance: f64 = 1e-4;
     let spectrum_target = SpectrumTarget::Lowest;
-    let dav = Davidson::new(R.view(),52, DavidsonCorrection::DPR, spectrum_target, tolerance).unwrap();
+    let dav = Davidson::new(R.view(),55, DavidsonCorrection::DPR, spectrum_target, tolerance).unwrap();
 
     println!("{:>68} {:>8.6} s","elapsed time calculate davidson:",excited_timer.elapsed().as_secs_f32());
     drop(excited_timer);
@@ -2162,11 +2162,10 @@ pub fn get_ambv_fortran_no_lc(
     n_virt: usize,
     n_vec: usize,
 ) -> (Array3<f64>) {
-    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.to_owned();
+    let mut tmp_q_ov_swapped: ArrayView3<f64> = qtrans_ov.clone();
     tmp_q_ov_swapped.swap_axes(1, 2);
-    tmp_q_ov_swapped = tmp_q_ov_swapped.as_standard_layout().to_owned();
     let tmp_q_ov_shape_1: Array2<f64> =
-        tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
+        tmp_q_ov_swapped.as_standard_layout().to_owned().into_shape((n_at * n_virt, n_occ)).unwrap();
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
 
     for i in (0..n_vec) {
