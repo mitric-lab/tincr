@@ -1,6 +1,5 @@
 use crate::calculator::{get_gamma_gradient_matrix, lambda2_calc_oia};
 use crate::defaults;
-use crate::gradients;
 use crate::io::GeneralConfig;
 use crate::scc_routine::*;
 use crate::test::{get_benzene_molecule, get_water_molecule};
@@ -20,6 +19,8 @@ use std::ops::{AddAssign, DivAssign};
 use std::time::Instant;
 use arpack_interface::*;
 use ndarray_linalg::krylov::arnoldi_mgs;
+use ndarray_linalg::lobpcg::LobpcgResult;
+use eigenvalues::{Davidson,SpectrumTarget,DavidsonCorrection};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -162,21 +163,47 @@ pub fn get_exc_energies(
 
         //check for lr_correction
         if r_lr == 0.0 {
-            println!("Hermitian Davidson routine called!");
-            // calculate o_ia
-            let o_ia: Array2<f64> =
-                lambda2_calc_oia(molecule, &active_occ, &active_virt, &qtrans_oo, &qtrans_vv);
-            // use hermitian davidson routine, only possible with lc off
-            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = hermitian_davidson(
+            // println!("Hermitian Davidson routine called!");
+            // // calculate o_ia
+            // let o_ia: Array2<f64> =
+            //     lambda2_calc_oia(molecule, &active_occ, &active_virt, &qtrans_oo, &qtrans_vv);
+            // // use hermitian davidson routine, only possible with lc off
+            // let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = hermitian_davidson(
+            //     (&molecule.g0).view(),
+            //     qtrans_ov.view(),
+            //     omega.view(),
+            //     (0.0 * &omega).view(),
+            //     n_occ,
+            //     n_virt,
+            //     None,
+            //     None,
+            //     o_ia.view(),
+            //     molecule.multiplicity,
+            //     molecule.calculator.spin_couplings.view(),
+            //     Some(nstates),
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            // );
+            // omega_out = tmp.0;
+            // c_ij = tmp.1;
+            // XmY = tmp.2;
+            // XpY = tmp.3;
+
+            println!("non-Hermitian Davidson routine called!");
+            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = non_hermitian_davidson_no_lc(
                 (&molecule.g0).view(),
+                (&molecule.g0_lr).view(),
+                qtrans_oo.view(),
+                qtrans_vv.view(),
                 qtrans_ov.view(),
                 omega.view(),
-                (0.0 * &omega).view(),
                 n_occ,
                 n_virt,
                 None,
                 None,
-                o_ia.view(),
+                None,
                 molecule.multiplicity,
                 molecule.calculator.spin_couplings.view(),
                 Some(nstates),
@@ -184,11 +211,13 @@ pub fn get_exc_energies(
                 None,
                 None,
                 None,
+                Some(1),
             );
             omega_out = tmp.0;
             c_ij = tmp.1;
             XmY = tmp.2;
             XpY = tmp.3;
+
         } else {
             println!("non-Hermitian Davidson routine called!");
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = non_hermitian_davidson(
@@ -615,6 +644,8 @@ pub fn casida(
     n_virt: usize,
     spin_couplings: ArrayView1<f64>,
 ) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
+    let excited_timer: Instant = Instant::now();
+    println!("Start casida!");
     let A: Array2<f64> = build_a_matrix(
         gamma,
         gamma_lr,
@@ -655,24 +686,65 @@ pub fn casida(
     // construct hermitian eigenvalue problem
     // (A-B)^(1/2) (A+B) (A-B)^(1/2) F = Omega^2 F
     let R: Array2<f64> = sqAmB.dot(&ApB.dot(&sqAmB));
-
-    // let excited_timer: Instant = Instant::now();
+    println!("Array: {:?}",R);
+    println!("{:>68} {:>8.6} s","elapsed time until eigh:",excited_timer.elapsed().as_secs_f32());
+    drop(excited_timer);
+    let excited_timer: Instant = Instant::now();
     let (omega2, F): (Array1<f64>, Array2<f64>) = R.eigh(UPLO::Lower).unwrap();
 
-    // println!("{:>68} {:>8.6} s","elapsed time calculate eigh:",excited_timer.elapsed().as_secs_f32());
-    // drop(excited_timer);
+    println!("{:>68} {:>8.6} s","elapsed time calculate eigh:",excited_timer.elapsed().as_secs_f32());
+    drop(excited_timer);
+    // println!("omega2 {}",omega2);
+
+    let n = R.len_of(Axis(0));
+    let x:Array2<f64> = ndarray_linalg::generate::random((n,50));
+
+    let excited_timer: Instant = Instant::now();
+    let result = lobpcg::lobpcg(|y| R.dot(&y),x,|_| {},None,1e-9,600,lobpcg::TruncatedOrder::Smallest);
+    match result {
+        LobpcgResult::Ok(vals, _, r_norms) | LobpcgResult::Err(vals, _, r_norms, _) => {
+            // check convergence
+            for (i, norm) in r_norms.into_iter().enumerate() {
+                if norm > 1e-5 {
+                    println!("==== Assertion Failed ====");
+                    println!("The {}th eigenvalue estimation did not converge!", i);
+                    panic!("Too large deviation of residual norm: {} > 0.01", norm);
+                }
+            }
+            println!("omega lobpcg {}",vals.mapv(f64::sqrt));
+        }
+        LobpcgResult::NoResult(err) => panic!("Did not converge: {:?}", err),
+    }
+    println!("{:>68} {:>8.6} s","elapsed time calculate lobpcg:",excited_timer.elapsed().as_secs_f32());
+    drop(excited_timer);
+
+    let excited_timer: Instant = Instant::now();
+    let tolerance: f64 = 1e-4;
+    let spectrum_target = SpectrumTarget::Lowest;
+    let dav = Davidson::new(R.view(),52, DavidsonCorrection::DPR, spectrum_target, tolerance).unwrap();
+
+    println!("{:>68} {:>8.6} s","elapsed time calculate davidson:",excited_timer.elapsed().as_secs_f32());
+    drop(excited_timer);
+    println!("omega davidson {}",dav.eigenvalues.mapv(f64::sqrt));
+
     // let excited_timer: Instant = Instant::now();
-    //
+    // println!(" ");
+    // println!("Arpack Output:");
+    // let (omega_ar,vectors_ar):(Array1<f64>,Array2<f64>) = R.eigenvectors(&Which::SmallestAlgebraic,2,5,200).unwrap();
+    // println!("{:>68} {:>8.6} s","elapsed time calculate arpack:",excited_timer.elapsed().as_secs_f32());
+    // drop(excited_timer);
+    // println!("omega arpack {}",omega_ar);
+
     // let v:Array1<f64> = Array1::ones(R.dim().0);
     // let test = arnoldi_mgs(R,v,1e-9);
     // let tmp_test:(Array1<f64>,Array2<f64>) = test.1.eigh(UPLO::Lower).unwrap();
     // println!("{:>68} {:>8.6} s","elapsed time calculate arnoldi + eigh:",excited_timer.elapsed().as_secs_f32());
     // drop(excited_timer);
-    //
-    // println!("omega2 {}",omega2);
     // println!("omega ar {}",tmp_test.0);
 
     let omega: Array1<f64> = omega2.mapv(f64::sqrt);
+    println!("omega eigh {}",omega);
+    assert!(1==2);
     //let omega: Array1<f64> = omega2.map(|omega2| ndarray_linalg::Scalar::sqrt(omega2));
 
     // compute X-Y and X+Y
@@ -691,11 +763,18 @@ pub fn casida(
     // since (A-B).(X-Y) = Omega * (X+Y)
     let temp = &XpY * &omega.mapv(f64::sqrt);
     let mut c_matrix: Array2<f64> = Array2::zeros((omega.len(), omega.len()));
+    // let temp_dim_0:usize = temp.dim().0;
+    // let temp_dim_1:usize = temp.dim().1;
+    // let temp_1d:Array1<f64> = temp.clone().into_shape((temp_dim_0*temp_dim_1)).unwrap();
     for i in 0..(omega.len()) {
         c_matrix
             .slice_mut(s![i, ..])
             .assign((&sqAmB.solve(&temp.slice(s![.., i])).unwrap()));
     }
+    // let cmatrix_new:Array1<f64> = sqAmB.solve(&temp_1d).unwrap();
+    // let c_matrix_new_2d:Array2<f64> = cmatrix_new.into_shape((omega.len(), omega.len())).unwrap();
+    // assert_eq!(c_matrix_new_2d.t(),c_matrix);
+
     c_matrix = c_matrix.reversed_axes();
     assert!(
         (((&c_matrix.slice(s![.., 0]).to_owned() * &c_matrix.slice(s![.., 0])).to_owned())
@@ -751,7 +830,7 @@ pub fn hermitian_davidson(
     let nstates: usize = nstates.unwrap_or(4);
     let ifact: usize = ifact.unwrap_or(1);
     let maxiter: usize = maxiter.unwrap_or(10);
-    let conv: f64 = conv.unwrap_or(1.0e-8);
+    let conv: f64 = conv.unwrap_or(1.0e-10);
     let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
 
     let omega2: Array2<f64> = omega.map(|omega| ndarray_linalg::Scalar::powi(omega, 2));
@@ -1421,6 +1500,369 @@ pub fn non_hermitian_davidson(
     return (Omega, c_matrix, XmY, XpY);
 }
 
+pub fn non_hermitian_davidson_no_lc(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    qtrans_oo: ArrayView3<f64>,
+    qtrans_vv: ArrayView3<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    XmYguess: Option<ArrayView3<f64>>,
+    XpYguess: Option<ArrayView3<f64>>,
+    w_guess: Option<ArrayView1<f64>>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+    nstates: Option<usize>,
+    ifact: Option<usize>,
+    maxiter: Option<usize>,
+    conv: Option<f64>,
+    l2_treshold: Option<f64>,
+    lc: Option<usize>,
+) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
+    // set values or defaults
+    let nstates: usize = nstates.unwrap_or(4);
+    let ifact: usize = ifact.unwrap_or(1);
+    let maxiter: usize = maxiter.unwrap_or(100);
+    let conv: f64 = conv.unwrap_or(1.0e-5);
+    let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
+    let lc: usize = lc.unwrap_or(1);
+
+    // at most there are nocc*nvirt excited states
+    let kmax = n_occ * n_virt;
+    // To achieve fast convergence the solution vectors from a nearby geometry
+    // should be used as initial expansion vectors
+
+    let lmax: usize = (ifact * nstates).min(kmax);
+    let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+
+    if XpYguess.is_none() {
+        bs = initial_expansion_vectors(omega.to_owned(), lmax);
+    } else {
+        // For the expansion vectors we use X+Y
+        let lmaxp: usize = nstates;
+        // and X-Y if the vectors space has not been exhausted yet
+        let lmaxm: usize = nstates.min(kmax - nstates);
+        let lmax: usize = lmaxp + lmaxm;
+
+        bs = Array::zeros((n_occ, n_virt, lmax));
+        // bring axis with state indeces to the back
+        let mut XmY_temp: Array3<f64> = XmYguess.unwrap().to_owned();
+        XmY_temp.swap_axes(0, 1);
+        XmY_temp.swap_axes(1, 2);
+        let mut XpY_temp: Array3<f64> = XpYguess.unwrap().to_owned();
+        XpY_temp.swap_axes(0, 1);
+        XpY_temp.swap_axes(1, 2);
+
+        bs.slice_mut(s![.., .., ..lmaxp]).assign(&XmY_temp);
+        bs.slice_mut(s![.., .., lmaxp..])
+            .assign(&XpY_temp.slice(s![.., .., ..lmaxm]));
+
+        for i in 0..lmax {
+            let temp: f64 = norm_special(&bs.slice(s![.., .., i]).to_owned());
+            let tmp_array: Array2<f64> = bs.slice(s![.., .., i]).to_owned();
+            bs.slice_mut(s![.., .., i]).assign(&(tmp_array / temp));
+        }
+    }
+    let mut l: usize = lmax;
+    let k: usize = nstates;
+
+    let mut w: Array1<f64> = Array::zeros(lmax);
+    let mut Tb: Array2<f64> = Array::zeros((lmax, lmax));
+
+    let mut l_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+    let mut r_canon: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+
+    let mut bp_old: Array3<f64> = bs.clone();
+    let mut bm_old: Array3<f64> = bs.clone();
+    let mut l_prev: usize = l;
+
+    for it in 0..maxiter {
+        let lmax: usize = bs.dim().2;
+        println!("Iteration {}", it);
+        // println!("BS {}",bs.slice(s![0,5,..]));
+
+        if XpYguess.is_none() || it > 0 {
+            let mut bp: Array3<f64> = Array3::zeros((n_occ, n_virt, l));
+            let mut bm: Array3<f64> = Array3::zeros((n_occ, n_virt, l));
+
+            if it < 2 {
+                bp = get_apbv_fortran_no_lc(
+                    &gamma,
+                    &qtrans_ov,
+                    &omega,
+                    &bs,
+                    qtrans_ov.dim().0,
+                    n_occ,
+                    n_virt,
+                    l,
+                    multiplicity,
+                    spin_couplings,
+                );
+
+                bm = get_ambv_fortran_no_lc(
+                    &qtrans_ov,
+                    &omega,
+                    &bs,
+                    qtrans_ov.dim().0,
+                    n_occ,
+                    n_virt,
+                    l,
+                );
+            } else {
+                let bp_new_vec: Array3<f64> = get_apbv_fortran_no_lc(
+                    &gamma,
+                    &qtrans_ov,
+                    &omega,
+                    &bs.slice(s![.., .., l - (3 * nstates)..l]).to_owned(),
+                    qtrans_ov.dim().0,
+                    n_occ,
+                    n_virt,
+                    (3 * nstates),
+                    multiplicity,
+                    spin_couplings,
+                );
+                bp.slice_mut(s![.., .., ..l - (3 * nstates)])
+                    .assign(&bp_old.slice(s![.., .., ..l - (3 * nstates)]));
+                bp.slice_mut(s![.., .., l - (3 * nstates)..l])
+                    .assign(&bp_new_vec);
+                bp.slice_mut(s![.., .., 0..nstates])
+                    .assign(&(bp_old.slice(s![.., .., 0..nstates]).to_owned() * (-1.0)));
+
+                let bm_new_vec: Array3<f64> = get_ambv_fortran_no_lc(
+                    &qtrans_ov,
+                    &omega,
+                    &bs.slice(s![.., .., l - (3 * nstates)..l]).to_owned(),
+                    qtrans_ov.dim().0,
+                    n_occ,
+                    n_virt,
+                    (3 * nstates),
+                );
+                bm.slice_mut(s![.., .., ..l - (3 * nstates)])
+                    .assign(&bm_old.slice(s![.., .., ..l - (3 * nstates)]));
+                bm.slice_mut(s![.., .., l - (3 * nstates)..l])
+                    .assign(&bm_new_vec);
+                bm.slice_mut(s![.., .., 0..nstates])
+                    .assign(&(bm_old.slice(s![.., .., 0..nstates]).to_owned() * (-1.0)));
+            }
+            bp_old = bp.clone();
+            bm_old = bm.clone();
+
+            // # M^+ = (b_i, (A+B).b_j)
+            let mp: Array2<f64> = tensordot(&bs, &bp, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+                .into_dimensionality::<Ix2>()
+                .unwrap();
+            // # M^- = (b_i, (A-B).b_j)
+            let mm: Array2<f64> = tensordot(&bs, &bm, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+                .into_dimensionality::<Ix2>()
+                .unwrap();
+            let mmsq: Array2<f64> = mm.ssqrt(UPLO::Upper).unwrap();
+
+            // # Mh is the analog of (A-B)^(1/2).(A+B).(A-B)^(1/2)
+            // # in the reduced subspace spanned by the expansion vectors bs
+            let mh: Array2<f64> = mmsq.dot(&mp.dot(&mmsq));
+            let mh_reversed: Array2<f64> = mh.clone().reversed_axes();
+            // check that Mh is hermitian
+            let mut subst: Array2<f64> = mh.clone() - mh_reversed;
+            subst = subst.map(|subst| subst.abs());
+            let err: f64 = subst.sum();
+
+            if err > 1.0e-10 {
+                panic!(
+                    "Hmm... It seems that Mh is not hermitian. The currect error is {:e}\n\
+                        and should be lower than 1.0e-10. If you know what you are doing, try\n\
+                        lowering the tolerance. Otherwise check you input!",
+                    err
+                );
+            }
+
+            let tmp: (Array1<f64>, Array2<f64>) = mh.eigh(UPLO::Upper).unwrap();
+            let w2: Array1<f64> = tmp.0;
+            Tb = tmp.1;
+            //In DFTBaby check for selector(symmetry checker)
+            w = w2.mapv(f64::sqrt);
+            let wsq: Array1<f64> = w.mapv(f64::sqrt);
+
+            // approximate right R = (X+Y) and left L = (X-Y) eigenvectors
+            // in the basis bs
+            // (X+Y) = (A-B)^(1/2).T / sqrt(w)
+            let rb: Array2<f64> = mmsq.dot(&Tb) / wsq;
+            // L = (X-Y) = 1/w * (A+B).(X+Y)
+            let lb: Array2<f64> = mp.dot(&rb) / &w;
+            // check that (Lb^T, Rb) = 1 is fulfilled
+            let temp_eye: Array2<f64> = Array::eye(lmax);
+            let temp: Array2<f64> = lb.clone().reversed_axes().dot(&rb) - temp_eye;
+            let err: f64 = temp.sum();
+            if err > 1.0e-3 {
+                panic!("Hmm, it seems that (X+Y) and (X-Y) vectors are not orthonormal. The error\n\
+                        is {:e} and should be smaller than 1.0e-3. Maybe your molecule just doesn't like you?" , err);
+            }
+            // transform to the canonical basis Lb -> L, Rb -> R
+            l_canon = tensordot(&bs, &lb, &[Axis(2)], &[Axis(0)])
+                .into_dimensionality::<Ix3>()
+                .unwrap();
+            r_canon = tensordot(&bs, &rb, &[Axis(2)], &[Axis(0)])
+                .into_dimensionality::<Ix3>()
+                .unwrap();
+        } else {
+            // bring axis with state indeces to the back
+            let mut XmY_temp: Array3<f64> = XmYguess.unwrap().to_owned();
+            XmY_temp.swap_axes(0, 1);
+            XmY_temp.swap_axes(1, 2);
+            let mut XpY_temp: Array3<f64> = XpYguess.unwrap().to_owned();
+            XpY_temp.swap_axes(0, 1);
+            XpY_temp.swap_axes(1, 2);
+
+            r_canon = XpY_temp;
+            l_canon = XmY_temp;
+            w = w_guess.unwrap().to_owned();
+        }
+        // residual vectors
+        let wl = get_apbv_fortran_no_lc(
+            &gamma,
+            &qtrans_ov,
+            &omega,
+            &r_canon,
+            qtrans_ov.dim().0,
+            n_occ,
+            n_virt,
+            l,
+            multiplicity,
+            spin_couplings,
+        ) - &l_canon * &w;
+        let wr = get_ambv_fortran_no_lc(
+            &qtrans_ov,
+            &omega,
+            &l_canon,
+            qtrans_ov.dim().0,
+            n_occ,
+            n_virt,
+            l,
+        ) - &r_canon * &w;
+
+        //norms
+        let mut norms: Array1<f64> = Array::zeros(k);
+        let mut norms_l: Array1<f64> = Array::zeros(k);
+        let mut norms_r: Array1<f64> = Array::zeros(k);
+        for i in 0..k {
+            norms_l[i] = norm_special(&wl.slice(s![.., .., i]).to_owned());
+            norms_r[i] = norm_special(&wr.slice(s![.., .., i]).to_owned());
+            norms[i] = norms_l[i] + norms_r[i];
+        }
+        // check for convergence
+        let indices_norms: Array1<usize> = norms
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item < conv { Some(index) } else { None })
+            .collect();
+        println!("Norms davidson {}", norms);
+        if indices_norms.len() == norms.len() && it > 0 {
+            break;
+        }
+
+        //  enlarge dimension of subspace by dk vectors
+        //  At most 2*k new expansion vectors are added
+        let dkmax = (kmax - l).min(2 * k);
+        // # count number of non-converged vectors
+        // # residual vectors that are zero cannot be used as new expansion vectors
+        // 1.0e-16
+        let eps = 0.01 * conv;
+
+        let indices_norm_r_over_eps: Array1<usize> = norms_r
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
+            .collect();
+        let indices_norm_l_over_eps: Array1<usize> = norms_l
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
+            .collect();
+
+        let nc_l: usize = indices_norm_r_over_eps.len();
+        let nc_r: usize = indices_norm_l_over_eps.len();
+        // Half the new expansion vectors should come from the left residual vectors
+        // the other half from the right residual vectors.
+        let dk_r: usize = ((dkmax as f64 / 2.0) as usize).min(nc_l);
+        let dk_l: usize = (dkmax - dk_r).min(nc_r);
+        let dk: usize = dk_r + dk_l;
+
+        let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
+        let mut nb: usize = 0;
+        // select new expansion vectors among the non-converged left residual vectors
+        for i in 0..k {
+            if nb == dk {
+                //got enough new expansion vectors
+                break;
+            }
+            let wD: Array2<f64> = w[i] - &omega.to_owned();
+            // quite the ugly method in order to reproduce
+            // indx = abs(wD) < 1.0e-6
+            // wD[indx] = 1.0e-6 * omega[indx]
+            // from numpy
+            let temp: Array2<f64> = wD.map(|wD| if wD < &1.0e-6 { 1.0e-6 } else { 0.0 });
+            let temp_2: Array2<f64> = wD.map(|&wD| if wD < 1.0e-6 { 0.0 } else { wD });
+            let mut wD_new: Array2<f64> = &temp * &omega.to_owned();
+
+            wD_new = wD_new + temp_2;
+            if norms_l[i] > eps {
+                Qs.slice_mut(s![.., .., nb])
+                    .assign(&((1.0 / &wD_new) * wl.slice(s![.., .., i])));
+                nb += 1;
+            }
+        }
+        for i in 0..k {
+            if nb == dk {
+                //got enough new expansion vectors
+                break;
+            }
+            let wD: Array2<f64> = w[i] - &omega.to_owned();
+            // quite the ugly method in order to reproduce
+            // indx = abs(wD) < 1.0e-6
+            // wD[indx] = 1.0e-6 * omega[indx]
+            // from numpy
+            let temp: Array2<f64> = wD.map(|wD| if wD < &1.0e-6 { 1.0e-6 } else { 0.0 });
+            let temp_2: Array2<f64> = wD.map(|&wD| if wD < 1.0e-6 { 0.0 } else { wD });
+            let mut wD_new: Array2<f64> = &temp * &omega.to_owned();
+            wD_new = wD_new + temp_2;
+            if norms_r[i] > eps {
+                Qs.slice_mut(s![.., .., nb])
+                    .assign(&((1.0 / &wD_new) * wr.slice(s![.., .., i])));
+                nb += 1;
+            }
+        }
+        l_prev = l;
+        // new expansion vectors are bs + Qs
+        let mut bs_new: Array3<f64> = Array::zeros((n_occ, n_virt, l + dk));
+        bs_new.slice_mut(s![.., .., ..l]).assign(&bs);
+        bs_new.slice_mut(s![.., .., l..]).assign(&Qs);
+
+        //QR decomposition
+        let nvec: usize = l + dk;
+        let bs_flat: Array2<f64> = bs_new.into_shape((n_occ * n_virt, nvec)).unwrap();
+        let (Q, R): (Array2<f64>, Array2<f64>) = bs_flat.qr().unwrap();
+        bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
+        l = bs.dim().2;
+    }
+    let mut Omega: Vec<f64> = w.to_vec();
+    Omega.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
+    let Omega: Array1<f64> = Array::from(Omega).slice(s![..k]).to_owned();
+    let mut XpY: Array3<f64> = r_canon.slice(s![.., .., ..k]).to_owned();
+    let mut XmY: Array3<f64> = l_canon.slice(s![.., .., ..k]).to_owned();
+
+    let t_matrix: Array3<f64> = tensordot(&bs, &Tb, &[Axis(2)], &[Axis(0)])
+        .into_dimensionality::<Ix3>()
+        .unwrap();
+    let mut c_matrix: Array3<f64> = t_matrix.slice(s![.., .., ..k]).to_owned();
+
+    XpY.swap_axes(1, 2);
+    XpY.swap_axes(0, 1);
+    XmY.swap_axes(1, 2);
+    XmY.swap_axes(0, 1);
+    c_matrix.swap_axes(1, 2);
+    c_matrix.swap_axes(0, 1);
+
+    return (Omega, c_matrix, XmY, XpY);
+}
+
 pub fn get_apbv(
     gamma: &ArrayView2<f64>,
     gamma_lr: &Option<ArrayView2<f64>>,
@@ -1705,6 +2147,37 @@ pub fn get_apbv_fortran_no_lc(
             u_l = u_l + i;
         }
         //u_l = u_l + tmp;
+
+        us.slice_mut(s![.., .., i]).assign(&u_l);
+    }
+    return us;
+}
+
+pub fn get_ambv_fortran_no_lc(
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
+    vs: &Array3<f64>,
+    n_at: usize,
+    n_occ: usize,
+    n_virt: usize,
+    n_vec: usize,
+) -> (Array3<f64>) {
+    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.to_owned();
+    tmp_q_ov_swapped.swap_axes(1, 2);
+    tmp_q_ov_swapped = tmp_q_ov_swapped.as_standard_layout().to_owned();
+    let tmp_q_ov_shape_1: Array2<f64> =
+        tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
+    let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
+
+    for i in (0..n_vec) {
+        let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
+        // 1st term - KS orbital energy differences
+        let mut u_l: Array2<f64> = omega * &vl;
+        // 2nd term - Coulomb
+        let tmp21: Array3<f64> = tmp_q_ov_shape_1
+            .dot(&vl)
+            .into_shape((n_at, n_virt, n_virt))
+            .unwrap();;
 
         us.slice_mut(s![.., .., i]).assign(&u_l);
     }
