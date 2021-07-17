@@ -378,12 +378,10 @@ pub fn build_a_matrix(
         .into_dimensionality::<Ix4>()
         .unwrap();
 
-    // alternative to tensordots: time comparison
-    // for nocc,virt (100,100) : 0.77s vs 0.61s
-
+    // alternative to tensordots
     // let test:Array2<f64> = gamma_lr.dot(&q_trans_vv.into_shape((n_atoms,n_virt*n_virt)).unwrap());
-    // let test_2:Array4<f64> = q_trans_oo.t().into_shape((n_occ*n_occ,n_atoms)).unwrap().dot(&test).into_shape((n_occ,n_occ,n_virt,n_virt)).unwrap();
-    // assert_eq!(test_2,k_a);
+    // let test_2:Array4<f64> = -1.0* q_trans_oo.t().into_shape((n_occ*n_occ,n_atoms)).unwrap().dot(&test).into_shape((n_occ,n_occ,n_virt,n_virt)).unwrap();
+    // assert!(test_2.abs_diff_eq(&k_a,1e-14));
     // assert!(1==2);
 
     k_a.swap_axes(1, 2); // ikjl->ijkl
@@ -1977,31 +1975,29 @@ pub fn get_apbv_fortran(
         .to_owned()
         .into_shape((n_at * n_occ, n_occ))
         .unwrap();
-    let mut tmp_q_ov_swapped: Array3<f64> = qtrans_ov.to_owned();
+    let mut tmp_q_ov_swapped: ArrayView3<f64> = qtrans_ov.clone();
     tmp_q_ov_swapped.swap_axes(1, 2);
-    tmp_q_ov_swapped = tmp_q_ov_swapped.as_standard_layout().to_owned();
     let tmp_q_ov_shape_1: Array2<f64> =
-        tmp_q_ov_swapped.into_shape((n_at * n_virt, n_occ)).unwrap();
-    let mut tmp_q_ov_swapped_2: Array3<f64> = qtrans_ov.to_owned();
+        tmp_q_ov_swapped.as_standard_layout().to_owned().into_shape((n_at * n_virt, n_occ)).unwrap();
+    let mut tmp_q_ov_swapped_2: ArrayView3<f64> = qtrans_ov.clone();
     tmp_q_ov_swapped_2.swap_axes(0, 1);
-    tmp_q_ov_swapped_2 = tmp_q_ov_swapped_2.as_standard_layout().to_owned();
-    let tmp_q_ov_shape_2: Array2<f64> = tmp_q_ov_swapped_2
-        .into_shape((n_occ, n_at * n_virt))
+    let tmp_q_ov_shape_2: Array2<f64> =
+        tmp_q_ov_swapped_2.as_standard_layout().to_owned().into_shape((n_occ, n_at * n_virt))
         .unwrap();
     //let tmp_q_oo: Array2<f64> = qtrans_oo
     //    .to_owned()
     //    .into_shape((n_at * n_occ, n_occ))
     //    .unwrap();
-    let tmp_q_ov_shape_1_new: Array2<f64> = qtrans_ov
-        .to_owned()
-        .into_shape((n_occ, n_at * n_virt))
-        .unwrap()
-        .reversed_axes();
-    let tmp_q_ov_shape_2_new: Array2<f64> = qtrans_ov
-        .to_owned()
-        .into_shape((n_at * n_virt, n_occ))
-        .unwrap()
-        .reversed_axes();
+    //let tmp_q_ov_shape_1_new: Array2<f64> = qtrans_ov
+    //    .to_owned()
+    //    .into_shape((n_occ, n_at * n_virt))
+    //    .unwrap()
+    //    .reversed_axes();
+    //let tmp_q_ov_shape_2_new: Array2<f64> = qtrans_ov
+    //    .to_owned()
+    //    .into_shape((n_at * n_virt, n_occ))
+    //    .unwrap()
+    //    .reversed_axes();
 
     // println!("qtrans ov{}", qtrans_ov.clone());
     // println!("Compare shapes");
