@@ -17,7 +17,6 @@ use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::ops::{AddAssign, DivAssign};
 use std::time::Instant;
-use arpack_interface::*;
 use ndarray_linalg::krylov::arnoldi_mgs;
 use ndarray_linalg::lobpcg::LobpcgResult;
 use eigenvalues::{Davidson,SpectrumTarget,DavidsonCorrection};
@@ -361,12 +360,14 @@ pub fn build_a_matrix(
 ) -> (Array2<f64>) {
     let n_occ: usize = q_trans_oo.dim().1;
     let n_virt: usize = q_trans_vv.dim().1;
+    let n_atoms:usize = q_trans_vv.dim().0;
 
     // Calculate k_a_lr
     // K_A^{lr} = K_{ov,o'v'}°{lr} = - sum_{A,B} q_A^{oo'} \gamma_{AB}^{lr} q_B^{vv'}
     //                             = - sum_{A,B} q_A^{ik} \gamma_{AB}^{lr} q_B^{jl}
     // o = i, o' = k, v = j, v' = l
     // equivalent to einsum("aik,bjl,ab->ijkl", &[&q_trans_oo, &q_trans_vv, &gamma_lr])
+
     let mut k_a: Array4<f64> = -1.0
         * tensordot(
             &q_trans_oo,
@@ -376,6 +377,15 @@ pub fn build_a_matrix(
         ) // aik,ajl->ikjl
         .into_dimensionality::<Ix4>()
         .unwrap();
+
+    // alternative to tensordots: time comparison
+    // for nocc,virt (100,100) : 0.77s vs 0.61s
+
+    // let test:Array2<f64> = gamma_lr.dot(&q_trans_vv.into_shape((n_atoms,n_virt*n_virt)).unwrap());
+    // let test_2:Array4<f64> = q_trans_oo.t().into_shape((n_occ*n_occ,n_atoms)).unwrap().dot(&test).into_shape((n_occ,n_occ,n_virt,n_virt)).unwrap();
+    // assert_eq!(test_2,k_a);
+    // assert!(1==2);
+
     k_a.swap_axes(1, 2); // ikjl->ijkl
     k_a = k_a.as_standard_layout().to_owned();
 
@@ -2120,14 +2130,16 @@ pub fn get_apbv_fortran_no_lc(
         let mut u_l: Array2<f64> = omega * &vl;
 
         // 2nd term - Coulomb
-        let mut tmp21: Array1<f64> = Array1::zeros(n_at);
 
-        //for at in (0..n_at) {
-        //    let tmp:Array2<f64> = qtrans_ov.clone().slice(s![at, .., ..]).to_owned() * vl.clone();
-        //    tmp21[at] = tmp.sum();
-        //}
+        //let tmp21: Vec<f64> = (0..n_at)
+        //    .into_par_iter()
+        //    .map(|at| {
+        //        let tmp: Array2<f64> = &qtrans_ov.slice(s![at, .., ..]) * &vl;
+        //        tmp.sum()
+        //    })
+        //    .collect();
         let tmp21: Vec<f64> = (0..n_at)
-            .into_par_iter()
+            .into_iter()
             .map(|at| {
                 let tmp: Array2<f64> = &qtrans_ov.slice(s![at, .., ..]) * &vl;
                 tmp.sum()
@@ -2136,17 +2148,16 @@ pub fn get_apbv_fortran_no_lc(
         let tmp21: Array1<f64> = Array::from(tmp21);
         let tmp22: Array1<f64> = 4.0 * gamma_equiv.dot(&tmp21);
 
-        // for at in (0..n_at).into_iter() {
-        //     u_l = u_l + qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at];
-        // }
-        let mut tmp: Vec<Array2<f64>> = (0..n_at)
-            .into_par_iter()
-            .map(|at| qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at])
-            .collect();
-        for i in tmp.iter() {
-            u_l = u_l + i;
+        for at in (0..n_at).into_iter() {
+            u_l = u_l + &qtrans_ov.slice(s![at, .., ..]) * tmp22[at];
         }
-        //u_l = u_l + tmp;
+        // let mut tmp: Vec<Array2<f64>> = (0..n_at)
+        //     .into_par_iter()
+        //     .map(|at| qtrans_ov.slice(s![at, .., ..]).to_owned() * tmp22[at])
+        //     .collect();
+        // for i in tmp.iter() {
+        //     u_l = u_l + i;
+        // }
 
         us.slice_mut(s![.., .., i]).assign(&u_l);
     }
@@ -2162,22 +2173,11 @@ pub fn get_ambv_fortran_no_lc(
     n_virt: usize,
     n_vec: usize,
 ) -> (Array3<f64>) {
-    let mut tmp_q_ov_swapped: ArrayView3<f64> = qtrans_ov.clone();
-    tmp_q_ov_swapped.swap_axes(1, 2);
-    let tmp_q_ov_shape_1: Array2<f64> =
-        tmp_q_ov_swapped.as_standard_layout().to_owned().into_shape((n_at * n_virt, n_occ)).unwrap();
     let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
-
     for i in (0..n_vec) {
         let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
         // 1st term - KS orbital energy differences
-        let mut u_l: Array2<f64> = omega * &vl;
-        // 2nd term - Coulomb
-        let tmp21: Array3<f64> = tmp_q_ov_shape_1
-            .dot(&vl)
-            .into_shape((n_at, n_virt, n_virt))
-            .unwrap();;
-
+        let u_l: Array2<f64> = omega * &vl;
         us.slice_mut(s![.., .., i]).assign(&u_l);
     }
     return us;
