@@ -169,7 +169,8 @@ pub fn run_scc(molecule: &mut Molecule) -> (f64, Array2<f64>, Array1<f64>, Array
             converged = true;
         }
         // Broyden mixing of partial charges # changed new_dq to dq
-        dq = broyden_mixer.next(dq, dq_diff);
+        //dq = broyden_mixer.next(dq, dq_diff);
+        dq = dq + dq_diff * defaults::BROYDEN_MIXING_PARAMETER;
         q = new_q;
         debug!("");
         debug!("{: <35} ", "atomic charges and partial charges");
