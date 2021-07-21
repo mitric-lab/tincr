@@ -174,6 +174,7 @@ pub fn get_gradients(
             orbs_occ.slice_mut(s![.., i]).assign(&orbs.column(*index));
         }
 
+        let gs_timer: Instant = Instant::now();
         let (gradE0, grad_v_rep, grad_s, grad_h0, fdmdO, flrdmdO, g1, g1_ao, g1lr, g1lr_ao): (
             Array1<f64>,
             Array1<f64>,
@@ -186,6 +187,16 @@ pub fn get_gradients(
             Array3<f64>,
             Array3<f64>,
         ) = gradient_lc_gs(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
+
+        println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
+        drop(gs_timer);
+        let gs_timer: Instant = Instant::now();
+
+        let tmp = ground_state_gradients(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
+
+        println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
+        drop(gs_timer);
+        assert!(1==2);
 
         // set values for return of the gradients
         grad_e0 = gradE0;
@@ -260,6 +271,7 @@ pub fn get_gradients(
                 grad_ex = tmp.0;
                 new_z_vec = tmp.1;
             } else {
+                println!("before excited gradients!");
                 let tmp: (Array1<f64>, Array3<f64>) = gradients_nolc_ex(
                     exc_state.unwrap(),
                     (&molecule.g0).view(),
@@ -307,6 +319,7 @@ pub fn get_gradients(
             orbs_occ.slice_mut(s![.., i]).assign(&orbs.column(*index));
         }
 
+        let gs_timer: Instant = Instant::now();
         let (gradE0, grad_v_rep, grad_s, grad_h0, fdmdO, flrdmdO, g1, g1_ao, g1lr, g1lr_ao): (
             Array1<f64>,
             Array1<f64>,
@@ -319,6 +332,19 @@ pub fn get_gradients(
             Array3<f64>,
             Array3<f64>,
         ) = gradient_lc_gs(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
+
+        println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
+        drop(gs_timer);
+        let gs_timer: Instant = Instant::now();
+
+        let tmp = ground_state_gradients(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
+
+        println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
+        drop(gs_timer);
+
+        println!("old gradients {}",(&gradE0+&grad_v_rep).slice(s![0..10]));
+        println!("new gradients {}",tmp.slice(s![0..10]));
+        assert!(1==2);
 
         // set values for return of the gradients
         grad_e0 = gradE0;
@@ -341,6 +367,7 @@ pub fn get_gradients(
                 );
 
             if r_lr > 0.0 {
+                println!("Before excited gradients lc!");
                 let tmp: (Array1<f64>, Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
                     (&molecule.g0).view(),
@@ -374,6 +401,7 @@ pub fn get_gradients(
                 grad_ex = tmp.0;
                 new_z_vec = tmp.1;
             } else {
+                println!("Before excited gradients no lc!");
                 let tmp: (Array1<f64>, Array3<f64>) = gradients_nolc_ex(
                     exc_state.unwrap(),
                     (&molecule.g0).view(),
@@ -445,6 +473,265 @@ pub fn get_gradients(
     info!("{:^80} ", "");
     drop(grad_timer);
     return (grad_e0, grad_vrep, grad_ex, new_z_vec);
+}
+
+pub fn ground_state_gradients(
+    molecule: &mut Molecule,
+    orbe_occ: &Array1<f64>,
+    orbe_virt: &Array1<f64>,
+    orbs_occ: &Array2<f64>,
+    s: &Array2<f64>,
+    r_lc: Option<f64>,
+)->Array1<f64>{
+    let mut g1:Array3<f64> = Array3::zeros((molecule.n_atoms*3,molecule.n_atoms,molecule.n_atoms));
+    if molecule.g1.is_some(){
+        g1 = molecule.g1.clone().unwrap();
+    }
+    else{
+        let g1_tmp: Array3<f64> = get_gamma_gradient_atomwise(
+            &molecule.atomic_numbers,
+            molecule.n_atoms,
+            molecule.distance_matrix.view(),
+            molecule.directions_matrix.view(),
+            &molecule.calculator.hubbard_u,
+            Some(0.0),
+        );
+        g1 = g1_tmp;
+    }
+    let (g1lr, g1lr_ao): (Array3<f64>, Array3<f64>) = get_gamma_gradient_matrix(
+        &molecule.atomic_numbers,
+        molecule.n_atoms,
+        molecule.calculator.n_orbs,
+        molecule.distance_matrix.view(),
+        molecule.directions_matrix.view(),
+        &molecule.calculator.hubbard_u,
+        &molecule.calculator.valorbs,
+        None,
+    );
+    let n_at: usize = molecule.n_atoms;
+    let n_orb: usize = molecule.calculator.n_orbs;
+
+    let (grad_s, grad_h0): (Array3<f64>, Array3<f64>) = h0_and_s_gradients(
+        &molecule.atomic_numbers,
+        molecule.positions.view(),
+        molecule.calculator.n_orbs,
+        &molecule.calculator.valorbs,
+        molecule.proximity_matrix.view(),
+        &molecule.calculator.skt,
+        &molecule.calculator.orbital_energies,
+    );
+    let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
+    let d_en = 2.0 * orbs_occ.dot(&ei.dot(&orbs_occ.t()));
+    let d_ref: Array2<f64> = density_matrix_ref(&molecule);
+    let d = 2.0 * orbs_occ.dot(&orbs_occ.t());
+    let diff_d: Array2<f64> = &d - &d_ref;
+
+    let mut h_term: Array1<f64> = Array1::zeros(3 * molecule.n_atoms);
+    let mut s_term: Array1<f64> = Array1::zeros(3 * molecule.n_atoms);
+    let mut esp_term: Array1<f64> = Array1::zeros(3 * molecule.n_atoms);
+    let mut coul_term: Array1<f64> = Array1::zeros(3 * molecule.n_atoms);
+
+    let esp_atomwise:Array1<f64> = molecule.g0.dot(&molecule.final_charges);
+    let mut esp_ao_row: Array1<f64> = Array1::zeros(n_orb);
+    let mut mu: usize = 0;
+    for (i, z_i) in molecule.atomic_numbers.iter().enumerate() {
+        for _ in &molecule.calculator.valorbs[z_i] {
+            esp_ao_row[mu] = esp_atomwise[i];
+            mu = mu + 1;
+        }
+    }
+    let esp_ao_column: Array2<f64> = esp_ao_row.clone().insert_axis(Axis(1));
+    let mut coulomb_mat: Array2<f64> = &esp_ao_column.broadcast((n_orb, n_orb)).unwrap() + &esp_ao_row;
+    coulomb_mat = coulomb_mat * 0.5;
+
+    let coulomb_x_p: Array1<f64> = (&molecule.final_p_matrix * &coulomb_mat)
+        .into_shape([n_orb * n_orb])
+        .unwrap();
+
+    let p_flat: Array1<f64> = molecule.final_p_matrix.clone().into_shape([n_orb * n_orb]).unwrap();
+    let dq:Array1<f64> = molecule.final_charges.clone();
+    let dq_column: Array2<f64> = dq.clone().insert_axis(Axis(1));
+    let dq_x_dq: Array1<f64> = (&dq_column.broadcast((n_at, n_at)).unwrap()
+        * &dq)
+        .into_shape([n_at * n_at])
+        .unwrap();
+
+    let grad_s_2d: Array2<f64> = grad_s.clone()
+        .into_shape([3 * n_at, n_orb * n_orb])
+        .unwrap();
+    let grad_h0_2d: Array2<f64> = grad_h0.clone()
+        .into_shape([3 * n_at, n_orb * n_orb])
+        .unwrap();
+    let grad_gamma: Array2<f64> = g1.into_shape([3 * n_at, n_at * n_at])
+        .unwrap();
+
+    h_term = grad_h0_2d.dot(&p_flat);
+    s_term = grad_s_2d.dot(&d_en.into_shape([n_orb *n_orb]).unwrap());
+    esp_term = grad_s_2d.dot(&coulomb_x_p);
+    coul_term = grad_gamma.dot(&dq_x_dq);
+
+    let g0_lr_ao:Array2<f64> = molecule.g0_lr_ao.clone();
+
+    // for dir in (0..3).into_iter() {
+    //     let dir_xyz: usize = dir as usize;
+    //     let mut nu: usize = 0;
+    //     let esp_vec: Array1<f64> = molecule.g0.dot(&molecule.final_charges);
+    //     for (a, z_a) in molecule.atomic_numbers.iter().enumerate() {
+    //         let index: usize = 3 * a + dir_xyz;
+    //         let mut esp_matrix: Array2<f64> =
+    //             Array2::zeros((molecule.calculator.n_orbs, molecule.calculator.n_orbs));
+    //         for _ in &molecule.calculator.valorbs[z_a] {
+    //             let mut mu: usize = 0;
+    //             for (b, z_b) in molecule.atomic_numbers.iter().enumerate() {
+    //                 for _ in &molecule.calculator.valorbs[z_b] {
+    //                     if b != a {
+    //                         let esp: f64 = esp_vec[b] + esp_vec[a];
+    //                         esp_matrix[[mu, nu]] = esp;
+    //                     }
+    //                     mu = mu + 1;
+    //                 }
+    //             }
+    //             nu = nu + 1;
+    //         }
+    //         let mut charges: Array1<f64> = molecule.final_charges.clone();
+    //         charges[a] = 0.0;
+    //         coul_term[index] =
+    //             (g1.slice(s![index, .., ..]).dot(&charges)).sum() * molecule.final_charges[a];
+    //         esp_term[index] =
+    //             (molecule.final_p_matrix.clone() * grad_s.slice(s![index, .., ..]) * esp_matrix)
+    //                 .sum();
+    //         h_term[index] =
+    //             (molecule.final_p_matrix.clone() * grad_h0.slice(s![index, .., ..])).sum();
+    //         s_term[index] = (d_en.clone() * grad_s.slice(s![index, .., ..])).sum();
+    //     }
+    // }
+
+    // calculate the gradient of the repulsive potential
+    let grad_v_rep: Array1<f64> = gradient_v_rep(
+        &molecule.atomic_numbers,
+        molecule.distance_matrix.view(),
+        molecule.directions_matrix.view(),
+        &molecule.calculator.v_rep,
+    );
+
+    let mut lc_terms:Array1<f64> = Array1::zeros(3*n_at);
+    if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS) > 0.0 {
+        let mut lc_term_1:Array1<f64> = Array1::zeros(3*n_at);
+        let mut lc_term_2:Array1<f64> = Array1::zeros(3*n_at);
+
+        // for dir in (0..3).into_iter() {
+        //     let dir_xyz: usize = dir as usize;
+        //     let mut nu: usize = 0;
+        //     for (a, z_a) in molecule.atomic_numbers.iter().enumerate() {
+        //         let index: usize = 3 * a + dir_xyz;
+        //         for _ in &molecule.calculator.valorbs[z_a] {
+        //             let mut mu: usize = 0;
+        //             for (b, z_b) in molecule.atomic_numbers.iter().enumerate() {
+        //                 for _ in &molecule.calculator.valorbs[z_b] {
+        //                     if b != a {
+        //
+        //                         // if (s[[mu,nu]] < 1.0e-14){
+        //                         //     continue;
+        //                         // }
+        //                         // else{
+        //
+        //                         let mut alpha: usize = 0;
+        //                         for (c, z_c) in molecule.atomic_numbers.iter().enumerate() {
+        //                             for _ in &molecule.calculator.valorbs[z_c] {
+        //
+        //                                 let mut beta:usize = 0;
+        //                                 for (d, z_d) in molecule.atomic_numbers.iter().enumerate() {
+        //                                     for _ in &molecule.calculator.valorbs[z_d] {
+        //
+        //                                         lc_term_1[index] -= 0.25 * grad_s[[index,nu,mu]] * diff_d[[nu,alpha]] * diff_d[[beta,mu]]
+        //                                             * s[[alpha,beta]] * (g0_lr_ao[[nu,alpha]]+g0_lr_ao[[nu,beta]]+g0_lr_ao[[mu,alpha]]+g0_lr_ao[[mu,beta]]);
+        //
+        //                                         lc_term_2[index] -= 0.25 * g1lr[[index,a,b]] * s[[nu,beta]] * s[[mu,alpha]]
+        //                                             * (diff_d[[nu,alpha]] * diff_d[[beta,mu]] + diff_d[[nu,mu]] * diff_d[[alpha,beta]]);
+        //
+        //                                         beta = beta +1;
+        //                                     }
+        //                                 }
+        //                                 alpha = alpha +1;
+        //                             }
+        //                         }
+        //                         // }
+        //                     }
+        //                     mu = mu + 1;
+        //                 }
+        //             }
+        //             nu = nu + 1;
+        //         }
+        //     }
+        // }
+
+        let mut temp_deriv:Array2<f64> = Array2::zeros((3,n_at));
+
+        for (a, z_a) in molecule.atomic_numbers.iter().enumerate() {
+            for (b, z_b) in molecule.atomic_numbers.iter().enumerate() {
+                if (a <= b) && (molecule.distance_matrix[[a,b]] < 11.36){
+                    for (c, z_c) in molecule.atomic_numbers.iter().enumerate() {
+                        for (d, z_d) in molecule.atomic_numbers.iter().enumerate() {
+                            if (c<=d)&& (molecule.distance_matrix[[c,d]] < 11.36){
+
+                                let tmp_gamma1:f64 = molecule.g0_lr[[a,c]] + molecule.g0_lr[[b,c]];
+                                let tmp_gamma2:f64 = tmp_gamma1 + molecule.g0_lr[[a,d]] + molecule.g0_lr[[b,d]];
+                                let mut tmp_force:Array1<f64> = Array1::zeros(3);
+                                let mut tmp_force_r:Array1<f64> = Array1::zeros(3);
+                                let mut tmp_force_2:f64 = 0.0;
+                                let mut mult_var:f64 = 0.0;
+
+                                for mu in molecule.atom2orbitalindices[&b].iter(){
+                                    for kpa in molecule.atom2orbitalindices[&a].iter(){
+                                        for alpha in molecule.atom2orbitalindices[&d].iter(){
+                                            for beta in molecule.atom2orbitalindices[&c].iter(){
+                                               mult_var += s[[*beta,*alpha]] *(diff_d[[*beta,*kpa]] * diff_d[[*alpha,*mu]] + diff_d[[*alpha,*kpa]] * diff_d[[*beta,*mu]]);
+                                            }
+                                        }
+
+                                        tmp_force = tmp_force + mult_var * &grad_s.slice(s![3*a..(3*a)+3,*kpa,*mu]);
+                                        tmp_force_r = tmp_force_r+  mult_var * &grad_s.slice(s![3*b..(3*b)+3,*mu,*kpa]);
+                                        tmp_force_2 += mult_var * s[[*kpa,*mu]];
+                                    }
+                                }
+
+                                if a!= b{
+                                    if c!=d{
+                                        tmp_force = tmp_force * tmp_gamma2;
+                                        tmp_force_r = tmp_force_r * tmp_gamma2;
+                                        tmp_force = tmp_force + tmp_force_2 * (&g1lr.slice(s![3*a..(3*a)+3,a,d])+&g1lr.slice(s![3*a..(3*a)+3,a,c]));
+                                        tmp_force_r = tmp_force_r + tmp_force_2 * (&g1lr.slice(s![3*b..(3*b)+3,b,d])+&g1lr.slice(s![3*b..(3*b)+3,b,c]));
+                                    }
+                                    else{
+                                        tmp_force = tmp_force * tmp_gamma1;
+                                        tmp_force_r = tmp_force_r * tmp_gamma1;
+                                        tmp_force = tmp_force + tmp_force_2 * &g1lr.slice(s![3*a..(3*a)+3,a,d]);
+                                        tmp_force_r = tmp_force_r + tmp_force_2 * &g1lr.slice(s![3*b..(3*b)+3,b,d]);
+                                    }
+                                }
+                                else{
+                                    if c!=d{
+                                        tmp_force = tmp_force + tmp_force_2 * (&g1lr.slice(s![3*a..(3*a)+3,a,d])+&g1lr.slice(s![3*a..(3*a)+3,a,c]));
+                                    }
+                                    else{
+                                        tmp_force = tmp_force + tmp_force_2 * &g1lr.slice(s![3*a..(3*a)+3,a,d]);
+                                    }
+                                }
+                                temp_deriv.slice_mut(s![..,a]).add_assign(&tmp_force);
+                                temp_deriv.slice_mut(s![..,b]).add_assign(&tmp_force_r);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // lc_terms = lc_term_1 + lc_term_2;
+        lc_terms = -0.25 * temp_deriv.into_shape(3*n_at).unwrap();
+    }
+    let gradient: Array1<f64> = h_term - s_term+ esp_term + coul_term + grad_v_rep + lc_terms;
+
+    return gradient;
 }
 
 // only ground state
@@ -1512,7 +1799,7 @@ pub fn f_v_new(
     //}
 
     let mut f_return: Vec<_> = (0..3 * n_atoms)
-        .into_par_iter()
+        .into_iter()
         .map(|nc| {
             let ds: Array2<f64> = grad_s.slice(s![nc, .., ..]).to_owned();
             let dg: Array2<f64> = g1_ao.slice(s![nc, .., ..]).to_owned();
@@ -1614,7 +1901,7 @@ fn f_lr_new(
     // f_return.swap_axes(1,2);
     // f_return.swap_axes(0,1);
     let mut f_return: Vec<_> = (0..3 * n_atoms)
-        .into_par_iter()
+        .into_iter()
         .map(|nc| {
             let d_s: Array2<f64> = grad_s.slice(s![nc, .., ..]).to_owned();
             let d_g: Array2<f64> = g1_lr_ao.slice(s![nc, .., ..]).to_owned();

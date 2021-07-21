@@ -56,6 +56,7 @@ pub struct Molecule {
     pub saved_h_coul:Option<Array2<f64>>,
     pub saved_orbe:Option<Array1<f64>>,
     pub fermi_occ:Option<Vec<f64>>,
+    pub atom2orbitalindices:HashMap<usize,Vec<usize>>,
 }
 
 impl Molecule {
@@ -116,6 +117,18 @@ impl Molecule {
             calculator_opt = Some(calculator);
         }
         let calculator: DFTBCalculator = calculator_opt.unwrap();
+
+        let mut atom2orbitalindices:HashMap<usize,Vec<usize>> = HashMap::new();
+        let mut mu: usize = 0;
+        for (a, z_a) in atomic_numbers.iter().enumerate() {
+
+            let mut index_vec:Vec<usize> = Vec::new();
+            for _ in calculator.valorbs[z_a].iter() {
+                index_vec.push(mu);
+                mu = mu + 1;
+            }
+            atom2orbitalindices.insert(a,index_vec);
+        }
 
         let (g0, g0_a0): (Array2<f64>, Array2<f64>) = get_gamma_matrix(
             &atomic_numbers,
@@ -221,6 +234,7 @@ impl Molecule {
             saved_h_coul:saved_h_coul,
             saved_orbe:saved_orbe,
             fermi_occ:fermi_occ,
+            atom2orbitalindices:atom2orbitalindices,
         };
 
         return mol;

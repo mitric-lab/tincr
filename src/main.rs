@@ -9,7 +9,7 @@ mod fermi_occupation;
 // mod fmo;
 // mod fmo_ncc_routine;
 mod gamma_approximation;
-// mod gradients;
+mod gradients;
 mod graph;
 mod h0_and_s;
 // mod internal_coordinates;
@@ -36,6 +36,7 @@ mod zbrent;
 // use crate::fmo_gradients::*;
 use crate::molecule::Molecule;
 use crate::solver::get_exc_energies;
+use crate::gradients::*;
 use ndarray::*;
 use ndarray_linalg::*;
 use petgraph::stable_graph::*;
@@ -127,8 +128,8 @@ fn main() {
                 positions,
                 Some(config.mol.charge),
                 Some(config.mol.multiplicity),
-                Some(0.0),
-                Some((50,50)),
+                None,
+                Some((200,200)),
                 config,
                 None,
                 None,
@@ -157,6 +158,9 @@ fn main() {
             );
             drop(molecule_timer);
 
+            // println!("distance matrix {}",mol.distance_matrix.slice(s![0,29..39]));
+            // assert!(1==2);
+
             // mol.calculator.set_active_orbitals(f.to_vec());
             // let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
             //     Array1<f64>,
@@ -176,9 +180,20 @@ fn main() {
             mol.calculator.set_active_orbitals(f.to_vec());
             let excited_timer: Instant = Instant::now();
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
-               get_exc_energies(&f, &mol, Some(6), &s, &orbe, &orbs, false, None);
+               get_exc_energies(&f, &mol, Some(8), &s, &orbe, &orbs, false, None);
             println!("{:>68} {:>8.6} s","elapsed time exited states:",excited_timer.elapsed().as_secs_f32());
             println!("eigenvalues {}",tmp.0.slice(s![0..6]));
+            drop(excited_timer);
+
+            let gradients_timer: Instant = Instant::now();
+            let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+                Array1<f64>,
+                Array1<f64>,
+                Array1<f64>,
+                Array3<f64>,
+            ) = get_gradients(&orbe, &orbs, &s, &mut mol, &Some(tmp.2), &Some(tmp.3), Some(1), &Some(tmp.0), None);
+            println!("{:>68} {:>8.6} s","elapsed time gradients:",gradients_timer.elapsed().as_secs_f32());
+            drop(gradients_timer);
             0
         }
         // "unrestricted" => {
