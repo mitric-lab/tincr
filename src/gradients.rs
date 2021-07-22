@@ -342,8 +342,8 @@ pub fn get_gradients(
         println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
         drop(gs_timer);
 
-        println!("old gradients {}",(&gradE0+&grad_v_rep).slice(s![0..10]));
-        println!("new gradients {}",tmp.slice(s![0..10]));
+        println!("old gradients {}",(&gradE0+&grad_v_rep).slice(s![0..8]));
+        println!("new gradients {}",tmp.slice(s![0..8]));
         assert!(1==2);
 
         // set values for return of the gradients
@@ -614,11 +614,31 @@ pub fn ground_state_gradients(
         &molecule.calculator.v_rep,
     );
 
-    let mut lc_terms:Array1<f64> = Array1::zeros(3*n_at);
-    if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS) > 0.0 {
-        let mut lc_term_1:Array1<f64> = Array1::zeros(3*n_at);
-        let mut lc_term_2:Array1<f64> = Array1::zeros(3*n_at);
+    let mut gradient: Array1<f64> = h_term - s_term+ esp_term + coul_term + grad_v_rep;
 
+    let mut flr_dmd0: Array3<f64> = Array::zeros((3 * n_at, n_orb, n_orb));
+    if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS) > 0.0 {
+        flr_dmd0 = f_lr_new(
+            diff_d.view(),
+            s.view(),
+            grad_s.view(),
+            (&molecule.g0_lr_ao).view(),
+            g1lr_ao.view(),
+            n_at,
+            n_orb,
+        );
+
+        gradient = gradient - 0.25 * flr_dmd0.into_shape((3*n_at,n_orb*n_orb)).unwrap().dot(&diff_d.into_shape(n_orb*n_orb).unwrap());
+            // * tensordot(&flr_dmd0, &diff_d, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
+            // .into_dimensionality::<Ix1>()
+            // .unwrap();
+    }
+
+    // let mut lc_terms:Array1<f64> = Array1::zeros(3*n_at);
+    // if r_lc.unwrap_or(defaults::LONG_RANGE_RADIUS) > 0.0 {
+        // let mut lc_term_1:Array1<f64> = Array1::zeros(3*n_at);
+        // let mut lc_term_2:Array1<f64> = Array1::zeros(3*n_at);
+        //
         // for dir in (0..3).into_iter() {
         //     let dir_xyz: usize = dir as usize;
         //     let mut nu: usize = 0;
@@ -634,6 +654,8 @@ pub fn ground_state_gradients(
         //                         //     continue;
         //                         // }
         //                         // else{
+        //                         let mut gamma_term:Array2<f64> = Array2::zeros((n_orb,n_orb));
+        //                         let mut p_term:Array2<f64> = Array2::zeros((n_orb,n_orb));
         //
         //                         let mut alpha: usize = 0;
         //                         for (c, z_c) in molecule.atomic_numbers.iter().enumerate() {
@@ -643,11 +665,13 @@ pub fn ground_state_gradients(
         //                                 for (d, z_d) in molecule.atomic_numbers.iter().enumerate() {
         //                                     for _ in &molecule.calculator.valorbs[z_d] {
         //
-        //                                         lc_term_1[index] -= 0.25 * grad_s[[index,nu,mu]] * diff_d[[nu,alpha]] * diff_d[[beta,mu]]
-        //                                             * s[[alpha,beta]] * (g0_lr_ao[[nu,alpha]]+g0_lr_ao[[nu,beta]]+g0_lr_ao[[mu,alpha]]+g0_lr_ao[[mu,beta]]);
+        //                                         // lc_term_1[index] -= 0.25 * grad_s[[index,nu,mu]] * diff_d[[nu,alpha]] * diff_d[[beta,mu]]
+        //                                         //     * s[[alpha,beta]] * (g0_lr_ao[[nu,alpha]]+g0_lr_ao[[nu,beta]]+g0_lr_ao[[mu,alpha]]+g0_lr_ao[[mu,beta]]);
+        //                                         gamma_term[[alpha,beta]] = g0_lr_ao[[nu,alpha]]+g0_lr_ao[[nu,beta]]+g0_lr_ao[[mu,alpha]]+g0_lr_ao[[mu,beta]];
         //
-        //                                         lc_term_2[index] -= 0.25 * g1lr[[index,a,b]] * s[[nu,beta]] * s[[mu,alpha]]
-        //                                             * (diff_d[[nu,alpha]] * diff_d[[beta,mu]] + diff_d[[nu,mu]] * diff_d[[alpha,beta]]);
+        //                                         // lc_term_2[index] -= 0.25 * g1lr[[index,a,b]] * s[[nu,beta]] * s[[mu,alpha]]
+        //                                         //     * (diff_d[[nu,alpha]] * diff_d[[beta,mu]] + diff_d[[nu,mu]] * diff_d[[alpha,beta]]);
+        //                                         p_term[[alpha,beta]] = diff_d[[nu,alpha]] * diff_d[[beta,mu]] + diff_d[[nu,mu]] * diff_d[[alpha,beta]];
         //
         //                                         beta = beta +1;
         //                                     }
@@ -656,6 +680,9 @@ pub fn ground_state_gradients(
         //                             }
         //                         }
         //                         // }
+        //
+        //                         lc_term_1[index] += grad_s[[index,nu,mu]] * diff_d.slice(s![nu,..]).dot(&(s*&gamma_term).dot(&diff_d.slice(s![..,mu])));
+        //                         lc_term_2[index] += g1lr[[index,a,b]] *  s.slice(s![mu,..]).dot(&p_term.dot(&s.slice(s![nu,..])));
         //                     }
         //                     mu = mu + 1;
         //                 }
@@ -665,71 +692,85 @@ pub fn ground_state_gradients(
         //     }
         // }
 
-        let mut temp_deriv:Array2<f64> = Array2::zeros((3,n_at));
+        // let mut temp_deriv:Array2<f64> = Array2::zeros((3,n_at));
+        //
+        // for (a, z_a) in molecule.atomic_numbers.iter().enumerate() {
+        //     for (b, z_b) in molecule.atomic_numbers.iter().enumerate() {
+        //         if (a <= b) && (molecule.distance_matrix[[a,b]] < 11.36){
+        //             for (c, z_c) in molecule.atomic_numbers.iter().enumerate() {
+        //                 for (d, z_d) in molecule.atomic_numbers.iter().enumerate() {
+        //                     if (c<=d)&& (molecule.distance_matrix[[c,d]] < 11.36){
+        //
+        //                         let tmp_gamma1:f64 = molecule.g0_lr[[a,c]] + molecule.g0_lr[[b,c]];
+        //                         let tmp_gamma2:f64 = tmp_gamma1 + molecule.g0_lr[[a,d]] + molecule.g0_lr[[b,d]];
+        //                         let mut tmp_force:Array1<f64> = Array1::zeros(3);
+        //                         let mut tmp_force_r:Array1<f64> = Array1::zeros(3);
+        //                         let mut tmp_force_2:f64 = 0.0;
+        //                         let mut mult_var:f64 = 0.0;
+        //
+        //                         println!("a: {}, b: {}, c: {}, d {}",a,b,c,d);
+        //
+        //                         let mut ccc:usize = 0;
+        //                         for mu in molecule.atom2orbitalindices[&b].iter(){
+        //                             let mut kkk:usize = 0;
+        //                             for kpa in molecule.atom2orbitalindices[&a].iter(){
+        //                                 for alpha in molecule.atom2orbitalindices[&d].iter(){
+        //                                     for beta in molecule.atom2orbitalindices[&c].iter(){
+        //                                        mult_var += s[[*beta,*alpha]] *(diff_d[[*beta,*kpa]] * diff_d[[*alpha,*mu]] + diff_d[[*alpha,*kpa]] * diff_d[[*beta,*mu]]);
+        //                                     }
+        //                                 }
+        //
+        //                                 tmp_force = tmp_force + mult_var * &grad_s.slice(s![3*a..(3*a)+3,ccc,kkk]);
+        //                                 tmp_force_r = tmp_force_r+  mult_var * &grad_s.slice(s![3*b..(3*b)+3,kkk,ccc]);
+        //                                 tmp_force_2 += mult_var * s[[*kpa,*mu]];
+        //
+        //                                 println!("mu {}, kpa {}, ccc {}, kkk {}",mu,kpa,ccc,kkk);
+        //                                 println!("multi_var {}",mult_var);
+        //                                 println!("tmp_force {}",tmp_force);
+        //                                 println!("tmp_force_r {}",tmp_force_r);
+        //                                 println!("tmp_force_2 {}",tmp_force_2);
+        //                                 println!(" ");
+        //
+        //                                 kkk += 1;
+        //                             }
+        //                             ccc += 1;
+        //                         }
+        //
+        //                         if a!= b{
+        //                             if c!=d{
+        //                                 tmp_force = tmp_force * tmp_gamma2;
+        //                                 tmp_force_r = tmp_force_r * tmp_gamma2;
+        //                                 tmp_force = tmp_force + tmp_force_2 * (&g1lr.slice(s![3*a..(3*a)+3,a,d])+&g1lr.slice(s![3*a..(3*a)+3,a,c]));
+        //                                 tmp_force_r = tmp_force_r + tmp_force_2 * (&g1lr.slice(s![3*b..(3*b)+3,b,d])+&g1lr.slice(s![3*b..(3*b)+3,b,c]));
+        //                             }
+        //                             else{
+        //                                 tmp_force = tmp_force * tmp_gamma1;
+        //                                 tmp_force_r = tmp_force_r * tmp_gamma1;
+        //                                 tmp_force = tmp_force + tmp_force_2 * &g1lr.slice(s![3*a..(3*a)+3,a,d]);
+        //                                 tmp_force_r = tmp_force_r + tmp_force_2 * &g1lr.slice(s![3*b..(3*b)+3,b,d]);
+        //                             }
+        //                         }
+        //                         else{
+        //                             if c!=d{
+        //                                 tmp_force = tmp_force + tmp_force_2 * (&g1lr.slice(s![3*a..(3*a)+3,a,d])+&g1lr.slice(s![3*a..(3*a)+3,a,c]));
+        //                             }
+        //                             else{
+        //                                 tmp_force = tmp_force + tmp_force_2 * &g1lr.slice(s![3*a..(3*a)+3,a,d]);
+        //                             }
+        //                         }
+        //                         temp_deriv.slice_mut(s![..,a]).add_assign(&tmp_force);
+        //                         temp_deriv.slice_mut(s![..,b]).add_assign(&tmp_force_r);
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
-        for (a, z_a) in molecule.atomic_numbers.iter().enumerate() {
-            for (b, z_b) in molecule.atomic_numbers.iter().enumerate() {
-                if (a <= b) && (molecule.distance_matrix[[a,b]] < 11.36){
-                    for (c, z_c) in molecule.atomic_numbers.iter().enumerate() {
-                        for (d, z_d) in molecule.atomic_numbers.iter().enumerate() {
-                            if (c<=d)&& (molecule.distance_matrix[[c,d]] < 11.36){
-
-                                let tmp_gamma1:f64 = molecule.g0_lr[[a,c]] + molecule.g0_lr[[b,c]];
-                                let tmp_gamma2:f64 = tmp_gamma1 + molecule.g0_lr[[a,d]] + molecule.g0_lr[[b,d]];
-                                let mut tmp_force:Array1<f64> = Array1::zeros(3);
-                                let mut tmp_force_r:Array1<f64> = Array1::zeros(3);
-                                let mut tmp_force_2:f64 = 0.0;
-                                let mut mult_var:f64 = 0.0;
-
-                                for mu in molecule.atom2orbitalindices[&b].iter(){
-                                    for kpa in molecule.atom2orbitalindices[&a].iter(){
-                                        for alpha in molecule.atom2orbitalindices[&d].iter(){
-                                            for beta in molecule.atom2orbitalindices[&c].iter(){
-                                               mult_var += s[[*beta,*alpha]] *(diff_d[[*beta,*kpa]] * diff_d[[*alpha,*mu]] + diff_d[[*alpha,*kpa]] * diff_d[[*beta,*mu]]);
-                                            }
-                                        }
-
-                                        tmp_force = tmp_force + mult_var * &grad_s.slice(s![3*a..(3*a)+3,*kpa,*mu]);
-                                        tmp_force_r = tmp_force_r+  mult_var * &grad_s.slice(s![3*b..(3*b)+3,*mu,*kpa]);
-                                        tmp_force_2 += mult_var * s[[*kpa,*mu]];
-                                    }
-                                }
-
-                                if a!= b{
-                                    if c!=d{
-                                        tmp_force = tmp_force * tmp_gamma2;
-                                        tmp_force_r = tmp_force_r * tmp_gamma2;
-                                        tmp_force = tmp_force + tmp_force_2 * (&g1lr.slice(s![3*a..(3*a)+3,a,d])+&g1lr.slice(s![3*a..(3*a)+3,a,c]));
-                                        tmp_force_r = tmp_force_r + tmp_force_2 * (&g1lr.slice(s![3*b..(3*b)+3,b,d])+&g1lr.slice(s![3*b..(3*b)+3,b,c]));
-                                    }
-                                    else{
-                                        tmp_force = tmp_force * tmp_gamma1;
-                                        tmp_force_r = tmp_force_r * tmp_gamma1;
-                                        tmp_force = tmp_force + tmp_force_2 * &g1lr.slice(s![3*a..(3*a)+3,a,d]);
-                                        tmp_force_r = tmp_force_r + tmp_force_2 * &g1lr.slice(s![3*b..(3*b)+3,b,d]);
-                                    }
-                                }
-                                else{
-                                    if c!=d{
-                                        tmp_force = tmp_force + tmp_force_2 * (&g1lr.slice(s![3*a..(3*a)+3,a,d])+&g1lr.slice(s![3*a..(3*a)+3,a,c]));
-                                    }
-                                    else{
-                                        tmp_force = tmp_force + tmp_force_2 * &g1lr.slice(s![3*a..(3*a)+3,a,d]);
-                                    }
-                                }
-                                temp_deriv.slice_mut(s![..,a]).add_assign(&tmp_force);
-                                temp_deriv.slice_mut(s![..,b]).add_assign(&tmp_force_r);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // lc_terms = lc_term_1 + lc_term_2;
-        lc_terms = -0.25 * temp_deriv.into_shape(3*n_at).unwrap();
-    }
-    let gradient: Array1<f64> = h_term - s_term+ esp_term + coul_term + grad_v_rep + lc_terms;
+        // lc_terms = -0.25* (lc_term_1 + lc_term_2);
+        // lc_terms = -0.25 * temp_deriv.into_shape(3*n_at).unwrap();
+    // }
+    // let gradient: Array1<f64> = h_term - s_term+ esp_term + coul_term + grad_v_rep + lc_terms;
 
     return gradient;
 }
@@ -1850,112 +1891,108 @@ fn f_lr_new(
     n_orb: usize,
 ) -> Array3<f64> {
     let sv: Array2<f64> = s.dot(&v);
-    let v_t: Array2<f64> = v.t().to_owned();
+    let v_t: ArrayView2<f64> = v.t();
     let sv_t: Array2<f64> = s.dot(&v_t);
     let gv: Array2<f64> = &g0_lr_a0 * &v;
 
-    let t_sv: Array2<f64> = sv.t().to_owned();
-    let svg_t: Array2<f64> = (&sv * &g0_lr_a0).t().to_owned();
-    let sgv_t: Array2<f64> = s.dot(&gv).t().to_owned();
+    let t_sv: ArrayView2<f64> = sv.t();
+    let svg_t: Array2<f64> = (&sv * &g0_lr_a0).reversed_axes();
+    let sgv_t: Array2<f64> = s.dot(&gv).reversed_axes();
 
     let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb, n_orb));
 
-    //for nc in 0..3*n_atoms{
-    //    let d_s:Array2<f64> = grad_s.slice(s![nc,..,..]).to_owned();
-    //    let d_g:Array2<f64> = g1_lr_ao.slice(s![nc,..,..]).to_owned();
+    for nc in 0..3*n_atoms{
+       let d_s:ArrayView2<f64> = grad_s.slice(s![nc,..,..]);
+       let d_g:ArrayView2<f64> = g1_lr_ao.slice(s![nc,..,..]);
 
-    //    let d_sv_t:Array2<f64> = d_s.dot(&v_t);
-    //    let d_sv:Array2<f64> = d_s.dot(&v);
-    //    let d_gv:Array2<f64> = d_g.clone() * v;
+       let d_sv_t:Array2<f64> = d_s.dot(&v_t);
+       let d_sv:Array2<f64> = d_s.dot(&v);
+       let d_gv:Array2<f64> = &d_g * &v;
 
-    //    let mut d_f:Array2<f64> = Array2::zeros((n_orb,n_orb));
-    //    // 1st term
-    //    d_f = d_f + g0_lr_a0.to_owned()*d_s.dot(&t_sv);
-    //    // 2nd term
-    //    d_f = d_f + (&d_sv_t*&g0_lr_a0).dot(&s);
-    //    // 3rd term
-    //    d_f = d_f + d_s.dot(&svg_t);
-    //    // 4th term
-    //    d_f = d_f + d_s.dot(&sgv_t);
-    //    // 5th term
-    //    d_f = d_f + g0_lr_a0.to_owned() * s.dot(&d_sv.t());
-    //    // 6th term
-    //    d_f = d_f + (sv_t.clone()*g0_lr_a0).dot(&d_s.t());
-    //    // 7th term
-    //    d_f = d_f + s.dot(&(&d_sv*&g0_lr_a0).t());
-    //    // 8th term
-    //    d_f = d_f + s.dot(&(d_s.dot(&gv)).t());
-    //    // 9th term
-    //    d_f = d_f + d_g.clone()*s.dot(&t_sv);
-    //    // 10th term
-    //    d_f = d_f + (sv_t.clone()*d_g.clone()).dot(&s);
-    //    // 11th term
-    //    d_f = d_f + s.dot(&(&sv*&d_g).t());
-    //    // 12th term
-    //    d_f = d_f + s.dot(&(s.dot(&d_gv)).t());
-    //    d_f = d_f * 0.25;
-    //
-    //    //f_return.slice_mut(s![..,..,nc]).assign(&d_f);
-    //    f_return.slice_mut(s![nc,..,..]).assign(&d_f);
-    //}
+       let mut d_f:Array2<f64> = Array2::zeros((n_orb,n_orb));
+       // 1st term
+       d_f = d_f + &g0_lr_a0*&(d_s.dot(&t_sv));
+       // 2nd term
+       d_f = d_f + (&d_sv_t*&g0_lr_a0).dot(&s);
+       // 3rd term
+       d_f = d_f + d_s.dot(&svg_t);
+       // 4th term
+       d_f = d_f + d_s.dot(&sgv_t);
+       // 5th term
+       d_f = d_f + &g0_lr_a0 * &(s.dot(&d_sv.t()));
+       // 6th term
+       d_f = d_f + (&sv_t*&g0_lr_a0).dot(&d_s.t());
+       // 7th term
+       d_f = d_f + s.dot(&(&d_sv*&g0_lr_a0).t());
+       // 8th term
+       d_f = d_f + s.dot(&(d_s.dot(&gv)).t());
+       // 9th term
+       d_f = d_f + &d_g*&(s.dot(&t_sv));
+       // 10th term
+       d_f = d_f + (&sv_t*&d_g).dot(&s);
+       // 11th term
+       d_f = d_f + s.dot(&(&sv*&d_g).t());
+       // 12th term
+       d_f = d_f + s.dot(&(s.dot(&d_gv)).t());
+       d_f = d_f * 0.25;
+
+       //f_return.slice_mut(s![..,..,nc]).assign(&d_f);
+       f_return.slice_mut(s![nc,..,..]).assign(&d_f);
+    }
     // f_return.swap_axes(1,2);
     // f_return.swap_axes(0,1);
-    let mut f_return: Vec<_> = (0..3 * n_atoms)
-        .into_iter()
-        .map(|nc| {
-            let d_s: Array2<f64> = grad_s.slice(s![nc, .., ..]).to_owned();
-            let d_g: Array2<f64> = g1_lr_ao.slice(s![nc, .., ..]).to_owned();
 
-            let d_sv_t: Array2<f64> = d_s.dot(&v_t);
-            let d_sv: Array2<f64> = d_s.dot(&v);
-            let d_gv: Array2<f64> = d_g.clone() * v;
+    // let mut f_return: Vec<_> = (0..3 * n_atoms)
+    //     .into_iter()
+    //     .map(|nc| {
+    //         let d_s: Array2<f64> = grad_s.slice(s![nc, .., ..]).to_owned();
+    //         let d_g: Array2<f64> = g1_lr_ao.slice(s![nc, .., ..]).to_owned();
+    //
+    //         let d_sv_t: Array2<f64> = d_s.dot(&v_t);
+    //         let d_sv: Array2<f64> = d_s.dot(&v);
+    //         let d_gv: Array2<f64> = d_g.clone() * v;
+    //
+    //         let mut d_f: Array2<f64> = Array2::zeros((n_orb, n_orb));
+    //         // 1st term
+    //         d_f = d_f + g0_lr_a0.to_owned() * d_s.dot(&t_sv);
+    //         // 2nd term
+    //         d_f = d_f + (&d_sv_t * &g0_lr_a0).dot(&s);
+    //         // 3rd term
+    //         d_f = d_f + d_s.dot(&svg_t);
+    //         // 4th term
+    //         d_f = d_f + d_s.dot(&sgv_t);
+    //         // 5th term
+    //         d_f = d_f + g0_lr_a0.to_owned() * s.dot(&d_sv.t());
+    //         // 6th term
+    //         d_f = d_f + (sv_t.clone() * g0_lr_a0).dot(&d_s.t());
+    //         // 7th term
+    //         d_f = d_f + s.dot(&(&d_sv * &g0_lr_a0).t());
+    //         // 8th term
+    //         d_f = d_f + s.dot(&(d_s.dot(&gv)).t());
+    //         // 9th term
+    //         d_f = d_f + d_g.clone() * s.dot(&t_sv);
+    //         // 10th term
+    //         d_f = d_f + (sv_t.clone() * d_g.clone()).dot(&s);
+    //         // 11th term
+    //         d_f = d_f + s.dot(&(&sv * &d_g).t());
+    //         // 12th term
+    //         d_f = d_f + s.dot(&(s.dot(&d_gv)).t());
+    //         d_f = d_f * 0.25;
+    //
+    //         //f_return.slice_mut(s![..,..,nc]).assign(&d_f);
+    //         d_f.into_shape(n_orb * n_orb).unwrap().to_vec()
+    //     })
+    //     .collect();
+    // let mut f_result: Vec<f64> = Vec::new();
+    //
+    // for vec in f_return.iter_mut() {
+    //     f_result.append(&mut *vec);
+    // }
 
-            let mut d_f: Array2<f64> = Array2::zeros((n_orb, n_orb));
-            // 1st term
-            d_f = d_f + g0_lr_a0.to_owned() * d_s.dot(&t_sv);
-            // 2nd term
-            d_f = d_f + (&d_sv_t * &g0_lr_a0).dot(&s);
-            // 3rd term
-            d_f = d_f + d_s.dot(&svg_t);
-            // 4th term
-            d_f = d_f + d_s.dot(&sgv_t);
-            // 5th term
-            d_f = d_f + g0_lr_a0.to_owned() * s.dot(&d_sv.t());
-            // 6th term
-            d_f = d_f + (sv_t.clone() * g0_lr_a0).dot(&d_s.t());
-            // 7th term
-            d_f = d_f + s.dot(&(&d_sv * &g0_lr_a0).t());
-            // 8th term
-            d_f = d_f + s.dot(&(d_s.dot(&gv)).t());
-            // 9th term
-            d_f = d_f + d_g.clone() * s.dot(&t_sv);
-            // 10th term
-            d_f = d_f + (sv_t.clone() * d_g.clone()).dot(&s);
-            // 11th term
-            d_f = d_f + s.dot(&(&sv * &d_g).t());
-            // 12th term
-            d_f = d_f + s.dot(&(s.dot(&d_gv)).t());
-            d_f = d_f * 0.25;
-
-            //f_return.slice_mut(s![..,..,nc]).assign(&d_f);
-            d_f.into_shape(n_orb * n_orb).unwrap().to_vec()
-        })
-        .collect();
-    let mut f_result: Vec<f64> = Vec::new();
-
-    for vec in f_return.iter_mut() {
-        f_result.append(&mut *vec);
-    }
-
-    //for i in 0..f_return.len(){
-    //    for j in 0..f_return[i].len(){
-    //        f_result.push(f_return[i][j]);
-    //    }
-    //}
-    let f_result_temp: Array1<f64> = Array::from(f_result);
-    let f_return: Array3<f64> = f_result_temp
-        .into_shape((3 * n_atoms, n_orb, n_orb))
-        .unwrap();
+    // let f_result_temp: Array1<f64> = Array::from(f_result);
+    // let f_return: Array3<f64> = f_result_temp
+    //     .into_shape((3 * n_atoms, n_orb, n_orb))
+    //     .unwrap();
 
     return f_return;
 }

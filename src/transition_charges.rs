@@ -112,6 +112,26 @@ pub fn fragment_trans_charges(
     return (qtrans_vo,qtrans_oo);
 }
 
+pub fn get_trans_charges_value(ii:usize,jj:usize,atom_orb_indices:ArrayView1<usize>,s_orb:ArrayView2<f64>,orbs:ArrayView2<f64>)->Array1<f64>{
+    // calculate charges for all atoms and orbitals
+    let mut q_ij:Array1<f64> = Array1::zeros(atom_orb_indices.raw_dim());
+    let n_atoms:usize = atom_orb_indices.len();
+
+    let q_temp:Array1<f64> = &orbs.slice(s![ii,..]) * &s_orb.slice(s![jj,..]) + &orbs.slice(s![jj,..]) * &s_orb.slice(s![ii,..]);
+    for kk in (0..n_atoms){
+        if kk == (n_atoms-1){
+            let aa = atom_orb_indices[kk];
+            q_ij[kk] = 0.5 * q_temp.slice(s![aa..]).sum();
+        }
+        else{
+            let aa = atom_orb_indices[kk];
+            let bb:usize = atom_orb_indices[kk+1];
+            q_ij[kk] = 0.5 * q_temp.slice(s![aa..bb]).sum();
+        }
+    }
+    return q_ij;
+}
+
 #[test]
 fn transition_charges() {
     let atomic_numbers: Vec<u8> = vec![8, 1, 1];

@@ -3,7 +3,7 @@ use crate::defaults;
 use crate::io::GeneralConfig;
 use crate::scc_routine::*;
 use crate::test::{get_benzene_molecule, get_water_molecule};
-use crate::transition_charges::trans_charges;
+use crate::transition_charges::{trans_charges, get_trans_charges_value};
 use crate::Molecule;
 use approx::{AbsDiffEq, RelativeEq};
 use log::{debug, error, info, log_enabled, trace, warn, Level};
@@ -15,7 +15,7 @@ use ndarray_linalg::*;
 use peroxide::prelude::*;
 use rayon::prelude::*;
 use std::cmp::Ordering;
-use std::ops::{AddAssign, DivAssign};
+use std::ops::{AddAssign, DivAssign, MulAssign};
 use std::time::Instant;
 use ndarray_linalg::krylov::arnoldi_mgs;
 use ndarray_linalg::lobpcg::LobpcgResult;
@@ -712,36 +712,36 @@ pub fn casida(
     drop(excited_timer);
     // println!("omega2 {}",omega2);
 
-    let n = R.len_of(Axis(0));
-    let x:Array2<f64> = ndarray_linalg::generate::random((n,10));
-
-    let excited_timer: Instant = Instant::now();
-    let result = lobpcg::lobpcg(|y| R.dot(&y),x,|_| {},None,1e-9,600,lobpcg::TruncatedOrder::Smallest);
-    match result {
-        LobpcgResult::Ok(vals, _, r_norms) | LobpcgResult::Err(vals, _, r_norms, _) => {
-            // check convergence
-            for (i, norm) in r_norms.into_iter().enumerate() {
-                if norm > 1e-5 {
-                    println!("==== Assertion Failed ====");
-                    println!("The {}th eigenvalue estimation did not converge!", i);
-                    panic!("Too large deviation of residual norm: {} > 0.01", norm);
-                }
-            }
-            println!("omega lobpcg {}",vals.mapv(f64::sqrt));
-        }
-        LobpcgResult::NoResult(err) => panic!("Did not converge: {:?}", err),
-    }
-    println!("{:>68} {:>8.6} s","elapsed time calculate lobpcg:",excited_timer.elapsed().as_secs_f32());
-    drop(excited_timer);
-
-    let excited_timer: Instant = Instant::now();
-    let tolerance: f64 = 1e-6;
-    let spectrum_target = SpectrumTarget::Lowest;
-    let dav = Davidson::new(R.view(),10, DavidsonCorrection::DPR, spectrum_target, tolerance).unwrap();
-
-    println!("{:>68} {:>8.6} s","elapsed time calculate davidson:",excited_timer.elapsed().as_secs_f32());
-    drop(excited_timer);
-    println!("omega davidson {}",dav.eigenvalues.mapv(f64::sqrt));
+    // let n = R.len_of(Axis(0));
+    // let x:Array2<f64> = ndarray_linalg::generate::random((n,10));
+    //
+    // let excited_timer: Instant = Instant::now();
+    // let result = lobpcg::lobpcg(|y| R.dot(&y),x,|_| {},None,1e-9,600,lobpcg::TruncatedOrder::Smallest);
+    // match result {
+    //     LobpcgResult::Ok(vals, _, r_norms) | LobpcgResult::Err(vals, _, r_norms, _) => {
+    //         // check convergence
+    //         for (i, norm) in r_norms.into_iter().enumerate() {
+    //             if norm > 1e-5 {
+    //                 println!("==== Assertion Failed ====");
+    //                 println!("The {}th eigenvalue estimation did not converge!", i);
+    //                 panic!("Too large deviation of residual norm: {} > 0.01", norm);
+    //             }
+    //         }
+    //         println!("omega lobpcg {}",vals.mapv(f64::sqrt));
+    //     }
+    //     LobpcgResult::NoResult(err) => panic!("Did not converge: {:?}", err),
+    // }
+    // println!("{:>68} {:>8.6} s","elapsed time calculate lobpcg:",excited_timer.elapsed().as_secs_f32());
+    // drop(excited_timer);
+    //
+    // let excited_timer: Instant = Instant::now();
+    // let tolerance: f64 = 1e-6;
+    // let spectrum_target = SpectrumTarget::Lowest;
+    // let dav = Davidson::new(R.view(),10, DavidsonCorrection::DPR, spectrum_target, tolerance).unwrap();
+    //
+    // println!("{:>68} {:>8.6} s","elapsed time calculate davidson:",excited_timer.elapsed().as_secs_f32());
+    // drop(excited_timer);
+    // println!("omega davidson {}",dav.eigenvalues.mapv(f64::sqrt));
 
     // let excited_timer: Instant = Instant::now();
     // println!(" ");
@@ -2933,6 +2933,386 @@ pub fn krylov_solver_zvector(
         l = bs.dim().2;
     }
     return x_matrix;
+}
+
+pub fn new_free_eigensolver(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    qtrans_oo: ArrayView2<f64>,
+    qtrans_vv: ArrayView2<f64>,
+    qtrans_ov: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    nstates: Option<usize>,
+    win:ArrayView1<usize>,
+    get_ia:ArrayView2<usize>,
+    w_ij:ArrayView1<f64>,
+    f_occ:&Vec<f64>,
+) {
+    // set values or defaults
+    let nstates: usize = nstates.unwrap_or(4);
+    let ifact: usize = 1;
+    let maxiter: usize = 100;
+    let conv: f64 = 1.0e-7;
+    let kmax = n_occ * n_virt;
+
+    let mut subspace_dimension:usize = nstates;
+    // set initial bs
+    let mut bs: Array2<f64> = Array::zeros((kmax, subspace_dimension));
+    for ii in (0..subspace_dimension){
+        bs[[ii,ii]] = 1.0;
+    }
+
+    let mut prev_subspace_dim:usize = 0;
+    let mut converged:bool = false;
+
+    let mut eigenvalues:Array1<f64> = Array1::zeros(nstates);
+    let mut eigenvectors:Array2<f64> = Array2::zeros((subspace_dimension,nstates));
+    let mut xpy:Array2<f64> = Array2::zeros((subspace_dimension,subspace_dimension));
+    let mut xmy:Array2<f64> = Array2::zeros((subspace_dimension,subspace_dimension));
+
+    'davidson_loop: while true{
+        let mut vp:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
+        let mut mp:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
+        let mut mm:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
+        let mut vm:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
+        if prev_subspace_dim > 0{
+
+            // extend subspace matrices
+
+        }
+        else{
+            // setup initial matrix
+            let tmp:(Array2<f64>,Array2<f64>,Array2<f64>,Array2<f64>) =
+                setup_init_mat(gamma,gamma_lr,qtrans_ov,qtrans_vv,qtrans_oo,subspace_dimension,win,get_ia,n_occ,n_virt,w_ij,f_occ);
+            vp = tmp.0;
+            vm = tmp.1;
+            mp = tmp.2;
+            mm = tmp.3;
+        }
+        let mmsq: Array2<f64> = mm.ssqrt(UPLO::Upper).unwrap();
+        let mh: Array2<f64> = mmsq.dot(&mp.dot(&mmsq));
+
+        let tmp: (Array1<f64>, Array2<f64>) = mh.eigh(UPLO::Upper).unwrap();
+        let w2: Array1<f64> = tmp.0;
+        let Tb:Array2<f64> = tmp.1;
+        let w:Array1<f64> = w2.mapv(f64::sqrt);
+        let wsq: Array1<f64> = w.mapv(f64::sqrt);
+
+        // approximate right R = (X+Y) and left L = (X-Y) eigenvectors
+        // in the basis bs
+        // (X+Y) = (A-B)^(1/2).T / sqrt(w)
+        let mut rb: Array2<f64> = mmsq.dot(&Tb.slice(s![..,..nstates]));
+        // L = (X-Y) = 1/w * (A+B).(X+Y)
+        let mut lb: Array2<f64> = mp.dot(&rb);
+
+        for ii in (0..nstates){
+            rb.slice_mut(s![..,ii]).div_assign(&wsq);
+            lb.slice_mut(s![..,ii]).mul_assign(&wsq);
+        }
+        // Calculate the residual vectors
+        let mut l_canon = bs.dot(&lb.slice(s![..,0..nstates]));
+        let mut r_canon = bs.dot(&rb.slice(s![..,0..nstates]));
+        l_canon = -l_canon * &w;
+        r_canon = -r_canon * &w;
+
+        let wl:Array2<f64> = vm.dot(&lb.slice(s![..,0..nstates])) + r_canon;
+        let wr:Array2<f64> = vp.dot(&rb.slice(s![..,0..nstates])) + l_canon;
+
+        // Calculation of the norms and a convergence check
+        let mut vec_count:usize = 0;
+        let mut norms: Array1<f64> = Array::zeros(2*nstates);
+        converged = true;
+        for i in 0..nstates {
+            let norm_l:f64 = wl.slice(s![..,i]).dot(&wl.slice(s![..,i]));
+            let norm_r:f64 = wr.slice(s![..,i]).dot(&wr.slice(s![..,i]));
+
+            if (norm_l > conv) || (norm_r > conv){
+                converged = false;
+                vec_count +=1;
+            }
+            norms[i] = norm_l;
+            norms[i+nstates] = norm_r;
+        }
+
+        // if converged then exit loop:
+        if converged{
+            // save eigenvectors and eigenvalues
+            eigenvalues = w2.slice(s![0..nstates]).to_owned();
+            eigenvectors = Tb.slice(s![..,0..nstates]).to_owned();
+            break 'davidson_loop;
+        }
+
+        // Otherwise calculate new basis vectors and extend subspace with them
+        // only include new vectors if they add meaningful residue component
+        let mut bs_new:Array2<f64> = Array2::zeros((kmax,subspace_dimension+vec_count));
+        for ii in (0..nstates){
+            if norms[ii] > conv{
+                vec_count += 1;
+                let value:f64 = w2[ii].sqrt();
+                let int = subspace_dimension + vec_count;
+                bs_new.slice_mut(s![..,int]).assign(&(&wl.slice(s![..,ii])/&(value-&w_ij)));
+            }
+        }
+
+        for ii in (0..nstates){
+            if norms[nstates+ii] > conv{
+                let value:f64 = w2[ii].sqrt();
+                let int = subspace_dimension + vec_count;
+                bs_new.slice_mut(s![..,int]).assign(&(&wr.slice(s![..,ii])/&(value-&w_ij)));
+            }
+        }
+        bs_new.slice_mut(s![..,0..subspace_dimension]).assign(&bs);
+        let (Q, R): (Array2<f64>, Array2<f64>) = bs_new.qr().unwrap();
+        bs = Q;
+
+        prev_subspace_dim = subspace_dimension;
+        subspace_dimension += vec_count;
+    }
+}
+
+pub fn setup_init_mat(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    qtrans_ov: ArrayView2<f64>,
+    qtrans_vv: ArrayView2<f64>,
+    qtrans_oo: ArrayView2<f64>,
+    subspace_dim:usize,
+    win:ArrayView1<usize>,
+    get_ia:ArrayView2<usize>,
+    n_occ:usize,
+    n_virt:usize,
+    w_ij:ArrayView1<f64>,
+    f_occ:&Vec<f64>,
+)->(Array2<f64>,Array2<f64>,Array2<f64>,Array2<f64>){
+    let mut vp:Array2<f64> = Array2::zeros((n_occ*n_virt,subspace_dim));
+    let mut vm:Array2<f64> = Array2::zeros((n_occ*n_virt,subspace_dim));
+    let n_at:usize = qtrans_ov.dim().0;
+
+    for jb in 0..subspace_dim{
+        let tmp_vec:Array1<f64> = gamma.dot(&qtrans_ov.slice(s![..,jb]));
+        vp.slice_mut(s![..,jb]).assign(&(4.0*tmp_vec.dot(&qtrans_ov)));
+    }
+
+    let wn_ij:Array1<f64> = wtdn(w_ij,f_occ,win,subspace_dim,get_ia);
+
+    let mut aa_old:i8 = -1;
+    let mut bb_old:i8 = -1;
+    let mut jj_old:i8 = -1;
+
+    let mut tmp_arr:Array1<f64> = Array1::zeros(n_at);
+    // long range contribution
+    for jb in (0..subspace_dim){
+        let (jj,bb):(usize,usize) = get_index_ov(win,jb,get_ia);
+        for ia in (0..(n_occ*n_virt)){
+            let (ii,aa):(usize,usize) = get_index_ov(win,ia,get_ia);
+
+            if (aa_old != (aa as i8)) || (bb_old != (bb as i8)){
+                let mut ab:usize = 0;
+                if (bb < aa){
+                    ab = get_vv_from_indices(n_occ,aa,bb);
+                }
+                else{
+                    ab = get_vv_from_indices(n_occ,bb,aa);
+                }
+                tmp_arr = gamma_lr.dot(&qtrans_vv.slice(s![..,ab]));
+            }
+
+            let mut ij:usize = 0;
+            if (jj < ii){
+                ij = jj + ((ii+1) * ii) / 2;
+            }
+            else{
+                ij = ii + ((jj +1) * jj) / 2;
+            }
+
+            let dtmp:f64 = qtrans_oo.slice(s![..,ij]).dot(&tmp_arr);
+            vp[[ia,jb]] -= dtmp;
+            vm[[ia,jb]] += dtmp;
+
+            let mut tmp_arr_2:Array1<f64> = Array1::zeros(n_at);
+            if (jj_old != jj) || (aa_old != aa){
+                let ind:usize = 0; // iaTrans routine TODO
+                tmp_arr_2 = gamma_lr.dot(&qtrans_ov.slice(s![..,ind]));
+            }
+            let ind_2:usize = 0; // iaTrans routine TODO
+            let dtmp2:f64 = qtrans_ov.slice(s![..,ind_2]).dot(&tmp_arr_2);
+
+            vp[[ia,jb]] -= dtmp2;
+            vm[[ia,jb]] += dtmp2;
+
+            aa_old = aa as i8;
+        }
+        jj_old = jj as i8;
+        bb_old = bb as i8;
+    }
+
+    // add orb. energy difference diagonal contribution
+    for jb in (0..subspace_dim){
+        vp[[jb,jb]] += 0.5 * wn_ij[jb];
+        vm[[jb,jb]] += 0.5 * wn_ij[jb];
+    }
+
+    let mut mp:Array2<f64> = Array2::zeros((n_occ*n_virt,subspace_dim));
+    let mut mm:Array2<f64> = Array2::zeros((n_occ*n_virt,subspace_dim));
+
+    for ii in (0..subspace_dim){
+        for jj in (ii..subspace_dim){
+            mp[[jj,ii]] = vp[[ii,jj]];
+            mp[[ii,jj]] = mp[[ii,jj]];
+            mm[[jj,ii]] = vm[[ii,jj]];
+            mm[[ii,jj]] = mm[[ii,jj]];
+        }
+    }
+
+    return (vp,vm,mp,mm);
+}
+
+pub fn prepare_excitations_indices(
+    n_occ:usize,
+    n_virt:usize,
+    eige:ArrayView1<f64>,
+    f_occ:&Vec<f64>,
+)->(Array1<f64>,Array2<usize>,Array2<usize>,Array2<usize>){
+    let n_orb:usize = eige.len();
+
+    let mut ind:usize = 0;
+    let mut w_ij:Array1<f64> = Array1::zeros(n_occ*n_virt);
+    let mut get_ia:Array2<usize> = Array2::zeros((n_occ*n_virt,2));
+    let mut get_ij:Array2<usize> = Array2::zeros(((n_occ*(n_occ+1)/2),2));
+    let mut get_ab:Array2<usize> = Array2::zeros(((n_virt*(n_virt+1)/2),2));
+
+    for ii in (0..n_orb-1){
+        for aa in (ii..n_orb){
+            if f_occ[ii] > f_occ[aa]{
+                w_ij[ind] = eige[aa] - eige[ii];
+                get_ia.slice_mut(s![ind,..]).assign(&array![ii,aa]);
+
+                ind += 1;
+            }
+        }
+    }
+
+    for ii in (0..n_occ){
+        for jj in (0..ii+1){
+            ind = jj + ((ii+1)*ii)/2;
+            get_ij.slice_mut(s![ind,..]).assign(&array![ii,jj]);
+        }
+    }
+
+    for aa in (0..n_virt){
+        for bb in (0..aa+1){
+            ind = bb + ((aa+1)*aa)/2;
+            get_ab.slice_mut(s![ind,..]).assign(&array![aa+n_occ,bb+n_occ]);
+        }
+    }
+
+    return (w_ij,get_ij,get_ia,get_ab);
+}
+
+pub fn new_excited_routine(
+    f_occ: &Vec<f64>,
+    molecule: &Molecule,
+    nstates: Option<usize>,
+    s: &Array2<f64>,
+    orbe: ArrayView1<f64>,
+    orbs: ArrayView2<f64>,
+) {
+    // set active orbitals first
+    let active_occ: Vec<usize> = molecule.calculator.full_occ.clone().unwrap();
+    let active_virt: Vec<usize> = molecule.calculator.full_virt.clone().unwrap();
+    let n_occ: usize = active_occ.len();
+    let n_virt: usize = active_virt.len();
+    let n_at: usize = molecule.n_atoms;
+
+    // check for selected number of excited states
+    let mut nstates: usize = nstates.unwrap_or(defaults::EXCITED_STATES);
+
+    let (w_ij,get_ij,get_ia,get_ab):(Array1<f64>,Array2<usize>,Array2<usize>,Array2<usize>)
+        = prepare_excitations_indices(n_occ,n_virt,orbe,f_occ);
+
+    let win:Array1<usize> = Array::from(argsort(w_ij.view()));
+    let w_ij:Array1<f64> = win.iter().map(|idx| { w_ij[*idx] }).collect();
+
+    // let timer: Instant = Instant::now();
+    // let (qtrans_ov, qtrans_oo, qtrans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) = trans_charges(
+    //     &molecule.atomic_numbers,
+    //     &molecule.calculator.valorbs,
+    //     orbs.view(),
+    //     s.view(),
+    //     &active_occ[..],
+    //     &active_virt[..],
+    // );
+    // println!("elapsed time charges {:>8.10}",timer.elapsed().as_secs_f32());
+    // drop(timer);
+
+    // precalculate transition charges
+    let mut qtrans_ov:Array2<f64> = Array2::zeros((n_at,n_occ*n_virt));
+    let s_c: Array2<f64> = s.dot(&orbs);
+    for ia in (0..n_occ*n_virt){
+        let (ii,aa):(usize,usize) = get_index_ov(win.view(),ia,get_ia.view());
+        qtrans_ov.slice_mut(s![..,ia])
+            .assign(&get_trans_charges_value(ii,aa,molecule.atom_start_orb_indices.view(),s_c.view(),orbs));
+    }
+
+    let oo_dimension:usize = n_occ * (n_occ+1) / 2;
+    let mut qtrans_oo:Array2<f64> = Array2::zeros((n_at,oo_dimension));
+    for ij in (0..oo_dimension){
+        let (ii,jj):(usize,usize) = get_index_oo(ij);
+        qtrans_oo.slice_mut(s![..,ij])
+        .assign(&get_trans_charges_value(ii,jj,molecule.atom_start_orb_indices.view(),s_c.view(),orbs));
+    }
+
+    let vv_dimension:usize = n_virt * (n_virt+1)/2;
+    let mut qtrans_vv:Array2<f64> = Array2::zeros((n_at,vv_dimension));
+    for ab in (0..vv_dimension){
+        let (aa,bb):(usize,usize) = get_index_vv(n_occ,ab);
+        qtrans_vv.slice_mut(s![..,ab])
+            .assign(&get_trans_charges_value(aa,bb,molecule.atom_start_orb_indices.view(),s_c.view(),orbs));
+    }
+
+}
+
+pub fn get_index_ov(w_in:ArrayView1<usize>,index:usize,get_ia:ArrayView2<usize>)->(usize,usize){
+    let real_index:usize = w_in[index];
+    let ii:usize = get_ia[[real_index,0]];
+    let jj:usize = get_ia[[real_index,1]];
+
+    return (ii,jj);
+}
+
+pub fn get_index_oo(index:usize)->(usize,usize){
+    let (ii,jj):(usize,usize) = get_index_vv(0,index);
+    return (ii,jj);
+}
+
+pub fn get_index_vv(n_occ:usize,index:usize)->(usize,usize){
+    let real:f64 = ((index as f64 +1.0)*2.0-1.75).sqrt() -0.5;
+
+    let ii:usize = real.floor() as usize + 1 + (n_occ-1);
+    let jj:usize = index - ((ii -1 -(n_occ-1))* (ii - (n_occ-1))) / 2 + n_occ;
+
+    return(ii,jj);
+}
+
+pub fn get_vv_from_indices(n_occ:usize,ii:usize,jj:usize)->usize{
+    let ii:usize = ii +1;
+    let jj:usize = jj +1;
+    let n_occ:usize = n_occ +1;
+
+    let index:usize = (jj - n_occ) + ((ii - n_occ) -1) * (ii - n_occ) /2;
+    return index-1;
+}
+
+pub fn wtdn(w_ij:ArrayView1<f64>,f_occ:&Vec<f64>,win:ArrayView1<usize>,subspace_dimension:usize,get_ia:ArrayView2<usize>)->Array1<f64>{
+    let mut wn_ij:Array1<f64> = Array1::zeros(w_ij.raw_dim());
+
+    for ia in (0..subspace_dimension){
+        let (ii,jj):(usize,usize) = get_index_ov(win,ia,get_ia);
+        let docc_ij:f64 = f_occ[ii] - f_occ[jj];
+        wn_ij[ia] = w_ij[ia] * docc_ij;
+    }
+    return wn_ij;
 }
 
 #[test]

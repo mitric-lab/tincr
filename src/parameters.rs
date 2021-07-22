@@ -336,7 +336,7 @@ pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
 }
 
 pub fn get_slako_table_mio(element1: &str, element2: &str) -> SlaterKosterTable {
-    let path_prefix: String = String::from("/home/einseler/software/mio-0-1");
+    let path_prefix: String = String::from("/home/einseler/software/dftb_plus_recipes/slakos/download/ob2-1-1/base");
     let element_1: String = some_kind_of_uppercase_first_letter(element1);
     let element_2: String = some_kind_of_uppercase_first_letter(element2);
     let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
@@ -553,7 +553,7 @@ pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTab
 pub fn get_pseudo_atom_mio(zi:&u8)->PseudoAtomMio{
     let z:usize = zi.clone() as usize;
     let element:String = some_kind_of_uppercase_first_letter(ATOM_NAMES[z]);
-    let path_prefix: String = String::from("/home/einseler/software/mio-0-1");
+    let path_prefix: String = String::from("/home/einseler/software/dftb_plus_recipes/slakos/download/ob2-1-1/base");
     let filename: String = format!("{}/{}-{}.skf", path_prefix, element, element);
     println!("filename {}", filename);
     let path: &Path = Path::new(&filename);
@@ -619,7 +619,7 @@ fn read_mio_pseudo_atom(data: &String,zi:&u8)->PseudoAtomMio{
 }
 
 pub fn get_reppot_table_mio(element1: &str, element2: &str) -> RepulsivePotentialTable {
-    let path_prefix: String = String::from("/home/einseler/software/mio-0-1");
+    let path_prefix: String = String::from("/home/einseler/software/dftb_plus_recipes/slakos/download/ob2-1-1/base");
     let element_1: String = some_kind_of_uppercase_first_letter(element1);
     let element_2: String = some_kind_of_uppercase_first_letter(element2);
     let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
@@ -644,10 +644,11 @@ fn read_mio_repot_data(data: &String, element1: &str, element2: &str) -> Repulsi
             break;
         }
     }
-    let second_line: Vec<&str> = strings[count + 1].split(" ").collect();
+    let second_line: Vec<f64> = process_slako_line(strings[count+1]);
+    println!("second line {:?}",second_line);
     // get number of points and the cutoff from the second line
-    let n_int: usize = second_line[0].trim().parse::<usize>().unwrap();
-    let cutoff: f64 = second_line[1].trim().parse::<f64>().unwrap();
+    let n_int: usize = second_line[0] as usize;
+    let cutoff: f64 = second_line[1];
     println!("n_int: {} and cutoff {}", n_int, cutoff);
     // Line 3: V(r < r0) = exp(-a1*r+a2) + a3   is r too small to be covered by the spline
     let third_line: Vec<f64> = process_slako_line(strings[count + 2]);

@@ -35,7 +35,7 @@ mod zbrent;
 // use crate::gradients::*;
 // use crate::fmo_gradients::*;
 use crate::molecule::Molecule;
-use crate::solver::get_exc_energies;
+use crate::solver::{get_exc_energies, new_excited_routine};
 use crate::gradients::*;
 use ndarray::*;
 use ndarray_linalg::*;
@@ -157,6 +157,10 @@ fn main() {
                 molecule_timer.elapsed().as_secs_f32()
             );
             drop(molecule_timer);
+            mol.calculator.set_active_orbitals(f.to_vec());
+
+            new_excited_routine(&f, &mol, Some(8), &s, orbe.view(), orbs.view());
+            assert!(1==2);
 
             // println!("distance matrix {}",mol.distance_matrix.slice(s![0,29..39]));
             // assert!(1==2);
@@ -177,7 +181,7 @@ fn main() {
             // println!("numerical dftb gradient {}",num_grad);
             // println!("");
             // println!("Norm of difference: {}", (grad_e0+ grad_vrep-num_grad).norm());
-            mol.calculator.set_active_orbitals(f.to_vec());
+
             let excited_timer: Instant = Instant::now();
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
                get_exc_energies(&f, &mol, Some(8), &s, &orbe, &orbs, false, None);
