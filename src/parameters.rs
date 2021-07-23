@@ -336,7 +336,7 @@ pub fn get_slako_table(element1: &str, element2: &str) -> SlaterKosterTable {
 }
 
 pub fn get_slako_table_mio(element1: &str, element2: &str) -> SlaterKosterTable {
-    let path_prefix: String = String::from("/home/einseler/software/dftb_plus_recipes/slakos/download/ob2-1-1/base");
+    let path_prefix: String = String::from("/home/einseler/software/mio-0-1");
     let element_1: String = some_kind_of_uppercase_first_letter(element1);
     let element_2: String = some_kind_of_uppercase_first_letter(element2);
     let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);
@@ -553,7 +553,7 @@ pub fn get_reppot_table(element1: &str, element2: &str) -> RepulsivePotentialTab
 pub fn get_pseudo_atom_mio(zi:&u8)->PseudoAtomMio{
     let z:usize = zi.clone() as usize;
     let element:String = some_kind_of_uppercase_first_letter(ATOM_NAMES[z]);
-    let path_prefix: String = String::from("/home/einseler/software/dftb_plus_recipes/slakos/download/ob2-1-1/base");
+    let path_prefix: String = String::from("/home/einseler/software/mio-0-1");
     let filename: String = format!("{}/{}-{}.skf", path_prefix, element, element);
     println!("filename {}", filename);
     let path: &Path = Path::new(&filename);
@@ -619,7 +619,7 @@ fn read_mio_pseudo_atom(data: &String,zi:&u8)->PseudoAtomMio{
 }
 
 pub fn get_reppot_table_mio(element1: &str, element2: &str) -> RepulsivePotentialTable {
-    let path_prefix: String = String::from("/home/einseler/software/dftb_plus_recipes/slakos/download/ob2-1-1/base");
+    let path_prefix: String = String::from("/home/einseler/software/mio-0-1");
     let element_1: String = some_kind_of_uppercase_first_letter(element1);
     let element_2: String = some_kind_of_uppercase_first_letter(element2);
     let filename: String = format!("{}/{}-{}.skf", path_prefix, element_1, element_2);

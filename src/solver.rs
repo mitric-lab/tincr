@@ -227,7 +227,10 @@ pub fn get_exc_energies(
 
         } else {
             println!("non-Hermitian Davidson routine called!");
-            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = non_hermitian_davidson(
+
+            // new_excited_routine(f_occ,molecule,nstates,s,orbe.view(),orbs.view(),molecule.g0.view(),molecule.g0_lr.view());
+
+            let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = non_hermitian_davidson_new(
                 (&molecule.g0).view(),
                 (&molecule.g0_lr).view(),
                 qtrans_oo.view(),
@@ -252,6 +255,32 @@ pub fn get_exc_energies(
             c_ij = tmp.1;
             XmY = tmp.2;
             XpY = tmp.3;
+
+            // let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) = non_hermitian_davidson(
+            //     (&molecule.g0).view(),
+            //     (&molecule.g0_lr).view(),
+            //     qtrans_oo.view(),
+            //     qtrans_vv.view(),
+            //     qtrans_ov.view(),
+            //     omega.view(),
+            //     n_occ,
+            //     n_virt,
+            //     None,
+            //     None,
+            //     None,
+            //     molecule.multiplicity,
+            //     molecule.calculator.spin_couplings.view(),
+            //     Some(nstates),
+            //     None,
+            //     None,
+            //     None,
+            //     None,
+            //     Some(1),
+            // );
+            // omega_out = tmp.0;
+            // c_ij = tmp.1;
+            // XmY = tmp.2;
+            // XpY = tmp.3;
         }
     }
     return (omega_out, c_ij, XmY, XpY);
@@ -2943,78 +2972,114 @@ pub fn new_free_eigensolver(
     qtrans_ov: ArrayView2<f64>,
     n_occ: usize,
     n_virt: usize,
-    nstates: Option<usize>,
+    nstates: usize,
     win:ArrayView1<usize>,
     get_ia:ArrayView2<usize>,
     w_ij:ArrayView1<f64>,
     f_occ:&Vec<f64>,
-) {
+    ia_trans:ArrayView2<usize>,
+)->(Array1<f64>,Array2<f64>) {
     // set values or defaults
-    let nstates: usize = nstates.unwrap_or(4);
-    let ifact: usize = 1;
     let maxiter: usize = 100;
     let conv: f64 = 1.0e-7;
     let kmax = n_occ * n_virt;
+    let max_subspace:usize = 50;
+    let mut iter_count:usize = 0;
 
     let mut subspace_dimension:usize = nstates;
+    let mut prev_subspace:usize = 0;
     // set initial bs
     let mut bs: Array2<f64> = Array::zeros((kmax, subspace_dimension));
     for ii in (0..subspace_dimension){
         bs[[ii,ii]] = 1.0;
     }
-
-    let mut prev_subspace_dim:usize = 0;
     let mut converged:bool = false;
 
     let mut eigenvalues:Array1<f64> = Array1::zeros(nstates);
-    let mut eigenvectors:Array2<f64> = Array2::zeros((subspace_dimension,nstates));
+    let mut eigenvectors:Array2<f64> = Array2::zeros((nstates,nstates));
     let mut xpy:Array2<f64> = Array2::zeros((subspace_dimension,subspace_dimension));
     let mut xmy:Array2<f64> = Array2::zeros((subspace_dimension,subspace_dimension));
 
+    let mut vp_old:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
+    let mut mp_old:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
+    let mut mm_old:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
+    let mut vm_old:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
+
+    println!("Before loop");
     'davidson_loop: while true{
         let mut vp:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
         let mut mp:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
         let mut mm:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
         let mut vm:Array2<f64> = Array2::zeros((kmax,subspace_dimension));
-        if prev_subspace_dim > 0{
+
+        if iter_count > 0{
+            // fill values from previous matrices
+            vp.slice_mut(s![..,..prev_subspace]).assign(&vp_old);
+            mp.slice_mut(s![..,..prev_subspace]).assign(&mp_old);
+            vm.slice_mut(s![..,..prev_subspace]).assign(&vm_old);
+            mm.slice_mut(s![..,..prev_subspace]).assign(&mm_old);
 
             // extend subspace matrices
+            println!("Start ApB and AmB");
+            for ii in (prev_subspace..subspace_dimension){
+                // calc ApB and AmB
+                vp.slice_mut(s![..,ii]).assign(&mult_apb_vec(gamma,gamma_lr,qtrans_ov,qtrans_vv,qtrans_oo,subspace_dimension,win,get_ia,f_occ,n_occ,n_virt,w_ij,ia_trans,bs.slice(s![..,ii])));
+                vm.slice_mut(s![..,ii]).assign(&mult_amb_vec(gamma,gamma_lr,qtrans_ov,qtrans_vv,qtrans_oo,subspace_dimension,win,get_ia,f_occ,n_occ,n_virt,w_ij,ia_trans,bs.slice(s![..,ii])));
+            }
+            println!("Finished ApB and AmB");
+            for ii in (prev_subspace..subspace_dimension){
+                for jj in (0..ii){
+                    mp[[ii,jj]] = bs.slice(s![..,jj]).dot(&vp.slice(s![..,ii]));
+                    mp[[jj,ii]] = mp[[ii,jj]];
 
+                    mm[[ii,jj]] = bs.slice(s![..,jj]).dot(&vm.slice(s![..,ii]));
+                    mm[[jj,ii]] = mm[[ii,jj]];
+                }
+            }
+            println!("Finished mp and mm");
         }
         else{
             // setup initial matrix
+            println!("Setup initial matrix");
             let tmp:(Array2<f64>,Array2<f64>,Array2<f64>,Array2<f64>) =
-                setup_init_mat(gamma,gamma_lr,qtrans_ov,qtrans_vv,qtrans_oo,subspace_dimension,win,get_ia,n_occ,n_virt,w_ij,f_occ);
+                setup_init_mat(gamma,gamma_lr,qtrans_ov,qtrans_vv,qtrans_oo,subspace_dimension,win,get_ia,n_occ,n_virt,w_ij,f_occ,ia_trans);
             vp = tmp.0;
             vm = tmp.1;
             mp = tmp.2;
             mm = tmp.3;
+            println!("setup finished");
         }
-        let mmsq: Array2<f64> = mm.ssqrt(UPLO::Upper).unwrap();
-        let mh: Array2<f64> = mmsq.dot(&mp.dot(&mmsq));
+        // safe old matrices
+        vp_old = vp.clone();
+        mp_old = mp.clone();
+        mm_old = mm.clone();
+        vm_old = vm.clone();
+
+        let mmsq: Array2<f64> = mm.slice(s![..subspace_dimension,..subspace_dimension]).to_owned().ssqrt(UPLO::Upper).unwrap();
+        let mh: Array2<f64> = mmsq.dot(&(mp.slice(s![..subspace_dimension,..subspace_dimension]).dot(&mmsq)));
 
         let tmp: (Array1<f64>, Array2<f64>) = mh.eigh(UPLO::Upper).unwrap();
         let w2: Array1<f64> = tmp.0;
         let Tb:Array2<f64> = tmp.1;
         let w:Array1<f64> = w2.mapv(f64::sqrt);
         let wsq: Array1<f64> = w.mapv(f64::sqrt);
-
+        println!("eigenvalues {}",w.slice(s![0..nstates]));
         // approximate right R = (X+Y) and left L = (X-Y) eigenvectors
         // in the basis bs
         // (X+Y) = (A-B)^(1/2).T / sqrt(w)
         let mut rb: Array2<f64> = mmsq.dot(&Tb.slice(s![..,..nstates]));
         // L = (X-Y) = 1/w * (A+B).(X+Y)
-        let mut lb: Array2<f64> = mp.dot(&rb);
+        let mut lb: Array2<f64> = mp.slice(s![..subspace_dimension,..]).dot(&rb);
 
         for ii in (0..nstates){
             rb.slice_mut(s![..,ii]).div_assign(&wsq);
             lb.slice_mut(s![..,ii]).mul_assign(&wsq);
         }
         // Calculate the residual vectors
-        let mut l_canon = bs.dot(&lb.slice(s![..,0..nstates]));
-        let mut r_canon = bs.dot(&rb.slice(s![..,0..nstates]));
-        l_canon = -l_canon * &w;
-        r_canon = -r_canon * &w;
+        let l_canon = bs.dot(&lb.slice(s![..,0..nstates]));
+        let r_canon = bs.dot(&rb.slice(s![..,0..nstates]));
+        let l_canon = -1.0 * l_canon * &w.slice(s![..nstates]);
+        let r_canon = -1.0 * r_canon * &w.slice(s![..nstates]);
 
         let wl:Array2<f64> = vm.dot(&lb.slice(s![..,0..nstates])) + r_canon;
         let wr:Array2<f64> = vp.dot(&rb.slice(s![..,0..nstates])) + l_canon;
@@ -3027,48 +3092,234 @@ pub fn new_free_eigensolver(
             let norm_l:f64 = wl.slice(s![..,i]).dot(&wl.slice(s![..,i]));
             let norm_r:f64 = wr.slice(s![..,i]).dot(&wr.slice(s![..,i]));
 
-            if (norm_l > conv) || (norm_r > conv){
+            if (norm_l > conv) && (norm_r > conv){
+                converged = false;
+                vec_count +=2;
+            }
+            else if (norm_l > conv) || (norm_r > conv){
                 converged = false;
                 vec_count +=1;
             }
             norms[i] = norm_l;
             norms[i+nstates] = norm_r;
         }
-
         // if converged then exit loop:
         if converged{
             // save eigenvectors and eigenvalues
-            eigenvalues = w2.slice(s![0..nstates]).to_owned();
-            eigenvectors = Tb.slice(s![..,0..nstates]).to_owned();
+            eigenvalues = w.slice(s![0..nstates]).to_owned();
+            eigenvectors = Tb.slice(s![0..nstates,0..nstates]).to_owned();
             break 'davidson_loop;
         }
 
-        // Otherwise calculate new basis vectors and extend subspace with them
-        // only include new vectors if they add meaningful residue component
-        let mut bs_new:Array2<f64> = Array2::zeros((kmax,subspace_dimension+vec_count));
+        let new_subspace:usize = subspace_dimension + vec_count;
+        // if new_subspace > max_subspace{
+        //     subspace_dimension = nstates;
+        //     prev_subspace = 0;
+        //
+        //     let mut bs_new:Array2<f64> =Tb.slice(s![..,0..nstates]).to_owned();
+        //     let (Q, R): (Array2<f64>, Array2<f64>) = bs_new.qr().unwrap();
+        //     bs = Q;
+        // }
+        // else{
+        let mut count:usize = 0;
+        let mut bs_new:Array2<f64> = Array2::zeros((kmax,new_subspace));
         for ii in (0..nstates){
             if norms[ii] > conv{
-                vec_count += 1;
                 let value:f64 = w2[ii].sqrt();
-                let int = subspace_dimension + vec_count;
-                bs_new.slice_mut(s![..,int]).assign(&(&wl.slice(s![..,ii])/&(value-&w_ij)));
+                let int = subspace_dimension + count;
+                // bs_new.slice_mut(s![..,int]).assign(&(&wl.slice(s![..,ii])/&(value-&w_ij)));
+                for jj in (0..kmax){
+                    bs_new[[jj,int]] = wl[[jj,ii]] /(value - w_ij[jj]);
+                }
+                count +=1;
             }
         }
-
+;
         for ii in (0..nstates){
             if norms[nstates+ii] > conv{
                 let value:f64 = w2[ii].sqrt();
-                let int = subspace_dimension + vec_count;
-                bs_new.slice_mut(s![..,int]).assign(&(&wr.slice(s![..,ii])/&(value-&w_ij)));
+                let int = subspace_dimension + count;
+                // bs_new.slice_mut(s![..,int]).assign(&(&wr.slice(s![..,ii])/&(value-&w_ij)));
+                for jj in (0..kmax){
+                    bs_new[[jj,int]] = wr[[jj,ii]] /(value - w_ij[jj]);
+                }
+                count +=1;
             }
         }
+
         bs_new.slice_mut(s![..,0..subspace_dimension]).assign(&bs);
         let (Q, R): (Array2<f64>, Array2<f64>) = bs_new.qr().unwrap();
         bs = Q;
-
-        prev_subspace_dim = subspace_dimension;
-        subspace_dimension += vec_count;
+        println!("Test98");
+        prev_subspace = subspace_dimension;
+        subspace_dimension = new_subspace;
+        // }
+        iter_count += 1;
     }
+    return (eigenvalues,eigenvectors);
+}
+
+pub fn mult_amb_vec(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    qtrans_ov: ArrayView2<f64>,
+    qtrans_vv: ArrayView2<f64>,
+    qtrans_oo: ArrayView2<f64>,
+    subspace_dim:usize,
+    win:ArrayView1<usize>,
+    get_ia:ArrayView2<usize>,
+    f_occ:&Vec<f64>,
+    n_occ:usize,
+    n_virt:usize,
+    w_ij:ArrayView1<f64>,
+    ia_trans:ArrayView2<usize>,
+    vec:ArrayView1<f64>,
+)->Array1<f64>{
+    let n_at:usize = gamma.dim().0;
+    let n_ov:usize = vec.len();
+    let wn_ij:Array1<f64> = wtdn(w_ij,f_occ,win,subspace_dim,get_ia);
+
+    let mut vec_out:Array1<f64> = Array1::zeros(n_ov);
+
+    let mut gqv_tmp:Array2<f64> = Array2::zeros((n_at,n_ov));
+    for jb in (0..n_ov){
+        let (jj,bb):(usize,usize) = get_index_ov(win,jb,get_ia);
+        for aa in (n_occ..(n_occ+n_virt)){
+            let mut ab:usize = 0;
+            if bb < aa{
+                ab = get_vv_from_indices(n_occ,aa,bb);
+            }
+            else{
+                ab = get_vv_from_indices(n_occ,bb,aa);
+            }
+            let ja:usize = n_virt * jj + aa - n_occ;
+            gqv_tmp.slice_mut(s![..,ja]).add_assign(&(&qtrans_vv.slice(s![..,ab]) * vec[jb]));
+        }
+    }
+    let gqv_tmp:Array2<f64> = gamma_lr.dot(&gqv_tmp);
+
+    for jj in (0..n_occ){
+        for ia in (0..n_ov){
+            let (ii,aa):(usize,usize) = get_index_ov(win,ia,get_ia);
+
+            let mut ij:usize = 0;
+            if (jj < ii){
+                ij = jj + ((ii+1) * ii) / 2;
+            }
+            else{
+                ij = ii + ((jj +1) * jj) / 2;
+            }
+            let ja:usize = n_virt * jj + aa - n_occ;
+            vec_out[ia] -= qtrans_oo.slice(s![..,ij]).dot(&gqv_tmp.slice(s![..,ja]));
+        }
+    }
+    let mut gqv_tmp:Array2<f64> = Array2::zeros((n_at,n_ov));
+    for jb in (0..n_ov){
+        let (jj,bb):(usize,usize) = get_index_ov(win,jb,get_ia);
+        for aa in (n_occ..(n_occ+n_virt)){
+            let ab:usize = (bb -n_occ) * n_virt + aa -n_occ;
+
+            let ja:usize = ia_trans[[jj,aa]];
+            gqv_tmp.slice_mut(s![..,ab]).add_assign(&(&qtrans_ov.slice(s![..,ja]) * vec[jb]));
+        }
+    }
+    let gqv_tmp:Array2<f64> = gamma_lr.dot(&gqv_tmp);
+
+    for bb in (n_occ..(n_occ+n_virt)){
+        for ia in (0..n_ov){
+            let (ii,aa):(usize,usize) = get_index_ov(win,ia,get_ia);
+            let ib:usize = ia_trans[[ii,bb]];
+            let ab:usize = (bb - n_occ) * n_virt + aa -n_occ;
+
+            vec_out[ia] -= qtrans_ov.slice(s![..,ib]).dot(&gqv_tmp.slice(s![..,ab]));
+        }
+    }
+    vec_out = vec_out + 0.5 * wn_ij * vec;
+
+    return vec_out;
+}
+
+pub fn mult_apb_vec(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    qtrans_ov: ArrayView2<f64>,
+    qtrans_vv: ArrayView2<f64>,
+    qtrans_oo: ArrayView2<f64>,
+    subspace_dim:usize,
+    win:ArrayView1<usize>,
+    get_ia:ArrayView2<usize>,
+    f_occ:&Vec<f64>,
+    n_occ:usize,
+    n_virt:usize,
+    w_ij:ArrayView1<f64>,
+    ia_trans:ArrayView2<usize>,
+    vec:ArrayView1<f64>,
+)->Array1<f64>{
+    let n_at:usize = gamma.dim().0;
+    let n_ov:usize = vec.len();
+    let wn_ij:Array1<f64> = wtdn(w_ij,f_occ,win,subspace_dim,get_ia);
+
+    let gtmp:Array1<f64> = qtrans_ov.dot(&vec);
+    let otmp:Array1<f64> = gamma.dot(&gtmp);
+
+    let mut vec_out:Array1<f64> = 4.0 * otmp.dot(&qtrans_ov);
+
+    let mut gqv_tmp:Array2<f64> = Array2::zeros((n_at,n_ov));
+    for jb in (0..n_ov){
+        let (jj,bb):(usize,usize) = get_index_ov(win,jb,get_ia);
+        for aa in (n_occ..(n_occ+n_virt)){
+            let mut ab:usize = 0;
+            if bb < aa{
+                ab = get_vv_from_indices(n_occ,aa,bb);
+            }
+            else{
+                ab = get_vv_from_indices(n_occ,bb,aa);
+            }
+            let ja:usize = n_virt * jj + aa - n_occ;
+            gqv_tmp.slice_mut(s![..,ja]).add_assign(&(&qtrans_vv.slice(s![..,ab]) * vec[jb]));
+        }
+    }
+
+    let gqv_tmp:Array2<f64> = gamma_lr.dot(&gqv_tmp);
+    for jj in (0..n_occ){
+        for ia in (0..n_ov){
+            let (ii,aa):(usize,usize) = get_index_ov(win,ia,get_ia);
+
+            let mut ij:usize = 0;
+            if (jj < ii){
+                ij = jj + ((ii+1) * ii) / 2;
+            }
+            else{
+                ij = ii + ((jj +1) * jj) / 2;
+            }
+            let ja:usize = n_virt * jj + aa - n_occ;
+            vec_out[ia] -= qtrans_oo.slice(s![..,ij]).dot(&gqv_tmp.slice(s![..,ja]));
+        }
+    }
+
+    let mut gqv_tmp:Array2<f64> = Array2::zeros((n_at,n_ov));
+    for jb in (0..n_ov){
+        let (jj,bb):(usize,usize) = get_index_ov(win,jb,get_ia);
+        for aa in (n_occ..(n_occ+n_virt)){
+            let ab:usize = (bb -n_occ) * n_virt + aa -n_occ;
+
+            let ja:usize = ia_trans[[jj,aa]];
+            gqv_tmp.slice_mut(s![..,ab]).add_assign(&(&qtrans_ov.slice(s![..,ja]) * vec[jb]));
+        }
+    }
+    let gqv_tmp:Array2<f64> = gamma_lr.dot(&gqv_tmp);
+
+    for bb in (n_occ..(n_occ+n_virt)){
+        for ia in (0..n_ov){
+            let (ii,aa):(usize,usize) = get_index_ov(win,ia,get_ia);
+            let ib:usize = ia_trans[[ii,bb]];
+            let ab:usize = (bb - n_occ) * n_virt + aa -n_occ;
+
+            vec_out[ia] -= qtrans_ov.slice(s![..,ib]).dot(&gqv_tmp.slice(s![..,ab]));
+        }
+    }
+    vec_out = vec_out + 0.5 * wn_ij * vec;
+    return vec_out;
 }
 
 pub fn setup_init_mat(
@@ -3084,6 +3335,7 @@ pub fn setup_init_mat(
     n_virt:usize,
     w_ij:ArrayView1<f64>,
     f_occ:&Vec<f64>,
+    ia_trans:ArrayView2<usize>,
 )->(Array2<f64>,Array2<f64>,Array2<f64>,Array2<f64>){
     let mut vp:Array2<f64> = Array2::zeros((n_occ*n_virt,subspace_dim));
     let mut vm:Array2<f64> = Array2::zeros((n_occ*n_virt,subspace_dim));
@@ -3131,11 +3383,11 @@ pub fn setup_init_mat(
             vm[[ia,jb]] += dtmp;
 
             let mut tmp_arr_2:Array1<f64> = Array1::zeros(n_at);
-            if (jj_old != jj) || (aa_old != aa){
-                let ind:usize = 0; // iaTrans routine TODO
+            if (jj_old != jj as i8) || (aa_old != aa as i8){
+                let ind:usize = ia_trans[[jj,aa]];
                 tmp_arr_2 = gamma_lr.dot(&qtrans_ov.slice(s![..,ind]));
             }
-            let ind_2:usize = 0; // iaTrans routine TODO
+            let ind_2:usize = ia_trans[[ii,bb]];
             let dtmp2:f64 = qtrans_ov.slice(s![..,ind_2]).dot(&tmp_arr_2);
 
             vp[[ia,jb]] -= dtmp2;
@@ -3213,10 +3465,12 @@ pub fn prepare_excitations_indices(
 pub fn new_excited_routine(
     f_occ: &Vec<f64>,
     molecule: &Molecule,
-    nstates: Option<usize>,
+    nstates: usize,
     s: &Array2<f64>,
     orbe: ArrayView1<f64>,
     orbs: ArrayView2<f64>,
+    gamma:ArrayView2<f64>,
+    gamma_lr:ArrayView2<f64>,
 ) {
     // set active orbitals first
     let active_occ: Vec<usize> = molecule.calculator.full_occ.clone().unwrap();
@@ -3224,15 +3478,15 @@ pub fn new_excited_routine(
     let n_occ: usize = active_occ.len();
     let n_virt: usize = active_virt.len();
     let n_at: usize = molecule.n_atoms;
+    let n_orb:usize = orbe.len();
 
     // check for selected number of excited states
-    let mut nstates: usize = nstates.unwrap_or(defaults::EXCITED_STATES);
-
     let (w_ij,get_ij,get_ia,get_ab):(Array1<f64>,Array2<usize>,Array2<usize>,Array2<usize>)
         = prepare_excitations_indices(n_occ,n_virt,orbe,f_occ);
 
     let win:Array1<usize> = Array::from(argsort(w_ij.view()));
     let w_ij:Array1<f64> = win.iter().map(|idx| { w_ij[*idx] }).collect();
+    let ia_trans:Array2<usize> = get_ov_from_indices(win.view(),get_ia.view(),get_ij.view(),get_ab.view(),n_orb);
 
     // let timer: Instant = Instant::now();
     // let (qtrans_ov, qtrans_oo, qtrans_vv): (Array3<f64>, Array3<f64>, Array3<f64>) = trans_charges(
@@ -3271,6 +3525,7 @@ pub fn new_excited_routine(
             .assign(&get_trans_charges_value(aa,bb,molecule.atom_start_orb_indices.view(),s_c.view(),orbs));
     }
 
+    let tmp:(Array1<f64>,Array2<f64>) = new_free_eigensolver(gamma,gamma_lr,qtrans_oo.view(),qtrans_vv.view(),qtrans_ov.view(),n_occ,n_virt,nstates,win.view(),get_ia.view(),w_ij.view(),f_occ,ia_trans.view());
 }
 
 pub fn get_index_ov(w_in:ArrayView1<usize>,index:usize,get_ia:ArrayView2<usize>)->(usize,usize){
@@ -3298,10 +3553,33 @@ pub fn get_index_vv(n_occ:usize,index:usize)->(usize,usize){
 pub fn get_vv_from_indices(n_occ:usize,ii:usize,jj:usize)->usize{
     let ii:usize = ii +1;
     let jj:usize = jj +1;
-    let n_occ:usize = n_occ +1;
+    let n_occ:usize = n_occ;
 
     let index:usize = (jj - n_occ) + ((ii - n_occ) -1) * (ii - n_occ) /2;
     return index-1;
+}
+
+pub fn get_ov_from_indices(win:ArrayView1<usize>,get_ia:ArrayView2<usize>,get_ij:ArrayView2<usize>,get_ab:ArrayView2<usize>,n_orb:usize)->Array2<usize>{
+    let mut ia_trans:Array2<usize> = Array2::zeros((n_orb,n_orb));
+    let nx_ov:usize = get_ia.dim().0;
+    let nx_oo:usize = get_ij.dim().0;
+    let nx_vv:usize = get_ab.dim().0;
+
+    for ia in (0..nx_ov){
+        ia_trans[[get_ia[[win[ia],0]],get_ia[[win[ia],1]]]] = ia;
+        ia_trans[[get_ia[[win[ia],1]],get_ia[[win[ia],0]]]] = ia;
+    }
+
+    for ij in (0..nx_oo){
+        ia_trans[[get_ij[[ij,0]],get_ij[[ij,1]]]] = ij;
+        ia_trans[[get_ij[[ij,1]],get_ij[[ij,0]]]] = ij;
+    }
+
+    for ab in (0..nx_vv){
+        ia_trans[[get_ab[[ab,0]],get_ab[[ab,1]]]] = ab;
+        ia_trans[[get_ab[[ab,1]],get_ab[[ab,0]]]] = ab;
+    }
+    return ia_trans;
 }
 
 pub fn wtdn(w_ij:ArrayView1<f64>,f_occ:&Vec<f64>,win:ArrayView1<usize>,subspace_dimension:usize,get_ia:ArrayView2<usize>)->Array1<f64>{
@@ -3313,6 +3591,389 @@ pub fn wtdn(w_ij:ArrayView1<f64>,f_occ:&Vec<f64>,win:ArrayView1<usize>,subspace_
         wn_ij[ia] = w_ij[ia] * docc_ij;
     }
     return wn_ij;
+}
+
+pub fn non_hermitian_davidson_new(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    qtrans_oo: ArrayView3<f64>,
+    qtrans_vv: ArrayView3<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    XmYguess: Option<ArrayView3<f64>>,
+    XpYguess: Option<ArrayView3<f64>>,
+    w_guess: Option<ArrayView1<f64>>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+    nstates: Option<usize>,
+    ifact: Option<usize>,
+    maxiter: Option<usize>,
+    conv: Option<f64>,
+    l2_treshold: Option<f64>,
+    lc: Option<usize>,
+) -> (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) {
+    // set values or defaults
+    let nstates: usize = nstates.unwrap_or(4);
+    let ifact: usize = ifact.unwrap_or(1);
+    let maxiter: usize = maxiter.unwrap_or(100);
+    let conv: f64 = conv.unwrap_or(1.0e-7);
+    let l2_treshold: f64 = l2_treshold.unwrap_or(0.5);
+    let lc: usize = lc.unwrap_or(1);
+
+    // at most there are nocc*nvirt excited states
+    let kmax = n_occ * n_virt;
+    // To achieve fast convergence the solution vectors from a nearby geometry
+    // should be used as initial expansion vectors
+
+    let lmax: usize = (ifact * nstates).min(kmax);
+    let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
+    bs = initial_expansion_vectors(omega.to_owned(), lmax);
+    let mut l_canon:Array2<f64> = Array::zeros((n_occ* n_virt, lmax));
+    let mut r_canon:Array2<f64> =Array::zeros((n_occ* n_virt, lmax));
+
+    let mut l: usize = lmax;
+    let k: usize = nstates;
+
+    let mut w: Array1<f64> = Array::zeros(lmax);
+    let mut Tb: Array2<f64> = Array::zeros((lmax, lmax));
+
+    let mut bp_old: Array3<f64> = bs.clone();
+    let mut bm_old: Array3<f64> = bs.clone();
+    let mut l_prev: usize = l;
+    let mut counter:usize = 0;
+
+    for it in 0..maxiter {
+        let lmax: usize = bs.dim().2;
+        println!("Iteration {}", it);
+        println!("counter {}",counter);
+        // println!("BS {}",bs.slice(s![0,5,..]));
+        let mut bp: Array3<f64> = Array3::zeros((n_occ, n_virt, l));
+        let mut bm: Array3<f64> = Array3::zeros((n_occ, n_virt, l));
+
+        // if counter < 1 {
+        //     bp = get_apbv_fortran(
+        //         &gamma,
+        //         &gamma_lr,
+        //         &qtrans_oo,
+        //         &qtrans_vv,
+        //         &qtrans_ov,
+        //         &omega,
+        //         &bs,
+        //         qtrans_ov.dim().0,
+        //         n_occ,
+        //         n_virt,
+        //         l,
+        //         multiplicity,
+        //         spin_couplings,
+        //     );
+        //     bm = get_ambv_fortran(
+        //         &gamma,
+        //         &gamma_lr,
+        //         &qtrans_oo,
+        //         &qtrans_vv,
+        //         &qtrans_ov,
+        //         &omega,
+        //         &bs,
+        //         qtrans_ov.dim().0,
+        //         n_occ,
+        //         n_virt,
+        //         l,
+        //     );
+        // }
+        // else {
+        //     let bp_new_vec: Array3<f64> = get_apbv_fortran(
+        //         &gamma,
+        //         &gamma_lr,
+        //         &qtrans_oo,
+        //         &qtrans_vv,
+        //         &qtrans_ov,
+        //         &omega,
+        //         &bs.slice(s![.., .., l_prev..l]).to_owned(),
+        //         qtrans_ov.dim().0,
+        //         n_occ,
+        //         n_virt,
+        //         (l-l_prev),
+        //         multiplicity,
+        //         spin_couplings,
+        //     );
+        //     bp.slice_mut(s![.., .., ..l_prev])
+        //         .assign(&bp_old.slice(s![.., .., ..l_prev]));
+        //     bp.slice_mut(s![.., .., l_prev..l])
+        //         .assign(&bp_new_vec);
+        //     let bm_new_vec: Array3<f64> = get_ambv_fortran(
+        //         &gamma,
+        //         &gamma_lr,
+        //         &qtrans_oo,
+        //         &qtrans_vv,
+        //         &qtrans_ov,
+        //         &omega,
+        //         &bs.slice(s![.., .., l_prev..l]).to_owned(),
+        //         qtrans_ov.dim().0,
+        //         n_occ,
+        //         n_virt,
+        //         (l-l_prev),
+        //     );
+        //     bm.slice_mut(s![.., .., ..l_prev])
+        //         .assign(&bm_old.slice(s![.., .., ..l_prev]));
+        //     bm.slice_mut(s![.., .., l_prev..l])
+        //         .assign(&bm_new_vec);
+        // }
+        if it < 2 {
+        bp = get_apbv_fortran(
+            &gamma,
+            &gamma_lr,
+            &qtrans_oo,
+            &qtrans_vv,
+            &qtrans_ov,
+            &omega,
+            &bs,
+            qtrans_ov.dim().0,
+            n_occ,
+            n_virt,
+            l,
+            multiplicity,
+            spin_couplings,
+        );
+        bm = get_ambv_fortran(
+            &gamma,
+            &gamma_lr,
+            &qtrans_oo,
+            &qtrans_vv,
+            &qtrans_ov,
+            &omega,
+            &bs,
+            qtrans_ov.dim().0,
+            n_occ,
+            n_virt,
+            l,
+        );
+        }
+        else {
+            let bp_new_vec: Array3<f64> = get_apbv_fortran(
+                &gamma,
+                &gamma_lr,
+                &qtrans_oo,
+                &qtrans_vv,
+                &qtrans_ov,
+                &omega,
+                &bs.slice(s![.., .., l - (3 * nstates)..l]).to_owned(),
+                qtrans_ov.dim().0,
+                n_occ,
+                n_virt,
+                (3 * nstates),
+                multiplicity,
+                spin_couplings,
+            );
+            bp.slice_mut(s![.., .., ..l - (3 * nstates)])
+                .assign(&bp_old.slice(s![.., .., ..l - (3 * nstates)]));
+            bp.slice_mut(s![.., .., l - (3 * nstates)..l])
+                .assign(&bp_new_vec);
+            bp.slice_mut(s![.., .., 0..nstates])
+                .assign(&(bp_old.slice(s![.., .., 0..nstates]).to_owned() * (-1.0)));
+            let bm_new_vec: Array3<f64> = get_ambv_fortran(
+                &gamma,
+                &gamma_lr,
+                &qtrans_oo,
+                &qtrans_vv,
+                &qtrans_ov,
+                &omega,
+                &bs.slice(s![.., .., l - (3 * nstates)..l]).to_owned(),
+                qtrans_ov.dim().0,
+                n_occ,
+                n_virt,
+                (3 * nstates),
+            );
+            bm.slice_mut(s![.., .., ..l - (3 * nstates)])
+                .assign(&bm_old.slice(s![.., .., ..l - (3 * nstates)]));
+            bm.slice_mut(s![.., .., l - (3 * nstates)..l])
+                .assign(&bm_new_vec);
+            bm.slice_mut(s![.., .., 0..nstates])
+                .assign(&(bm_old.slice(s![.., .., 0..nstates]).to_owned() * (-1.0)));
+        }
+
+        bp_old = bp.clone();
+        bm_old = bm.clone();
+
+        // # M^+ = (b_i, (A+B).b_j)
+        let mp: Array2<f64> = tensordot(&bs, &bp, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+        // # M^- = (b_i, (A-B).b_j)
+        let mm: Array2<f64> = tensordot(&bs, &bm, &[Axis(0), Axis(1)], &[Axis(0), Axis(1)])
+            .into_dimensionality::<Ix2>()
+            .unwrap();
+        let mmsq: Array2<f64> = mm.ssqrt(UPLO::Upper).unwrap();
+
+        // # Mh is the analog of (A-B)^(1/2).(A+B).(A-B)^(1/2)
+        // # in the reduced subspace spanned by the expansion vectors bs
+        let mh: Array2<f64> = mmsq.dot(&mp.dot(&mmsq));
+
+        let tmp: (Array1<f64>, Array2<f64>) = mh.eigh(UPLO::Upper).unwrap();
+        let w2: Array1<f64> = tmp.0;
+        Tb = tmp.1;
+        w = w2.mapv(f64::sqrt);
+        let wsq: Array1<f64> = w.mapv(f64::sqrt);
+
+        println!("w {}",w.slice(s![0..nstates]));
+        // approximate right R = (X+Y) and left L = (X-Y) eigenvectors
+        // in the basis bs
+        // (X+Y) = (A-B)^(1/2).T / sqrt(w)
+        let mut rb: Array2<f64> = mmsq.dot(&Tb)/&wsq;
+        // L = (X-Y) = 1/w * (A+B).(X+Y)
+        let mut lb: Array2<f64> = mp.dot(&rb) /&w;
+
+        // for ii in (0..nstates){
+        //     rb.slice_mut(s![..,ii]).div_assign(&wsq);
+        //     lb.slice_mut(s![..,ii]).mul_assign(&wsq);
+        // }
+
+        // Calculate the residual vectors
+        l_canon = bs.view().into_shape((kmax,l)).unwrap().dot(&lb);
+        r_canon = bs.view().into_shape((kmax,l)).unwrap().dot(&rb);
+        l_canon = -l_canon * &w;
+        r_canon = -r_canon * &w;
+
+        let wl:Array2<f64> = bm.into_shape((kmax,l)).unwrap().dot(&lb) + &r_canon;
+        let wr:Array2<f64> = bp.into_shape((kmax,l)).unwrap().dot(&rb) + &l_canon;
+
+        //norms
+        let mut norms: Array1<f64> = Array::zeros(k);
+        let mut norms_l: Array1<f64> = Array::zeros(k);
+        let mut norms_r: Array1<f64> = Array::zeros(k);
+        for i in 0..k {
+            norms_l[i] = wl.slice(s![..,i]).dot(&wl.slice(s![..,i]));
+            norms_r[i] = wr.slice(s![..,i]).dot(&wr.slice(s![..,i]));
+            norms[i] = norms_l[i] + norms_r[i];
+        }
+        // check for convergence
+        let indices_norms: Array1<usize> = norms
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item < conv { Some(index) } else { None })
+            .collect();
+        println!("Norms davidson {}", norms);
+        if indices_norms.len() == norms.len() && it > 0 {
+            break;
+        }
+
+        //  enlarge dimension of subspace by dk vectors
+        //  At most 2*k new expansion vectors are added
+        let dkmax = (kmax - l).min(2 * k);
+        // # count number of non-converged vectors
+        // # residual vectors that are zero cannot be used as new expansion vectors
+        // 1.0e-16
+        let eps = 0.01 * conv;
+
+        let indices_norm_r_over_eps: Array1<usize> = norms_r
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
+            .collect();
+        let indices_norm_l_over_eps: Array1<usize> = norms_l
+            .indexed_iter()
+            .filter_map(|(index, &item)| if item > eps { Some(index) } else { None })
+            .collect();
+
+        let nc_l: usize = indices_norm_r_over_eps.len();
+        let nc_r: usize = indices_norm_l_over_eps.len();
+        // Half the new expansion vectors should come from the left residual vectors
+        // the other half from the right residual vectors.
+        let dk_r: usize = ((dkmax as f64 / 2.0) as usize).min(nc_l);
+        let dk_l: usize = (dkmax - dk_r).min(nc_r);
+        let dk: usize = dk_r + dk_l;
+
+        let mut Qs: Array3<f64> = Array::zeros((n_occ, n_virt, dk));
+        let mut nb: usize = 0;
+        // select new expansion vectors among the non-converged left residual vectors
+        for i in 0..k {
+            if nb == dk {
+                //got enough new expansion vectors
+                break;
+            }
+            let wD: Array2<f64> = w[i] - &omega.to_owned();
+            // quite the ugly method in order to reproduce
+            // indx = abs(wD) < 1.0e-6
+            // wD[indx] = 1.0e-6 * omega[indx]
+            // from numpy
+            let temp: Array2<f64> = wD.map(|wD| if wD < &1.0e-6 { 1.0e-6 } else { 0.0 });
+            let temp_2: Array2<f64> = wD.map(|&wD| if wD < 1.0e-6 { 0.0 } else { wD });
+            let mut wD_new: Array2<f64> = &temp * &omega.to_owned();
+
+            wD_new = wD_new + temp_2;
+            if norms_l[i] > eps {
+                Qs.slice_mut(s![.., .., nb])
+                    .assign(&((1.0 / &wD_new) * wl.slice(s![.., i]).as_standard_layout().into_shape((n_occ,n_virt)).unwrap()));
+                nb += 1;
+            }
+        }
+
+        for i in 0..k {
+            if nb == dk {
+                //got enough new expansion vectors
+                break;
+            }
+            let wD: Array2<f64> = w[i] - &omega.to_owned();
+            // quite the ugly method in order to reproduce
+            // indx = abs(wD) < 1.0e-6
+            // wD[indx] = 1.0e-6 * omega[indx]
+            // from numpy
+            let temp: Array2<f64> = wD.map(|wD| if wD < &1.0e-6 { 1.0e-6 } else { 0.0 });
+            let temp_2: Array2<f64> = wD.map(|&wD| if wD < 1.0e-6 { 0.0 } else { wD });
+            let mut wD_new: Array2<f64> = &temp * &omega.to_owned();
+            wD_new = wD_new + temp_2;
+            if norms_r[i] > eps {
+                Qs.slice_mut(s![.., .., nb])
+                    .assign(&((1.0 / &wD_new) *  wr.slice(s![.., i]).as_standard_layout().into_shape((n_occ,n_virt)).unwrap()));
+                nb += 1;
+            }
+        }
+        l_prev = l;
+        // new expansion vectors are bs + Qs
+        // if (l+dk) > 100{
+        //     let mut bs_new: Array2<f64> = Array::zeros((kmax, nstates));
+        //     bs_new = bs.into_shape((kmax,l)).unwrap().dot(&Tb.slice(s![..,..nstates]));
+        //     bs = bs_new.into_shape((n_occ,n_virt,nstates)).unwrap();
+        //     l = bs.dim().2;
+        //     l_prev = 0;
+        //
+        //     counter = 0;
+        // }
+        // else{
+        let mut bs_new: Array3<f64> = Array::zeros((n_occ, n_virt, l + dk));
+        bs_new.slice_mut(s![.., .., ..l]).assign(&bs);
+        bs_new.slice_mut(s![.., .., l..]).assign(&Qs);
+
+        //QR decomposition
+        let nvec: usize = l + dk;
+        let bs_flat: Array2<f64> = bs_new.into_shape((n_occ * n_virt, nvec)).unwrap();
+        let (Q, R): (Array2<f64>, Array2<f64>) = bs_flat.qr().unwrap();
+        bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
+        l = bs.dim().2;
+        println!("new subspace {}",l);
+        counter +=1;
+        // }
+        println!(" ");
+    }
+    println!("Iteration is over");
+    let mut Omega: Vec<f64> = w.to_vec();
+    Omega.sort_by(|&i, &j| i.partial_cmp(&j).unwrap());
+    let Omega: Array1<f64> = Array::from(Omega).slice(s![..k]).to_owned();
+    let mut XpY: Array3<f64> = r_canon.slice(s![..,..k]).as_standard_layout().into_shape((n_occ,n_virt,k)).unwrap().to_owned();
+    let mut XmY: Array3<f64> = l_canon.slice(s![..,..k]).as_standard_layout().into_shape((n_occ,n_virt,k)).unwrap().to_owned();
+    println!("Iteration is over");
+    let t_matrix: Array3<f64> = tensordot(&bs, &Tb, &[Axis(2)], &[Axis(0)])
+        .into_dimensionality::<Ix3>()
+        .unwrap();
+    let mut c_matrix: Array3<f64> = t_matrix.slice(s![.., .., ..k]).to_owned();
+    println!("Test123");
+    XpY.swap_axes(1, 2);
+    XpY.swap_axes(0, 1);
+    XmY.swap_axes(1, 2);
+    XmY.swap_axes(0, 1);
+    c_matrix.swap_axes(1, 2);
+    c_matrix.swap_axes(0, 1);
+    println!("Test123");
+    return (Omega, c_matrix, XmY, XpY);
 }
 
 #[test]
