@@ -186,15 +186,15 @@ fn main() {
             println!("eigenvalues {}",tmp.0.slice(s![0..6]));
             drop(excited_timer);
 
-            // let gradients_timer: Instant = Instant::now();
-            // let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
-            //     Array1<f64>,
-            //     Array1<f64>,
-            //     Array1<f64>,
-            //     Array3<f64>,
-            // ) = get_gradients(&orbe, &orbs, &s, &mut mol, &Some(tmp.2), &Some(tmp.3), Some(1), &Some(tmp.0), None);
-            // println!("{:>68} {:>8.6} s","elapsed time gradients:",gradients_timer.elapsed().as_secs_f32());
-            // drop(gradients_timer);
+            let gradients_timer: Instant = Instant::now();
+            let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+                Array1<f64>,
+                Array1<f64>,
+                Array1<f64>,
+                Array3<f64>,
+            ) = get_gradients(&orbe, &orbs, &s, &mut mol, &Some(tmp.2), &Some(tmp.3), Some(1), &Some(tmp.0), None,&f);
+            println!("{:>68} {:>8.6} s","elapsed time gradients:",gradients_timer.elapsed().as_secs_f32());
+            drop(gradients_timer);
             0
         }
         // "unrestricted" => {

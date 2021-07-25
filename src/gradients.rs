@@ -115,6 +115,7 @@ pub fn get_gradients(
     exc_state: Option<usize>,
     omega: &Option<Array1<f64>>,
     old_z_vec: Option<Array3<f64>>,
+    f_occ:&Vec<f64>,
 ) -> (Array1<f64>, Array1<f64>, Array1<f64>, Array3<f64>) {
     info!("{:^80}", "");
     info!("{:^80}", "Calculating analytic gradient");
@@ -190,13 +191,13 @@ pub fn get_gradients(
 
         println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
         drop(gs_timer);
-        let gs_timer: Instant = Instant::now();
-
-        let tmp = ground_state_gradients(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
-
-        println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
-        drop(gs_timer);
-        assert!(1==2);
+        // let gs_timer: Instant = Instant::now();
+        //
+        // let tmp = ground_state_gradients(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
+        //
+        // println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
+        // drop(gs_timer);
+        // assert!(1==2);
 
         // set values for return of the gradients
         grad_e0 = gradE0;
@@ -238,6 +239,46 @@ pub fn get_gradients(
             }
             //check for lc correction
             if r_lr > 0.0 {
+                //let omega_2: Array2<f64> = get_orbital_en_diff(
+                //    orbe.view(),
+                //    n_occ,
+                //    n_virt,
+                //    &full_occ[..],
+                //    &full_virt[..],
+                //);
+                //// get df
+                //// occupation differences between occupied and virtual Kohn-Sham orbitals
+                //let df: Array2<f64> = get_orbital_occ_diff(
+                //    Array::from(f_occ.clone()).view(),
+                //    n_occ,
+                //    n_virt,
+                //    &full_occ[..],
+                //    &full_virt[..],
+                //);
+                //let A: Array2<f64> = build_a_matrix(
+                //    molecule.g0.view(),
+                //    molecule.g0_lr.view(),
+                //    qtrans_ov.view(),
+                //    qtrans_oo.view(),
+                //    qtrans_vv.view(),
+                //    omega_2.view(),
+                //    df.view(),
+                //    molecule.multiplicity,
+                //    molecule.calculator.spin_couplings.view(),
+                //);
+                //let B: Array2<f64> = build_b_matrix(
+                //    molecule.g0.view(),
+                //    molecule.g0_lr.view(),
+                //    qtrans_ov.view(),
+                //    qtrans_oo.view(),
+                //    qtrans_vv.view(),
+                //    omega_2.view(),
+                //    df.view(),
+                //    molecule.multiplicity,
+                //    molecule.calculator.spin_couplings.view(),
+                //);
+                //let apb:Array2<f64> = A+B;
+
                 let tmp: (Array1<f64>, Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
                     (&molecule.g0).view(),
@@ -267,6 +308,9 @@ pub fn get_gradients(
                     molecule.calculator.spin_couplings.view(),
                     None,
                     old_z_vec,
+                    //orbe.view(),
+                    //f_occ,
+                    //Some(apb),
                 );
                 grad_ex = tmp.0;
                 new_z_vec = tmp.1;
@@ -335,16 +379,16 @@ pub fn get_gradients(
 
         println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
         drop(gs_timer);
-        let gs_timer: Instant = Instant::now();
-
-        let tmp = ground_state_gradients(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
-
-        println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
-        drop(gs_timer);
-
-        println!("old gradients {}",(&gradE0+&grad_v_rep).slice(s![0..8]));
-        println!("new gradients {}",tmp.slice(s![0..8]));
-        assert!(1==2);
+        // let gs_timer: Instant = Instant::now();
+        //
+        // let tmp = ground_state_gradients(molecule, &orbe_occ, &orbe_virt, &orbs_occ, s, Some(r_lr));
+        //
+        // println!("gs gradients time: {:>8.8} s",gs_timer.elapsed().as_secs_f32());
+        // drop(gs_timer);
+        //
+        // println!("old gradients {}",(&gradE0+&grad_v_rep).slice(s![0..8]));
+        // println!("new gradients {}",tmp.slice(s![0..8]));
+        // assert!(1==2);
 
         // set values for return of the gradients
         grad_e0 = gradE0;
@@ -367,6 +411,46 @@ pub fn get_gradients(
                 );
 
             if r_lr > 0.0 {
+                //let omega_2: Array2<f64> = get_orbital_en_diff(
+                //    orbe.view(),
+                //    n_occ,
+                //    n_virt,
+                //    &full_occ[..],
+                //    &full_virt[..],
+                //);
+                //// get df
+                //// occupation differences between occupied and virtual Kohn-Sham orbitals
+                //let df: Array2<f64> = get_orbital_occ_diff(
+                //    Array::from(f_occ.clone()).view(),
+                //    n_occ,
+                //    n_virt,
+                //    &full_occ[..],
+                //    &full_virt[..],
+                //);
+                //let A: Array2<f64> = build_a_matrix(
+                //    molecule.g0.view(),
+                //    molecule.g0_lr.view(),
+                //    qtrans_ov.view(),
+                //    qtrans_oo.view(),
+                //    qtrans_vv.view(),
+                //    omega_2.view(),
+                //    df.view(),
+                //    molecule.multiplicity,
+                //    molecule.calculator.spin_couplings.view(),
+                //);
+                //let B: Array2<f64> = build_b_matrix(
+                //    molecule.g0.view(),
+                //    molecule.g0_lr.view(),
+                //    qtrans_ov.view(),
+                //    qtrans_oo.view(),
+                //    qtrans_vv.view(),
+                //    omega_2.view(),
+                //    df.view(),
+                //    molecule.multiplicity,
+                //    molecule.calculator.spin_couplings.view(),
+                //);
+                //let apb:Array2<f64> = A+B;
+
                 println!("Before excited gradients lc!");
                 let tmp: (Array1<f64>, Array3<f64>) = gradients_lc_ex(
                     exc_state.unwrap(),
@@ -397,6 +481,9 @@ pub fn get_gradients(
                     molecule.calculator.spin_couplings.view(),
                     None,
                     old_z_vec,
+                    //orbe.view(),
+                    //f_occ,
+                    //Some(apb),
                 );
                 grad_ex = tmp.0;
                 new_z_vec = tmp.1;
@@ -1363,6 +1450,9 @@ pub fn gradients_lc_ex(
     spin_couplings: ArrayView1<f64>,
     check_z_vec: Option<usize>,
     old_z_vec: Option<Array3<f64>>,
+    //orbe:ArrayView1<f64>,
+    //f_occ:&Vec<f64>,
+    //apb_matrix:Option<Array2<f64>>,
 ) -> (Array1<f64>, Array3<f64>) {
     let grad_timer = Instant::now();
 
@@ -1545,14 +1635,6 @@ pub fn gradients_lc_ex(
     //q_ab
     let q_ab: Array2<f64> = omega_state * u_ab + v_ab;
 
-    info!(
-        "{:>68} {:>8.2} s",
-        "elapsed time for tensor dots in excited gradients:",
-        grad_timer.elapsed().as_secs_f32()
-    );
-    drop(grad_timer);
-    let grad_timer = Instant::now();
-
     // right hand side
     let r_ia: Array2<f64> = &q_ai.t() - &q_ia;
     // solve z-vector equation
@@ -1573,10 +1655,24 @@ pub fn gradients_lc_ex(
         - into_col(orbe_occ.clone()).dot(&into_row(Array::ones(orbe_virt.len())));
     let b_matrix_input: Array3<f64> = r_ia.clone().into_shape((n_occ, n_virt, 1)).unwrap();
 
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time for tensor dots in excited gradients:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
+    let r_ia_flat: Array1<f64> = r_ia.t().to_owned_f().into_shape((n_occ * n_virt)).unwrap();
+    //let apb_mat:Array2<f64> = apb_matrix.unwrap();
+    //let real_z:Array1<f64> = apb_mat.solve(&r_ia.clone().into_shape(n_occ*n_virt).unwrap()).unwrap();
+    //let real_z_t:Array1<f64> = apb_mat.solve(&r_ia_flat).unwrap();
+    let b_matrix_input_2:Array3<f64> = r_ia_flat.into_shape((n_occ,n_virt,1)).unwrap();
+
     let z_ia: Array3<f64> = krylov_solver_zvector(
         omega_input.view(),
         b_matrix_input.view(),
-        old_z_vec,
+        old_z_vec.clone(),
         None,
         None,
         g0,
@@ -1588,11 +1684,41 @@ pub fn gradients_lc_ex(
         multiplicity,
         spin_couplings,
     );
-    let z_ia_transformed: Array2<f64> = z_ia.clone().into_shape((n_occ, n_virt)).unwrap();
 
     info!(
         "{:>68} {:>8.2} s",
-        "elapsed time for krylov z vector:",
+        "elapsed time for z_vector hermitian like:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
+    let z_ia_new: Array2<f64> = krylov_solver_zvector_test(
+        omega_input.view(),
+        b_matrix_input_2.view(),
+        old_z_vec,
+        None,
+        None,
+        g0,
+        Some(g0lr),
+        Some(qtrans_oo),
+        Some(qtrans_vv),
+        qtrans_ov,
+        1,
+        multiplicity,
+        spin_couplings,
+        //orbe,
+        //f_occ
+    );
+    let z_ia_transformed: Array2<f64> = z_ia.clone().into_shape((n_occ, n_virt)).unwrap();
+    //println!("Real z mat {}",real_z.into_shape((n_occ,n_virt)).unwrap());
+    //println!("Real z mat transposed R {}",real_z_t.into_shape((n_occ,n_virt)).unwrap());
+    println!("z_ia {}",z_ia_transformed);
+    println!("new z {}",z_ia_new);
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time for z_vector CG-like:",
         grad_timer.elapsed().as_secs_f32()
     );
     drop(grad_timer);
@@ -1651,12 +1777,14 @@ pub fn gradients_lc_ex(
         // solve for Z
         let z_matrix: Array1<f64> = apb_transformed.solve(&r_ia_flat).unwrap();
         let z_ia_full: Array2<f64> = z_matrix.into_shape((n_occ, n_virt)).unwrap();
+        println!("z ia full {}",z_ia_full);
 
         // compare with iterative solution
         let z_diff: Array2<f64> = z_ia_transformed.clone() - z_ia_full;
         let err: f64 = z_diff.mapv(|z_diff| z_diff.abs()).sum();
         assert!(err < 1e-10);
     }
+    // assert!(1 == 2);
     let grad_timer = Instant::now();
 
     // build w
@@ -1738,6 +1866,14 @@ pub fn gradients_lc_ex(
     let mut gradExc: Array1<f64> = Array::zeros(3 * n_at);
     let f: Array3<f64> = f_v_new(XpY_ao.view(), s, grad_s, g0_ao, g1_ao, n_at, n_orb);
 
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time ao transformations and f_v function:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
     let flr_p = f_lr_new(
         (&XpY_ao + &XpY_ao.t()).view(),
         s,
@@ -1756,6 +1892,15 @@ pub fn gradients_lc_ex(
         n_at,
         n_orb,
     );
+
+    info!(
+        "{:>68} {:>8.2} s",
+        "elapsed time ao f_lr functions:",
+        grad_timer.elapsed().as_secs_f32()
+    );
+    drop(grad_timer);
+    let grad_timer = Instant::now();
+
     gradExc = gradExc
         + tensordot(
             &grad_h,
@@ -11871,42 +12016,41 @@ fn exc_gradient_lc_routine() {
         ]
     ];
 
-    let (gradEx_test, old_z_vec): (Array1<f64>, Array3<f64>) = gradients_lc_ex(
-        1,
-        gamma0.view(),
-        gamma1.view(),
-        gamma0_AO.view(),
-        gamma1_AO.view(),
-        gamma0_lr.view(),
-        gamma1_lr.view(),
-        gamma0_lr_ao.view(),
-        gamma1_lr_ao.view(),
-        S.view(),
-        gradS.view(),
-        gradH0.view(),
-        XmY.view(),
-        XpY.view(),
-        omega.view(),
-        qtrans_oo.view(),
-        qtrans_vv.view(),
-        qtrans_ov.view(),
-        orbe_occ,
-        orbe_virt,
-        orbs_occ.view(),
-        orbs_virt.view(),
-        FDmD0.view(),
-        FlrDmD0.view(),
-        mol.multiplicity,
-        mol.calculator.spin_couplings.view(),
-        Some(1),
-        None,
-    );
-
-    println!("gradEx_result {}", gradEx_test);
-    println!("gradEx_ref {}", gradExc);
-    assert!(gradEx_test.abs_diff_eq(&gradExc, 1e-14));
-
-    assert!(1 == 2);
+    // let (gradEx_test, old_z_vec): (Array1<f64>, Array3<f64>) = gradients_lc_ex(
+    //     1,
+    //     gamma0.view(),
+    //     gamma1.view(),
+    //     gamma0_AO.view(),
+    //     gamma1_AO.view(),
+    //     gamma0_lr.view(),
+    //     gamma1_lr.view(),
+    //     gamma0_lr_ao.view(),
+    //     gamma1_lr_ao.view(),
+    //     S.view(),
+    //     gradS.view(),
+    //     gradH0.view(),
+    //     XmY.view(),
+    //     XpY.view(),
+    //     omega.view(),
+    //     qtrans_oo.view(),
+    //     qtrans_vv.view(),
+    //     qtrans_ov.view(),
+    //     orbe_occ,
+    //     orbe_virt,
+    //     orbs_occ.view(),
+    //     orbs_virt.view(),
+    //     FDmD0.view(),
+    //     FlrDmD0.view(),
+    //     mol.multiplicity,
+    //     mol.calculator.spin_couplings.view(),
+    //     Some(1),
+    //     None,
+    // );
+//
+    // println!("gradEx_result {}", gradEx_test);
+    // println!("gradEx_ref {}", gradExc);
+    // assert!(gradEx_test.abs_diff_eq(&gradExc, 1e-14));
+    // assert!(1 == 2);
 }
 #[test]
 pub fn test_new_flr() {

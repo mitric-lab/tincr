@@ -19,7 +19,7 @@ use std::ops::{AddAssign, DivAssign, MulAssign};
 use std::time::Instant;
 use ndarray_linalg::krylov::arnoldi_mgs;
 use ndarray_linalg::lobpcg::LobpcgResult;
-use eigenvalues::{Davidson,SpectrumTarget,DavidsonCorrection};
+//use eigenvalues::{Davidson,SpectrumTarget,DavidsonCorrection};
 
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
@@ -2703,6 +2703,9 @@ pub fn krylov_solver_zvector(
 
     for it in 0..maxiter {
         // representation of A in the basis of expansion vectors
+        println!("iteration {}",it);
+        let z_timer = Instant::now();
+
         let mut temp: Array3<f64> = Array3::zeros((n_occ, n_virt, l));
         if it == 0 {
             // temp = get_apbv(
@@ -2796,6 +2799,12 @@ pub fn krylov_solver_zvector(
             temp.slice_mut(s![.., .., ..l - 1]).assign(&temp_old);
             temp.slice_mut(s![.., .., l - 2..l]).assign(&temp_new_vec);
         }
+        println!(
+            "{:>68} {:>8.8} s",
+            "elapsed time apbv:",
+            z_timer.elapsed().as_secs_f32());
+        drop(z_timer);
+        let z_timer = Instant::now();
         // let temp:Array3<f64> = get_apbv(
         //         &g0,
         //         &g0_lr,
@@ -2842,6 +2851,13 @@ pub fn krylov_solver_zvector(
             .into_dimensionality::<Ix2>()
             .unwrap();
 
+        println!(
+        "{:>68} {:>8.8} s",
+        "elapsed time until solve:",
+        z_timer.elapsed().as_secs_f32());
+        drop(z_timer);
+        let z_timer = Instant::now();
+
         // solve
         let mut x_b: Array2<f64> = Array2::zeros((k, l));
         for i in 0..k {
@@ -2849,6 +2865,13 @@ pub fn krylov_solver_zvector(
                 .assign((&a_b.solve(&b_b.slice(s![.., i])).unwrap()));
         }
         x_b = x_b.reversed_axes();
+
+        println!(
+            "{:>68} {:>8.8} s",
+            "elapsed time solve:",
+            z_timer.elapsed().as_secs_f32());
+        drop(z_timer);
+        let z_timer = Instant::now();
 
         // transform solution vector back into canonical basis
         x_matrix = tensordot(&bs, &x_b, &[Axis(2)], &[Axis(0)])
@@ -2887,6 +2910,12 @@ pub fn krylov_solver_zvector(
             );
         }
         w_res = &w_res - &b_matrix;
+        println!(
+            "{:>68} {:>8.8} s",
+            "elapsed time residuals:",
+            z_timer.elapsed().as_secs_f32());
+        drop(z_timer);
+        let z_timer = Instant::now();
         // let w_res: Array3<f64> = &get_apbv(
         //     &g0,
         //     &g0_lr,
@@ -2904,6 +2933,7 @@ pub fn krylov_solver_zvector(
         for i in 0..k {
             norms[i] = norm_special(&w_res.slice(s![.., .., i]).to_owned());
         }
+        println!("norms z_vector {}",norms);
         // check if all values of the norms are under the convergence criteria
         let indices_norms: Array1<usize> = norms
             .indexed_iter()
@@ -2960,7 +2990,164 @@ pub fn krylov_solver_zvector(
         let (Q, R): (Array2<f64>, Array2<f64>) = bs_flat.qr().unwrap();
         bs = Q.into_shape((n_occ, n_virt, nvec)).unwrap();
         l = bs.dim().2;
+        println!("new subspace {}",l);
+        println!(
+            "{:>68} {:>8.8} s",
+            "elapsed time norms + expansion of subspace:",
+            z_timer.elapsed().as_secs_f32());
+        drop(z_timer);
     }
+    return x_matrix;
+}
+
+pub fn krylov_solver_zvector_test(
+    a_diag: ArrayView2<f64>,
+    b_matrix: ArrayView3<f64>,
+    x_0: Option<Array3<f64>>,
+    maxiter: Option<usize>,
+    conv: Option<f64>,
+    g0: ArrayView2<f64>,
+    g0_lr: Option<ArrayView2<f64>>,
+    qtrans_oo: Option<ArrayView3<f64>>,
+    qtrans_vv: Option<ArrayView3<f64>>,
+    qtrans_ov: ArrayView3<f64>,
+    lc: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+    //orbe:ArrayView1<f64>,
+    //f_occ:&Vec<f64>,
+) -> (Array2<f64>) {
+    // Parameters:
+    // ===========
+    // A: linear operator, such that A(X) = A.X
+    // Adiag: diagonal elements of A-matrix, with dimension (nocc,nvirt)
+    // B: right hand side of equation, (nocc,nvirt, k)
+    // X0: initial guess vectors or None
+
+    let maxiter: usize = maxiter.unwrap_or(10000);
+
+    let n_occ: usize = b_matrix.dim().0;
+    let n_virt: usize = b_matrix.dim().1;
+    let k: usize = b_matrix.dim().2;
+    let kmax: usize = n_occ * n_virt;
+    let mut l: usize = k;
+
+    // bs are expansion vectors
+    let a_inv: Array2<f64> = 1.0 / &a_diag.to_owned();
+    let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, k));
+
+    if x_0.is_none() {
+        for i in 0..k {
+            bs.slice_mut(s![.., .., i])
+                .assign(&(&a_inv * &b_matrix.slice(s![.., .., i])));
+        }
+    } else {
+        bs = x_0.unwrap();
+    }
+
+    let mut rhs_2: Array1<f64> = Array::zeros((kmax));
+    let mut rkm1: Array1<f64> = Array::zeros((kmax));
+    let mut pkm1: Array1<f64> = Array::zeros((kmax));
+    let rhs:Array1<f64> = b_matrix.into_shape(kmax).unwrap().to_owned();
+    let g0_lr:Array2<f64> = g0_lr.clone().unwrap().to_owned();
+
+    //let n_at:usize = qtrans_ov.dim().0;
+    //let oo_dim:usize = qtrans_oo.unwrap().dim().1 * qtrans_oo.unwrap().dim().2;
+    //let vv_dim:usize = n_virt * n_virt;
+    // let (w_ij,get_ij,get_ia,get_ab):(Array1<f64>,Array2<usize>,Array2<usize>,Array2<usize>)
+    //     = prepare_excitations_indices(n_occ,n_virt,orbe,f_occ);
+    // let win:Array1<usize> = Array::from(argsort(w_ij.view()));
+    // let w_ij:Array1<f64> = win.iter().map(|idx| { w_ij[*idx] }).collect();
+    // let qtrans_ov_2d:Array2<f64> = qtrans_ov.clone().into_shape((n_at,kmax)).unwrap().to_owned();
+    // let qtrans_oo_2d:Array2<f64> = qtrans_oo.unwrap().clone().into_shape((n_at,oo_dim)).unwrap().to_owned();
+    // let qtrans_vv_2d:Array2<f64> = qtrans_vv.unwrap().clone().into_shape((n_at,vv_dim)).unwrap().to_owned();
+    // for ia in (0..kmax){
+    //     let (i,a):(usize,usize) = get_index_ov(win.view(),ia,get_ia.view());
+    //     let mut rs:f64 = 4.0 * qtrans_ov_2d.slice(s![..,ia]).dot(&g0.dot(&qtrans_ov_2d.slice(s![..,ia]))) + w_ij[ia];
+    //     rs = rs - qtrans_ov_2d.slice(s![..,ia]).dot(&g0_lr.dot(&qtrans_ov_2d.slice(s![..,ia])));
+    //
+    //     let ii:usize = i + (i+1) * i /2;
+    //     let temp_arr:Array1<f64> = g0_lr.dot(&qtrans_oo_2d.slice(s![..,ii]));
+    //     let aa:usize = get_vv_from_indices(n_occ,a,a);
+    //     rs = rs - temp_arr.dot(&qtrans_vv_2d.slice(s![..,aa]));
+    //     rhs_2[ia] = rhs[ia] / rs
+    // }
+    // let temp:Array3<f64> = get_apbv_fortran(
+    //     &g0,
+    //     &g0_lr.view(),
+    //     &qtrans_oo.clone().unwrap(),
+    //     &qtrans_vv.clone().unwrap(),
+    //     &qtrans_ov,
+    //     &a_diag,
+    //     &rhs_2.clone().into_shape((n_occ,n_virt,1)).unwrap(),
+    //     qtrans_ov.dim().0,
+    //     n_occ,
+    //     n_virt,
+    //     l,
+    //     multiplicity,
+    //     spin_couplings,
+    // );
+    let temp:Array3<f64> = get_apbv_fortran(
+        &g0,
+        &g0_lr.view(),
+        &qtrans_oo.clone().unwrap(),
+        &qtrans_vv.clone().unwrap(),
+        &qtrans_ov,
+        &a_diag,
+        &bs,
+        qtrans_ov.dim().0,
+        n_occ,
+        n_virt,
+        l,
+        multiplicity,
+        spin_couplings,
+    );
+
+    rkm1 = temp.into_shape(kmax).unwrap();
+    rhs_2 = bs.into_shape((kmax)).unwrap();
+    rkm1 = rhs - rkm1;
+    pkm1 = rkm1.clone();
+
+    for it in 0..maxiter {
+        // representation of A in the basis of expansion vectors
+        println!("iteration {}",it);
+
+        let temp:Array3<f64> = get_apbv_fortran(
+            &g0,
+            &g0_lr.view(),
+            &qtrans_oo.clone().unwrap(),
+            &qtrans_vv.clone().unwrap(),
+            &qtrans_ov,
+            &a_diag,
+            &pkm1.clone().into_shape((n_occ,n_virt,1)).unwrap(),
+            qtrans_ov.dim().0,
+            n_occ,
+            n_virt,
+            l,
+            multiplicity,
+            spin_couplings,
+        );
+
+        let apk:Array1<f64> = temp.into_shape((kmax)).unwrap();
+
+        let tmp1:f64 = rkm1.dot(&rkm1);
+        let tmp2:f64 = pkm1.dot(&apk);
+
+        rhs_2 = rhs_2 + (tmp1/tmp2) * &pkm1;
+        rkm1 = rkm1 - (tmp1/tmp2) * &apk;
+
+        let tmp2:f64 = rkm1.dot(&rkm1);
+        println!("residual {}",tmp2);
+
+        if tmp2 <= 1.0e-16{
+            break;
+        }
+
+        pkm1 = (tmp2/tmp1) * &pkm1 + &rkm1;
+
+    }
+    let x_matrix:Array2<f64> = rhs_2.into_shape((n_occ,n_virt)).unwrap();
+
     return x_matrix;
 }
 
