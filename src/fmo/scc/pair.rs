@@ -108,11 +108,14 @@ impl Pair {
         // if this is the first SCC calculation the charge will be taken from the corresponding
         // monomers
         if !self.properties.contains_key("dq") {
-            self.properties.set_dq(stack![
-                Axis(0),
-                m1.properties.dq().unwrap(),
-                m2.properties.dq().unwrap()
-            ]);
+            // self.properties.set_dq(stack![
+            //     Axis(0),
+            //     m1.properties.dq().unwrap(),
+            //     m2.properties.dq().unwrap()
+            // ]);
+            let mut dq:Array1<f64> = m1.properties.dq().unwrap().to_owned();
+            dq.append(Axis(0),m2.properties.dq().unwrap());
+            self.properties.set_dq(dq);
         }
 
         // this is also only needed in the first SCC calculation

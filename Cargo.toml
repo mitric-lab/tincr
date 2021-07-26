@@ -11,10 +11,10 @@ edition = "2018"
 
 [dependencies]
 chemfiles = "0.10"
-ndarray = {version = "0.13", features = ["serde-1", "approx", "rayon"]}
+ndarray = {version = "0.15.3", features = ["serde-1", "approx", "rayon"]}
 approx = "0.3.2"
-ndarray-linalg = { version = "0.12.1", features = ["intel-mkl"]}
-ndarray-stats = "0.3"
+ndarray-linalg = { version = "0.14", features = ["intel-mkl"]}
+ndarray-stats = "0.5"
 phf = { version = "0.8.0", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -25,7 +25,7 @@ peroxide = {version = "0.27.0", features = ["serde"]}
 itertools = "0.9"
 libm = "0.2.1"
 bspline = "0.2.3"
-rusty-fitpack = { path = "/Users/hochej/rusty_dierckx" }
+rusty-fitpack = { path = "/home/einseler/software/Rusty-FITPACK" }
 ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
 nalgebra = "0.26.1"
