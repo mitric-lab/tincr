@@ -1,9 +1,11 @@
-use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, ArrayView3, Axis, Ix2, Ix3, Ix4};
-use rayon::{into_par_iter};
-use rayon::prelude::IntoParallelIterator;
+use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, ArrayView3, Axis, Ix2, Ix3, Ix4,s};
+use rayon::iter::*;
 use std::collections::HashMap;
-use crate::initialization::parameters::RepulsivePotentialTable;
+use crate::initialization::parameters::{RepulsivePotentialTable, RepulsivePotential};
 use ndarray_einsum_beta::tensordot;
+use crate::initialization::Atom;
+use nalgebra::Vector3;
+use ndarray_linalg::krylov::qr;
 
 pub fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>) {
     let mut matrix: Array2<f64> = Array::zeros((v1.len(), v2.len()));
@@ -231,7 +233,7 @@ pub fn f_lr_par(
 }
 
 pub fn h_minus(
-    g0_lr_a0: ArrayView2<f64>,
+    g0_lr: ArrayView2<f64>,
     q_ps: ArrayView3<f64>,
     q_qr: ArrayView3<f64>,
     q_pr: ArrayView3<f64>,
@@ -239,74 +241,89 @@ pub fn h_minus(
     v_rs: ArrayView2<f64>,
 ) -> (Array2<f64>) {
     // term 1
-    let tmp: Array3<f64> = tensordot(&q_qr, &v_rs, &[Axis(2)], &[Axis(0)])
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    let tmp2: Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)], &[Axis(0)])
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    let mut h_minus_pq: Array2<f64> =
-        tensordot(&q_ps, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
-            .into_dimensionality::<Ix2>()
-            .unwrap();
+    let n_at:usize = q_ps.dim().0;
+    let n_virt:usize = q_ps.dim().2;
+    let n_occ:usize = q_qr.dim().2;
+    let qr_dim_1:usize = q_qr.dim().1;
+
+    let tmp: Array3<f64> = q_qr.into_shape((n_at*qr_dim_1,n_occ)).unwrap().dot(&v_rs).into_shape((n_at,qr_dim_1,n_virt)).unwrap();
+    // let tmp: Array3<f64> = tensordot(&q_qr, &v_rs, &[Axis(2)], &[Axis(0)])
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    let tmp2:Array3<f64> = g0_lr.dot(&(tmp.into_shape((n_at,qr_dim_1*n_virt)).unwrap())).into_shape((n_at,qr_dim_1,n_virt)).unwrap();
+    // let tmp2: Array3<f64> = tensordot(&g0_lr, &tmp, &[Axis(1)], &[Axis(0)])
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    let q_ps_swapped = q_ps.permuted_axes([1,0,2]).as_standard_layout().into_shape((qr_dim_1,n_at*n_virt)).unwrap().to_owned();
+    let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_virt*n_at,qr_dim_1)).unwrap().to_owned();
+    let mut h_minus_pq:Array2<f64> = q_ps_swapped.dot(&tmp2_swapped);
+    // let mut h_minus_pq: Array2<f64> =
+    //     tensordot(&q_ps, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+    //         .into_dimensionality::<Ix2>()
+    //         .unwrap();
     // term 2
-    let tmp: Array3<f64> = tensordot(&q_qs, &v_rs, &[Axis(2)], &[Axis(1)])
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    let tmp2: Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)], &[Axis(0)])
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    h_minus_pq = h_minus_pq
-        - tensordot(&q_pr, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
-        .into_dimensionality::<Ix2>()
-        .unwrap();
+    let tmp:Array3<f64> = q_qs.into_shape((n_at*qr_dim_1,n_virt)).unwrap().dot(&v_rs.t()).into_shape((n_at,qr_dim_1,n_occ)).unwrap();
+    // let tmp: Array3<f64> = tensordot(&q_qs, &v_rs, &[Axis(2)], &[Axis(1)])
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    let tmp2:Array3<f64> = g0_lr.dot(&(tmp.into_shape((n_at,qr_dim_1*n_occ)).unwrap())).into_shape((n_at,qr_dim_1,n_occ)).unwrap();
+    // let tmp2: Array3<f64> = tensordot(&g0_lr, &tmp, &[Axis(1)], &[Axis(0)])
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    let q_pr_swapped = q_pr.permuted_axes([1,0,2]).as_standard_layout().into_shape((qr_dim_1,n_at*n_occ)).unwrap().to_owned();
+    let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_virt*n_occ,qr_dim_1)).unwrap().to_owned();
+    h_minus_pq = h_minus_pq - q_pr_swapped.dot(&tmp2_swapped);
+    // h_minus_pq = h_minus_pq
+    //     - tensordot(&q_pr, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap();
     return h_minus_pq;
 }
 
-pub fn h_plus_lr(
-    g0_ao: ArrayView2<f64>,
-    g0_lr_a0: ArrayView2<f64>,
-    q_pq: ArrayView3<f64>,
-    q_rs: ArrayView3<f64>,
-    q_pr: ArrayView3<f64>,
-    q_qs: ArrayView3<f64>,
-    q_ps: ArrayView3<f64>,
-    q_qr: ArrayView3<f64>,
-    v_rs: ArrayView2<f64>,
-) -> (Array2<f64>) {
-    // term 1
-    let tmp: Array1<f64> = tensordot(&q_rs, &v_rs, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
-        .into_dimensionality::<Ix1>()
-        .unwrap();
-    let tmp2: Array1<f64> = g0_ao.to_owned().dot(&tmp);
-    let mut hplus_pq: Array2<f64> = 4.0
-        * tensordot(&q_pq, &tmp2, &[Axis(0)], &[Axis(0)])
-        .into_dimensionality::<Ix2>()
-        .unwrap();
-    // term 2
-    let tmp: Array3<f64> = tensordot(&q_qs, &v_rs, &[Axis(2)], &[Axis(1)])
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    let tmp2: Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)], &[Axis(0)])
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    hplus_pq = hplus_pq
-        - tensordot(&q_pr, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
-        .into_dimensionality::<Ix2>()
-        .unwrap();
-    // term 3
-    let tmp: Array3<f64> = tensordot(&q_qr, &v_rs, &[Axis(2)], &[Axis(0)])
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    let tmp2: Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)], &[Axis(0)])
-        .into_dimensionality::<Ix3>()
-        .unwrap();
-    hplus_pq = hplus_pq
-        - tensordot(&q_ps, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
-        .into_dimensionality::<Ix2>()
-        .unwrap();
-    return hplus_pq;
-}
+// pub fn h_plus_lr(
+//     g0_ao: ArrayView2<f64>,
+//     g0_lr_a0: ArrayView2<f64>,
+//     q_pq: ArrayView3<f64>,
+//     q_rs: ArrayView3<f64>,
+//     q_pr: ArrayView3<f64>,
+//     q_qs: ArrayView3<f64>,
+//     q_ps: ArrayView3<f64>,
+//     q_qr: ArrayView3<f64>,
+//     v_rs: ArrayView2<f64>,
+// ) -> (Array2<f64>) {
+//     // term 1
+//     let tmp: Array1<f64> = tensordot(&q_rs, &v_rs, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
+//         .into_dimensionality::<Ix1>()
+//         .unwrap();
+//     let tmp2: Array1<f64> = g0_ao.to_owned().dot(&tmp);
+//     let mut hplus_pq: Array2<f64> = 4.0
+//         * tensordot(&q_pq, &tmp2, &[Axis(0)], &[Axis(0)])
+//         .into_dimensionality::<Ix2>()
+//         .unwrap();
+//     // term 2
+//     let tmp: Array3<f64> = tensordot(&q_qs, &v_rs, &[Axis(2)], &[Axis(1)])
+//         .into_dimensionality::<Ix3>()
+//         .unwrap();
+//     let tmp2: Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)], &[Axis(0)])
+//         .into_dimensionality::<Ix3>()
+//         .unwrap();
+//     hplus_pq = hplus_pq
+//         - tensordot(&q_pr, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+//         .into_dimensionality::<Ix2>()
+//         .unwrap();
+//     // term 3
+//     let tmp: Array3<f64> = tensordot(&q_qr, &v_rs, &[Axis(2)], &[Axis(0)])
+//         .into_dimensionality::<Ix3>()
+//         .unwrap();
+//     let tmp2: Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)], &[Axis(0)])
+//         .into_dimensionality::<Ix3>()
+//         .unwrap();
+//     hplus_pq = hplus_pq
+//         - tensordot(&q_ps, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+//         .into_dimensionality::<Ix2>()
+//         .unwrap();
+//     return hplus_pq;
+// }
 
 pub fn h_plus_no_lr(
     g0: ArrayView2<f64>,
@@ -315,14 +332,24 @@ pub fn h_plus_no_lr(
     v_rs: ArrayView2<f64>,
 ) -> (Array2<f64>) {
     // term 1
-    let tmp: Array1<f64> = tensordot(&q_rs, &v_rs, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
-        .into_dimensionality::<Ix1>()
-        .unwrap();
-    let tmp2: Array1<f64> = g0.to_owned().dot(&tmp);
-    let hplus_pq: Array2<f64> = 4.0
-        * tensordot(&q_pq, &tmp2, &[Axis(0)], &[Axis(0)])
-        .into_dimensionality::<Ix2>()
-        .unwrap();
+    let n_at:usize = q_pq.dim().0;
+    let v_rs_dim_1:usize = v_rs.dim().0;
+    let v_rs_dim_2:usize = v_rs.dim().1;
+    let q_rs_dim_1:usize = q_rs.dim().1;
+    let q_rs_dim_2:usize = q_rs.dim().2;
+    let q_pq_dim_1:usize = q_pq.dim().1;
+    let q_pq_dim_2:usize = q_pq.dim().2;
+
+    let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(v_rs_dim_1*v_rs_dim_2).unwrap());
+    // let tmp: Array1<f64> = tensordot(&q_rs, &v_rs, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
+    //     .into_dimensionality::<Ix1>()
+    //     .unwrap();
+    let tmp2: Array1<f64> = g0.dot(&tmp);
+    let hplus_pq:Array2<f64> = 4.0 * tmp2.dot(&q_pq.into_shape((n_at,q_pq_dim_1*q_pq_dim_2)).unwrap()).into_shape((q_pq_dim_1,q_pq_dim_2)).unwrap();
+    // let hplus_pq: Array2<f64> = 4.0
+    //     * tensordot(&q_pq, &tmp2, &[Axis(0)], &[Axis(0)])
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap();
     return hplus_pq;
 }
 
@@ -336,26 +363,26 @@ pub fn h_plus_no_lr(
 //    atom j to atom i
 //  VREP: dictionary, VREP[(Zi,Zj)] has to be an instance of RepulsivePotential
 //    for the atom pair Zi-Zj
-fn gradient_v_rep(
-    atomic_numbers: &[u8],
-    distances: ArrayView2<f64>,
-    directions: ArrayView3<f64>,
-    v_rep: &HashMap<(u8, u8), RepulsivePotentialTable>,
-) -> Array1<f64> {
-    let n_atoms: usize = atomic_numbers.len();
+pub fn gradient_v_rep(atoms: &[Atom], v_rep: &RepulsivePotential) -> Array1<f64> {
+    let n_atoms: usize = atoms.len();
     let mut grad: Array1<f64> = Array1::zeros([3 * n_atoms]);
-    for (i, z_i) in atomic_numbers.iter().enumerate() {
+    for (i, atomi) in atoms.iter().enumerate() {
         let mut grad_i: Array1<f64> = Array::zeros([3]);
-        for (j, z_j) in atomic_numbers.iter().enumerate() {
+        for (j, atomj) in atoms.iter().enumerate() {
             if i != j {
-                let (z_1, z_2): (u8, u8) = if z_i > z_j {
-                    (*z_j, *z_i)
-                } else {
-                    (*z_i, *z_j)
-                };
-                let r_ij: f64 = distances[[i, j]];
-                let v_ij_deriv: f64 = v_rep[&(z_1, z_2)].spline_deriv(r_ij);
-                grad_i = &grad_i + &directions.slice(s![i, j, ..]).map(|x| x * v_ij_deriv);
+                let mut r: Vector3<f64> = atomi - atomj;
+                let r_ij: f64 = r.norm();
+                r /= r_ij;
+                let v_ij_deriv: f64 = v_rep.get(atomi.kind, atomj.kind).spline_deriv(r_ij);
+                r *= v_ij_deriv;
+                // let v: ArrayView1<f64> = unsafe {
+                //     ArrayView1::from_shape_ptr(
+                //         (r.shape().0, ).strides((r.strides().0, )),
+                //         r.as_ptr(),
+                //     )
+                // };
+                let v = Array1::from_iter(r.iter());
+                grad_i = &grad_i + &v;
             }
         }
         grad.slice_mut(s![i * 3..i * 3 + 3]).assign(&grad_i);
@@ -384,6 +411,7 @@ pub fn zvector_lc(
 
     let n_occ: usize = b_matrix.dim().0;
     let n_virt: usize = b_matrix.dim().1;
+    let n_at:usize = qtrans_ov.dim().0;
     let kmax: usize = n_occ * n_virt;
 
     // bs are expansion vectors
@@ -491,6 +519,7 @@ pub fn zvector_no_lc(
     let n_occ: usize = b_matrix.dim().0;
     let n_virt: usize = b_matrix.dim().1;
     let kmax: usize = n_occ * n_virt;
+    let n_at:usize = qtrans_ov.dim().0;
 
     // bs are expansion vectors
     let a_inv: Array2<f64> = 1.0 / &a_diag.to_owned();
@@ -503,7 +532,7 @@ pub fn zvector_no_lc(
 
     let apbv:Array2<f64> = mult_apb_v_no_lc(
         g0,
-        qtrans_oo,
+        qtrans_ov,
         a_diag,
         bs.view(),
         n_occ,
@@ -633,10 +662,10 @@ fn mult_apb_v(
 }
 
 fn mult_apb_v_no_lc(
-    gamma: &ArrayView2<f64>,
-    qtrans_ov: &ArrayView3<f64>,
-    omega: &ArrayView2<f64>,
-    vs: &Array2<f64>,
+    gamma: ArrayView2<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    vs: ArrayView2<f64>,
     n_occ: usize,
     n_virt: usize,
     multiplicity: u8,
@@ -655,7 +684,7 @@ fn mult_apb_v_no_lc(
     };
 
     // 1st term - KS orbital energy differences
-    let mut u_l: Array2<f64> = omega * &vs;
+    let mut u_l: Array2<f64> = &omega * &vs;
 
     // 2nd term - Coulomb
     let mut tmp21: Array1<f64> = Array1::zeros(n_at);
