@@ -100,7 +100,7 @@ pub fn f_v_par(
     return f_return;
 }
 
-fn f_lr(
+pub fn f_lr(
     v: ArrayView2<f64>,
     s: ArrayView2<f64>,
     grad_s: ArrayView3<f64>,

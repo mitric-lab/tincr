@@ -1,14 +1,14 @@
-use ndarray::{Array1, Array3, Array2, Array, Axis, ArrayView2, ArrayView1};
-use std::time::Instant;
-use crate::initialization::*;
 use crate::defaults;
-use crate::fmo::scc::helpers::{atomvec_to_aomat};
-use ndarray_einsum_beta::tensordot;
+use crate::fmo::scc::helpers::atomvec_to_aomat;
+use crate::gradients::helpers::{f_lr, gradient_v_rep};
+use crate::initialization::*;
+use crate::scc::gamma_approximation::{gamma_gradients_ao_wise, gamma_gradients_atomwise};
 use crate::scc::h0_and_s::h0_and_s_gradients;
-use crate::scc::gamma_approximation::gamma_gradients_atomwise;
-use crate::gradients::helpers::gradient_v_rep;
+use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, Axis};
+use ndarray_einsum_beta::tensordot;
+use std::time::Instant;
 
-impl System{
+impl System {
     fn ground_state_gradient(&mut self) -> Array1<f64> {
         // for the evaluation of the gradient it is necessary to compute the derivatives
         // of: - H0
@@ -23,10 +23,10 @@ impl System{
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
         // into one dimension to be able to just matrix-matrix products for the computation of the gradient
-        let grad_s: Array2<f64> = grad_s
+        let grad_s_2d: Array2<f64> = grad_s.clone()
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap();
-        let grad_h0: Array2<f64> = grad_h0
+        let grad_h0_2d: Array2<f64> = grad_h0.clone()
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap();
 
@@ -50,7 +50,8 @@ impl System{
             atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms) * 0.5;
         // Transform the Equation sum_K sum_c_in_K (gamma_ac + gamma_Ac) * dq_c into the dimension
         // of the AOs.
-        let mut esp_mat: Array2<f64> = atomvec_to_aomat(esp_q.view(), self.n_orbs, &self.atoms) * 0.5;
+        let mut esp_mat: Array2<f64> =
+            atomvec_to_aomat(esp_q.view(), self.n_orbs, &self.atoms) * 0.5;
         esp_mat += &coulomb_mat;
 
         // The product of the Coulomb interaction matrix and the density matrix flattened as vector.
@@ -75,18 +76,18 @@ impl System{
         // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
         let w: Array1<f64> = 0.5
             * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
-            .into_shape([self.n_orbs * self.n_orbs])
-            .unwrap();
+                .into_shape([self.n_orbs * self.n_orbs])
+                .unwrap();
 
         // calculation of the gradient
         // 1st part:  dH0 / dR . P
-        let mut gradient: Array1<f64> = grad_h0.dot(&p_flat);
+        let mut gradient: Array1<f64> = grad_h0_2d.dot(&p_flat);
 
         // 2nd part: dS / dR . W
-        gradient -= &grad_s.dot(&w);
+        gradient -= &grad_s_2d.dot(&w);
 
         // 3rd part: 1/2 * dS / dR * sum_c_in_X (gamma_ac + gamma_bc) * dq_c
-        gradient += &grad_s.dot(&coulomb_x_p);
+        gradient += &grad_s_2d.dot(&coulomb_x_p);
 
         // 4th part: 1/2 * dq . dGamma / dR . dq
         gradient += &(grad_gamma.dot(&dq_x_dq));
@@ -94,7 +95,40 @@ impl System{
         // last part: dV_rep / dR
         gradient = gradient + gradient_v_rep(&self.atoms, &self.vrep);
 
-        return gradient;;
+        let mut flr_dmd0: Array3<f64> = Array::zeros((3 * self.n_atoms, self.n_orbs, self.n_orbs));
+        let mut g1_lr: Array3<f64> = Array3::zeros((3 * self.n_atoms, self.n_atoms, self.n_atoms));
+        let mut g1_lr_ao: Array3<f64> = Array3::zeros((3 * self.n_atoms, self.n_orbs, self.n_orbs));
+
+        // long-range corrected part of the gradient
+        if self.config.lc.long_range_correction {
+            let g1_temp: (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                &self.atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            g1_lr = g1_temp.0;
+            g1_lr_ao = g1_temp.1;
+
+            let diff_p: Array2<f64> = &p - &self.properties.p_ref().unwrap();
+            flr_dmd0 = f_lr(
+                diff_p.view(),
+                self.properties.s().unwrap(),
+                grad_s.view(),
+                self.properties.gamma_lr_ao().unwrap(),
+                g1_lr_ao.view(),
+                self.n_atoms,
+                self.n_orbs,
+            );
+            gradient = gradient
+                - 0.25
+                    * flr_dmd0
+                        .into_shape((3 * self.n_atoms, self.n_orbs * self.n_orbs))
+                        .unwrap()
+                        .dot(&diff_p.into_shape(self.n_orbs * self.n_orbs).unwrap());
+        }
+
+        return gradient;
     }
 }
 
