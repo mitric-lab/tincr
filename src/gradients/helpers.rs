@@ -280,50 +280,79 @@ pub fn h_minus(
     return h_minus_pq;
 }
 
-// pub fn h_plus_lr(
-//     g0_ao: ArrayView2<f64>,
-//     g0_lr_a0: ArrayView2<f64>,
-//     q_pq: ArrayView3<f64>,
-//     q_rs: ArrayView3<f64>,
-//     q_pr: ArrayView3<f64>,
-//     q_qs: ArrayView3<f64>,
-//     q_ps: ArrayView3<f64>,
-//     q_qr: ArrayView3<f64>,
-//     v_rs: ArrayView2<f64>,
-// ) -> (Array2<f64>) {
-//     // term 1
-//     let tmp: Array1<f64> = tensordot(&q_rs, &v_rs, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
-//         .into_dimensionality::<Ix1>()
-//         .unwrap();
-//     let tmp2: Array1<f64> = g0_ao.to_owned().dot(&tmp);
-//     let mut hplus_pq: Array2<f64> = 4.0
-//         * tensordot(&q_pq, &tmp2, &[Axis(0)], &[Axis(0)])
-//         .into_dimensionality::<Ix2>()
-//         .unwrap();
-//     // term 2
-//     let tmp: Array3<f64> = tensordot(&q_qs, &v_rs, &[Axis(2)], &[Axis(1)])
-//         .into_dimensionality::<Ix3>()
-//         .unwrap();
-//     let tmp2: Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)], &[Axis(0)])
-//         .into_dimensionality::<Ix3>()
-//         .unwrap();
-//     hplus_pq = hplus_pq
-//         - tensordot(&q_pr, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
-//         .into_dimensionality::<Ix2>()
-//         .unwrap();
-//     // term 3
-//     let tmp: Array3<f64> = tensordot(&q_qr, &v_rs, &[Axis(2)], &[Axis(0)])
-//         .into_dimensionality::<Ix3>()
-//         .unwrap();
-//     let tmp2: Array3<f64> = tensordot(&g0_lr_a0, &tmp, &[Axis(1)], &[Axis(0)])
-//         .into_dimensionality::<Ix3>()
-//         .unwrap();
-//     hplus_pq = hplus_pq
-//         - tensordot(&q_ps, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
-//         .into_dimensionality::<Ix2>()
-//         .unwrap();
-//     return hplus_pq;
-// }
+pub fn h_plus_lr(
+    g0_ao: ArrayView2<f64>,
+    g0_lr: ArrayView2<f64>,
+    q_pq: ArrayView3<f64>,
+    q_rs: ArrayView3<f64>,
+    q_pr: ArrayView3<f64>,
+    q_qs: ArrayView3<f64>,
+    q_ps: ArrayView3<f64>,
+    q_qr: ArrayView3<f64>,
+    v_rs: ArrayView2<f64>,
+) -> (Array2<f64>) {
+    // set dimensions
+    let v_rs_dim_0:usize = v_rs.dim().0;
+    let v_rs_dim_1:usize = v_rs.dim().1;
+    let n_at:usize = q_pq.dim().0;
+    let q_rs_dim_1:usize = q_rs.dim().1;
+    let q_rs_dim_2:usize = q_rs.dim().2;
+    let q_pq_dim_1:usize = q_pq.dim().1;
+    let q_pq_dim_2:usize = q_pq.dim().2;
+    let q_qs_dim_1:usize = q_qs.dim().1;
+    let q_qs_dim_2:usize = q_qs.dim().2;
+    let q_pr_dim_1:usize = q_pr.dim().1;
+    let q_pr_dim_2:usize = q_pr.dim().2;
+    let q_qr_dim_1:usize = q_qr.dim().1;
+    let q_qr_dim_2:usize = q_qr.dim().2;
+    let q_ps_dim_1:usize = q_ps.dim().1;
+    let q_ps_dim_2:usize = q_ps.dim().2;
+
+    // term 1
+    let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(v_rs_dim_0*v_rs_dim_1).unwrap());
+    // let tmp: Array1<f64> = tensordot(&q_rs, &v_rs, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
+    //     .into_dimensionality::<Ix1>()
+    //     .unwrap();
+    let tmp2: Array1<f64> = g0_ao.to_owned().dot(&tmp);
+    let mut hplus_pq:Array2<f64> = 4.0 * tmp2.dot(&q_pq.into_shape((n_at,q_pq_dim_1*q_pq_dim_2)).unwrap()).into_shape((q_pq_dim_1,q_pq_dim_2)).unwrap();
+    // let mut hplus_pq: Array2<f64> = 4.0
+    //     * tensordot(&q_pq, &tmp2, &[Axis(0)], &[Axis(0)])
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap();
+    // term 2
+    let tmp:Array3<f64> = q_qs.into_shape((n_at*q_qs_dim_1,q_qs_dim_2)).unwrap().dot(&v_rs.t()).into_shape((n_at,q_qs_dim_1,v_rs_dim_0)).unwrap();
+    // let tmp: Array3<f64> = tensordot(&q_qs, &v_rs, &[Axis(2)], &[Axis(1)])
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,q_qs_dim_1*v_rs_dim_0)).unwrap()).into_shape((n_at,q_qs_dim_1,v_rs_dim_0)).unwrap();
+    // let tmp2: Array3<f64> = tensordot(&g0_lr, &tmp, &[Axis(1)], &[Axis(0)])
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*v_rs_dim_0,q_qs_dim_1)).unwrap().to_owned();
+    let q_pr_swapped = q_pr.permuted_axes([1,0,2]).as_standard_layout().into_shape((q_pr_dim_1,n_at*q_pr_dim_2)).unwrap().to_owned();
+    hplus_pq = hplus_pq - q_pr_swapped.dot(&tmp2_swapped);
+    // hplus_pq = hplus_pq
+    //     - tensordot(&q_pr, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap();
+    // term 3
+    let tmp:Array3<f64> = q_qr.into_shape((n_at*q_qr_dim_1,q_qr_dim_2)).unwrap().dot(&v_rs).into_shape((n_at,q_qr_dim_1,v_rs_dim_1)).unwrap();
+    // let tmp: Array3<f64> = tensordot(&q_qr, &v_rs, &[Axis(2)], &[Axis(0)])
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,q_qr_dim_1*v_rs_dim_1)).unwrap()).into_shape((n_at,q_qr_dim_1,v_rs_dim_1)).unwrap();
+    // let tmp2: Array3<f64> = tensordot(&g0_lr, &tmp, &[Axis(1)], &[Axis(0)])
+    //     .into_dimensionality::<Ix3>()
+    //     .unwrap();
+    let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*v_rs_dim_1,q_qr_dim_1)).unwrap().to_owned();
+    let q_ps_swapped = q_ps.permuted_axes([1,0,2]).as_standard_layout().into_shape((q_ps_dim_1,n_at*q_ps_dim_2)).unwrap().to_owned();
+    hplus_pq = hplus_pq - q_ps_swapped.dot(&tmp2_swapped);
+    // hplus_pq = hplus_pq
+    //     - tensordot(&q_ps, &tmp2, &[Axis(0), Axis(2)], &[Axis(0), Axis(2)])
+    //     .into_dimensionality::<Ix2>()
+    //     .unwrap();
+    return hplus_pq;
+}
 
 pub fn h_plus_no_lr(
     g0: ArrayView2<f64>,
@@ -333,14 +362,14 @@ pub fn h_plus_no_lr(
 ) -> (Array2<f64>) {
     // term 1
     let n_at:usize = q_pq.dim().0;
-    let v_rs_dim_1:usize = v_rs.dim().0;
-    let v_rs_dim_2:usize = v_rs.dim().1;
+    let v_rs_dim_0:usize = v_rs.dim().0;
+    let v_rs_dim_1:usize = v_rs.dim().1;
     let q_rs_dim_1:usize = q_rs.dim().1;
     let q_rs_dim_2:usize = q_rs.dim().2;
     let q_pq_dim_1:usize = q_pq.dim().1;
     let q_pq_dim_2:usize = q_pq.dim().2;
 
-    let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(v_rs_dim_1*v_rs_dim_2).unwrap());
+    let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(v_rs_dim_0*v_rs_dim_1).unwrap());
     // let tmp: Array1<f64> = tensordot(&q_rs, &v_rs, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
     //     .into_dimensionality::<Ix1>()
     //     .unwrap();
