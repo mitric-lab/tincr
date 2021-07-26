@@ -9,7 +9,7 @@ use ndarray_einsum_beta::tensordot;
 use std::time::Instant;
 
 impl System {
-    fn ground_state_gradient(&mut self) -> Array1<f64> {
+    fn ground_state_gradient(&mut self, excited_gradients:bool) -> Array1<f64> {
         // for the evaluation of the gradient it is necessary to compute the derivatives
         // of: - H0
         //     - S
@@ -95,23 +95,17 @@ impl System {
         // last part: dV_rep / dR
         gradient = gradient + gradient_v_rep(&self.atoms, &self.vrep);
 
-        let mut flr_dmd0: Array3<f64> = Array::zeros((3 * self.n_atoms, self.n_orbs, self.n_orbs));
-        let mut g1_lr: Array3<f64> = Array3::zeros((3 * self.n_atoms, self.n_atoms, self.n_atoms));
-        let mut g1_lr_ao: Array3<f64> = Array3::zeros((3 * self.n_atoms, self.n_orbs, self.n_orbs));
-
         // long-range corrected part of the gradient
         if self.config.lc.long_range_correction {
-            let g1_temp: (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+            let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
                 self.gammafunction_lc.as_ref().unwrap(),
                 &self.atoms,
                 self.n_atoms,
                 self.n_orbs,
             );
-            g1_lr = g1_temp.0;
-            g1_lr_ao = g1_temp.1;
 
             let diff_p: Array2<f64> = &p - &self.properties.p_ref().unwrap();
-            flr_dmd0 = f_lr(
+            let flr_dmd0:Array3<f64> = f_lr(
                 diff_p.view(),
                 self.properties.s().unwrap(),
                 grad_s.view(),
@@ -122,10 +116,23 @@ impl System {
             );
             gradient = gradient
                 - 0.25
-                    * flr_dmd0
+                    * flr_dmd0.view()
                         .into_shape((3 * self.n_atoms, self.n_orbs * self.n_orbs))
                         .unwrap()
                         .dot(&diff_p.into_shape(self.n_orbs * self.n_orbs).unwrap());
+
+            // save necessary properties for the excited gradient calculation with lr-correction
+            if excited_gradients{
+                self.properties.set_grad_gamma_lr(g1_lr);
+                self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
+                self.properties.set_f_lr_dmd0(flr_dmd0);
+            }
+        }
+        // save necessary properties for the excited gradient calculation
+        if excited_gradients{
+            self.properties.set_grad_s(grad_s);
+            self.properties.set_grad_h0(grad_h0);
+            self.properties.set_grad_gamma(grad_gamma.into_shape([3 * self.n_atoms, self.n_atoms, self.n_atoms]).unwrap());
         }
 
         return gradient;

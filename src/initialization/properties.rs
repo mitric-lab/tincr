@@ -36,6 +36,7 @@ impl Properties {
             "gamma_ao_wise_gradient",
             "gamma_lr_atom_wise_gradient",
             "gamma_lr_ao_wise_gradient",
+            "f_lr_dmd0"
         ];
         for data_name in multi_dim_data.iter() {
             self.map.remove(*data_name);
@@ -230,6 +231,13 @@ impl Properties {
     /// Returns a reference to the gradient of the long-range corrected gamma matrix in AO basis.
     pub fn take_grad_gamma_lr_ao(&mut self) -> Result<Array3<f64>, Property> {
         match self.take("gamma_lr_ao_wise_gradient") {
+            Some(value) => value.into_array3(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    pub fn take_f_lr_dmd0(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("f_lr_dmd0") {
             Some(value) => value.into_array3(),
             _ => Err(Property::default()),
         }
@@ -737,5 +745,13 @@ impl Properties {
             "gamma_lr_ao_wise_gradient",
             Property::from(grad_gamma_lr_ao),
         );
+    }
+
+    /// Set the f matrix for the long-range contribution of the exc gradient
+    pub fn set_f_lr_dmd0(&mut self, f_lr_dmd0:Array3<f64>){
+        self.set(
+            "f_lr_dmd0",
+            Property::from(f_lr_dmd0),
+        )
     }
 }

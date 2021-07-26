@@ -362,14 +362,12 @@ pub fn h_plus_no_lr(
 ) -> (Array2<f64>) {
     // term 1
     let n_at:usize = q_pq.dim().0;
-    let v_rs_dim_0:usize = v_rs.dim().0;
-    let v_rs_dim_1:usize = v_rs.dim().1;
     let q_rs_dim_1:usize = q_rs.dim().1;
     let q_rs_dim_2:usize = q_rs.dim().2;
     let q_pq_dim_1:usize = q_pq.dim().1;
     let q_pq_dim_2:usize = q_pq.dim().2;
 
-    let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(v_rs_dim_0*v_rs_dim_1).unwrap());
+    let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(q_rs_dim_1*q_rs_dim_2).unwrap());
     // let tmp: Array1<f64> = tensordot(&q_rs, &v_rs, &[Axis(1), Axis(2)], &[Axis(0), Axis(1)])
     //     .into_dimensionality::<Ix1>()
     //     .unwrap();
@@ -380,6 +378,106 @@ pub fn h_plus_no_lr(
     //     .into_dimensionality::<Ix2>()
     //     .unwrap();
     return hplus_pq;
+}
+
+pub struct Hplus{
+    qtrans_ov:Array3<f64>,
+    qtrans_vv:Array3<f64>,
+    qtrans_oo:Array3<f64>,
+    qtrans_vo:Array3<f64>,
+    n_occ:usize,
+    n_virt:usize,
+    n_at:usize,
+}
+
+impl Hplus{
+    pub fn new(
+        qtrans_ov:Array3<f64>,
+        qtrans_vv:Array3<f64>,
+        qtrans_oo:Array3<f64>,
+        qtrans_vo:Array3<f64>,
+    )->Hplus{
+        let n_at:usize = qtrans_ov.dim().0;
+        let n_occ:usize = qtrans_ov.dim().1;
+        let n_virt:usize = qtrans_ov.dim().2;
+
+        Hplus{
+            qtrans_ov:qtrans_ov,
+            qtrans_vv:qtrans_vv,
+            qtrans_oo:qtrans_oo,
+            qtrans_vo:qtrans_vo,
+            n_occ:n_occ,
+            n_virt:n_virt,
+            n_at:n_at
+        }
+    }
+
+    pub fn compute(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+        hplus_type:HplusType,
+    )->Array2<f64>{
+        let result:Array2<f64> = match hplus_type{
+            HplusType::Tab => Array2::zeros((10,10)),
+
+            HplusType::Tij => self.hplus_t_ij(g0,g0_lr,v),
+
+            HplusType::Qia_Xpy => Array2::zeros((10,10)),
+
+            HplusType::Qia_Tab => Array2::zeros((10,10)),
+
+            HplusType::Qia_Tij => Array2::zeros((10,10)),
+
+            HplusType::Qai => Array2::zeros((10,10)),
+
+            HplusType::Wij => Array2::zeros((10,10)),
+
+            _ => (panic!("this type does not exist!")),
+        };
+        return result;
+    }
+
+    fn hplus_t_ij(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+    )->Array2<f64>{
+        let qtrans_oo:ArrayView3<f64> = self.qtrans_oo.view();
+        let n_occ:usize = self.n_occ;
+        let n_at:usize = self.n_at;
+
+        // term 1
+        let tmp:Array1<f64> = qtrans_oo.into_shape((n_at,n_occ*n_occ)).unwrap().dot(&v.into_shape(n_occ*n_occ).unwrap());
+        let tmp2: Array1<f64> = g0.dot(&tmp);
+        let mut hplus_pq:Array2<f64> = 4.0 * tmp2.dot(&qtrans_oo.into_shape((n_at,n_occ*n_occ)).unwrap()).into_shape((n_occ,n_occ)).unwrap();
+        // term 2
+        let tmp:Array3<f64> = qtrans_oo.into_shape((n_at*n_occ,n_occ)).unwrap().dot(&v.t()).into_shape((n_at,n_occ,n_occ)).unwrap();
+        let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,n_occ*n_occ)).unwrap()).into_shape((n_at,n_occ,n_occ)).unwrap();
+        let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*n_occ,n_occ)).unwrap().to_owned();
+        let q_swapped = qtrans_oo.permuted_axes([1,0,2]).as_standard_layout().into_shape((n_occ,n_at*n_occ)).unwrap().to_owned();
+        hplus_pq = hplus_pq - q_swapped.dot(&tmp2_swapped);
+
+        // term 3
+        let tmp:Array3<f64> = qtrans_oo.into_shape((n_at*n_occ,n_occ)).unwrap().dot(&v).into_shape((n_at,n_occ,n_occ)).unwrap();
+        let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,n_occ*n_occ)).unwrap()).into_shape((n_at,n_occ,n_occ)).unwrap();
+        let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*n_occ,n_occ)).unwrap().to_owned();
+        hplus_pq = hplus_pq - q_swapped.dot(&tmp2_swapped);
+
+        return hplus_pq;
+    }
+}
+
+pub enum HplusType{
+    Tab,
+    Tij,
+    Qia_Xpy,
+    Qia_Tab,
+    Qia_Tij,
+    Qai,
+    Wij
 }
 
 //  Compute the gradient of the repulsive potential
