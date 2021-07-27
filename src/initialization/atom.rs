@@ -109,6 +109,13 @@ impl From<&str> for Atom {
     }
 }
 
+impl From<&Atom> for Atom {
+    // Create a new [Atom] from a reference to an [Atom].
+    fn from(atom: &Atom) -> Self {
+        atom.clone()
+    }
+}
+
 impl From<u8> for Atom {
     /// Create a new [Atom] from the atomic number. The parameterization from the
     /// parameter files is loaded and the Hubbard parameter and the valence orbitals are stored in

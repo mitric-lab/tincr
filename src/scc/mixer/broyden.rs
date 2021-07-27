@@ -77,7 +77,7 @@ impl Mixer for BroydenMixer {
 
         let rel_change: f64 = &delta_q.norm() / &self.delta_q_old.norm();
 
-        // it is sometimes beneficial to restart the Broyden mixer, to prevent convergence problems
+        // it is sometimes beneficial to restart the Broyden mixer to prevent convergence problems
         if self.iter > 0 && rel_change > 1.0 {
             self.reset(q.len());
         }
