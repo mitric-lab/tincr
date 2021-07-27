@@ -1,16 +1,15 @@
-use ndarray::{Axis, Array, Array3, Array1, Array2, Array4, ArrayView2, ArrayView3, ArrayView1,s};
 use crate::gradients::helpers::{h_minus, Hplus, HplusType};
-use ndarray_linalg::{UPLO, IntoTriangular, Solve, into_col, into_row};
-use std::time::Instant;
 use crate::initialization::*;
+use ndarray::{s, Array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3, Axis};
+use ndarray_linalg::{into_col, into_row, IntoTriangular, Solve, UPLO};
+use std::time::Instant;
 
-
-impl System{
-    pub fn excited_state_gradient(&mut self, state:usize){
+impl System {
+    pub fn excited_state_gradient(&mut self, state: usize) {
         // set the occupied and virtual orbital energies
-        let orbe:ArrayView1<f64> = self.properties.orbe().unwrap();
-        let orbe_occ:Array1<f64> = self.occ_indices.iter().map(|&occ| orbe[occ]).collect();
-        let orbe_virt:Array1<f64> = self.virt_indices.iter().map(|&virt| orbe[virt]).collect();
+        let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
+        let orbe_occ: Array1<f64> = self.occ_indices.iter().map(|&occ| orbe[occ]).collect();
+        let orbe_virt: Array1<f64> = self.virt_indices.iter().map(|&virt| orbe[virt]).collect();
 
         // transform the energies to a diagonal 2d matrix
         let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
@@ -20,54 +19,98 @@ impl System{
         let n_virt: usize = orbe_virt.len();
 
         // take state specific values from the excitation vectors
-        let xmy_state:Array2<f64> = self.properties.take_xmy().unwrap().slice(s![state,..,..]).to_owned();
-        let xpy_state:Array2<f64> = self.properties.take_xpy().unwrap().slice(s![state,..,..]).to_owned();
+        let xmy_state: Array2<f64> = self
+            .properties
+            .take_xmy()
+            .unwrap()
+            .slice(s![state, .., ..])
+            .to_owned();
+        let xpy_state: Array2<f64> = self
+            .properties
+            .take_xpy()
+            .unwrap()
+            .slice(s![state, .., ..])
+            .to_owned();
         // excitation energy of the state
-        let omega_state:f64 = self.properties.excited_states().unwrap()[state];
+        let omega_state: f64 = self.properties.excited_states().unwrap()[state];
 
         // calculate the vectors u, v and t
-        let u_ab:Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);
-        let u_ij:Array2<f64> = xpy_state.dot(&xmy_state.t()) + xmy_state.dot(&xpy_state.t());
+        let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);
+        let u_ij: Array2<f64> = xpy_state.dot(&xmy_state.t()) + xmy_state.dot(&xpy_state.t());
 
-        let v_ab:Array2<f64> = ei.dot(&xpy_state).t().dot(&xpy_state) + ei.dot(&xmy_state).t().dot(&xmy_state);
-        let v_ij:Array2<f64> = xpy_state.dot(&ea).dot(&xpy_state.t()) + xmy_state.dot(&ea).dot(&xmy_state.t());
+        let v_ab: Array2<f64> =
+            ei.dot(&xpy_state).t().dot(&xpy_state) + ei.dot(&xmy_state).t().dot(&xmy_state);
+        let v_ij: Array2<f64> =
+            xpy_state.dot(&ea).dot(&xpy_state.t()) + xmy_state.dot(&ea).dot(&xmy_state.t());
 
-        let t_ab:Array2<f64> = 0.5 * (xpy_state.t().dot(&xpy_state) + xmy_state.t().dot(&xmy_state));
-        let t_ij:Array2<f64> = 0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
+        let t_ab: Array2<f64> =
+            0.5 * (xpy_state.t().dot(&xpy_state) + xmy_state.t().dot(&xmy_state));
+        let t_ij: Array2<f64> =
+            0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov:Array3<f64> = self.properties.take_qtrans_ov().unwrap();
-        let qtrans_oo:Array3<f64> = self.properties.take_qtrans_oo().unwrap();
-        let qtrans_vv:Array3<f64> = self.properties.take_qtrans_vv().unwrap();
-        let qtrans_vo: Array3<f64> = qtrans_ov.view().permuted_axes([0,2,1]).as_standard_layout().to_owned();
+        let qtrans_ov: Array3<f64> = self.properties.take_qtrans_ov().unwrap();
+        let qtrans_oo: Array3<f64> = self.properties.take_qtrans_oo().unwrap();
+        let qtrans_vv: Array3<f64> = self.properties.take_qtrans_vv().unwrap();
+        let qtrans_vo: Array3<f64> = qtrans_ov
+            .view()
+            .permuted_axes([0, 2, 1])
+            .as_standard_layout()
+            .to_owned();
 
         // create struct hplus
-        let hplus:Hplus = Hplus::new(&qtrans_ov,&qtrans_vv,&qtrans_oo,&qtrans_vo);
+        let hplus: Hplus = Hplus::new(&qtrans_ov, &qtrans_vv, &qtrans_oo, &qtrans_vo);
 
         // set gamma matrices
-        let g0:ArrayView2<f64> = self.properties.gamma().unwrap();
-        let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+        let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let g0_lr: ArrayView2<f64> = self.properties.gamma_lr().unwrap();
 
         // compute hplus of tab and tij
-        let hplus_tab:Array2<f64> = hplus.compute(g0,g0_lr,t_ab.view(),HplusType::Tab);
-        let hplus_tij:Array2<f64> = hplus.compute(g0,g0_lr,t_ij.view(),HplusType::Tij);
+        let hplus_tab: Array2<f64> = hplus.compute(g0, g0_lr, t_ab.view(), HplusType::Tab);
+        let hplus_tij: Array2<f64> = hplus.compute(g0, g0_lr, t_ij.view(), HplusType::Tij);
 
         // calculate q_ij
-        let g_ij:Array2<f64> = hplus_tab - hplus_tij;
+        let g_ij: Array2<f64> = hplus_tab - hplus_tij;
         let q_ij: Array2<f64> = omega_state * u_ij - v_ij + g_ij;
 
         // calculate q_ab
         let q_ab: Array2<f64> = omega_state * u_ab + v_ab;
 
         // calculate q_ia
-        let mut q_ia:Array2<f64> = xpy_state.dot(&hplus.compute(g0,g0_lr,xpy_state.view(),HplusType::Qia_Xpy).t());
-        q_ia = q_ia + xmy_state.dot(&h_minus(g0_lr,qtrans_vv.view(),qtrans_vo.view(),qtrans_vo.view(),qtrans_vv.view(),xmy_state.view()).t());
-        q_ia = q_ia + hplus.compute(g0,g0_lr,t_ab.view(),HplusType::Qia_Tab);
-        q_ia = q_ia - hplus.compute(g0,g0_lr,t_ij.view(),HplusType::Qia_Tij);
+        let mut q_ia: Array2<f64> = xpy_state.dot(
+            &hplus
+                .compute(g0, g0_lr, xpy_state.view(), HplusType::Qia_Xpy)
+                .t(),
+        );
+        q_ia = q_ia
+            + xmy_state.dot(
+                &h_minus(
+                    g0_lr,
+                    qtrans_vv.view(),
+                    qtrans_vo.view(),
+                    qtrans_vo.view(),
+                    qtrans_vv.view(),
+                    xmy_state.view(),
+                )
+                .t(),
+            );
+        q_ia = q_ia + hplus.compute(g0, g0_lr, t_ab.view(), HplusType::Qia_Tab);
+        q_ia = q_ia - hplus.compute(g0, g0_lr, t_ij.view(), HplusType::Qia_Tij);
 
         // calculate q_ai
-        let mut q_ai:Array2<f64> = xpy_state.t().dot(&hplus.compute(g0,g0_lr,xpy_state.view(),HplusType::Qai));
-        q_ai = q_ai + xmy_state.t().dot(&h_minus(g0_lr,qtrans_ov.view(),qtrans_oo.view(),qtrans_oo.view(),qtrans_ov.view(),xmy_state.view()));
+        let mut q_ai: Array2<f64> =
+            xpy_state
+                .t()
+                .dot(&hplus.compute(g0, g0_lr, xpy_state.view(), HplusType::Qai));
+        q_ai = q_ai
+            + xmy_state.t().dot(&h_minus(
+                g0_lr,
+                qtrans_ov.view(),
+                qtrans_oo.view(),
+                qtrans_oo.view(),
+                qtrans_ov.view(),
+                xmy_state.view(),
+            ));
     }
 }
 
@@ -531,5 +574,3 @@ impl System{
 //
 //     return (gradExc, z_ia);
 // }
-
-
