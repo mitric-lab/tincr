@@ -9,7 +9,7 @@ use ndarray_einsum_beta::tensordot;
 use std::time::Instant;
 
 impl System {
-    fn ground_state_gradient(&mut self, excited_gradients:bool) -> Array1<f64> {
+    pub fn ground_state_gradient(&mut self, excited_gradients:bool) -> Array1<f64> {
         // for the evaluation of the gradient it is necessary to compute the derivatives
         // of: - H0
         //     - S

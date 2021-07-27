@@ -36,7 +36,6 @@ impl Properties {
             "gamma_ao_wise_gradient",
             "gamma_lr_atom_wise_gradient",
             "gamma_lr_ao_wise_gradient",
-            "f_lr_dmd0"
         ];
         for data_name in multi_dim_data.iter() {
             self.map.remove(*data_name);
@@ -228,7 +227,7 @@ impl Properties {
         }
     }
 
-    /// Returns a reference to the gradient of the long-range corrected gamma matrix in AO basis.
+    /// Returns the gradient of the long-range corrected gamma matrix in AO basis.
     pub fn take_grad_gamma_lr_ao(&mut self) -> Result<Array3<f64>, Property> {
         match self.take("gamma_lr_ao_wise_gradient") {
             Some(value) => value.into_array3(),
@@ -236,9 +235,58 @@ impl Properties {
         }
     }
 
+    /// Returns the flr matrix of the long-range corrected contribution to the gradient
     pub fn take_f_lr_dmd0(&mut self) -> Result<Array3<f64>,Property> {
         match self.take("f_lr_dmd0") {
             Some(value) => value.into_array3(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Returns the transition charges between the occ and virt states
+    pub fn take_qtrans_ov(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("qtrans_ov") {
+            Some(value) => value.into_array3(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Returns the transition charges between the occ states
+    pub fn take_qtrans_oo(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("qtrans_oo") {
+            Some(value) => value.into_array3(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Returns the transition charges between the virt states
+    pub fn take_qtrans_vv(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("qtrans_vv") {
+            Some(value) => value.into_array3(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Return the sum of the excitation vectors
+    pub fn take_xpy(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("xpy") {
+            Some(value) => value.into_array3(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Return the difference of the excitation vectors
+    pub fn take_xmy(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("xmy") {
+            Some(value) => value.into_array3(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Return the eigenvalues of the excited states
+    pub fn take_excited_energies(&mut self) -> Result<Array1<f64>,Property> {
+        match self.take("excited_energies") {
+            Some(value) => value.into_array1(),
             _ => Err(Property::default()),
         }
     }
@@ -552,6 +600,54 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to the transition charges between the occ and virt states
+    pub fn qtrans_ov(&mut self) -> Option<ArrayView3<f64>> {
+        match self.get("qtrans_ov") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the transition charges between the occ states
+    pub fn qtrans_oo(&mut self) ->Option<ArrayView3<f64>> {
+        match self.get("qtrans_oo") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the transition charges between the virt states
+    pub fn qtrans_vv(&mut self) -> Option<ArrayView3<f64>> {
+        match self.get("qtrans_vv") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the sum of the excitation vectors
+    pub fn xpy(&mut self) -> Option<ArrayView3<f64>> {
+        match self.get("xpy") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the difference of the excitation vectors
+    pub fn xmy(&mut self) -> Option<ArrayView3<f64>> {
+        match self.get("xmy") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Return a reference to the eigenvalues of the excited states
+    pub fn excited_states(&mut self) ->Option<ArrayView1<f64>> {
+        match self.get("excited_energies") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Set the energy of the last scc iteration
     pub fn set_occupation(&mut self, f: Vec<f64>) {
         self.set("occupation", Property::VecF64(f))
@@ -754,4 +850,53 @@ impl Properties {
             Property::from(f_lr_dmd0),
         )
     }
+
+    /// set the transition charges between the occ and virt states
+    pub fn set_qtrans_ov(&mut self, qtrans_ov:Array3<f64>){
+        self.set(
+            "qtrans_ov",
+            Property::from(qtrans_ov),
+        )
+    }
+
+    /// set the transition charges between the occ states
+    pub fn set_qtrans_oo(&mut self, qtrans_ov:Array3<f64>){
+        self.set(
+            "qtrans_oo",
+            Property::from(qtrans_ov),
+        )
+    }
+
+    /// set the transition charges between the virt states
+    pub fn set_qtrans_vv(&mut self, qtrans_ov:Array3<f64>){
+        self.set(
+            "qtrans_vv",
+            Property::from(qtrans_ov),
+        )
+    }
+
+    /// set the sum of the excitation vectors x and y
+    pub fn set_xpy(&mut self, xpy:Array3<f64>){
+        self.set(
+            "xpy",
+            Property::from(xpy),
+        )
+    }
+
+    /// set the difference of the excitation vectors x and y
+    pub fn set_xmy(&mut self, xmy:Array3<f64>){
+        self.set(
+            "xpy",
+            Property::from(xmy),
+        )
+    }
+
+    /// set the eigenvalues of the excited states
+    pub fn set_excited_energies(&mut self, excited_energies:Array1<f64>){
+        self.set(
+            "excited_energies",
+            Property::from(excited_energies),
+        )
+    }
+
 }
