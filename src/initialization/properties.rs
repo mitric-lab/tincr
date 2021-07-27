@@ -244,24 +244,24 @@ impl Properties {
     }
 
     /// Returns the transition charges between the occ and virt states
-    pub fn take_qtrans_ov(&mut self) -> Result<Array3<f64>,Property> {
-        match self.take("qtrans_ov") {
+    pub fn take_q_ov(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("q_ov") {
             Some(value) => value.into_array3(),
             _ => Err(Property::default()),
         }
     }
 
     /// Returns the transition charges between the occ states
-    pub fn take_qtrans_oo(&mut self) -> Result<Array3<f64>,Property> {
-        match self.take("qtrans_oo") {
+    pub fn take_q_oo(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("q_oo") {
             Some(value) => value.into_array3(),
             _ => Err(Property::default()),
         }
     }
 
     /// Returns the transition charges between the virt states
-    pub fn take_qtrans_vv(&mut self) -> Result<Array3<f64>,Property> {
-        match self.take("qtrans_vv") {
+    pub fn take_q_vv(&mut self) -> Result<Array3<f64>,Property> {
+        match self.take("q_vv") {
             Some(value) => value.into_array3(),
             _ => Err(Property::default()),
         }
@@ -600,30 +600,6 @@ impl Properties {
         }
     }
 
-    /// Returns a reference to the transition charges between the occ and virt states
-    pub fn qtrans_ov(&mut self) -> Option<ArrayView3<f64>> {
-        match self.get("qtrans_ov") {
-            Some(value) => Some(value.as_array3().unwrap().view()),
-            _ => None,
-        }
-    }
-
-    /// Returns a reference to the transition charges between the occ states
-    pub fn qtrans_oo(&mut self) ->Option<ArrayView3<f64>> {
-        match self.get("qtrans_oo") {
-            Some(value) => Some(value.as_array3().unwrap().view()),
-            _ => None,
-        }
-    }
-
-    /// Returns a reference to the transition charges between the virt states
-    pub fn qtrans_vv(&mut self) -> Option<ArrayView3<f64>> {
-        match self.get("qtrans_vv") {
-            Some(value) => Some(value.as_array3().unwrap().view()),
-            _ => None,
-        }
-    }
-
     /// Returns a reference to the sum of the excitation vectors
     pub fn xpy(&mut self) -> Option<ArrayView3<f64>> {
         match self.get("xpy") {
@@ -848,30 +824,6 @@ impl Properties {
         self.set(
             "f_lr_dmd0",
             Property::from(f_lr_dmd0),
-        )
-    }
-
-    /// set the transition charges between the occ and virt states
-    pub fn set_qtrans_ov(&mut self, qtrans_ov:Array3<f64>){
-        self.set(
-            "qtrans_ov",
-            Property::from(qtrans_ov),
-        )
-    }
-
-    /// set the transition charges between the occ states
-    pub fn set_qtrans_oo(&mut self, qtrans_ov:Array3<f64>){
-        self.set(
-            "qtrans_oo",
-            Property::from(qtrans_ov),
-        )
-    }
-
-    /// set the transition charges between the virt states
-    pub fn set_qtrans_vv(&mut self, qtrans_ov:Array3<f64>){
-        self.set(
-            "qtrans_vv",
-            Property::from(qtrans_ov),
         )
     }
 

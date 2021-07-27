@@ -1,4 +1,4 @@
-use crate::excited_states::trans_charges;
+use crate::excited_states::{trans_charges_fast};
 use crate::gradients::helpers::{
     f_lr, f_v, h_minus, h_plus_no_lr, zvector_lc, zvector_no_lc, Hplus, HplusType,
 };
@@ -10,7 +10,7 @@ use std::time::Instant;
 
 impl System {
     pub fn calculate_trans_charges(&mut self) {
-        let tmp: (Array3<f64>, Array3<f64>, Array3<f64>) = trans_charges(
+        let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges_fast(
             self.n_atoms,
             &self.atoms,
             self.properties.orbs().unwrap(),
@@ -18,9 +18,10 @@ impl System {
             &self.occ_indices,
             &self.virt_indices,
         );
-        self.properties.set_qtrans_ov(tmp.0);
-        self.properties.set_qtrans_oo(tmp.1);
-        self.properties.set_qtrans_vv(tmp.2);
+
+        self.properties.set_q_ov(tmp.0);
+        self.properties.set_q_oo(tmp.1);
+        self.properties.set_q_vv(tmp.2);
     }
 
     pub fn excited_state_gradient_lc(&mut self, state: usize) -> Array1<f64> {
@@ -67,9 +68,9 @@ impl System {
             0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov: Array3<f64> = self.properties.take_qtrans_ov().unwrap();
-        let qtrans_oo: Array3<f64> = self.properties.take_qtrans_oo().unwrap();
-        let qtrans_vv: Array3<f64> = self.properties.take_qtrans_vv().unwrap();
+        let qtrans_ov: Array3<f64> = self.properties.take_q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
+        let qtrans_oo: Array3<f64> = self.properties.take_q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
+        let qtrans_vv: Array3<f64> = self.properties.take_q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
         let qtrans_vo: Array3<f64> = qtrans_ov
             .view()
             .permuted_axes([0, 2, 1])
@@ -352,9 +353,9 @@ impl System {
             0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov: Array3<f64> = self.properties.take_qtrans_ov().unwrap();
-        let qtrans_oo: Array3<f64> = self.properties.take_qtrans_oo().unwrap();
-        let qtrans_vv: Array3<f64> = self.properties.take_qtrans_vv().unwrap();
+        let qtrans_ov: Array3<f64> = self.properties.take_q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
+        let qtrans_oo: Array3<f64> = self.properties.take_q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
+        let qtrans_vv: Array3<f64> = self.properties.take_q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
 
         // set gamma matrix
         let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
