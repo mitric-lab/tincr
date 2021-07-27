@@ -55,6 +55,28 @@ pub fn print_energies_at_iteration(iter: usize, scf_energy: f64, rep_energy: f64
     }
 }
 
+pub fn print_energies_at_iteration_unrestricted(iter: usize, scf_energy: f64, rep_energy: f64, energy_old: f64, dq_diff_max_alpha:f64, dq_diff_max_beta:f64) {
+    if iter == 0 {
+        info!(
+            "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>18.10e}",
+            iter + 1,
+            scf_energy + rep_energy,
+            0.0,
+            dq_diff_max_alpha,
+            dq_diff_max_beta
+        );
+    } else {
+        info!(
+            "{: >5} {:>18.10e} {:>18.10e} {:>18.10e} {:>18.10e}",
+            iter + 1,
+            scf_energy + rep_energy,
+            energy_old - scf_energy,
+            dq_diff_max_alpha,
+            dq_diff_max_beta
+        );
+    }
+}
+
 pub fn print_scc_end(timer: Timer, jobtype: &str, scf_energy: f64, rep_energy: f64, orbe: ArrayView1<f64>, f: &[f64]) {
     info!("{:-^75} ", "");
     info!("{: ^75}", "SCC converged");
@@ -64,6 +86,21 @@ pub fn print_scc_end(timer: Timer, jobtype: &str, scf_energy: f64, rep_energy: f
     info!("{}", timer);
     if jobtype == "sp" {
         print_orbital_information(orbe.view(), &f);
+    }
+}
+
+pub fn print_unrestricted_scc_end(timer: Timer, jobtype: &str, scf_energy: f64, rep_energy: f64, orbe_alpha: ArrayView1<f64>, f_alpha: &[f64],orbe_beta: ArrayView1<f64>, f_beta: &[f64]) {
+    info!("{:-^75} ", "");
+    info!("{: ^75}", "SCC converged");
+    info!("{:^80} ", "");
+    info!("final energy: {:18.14} Hartree", scf_energy + rep_energy);
+    info!("{:-<80} ", "");
+    info!("{}", timer);
+    if jobtype == "sp" {
+        info!("Information about alpha orbitals");
+        print_orbital_information(orbe_alpha.view(), &f_alpha);
+        info!("Information about beta orbitals");
+        print_orbital_information(orbe_beta.view(), &f_beta);
     }
 }
 

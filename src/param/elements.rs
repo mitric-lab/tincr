@@ -2,7 +2,7 @@ use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
 
 #[rustfmt::skip]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy,Debug)]
 /// Type that contains the kind of a chemical element.
 pub enum Element {
     H,                                                                                   He,

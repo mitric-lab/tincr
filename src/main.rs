@@ -26,6 +26,7 @@ use crate::scc::gamma_approximation::gamma_atomwise;
 use crate::fmo::gradients::GroundStateGradient;
 use ndarray::{Array2, Array1};
 use crate::excited_states::{orbe_differences, trans_charges};
+use crate::scc::scc_routine_unrestricted::UnrestrictedSCC;
 
 mod constants;
 mod defaults;

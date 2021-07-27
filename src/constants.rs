@@ -22,6 +22,15 @@ pub const ATOM_NAMES: [&str; 87] = [
     "hg", "tl", "pb", "bi", "po", "at", "rn",
 ];
 
+pub const ATOM_NAMES_UPPER: [&str; 87] = [
+    "Dummy", "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P",
+    "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga",
+    "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag",
+    "Cd", "In", "Sn", "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu",
+    "Gd", "Tb", "Dy", "Ho", "Er", "Th", "Yt", "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au",
+    "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn",
+];
+
 // I believe these masses are averaged over isotopes weighted with their abundances
 pub static ATOMIC_MASSES_OLD: phf::Map<&'static str, f64> = phf_map! {
     "H"  => 1.837362128065067E+03, "he" => 7.296296732461748E+03,
@@ -234,6 +243,36 @@ pub static VDW_RADII: phf::Map<u8, f64> = phf_map! {
     8u8 =>1.52,
     9u8 =>1.47,
     10u8 =>1.54,
+};
+
+// Spin coupling constants taken from dftb+ manual
+pub static SPIN_COUPLING: phf::Map<u8, f64> = phf_map! {
+    1u8  => -0.072,
+    6u8  => -0.023,
+    7u8  => -0.026,
+    8u8  => -0.028,
+};
+
+// Tausymbols of the skf files. They correspond to the different orbital interactions
+pub const TAUSYMBOLS_AB: [&str;10] = ["dd_sigma", "dd_pi", "dd_delta",   "pd_sigma", "pd_pi", "pp_sigma", "pp_pi", "sd_sigma", "sp_sigma", "ss_sigma"];
+pub const TAUSYMBOLS_BA: [&str;10] = ["dd_sigma", "dd_pi", "dd_delta",   "dp_sigma", "dp_pi", "pp_sigma", "pp_pi", "ds_sigma", "ps_sigma", "ss_sigma"];
+
+// Convert the Tausymbols to tuples of values
+pub static SYMBOL_2_TAU:phf::Map<&'static str,(u8,i32,u8,i32)> = phf_map!{
+    "ss_sigma" => (0,0,0,0),
+    "sp_sigma" => (0,0,1,0),
+    "ps_sigma" => (1,0,0,0),
+    "pp_pi"    => (1,-1,1,-1),
+    "pp_sigma" => (1,0,1,0),
+    "ds_sigma" => (2,0,0,0),
+    "sd_sigma" => (0,0,2,0),
+    "dp_pi"    => (2,-1,1,-1),
+    "pd_pi"    => (1,-1,2,-1),
+    "dp_sigma" => (2,0,1,0),
+    "pd_sigma" => (1,0,2,0),
+    "dd_delta" => (2,-2,2,-2),
+    "dd_pi"    => (2,-1,2,-1),
+    "dd_sigma" => (2,0,2,0),
 };
 
 // //  occupation numbers of valence orbitals

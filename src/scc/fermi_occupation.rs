@@ -24,7 +24,7 @@ use crate::utils::zbrent;
 pub fn fermi_occupation(
     orbe: ArrayView1<f64>,
     n_elec_paired: usize,
-    n_elec_unpaired: usize,
+    n_elec_unpaired: f64,
     t: f64,
 ) -> (f64, Vec<f64>) {
     let mut fermi_occ: Vec<f64> = Vec::new();
@@ -34,7 +34,7 @@ pub fn fermi_occupation(
         mu = result.0;
         fermi_occ = result.1;
     } else {
-        let n_elec: usize = n_elec_paired + n_elec_unpaired;
+        let n_elec: usize = n_elec_paired + n_elec_unpaired as usize;
         let sort_indx: Vec<usize> = argsort(&orbe.to_vec());
         // highest doubly occupied orbital
         let h_idx: usize = max((n_elec / 2) - 1, 0);
@@ -58,10 +58,10 @@ pub fn fermi_occupation(
 fn fermi_occupation_t0(
     orbe: ArrayView1<f64>,
     n_elec_paired: usize,
-    n_elec_unpaired: usize,
+    n_elec_unpaired: f64,
 ) -> (f64, Vec<f64>) {
     let mut n_elec_paired: f64 = n_elec_paired as f64;
-    let mut n_elec_unpaired: f64 = n_elec_unpaired as f64;
+    let mut n_elec_unpaired: f64 = n_elec_unpaired;
     let sort_indx: Vec<usize> = argsort(orbe.as_slice().unwrap());
     let mut fermi_occ: Vec<f64> = vec![0.0; orbe.len()];
     for a in sort_indx.iter() {
