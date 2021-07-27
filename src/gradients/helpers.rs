@@ -635,7 +635,7 @@ pub fn gradient_v_rep(atoms: &[Atom], v_rep: &RepulsivePotential) -> Array1<f64>
 
 pub fn zvector_lc(
     a_diag: ArrayView2<f64>,
-    b_matrix: ArrayView2<f64>,
+    r_matrix: ArrayView2<f64>,
     g0: ArrayView2<f64>,
     g0_lr: ArrayView2<f64>,
     qtrans_oo: ArrayView3<f64>,
@@ -652,19 +652,19 @@ pub fn zvector_lc(
     let maxiter: usize = 10000;
     let conv:f64 = 1.0e-16;
 
-    let n_occ: usize = b_matrix.dim().0;
-    let n_virt: usize = b_matrix.dim().1;
+    let n_occ: usize = r_matrix.dim().0;
+    let n_virt: usize = r_matrix.dim().1;
     let n_at:usize = qtrans_ov.dim().0;
     let kmax: usize = n_occ * n_virt;
 
     // bs are expansion vectors
     let a_inv: Array2<f64> = 1.0 / &a_diag.to_owned();
-    let mut bs: Array2<f64> = &a_inv * &b_matrix;
+    let mut bs: Array2<f64> = &a_inv * &r_matrix;
 
     let mut rhs_2: Array1<f64> = Array::zeros((kmax));
     let mut rkm1: Array1<f64> = Array::zeros((kmax));
     let mut pkm1: Array1<f64> = Array::zeros((kmax));
-    let rhs:Array1<f64> = b_matrix.into_shape(kmax).unwrap().to_owned();
+    let rhs:Array1<f64> = r_matrix.into_shape(kmax).unwrap().to_owned();
 
     // create new arrays for transition charges of specific shapes,
     // which are required by the mult_apb_v_routine
@@ -745,7 +745,7 @@ pub fn zvector_lc(
 
 pub fn zvector_no_lc(
     a_diag: ArrayView2<f64>,
-    b_matrix: ArrayView2<f64>,
+    r_matrix: ArrayView2<f64>,
     g0: ArrayView2<f64>,
     qtrans_ov: ArrayView3<f64>,
     multiplicity: u8,
@@ -759,19 +759,19 @@ pub fn zvector_no_lc(
     let maxiter: usize = 10000;
     let conv:f64 = 1.0e-16;
 
-    let n_occ: usize = b_matrix.dim().0;
-    let n_virt: usize = b_matrix.dim().1;
+    let n_occ: usize = r_matrix.dim().0;
+    let n_virt: usize = r_matrix.dim().1;
     let kmax: usize = n_occ * n_virt;
     let n_at:usize = qtrans_ov.dim().0;
 
     // bs are expansion vectors
     let a_inv: Array2<f64> = 1.0 / &a_diag.to_owned();
-    let mut bs: Array2<f64> = &a_inv * &b_matrix;
+    let mut bs: Array2<f64> = &a_inv * &r_matrix;
 
     let mut rhs_2: Array1<f64> = Array::zeros((kmax));
     let mut rkm1: Array1<f64> = Array::zeros((kmax));
     let mut pkm1: Array1<f64> = Array::zeros((kmax));
-    let rhs:Array1<f64> = b_matrix.into_shape(kmax).unwrap().to_owned();
+    let rhs:Array1<f64> = r_matrix.into_shape(kmax).unwrap().to_owned();
 
     let apbv:Array2<f64> = mult_apb_v_no_lc(
         g0,
