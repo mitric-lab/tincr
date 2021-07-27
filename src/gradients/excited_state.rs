@@ -1,4 +1,7 @@
-use crate::gradients::helpers::{f_lr, f_v, h_minus, zvector_lc, Hplus, HplusType, h_plus_no_lr, zvector_no_lc};
+use crate::excited_states::trans_charges;
+use crate::gradients::helpers::{
+    f_lr, f_v, h_minus, h_plus_no_lr, zvector_lc, zvector_no_lc, Hplus, HplusType,
+};
 use crate::initialization::*;
 use crate::utils::ToOwnedF;
 use ndarray::{s, Array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3, Axis};
@@ -6,6 +9,20 @@ use ndarray_linalg::{into_col, into_row, IntoTriangular, Solve, UPLO};
 use std::time::Instant;
 
 impl System {
+    pub fn calculate_trans_charges(&mut self) {
+        let tmp: (Array3<f64>, Array3<f64>, Array3<f64>) = trans_charges(
+            self.n_atoms,
+            &self.atoms,
+            self.properties.orbs().unwrap(),
+            self.properties.s().unwrap(),
+            &self.occ_indices,
+            &self.virt_indices,
+        );
+        self.properties.set_qtrans_ov(tmp.0);
+        self.properties.set_qtrans_oo(tmp.1);
+        self.properties.set_qtrans_vv(tmp.2);
+    }
+
     pub fn excited_state_gradient_lc(&mut self, state: usize) -> Array1<f64> {
         // set the occupied and virtual orbital energies
         let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
@@ -179,7 +196,7 @@ impl System {
         let g0_ao: Array2<f64> = self.properties.take_gamma_ao().unwrap();
         let g1_ao: Array3<f64> = self.properties.take_grad_gamma_ao().unwrap();
         let flr_dmd0: Array3<f64> = self.properties.take_f_lr_dmd0().unwrap();
-        let grad_h:Array3<f64> = self.properties.take_grad_h0().unwrap();
+        let grad_h: Array3<f64> = self.properties.take_grad_h0().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
 
         // calculate gradH: gradH0 + gradHexc
@@ -213,8 +230,8 @@ impl System {
         // transform w matrix and excited state vectors to AO basis
         let w_triangular: Array2<f64> = w_matrix.into_triangular(UPLO::Upper);
         let w_ao: Array2<f64> = orbs.dot(&w_triangular.dot(&orbs.t()));
-        let xpy_ao:Array2<f64> = orbs_occ.dot(&xpy_state.dot(&orbs_virt.t()));
-        let xmy_ao:Array2<f64> = orbs_occ.dot(&xmy_state.dot(&orbs_virt.t()));
+        let xpy_ao: Array2<f64> = orbs_occ.dot(&xpy_state.dot(&orbs_virt.t()));
+        let xmy_ao: Array2<f64> = orbs_occ.dot(&xmy_state.dot(&orbs_virt.t()));
 
         // set g0lr_ao and g1lr_ao
         let g0lr_ao: ArrayView2<f64> = self.properties.gamma_lr_ao().unwrap();
@@ -256,7 +273,11 @@ impl System {
             + grad_h
                 .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
                 .unwrap()
-                .dot(&(t_vv - t_oo + z_ao).into_shape(self.n_orbs * self.n_orbs).unwrap());
+                .dot(
+                    &(t_vv - t_oo + z_ao)
+                        .into_shape(self.n_orbs * self.n_orbs)
+                        .unwrap(),
+                );
         // - gradS * W
         gradExc = gradExc
             - grad_s
@@ -339,8 +360,10 @@ impl System {
         let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
 
         // compute hplus of tab and tij
-        let hplus_tab: Array2<f64> = h_plus_no_lr(g0,qtrans_oo.view(),qtrans_vv.view(),t_ab.view());
-        let hplus_tij: Array2<f64> = h_plus_no_lr(g0,qtrans_oo.view(),qtrans_oo.view(),t_ij.view());
+        let hplus_tab: Array2<f64> =
+            h_plus_no_lr(g0, qtrans_oo.view(), qtrans_vv.view(), t_ab.view());
+        let hplus_tij: Array2<f64> =
+            h_plus_no_lr(g0, qtrans_oo.view(), qtrans_oo.view(), t_ij.view());
 
         // calculate q_ij
         let g_ij: Array2<f64> = hplus_tab - hplus_tij;
@@ -350,16 +373,18 @@ impl System {
         let q_ab: Array2<f64> = omega_state * u_ab + v_ab;
 
         // calculate q_ia
-        let mut q_ia: Array2<f64> = xpy_state.dot(
-            &h_plus_no_lr(g0,qtrans_vv.view(),qtrans_ov.view(),xpy_state.view()).t());
-        q_ia = q_ia + h_plus_no_lr(g0,qtrans_ov.view(),qtrans_vv.view(),t_ab.view());
-        q_ia = q_ia - h_plus_no_lr(g0,qtrans_ov.view(),qtrans_oo.view(),t_ij.view());
+        let mut q_ia: Array2<f64> = xpy_state
+            .dot(&h_plus_no_lr(g0, qtrans_vv.view(), qtrans_ov.view(), xpy_state.view()).t());
+        q_ia = q_ia + h_plus_no_lr(g0, qtrans_ov.view(), qtrans_vv.view(), t_ab.view());
+        q_ia = q_ia - h_plus_no_lr(g0, qtrans_ov.view(), qtrans_oo.view(), t_ij.view());
 
         // calculate q_ai
-        let q_ai: Array2<f64> =
-            xpy_state
-                .t()
-                .dot(&h_plus_no_lr(g0,qtrans_oo.view(),qtrans_ov.view(),xpy_state.view()));
+        let q_ai: Array2<f64> = xpy_state.t().dot(&h_plus_no_lr(
+            g0,
+            qtrans_oo.view(),
+            qtrans_ov.view(),
+            xpy_state.view(),
+        ));
 
         // calculate right hand side of the z-vector equation
         let r_ia: Array2<f64> = &q_ai.t() - &q_ia;
@@ -382,7 +407,8 @@ impl System {
         );
 
         // calculate w_ij
-        let mut w_ij: Array2<f64> = q_ij + h_plus_no_lr(g0,qtrans_oo.view(),qtrans_ov.view(),z_ia.view());
+        let mut w_ij: Array2<f64> =
+            q_ij + h_plus_no_lr(g0, qtrans_oo.view(), qtrans_ov.view(), z_ia.view());
         for i in 0..w_ij.dim().0 {
             w_ij[[i, i]] = w_ij[[i, i]] / 2.0;
         }
@@ -423,7 +449,7 @@ impl System {
         let grad_s: Array3<f64> = self.properties.take_grad_s().unwrap();
         let g0_ao: Array2<f64> = self.properties.take_gamma_ao().unwrap();
         let g1_ao: Array3<f64> = self.properties.take_grad_gamma_ao().unwrap();
-        let grad_h:Array3<f64> = self.properties.take_grad_h0().unwrap();
+        let grad_h: Array3<f64> = self.properties.take_grad_h0().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
 
         // calculate gradH: gradH0 + gradHexc
@@ -457,8 +483,8 @@ impl System {
         // transform w matrix and excited state vectors to AO basis
         let w_triangular: Array2<f64> = w_matrix.into_triangular(UPLO::Upper);
         let w_ao: Array2<f64> = orbs.dot(&w_triangular.dot(&orbs.t()));
-        let xpy_ao:Array2<f64> = orbs_occ.dot(&xpy_state.dot(&orbs_virt.t()));
-        let xmy_ao:Array2<f64> = orbs_occ.dot(&xmy_state.dot(&orbs_virt.t()));
+        let xpy_ao: Array2<f64> = orbs_occ.dot(&xpy_state.dot(&orbs_virt.t()));
+        let xmy_ao: Array2<f64> = orbs_occ.dot(&xmy_state.dot(&orbs_virt.t()));
 
         // calculate contributions to the excited gradient
         let f: Array3<f64> = f_v(
@@ -476,21 +502,25 @@ impl System {
         // gradH * (T + Z)
         gradExc = gradExc
             + grad_h
-            .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
-            .unwrap()
-            .dot(&(t_vv - t_oo + z_ao).into_shape(self.n_orbs * self.n_orbs).unwrap());
+                .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                .unwrap()
+                .dot(
+                    &(t_vv - t_oo + z_ao)
+                        .into_shape(self.n_orbs * self.n_orbs)
+                        .unwrap(),
+                );
         // - gradS * W
         gradExc = gradExc
             - grad_s
-            .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
-            .unwrap()
-            .dot(&w_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
+                .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                .unwrap()
+                .dot(&w_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
         // 2.0 * sum (X+Y) F (X+Y)
         gradExc = gradExc
             + 2.0
-            * f.into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
-            .unwrap()
-            .dot(&xpy_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
+                * f.into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                    .unwrap()
+                    .dot(&xpy_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
 
         return gradExc;
     }

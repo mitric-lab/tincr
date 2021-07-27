@@ -6,5 +6,6 @@ mod numerical;
 mod ground_state;
 mod helpers;
 mod excited_state;
+mod grad;
 
 pub use numerical::*;
