@@ -60,21 +60,14 @@ impl System{
         let q_ab: Array2<f64> = omega_state * u_ab + v_ab;
 
         // calculate q_ia
-        let hplus_qia_xpy:Array2<f64> = hplus.compute(g0,g0_lr,xpy_state.view(),HplusType::Qia_Xpy);
-        let mut q_ia:Array2<f64> = xpy_state.dot(&hplus_qia_xpy.t());
-        drop(hplus_qia_xpy);
-
-        let hminus_xmy:Array2<f64> = h_minus(g0_lr,qtrans_vv.view(),qtrans_vo.view(),qtrans_vo.view(),qtrans_vv.view(),xmy_state.view());
-        q_ia = q_ia + xmy_state.dot(&hminus_xmy.t());
-        drop(hminus_xmy);
-
+        let mut q_ia:Array2<f64> = xpy_state.dot(&hplus.compute(g0,g0_lr,xpy_state.view(),HplusType::Qia_Xpy).t());
+        q_ia = q_ia + xmy_state.dot(&h_minus(g0_lr,qtrans_vv.view(),qtrans_vo.view(),qtrans_vo.view(),qtrans_vv.view(),xmy_state.view()).t());
         q_ia = q_ia + hplus.compute(g0,g0_lr,t_ab.view(),HplusType::Qia_Tab);
         q_ia = q_ia - hplus.compute(g0,g0_lr,t_ij.view(),HplusType::Qia_Tij);
 
         // calculate q_ai
-        let hplus_qai:Array2<f64> = hplus.compute(g0,g0_lr,xpy_state.view(),HplusType::Qai);
-        let q_ai:Array2<f64> = xpy_state.t().dot(&hplus_qai);
-        drop(hplus_qai);
+        let mut q_ai:Array2<f64> = xpy_state.t().dot(&hplus.compute(g0,g0_lr,xpy_state.view(),HplusType::Qai));
+        q_ai = q_ai + xmy_state.t().dot(&h_minus(g0_lr,qtrans_ov.view(),qtrans_oo.view(),qtrans_oo.view(),qtrans_ov.view(),xmy_state.view()));
     }
 }
 
