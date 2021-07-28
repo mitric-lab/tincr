@@ -29,6 +29,10 @@ impl ExcitedStateMonomerGradient for Monomer{
             self.properties.set_occ_indices(occ_indices.clone());
             self.properties.set_virt_indices(virt_indices.clone());
         }
+        else{
+            occ_indices = self.properties.occ_indices().unwrap().to_vec();
+            virt_indices = self.properties.virt_indices().unwrap().to_vec();
+        }
         // calculate transition charges if they don't exist
         if self.properties.contains_key("q_ov") == false{
             let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges_fast(
