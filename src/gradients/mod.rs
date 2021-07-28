@@ -4,7 +4,7 @@
 //mod grad;
 mod numerical;
 mod ground_state;
-mod helpers;
+pub mod helpers;
 mod excited_state;
 mod grad;
 

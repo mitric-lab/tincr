@@ -3,10 +3,7 @@ use crate::fmo::scc::helpers::*;
 use crate::fmo::{Monomer, Pair, SuperSystem};
 use crate::initialization::parameters::RepulsivePotential;
 use crate::initialization::Atom;
-use crate::scc::gamma_approximation::{
-    gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise,
-    gamma_gradients_atomwise_2d,
-};
+use crate::scc::gamma_approximation::{gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise, gamma_gradients_atomwise_2d, gamma_gradients_ao_wise};
 use crate::scc::h0_and_s::{h0_and_s, h0_and_s_ab, h0_and_s_gradients};
 use crate::scc::mixer::{BroydenMixer, Mixer};
 use crate::scc::mulliken::mulliken;
@@ -15,6 +12,7 @@ use crate::scc::{
     construct_h1, density_matrix, density_matrix_ref, get_electronic_energy, get_repulsive_energy,
     lc_exact_exchange,
 };
+use crate::gradients::helpers::{f_lr, gradient_v_rep};
 use crate::utils::Timer;
 use approx::AbsDiffEq;
 use log::info;
@@ -132,6 +130,40 @@ impl GroundStateGradient for Monomer {
 
         // last part: dV_rep / dR
         gradient = gradient + gradient_v_rep(&atoms, &self.vrep);
+
+        // long-range contribution to the gradient
+        if self.gammafunction_lc.is_some(){
+            // reshape gradS
+            let grad_s: Array3<f64> = grad_s
+                .into_shape([3 * self.n_atoms, self.n_orbs, self.n_orbs])
+                .unwrap();
+            // calculate the gamma gradient matrix in AO basis
+            let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            // calculate the difference density matrix
+            let diff_p: Array2<f64> = &p - &self.properties.p_ref().unwrap();
+            // calculate the matrix F_lr[diff_p]
+            let flr_dmd0:Array3<f64> = f_lr(
+                diff_p.view(),
+                self.properties.s().unwrap(),
+                grad_s.view(),
+                self.properties.gamma_lr_ao().unwrap(),
+                g1_lr_ao.view(),
+                self.n_atoms,
+                self.n_orbs,
+            );
+            // -0.25 * F_lr[diff_p] * diff_p
+            gradient = gradient
+                - 0.25
+                * flr_dmd0.view()
+                .into_shape((3 * self.n_atoms, self.n_orbs * self.n_orbs))
+                .unwrap()
+                .dot(&diff_p.into_shape(self.n_orbs * self.n_orbs).unwrap());
+        }
 
         // // 1st part: dH0 / dR . Z
         // let mut response: Array1<f64> = grad_h0.dot(&z_vector);

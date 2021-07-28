@@ -14,6 +14,7 @@ mod pair;
 mod numerical;
 mod es_dimer;
 mod response;
+mod excited_state;
 // mod numerical;
 
 pub use monomer::*;
@@ -24,6 +25,12 @@ use crate::fmo::gradients::embedding::diag_of_last_dimensions;
 pub trait GroundStateGradient {
     fn get_grad_dq(&self, atoms: &[Atom], s: ArrayView2<f64>, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;
     fn scc_gradient(&mut self, atoms: &[Atom]) -> Array1<f64>;
+}
+
+pub trait ExcitedStateMonomerGradient{
+    fn prepare_excited_gradient(&mut self,atoms: &[Atom]);
+    fn excited_gradient_lc(&mut self,state:usize)->Array1<f64>;
+    fn excited_gradient_no_lc(&mut self,state:usize)->Array1<f64>;
 }
 
 impl SuperSystem {
