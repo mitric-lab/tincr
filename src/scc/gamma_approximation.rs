@@ -5,6 +5,7 @@ use hashbrown::HashMap;
 use std::f64::consts::PI;
 use nalgebra::Vector3;
 use std::iter::FromIterator;
+use ndarray::AssignElem;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -288,6 +289,60 @@ pub fn gamma_ao_wise(
     return (g0, g0_a0);
 }
 
+pub fn gamma_ao_wise_faster(
+    gamma_func: &GammaFunction,
+    atoms: &[Atom],
+    n_atoms: usize,
+    n_orbs: usize,
+) -> (Array2<f64>, Array2<f64>) {
+    let g0: Array2<f64> = gamma_atomwise(gamma_func, &atoms, n_atoms);
+    let mut g0_a0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
+    let mut mu: usize = 0;
+    let mut nu: usize;
+    for (atom_i, g0_i) in atoms.iter().zip(g0.outer_iter()) {
+        for _ in 0..atom_i.n_orbs {
+            nu = 0;
+            for (atom_j, g0_ij) in atoms.iter().zip(g0_i.iter()) {
+                for _ in 0..atom_j.n_orbs {
+                    if mu <= nu{
+                        g0_a0[[mu, nu]] = *g0_ij;
+                        g0_a0[[nu,mu]] = g0_a0[[mu,nu]]
+                    }
+                    nu = nu + 1;
+                }
+            }
+            mu = mu + 1;
+        }
+    }
+    return (g0, g0_a0);
+}
+
+pub fn gamma_ao_wise_from_gamma_atomwise(
+    gamma_atomwise:ArrayView2<f64>,
+    atoms: &[Atom],
+    n_orbs: usize,
+) -> (Array2<f64>) {
+    let mut g0_a0: Array2<f64> = Array2::zeros((n_orbs, n_orbs));
+    let mut mu: usize = 0;
+    let mut nu: usize;
+    for (atom_i, g0_i) in atoms.iter().zip(gamma_atomwise.outer_iter()) {
+        for _ in 0..atom_i.n_orbs {
+            nu = 0;
+            for (atom_j, g0_ij) in atoms.iter().zip(g0_i.iter()) {
+                for _ in 0..atom_j.n_orbs {
+                    if mu <= nu{
+                        g0_a0[[mu, nu]] = *g0_ij;
+                        g0_a0[[nu,mu]] = *g0_ij;
+                    }
+                    nu = nu + 1;
+                }
+            }
+            mu = mu + 1;
+        }
+    }
+    return g0_a0;
+}
+
 pub fn gamma_gradients_ao_wise(
     gamma_func: &GammaFunction,
     atoms: &[Atom],
@@ -317,6 +372,41 @@ pub fn gamma_gradients_ao_wise(
             }
             mu = mu + 1;
         }
+    }
+    return (g1, g1_a0);
+}
+
+pub fn gamma_gradients_ao_wise_faster(
+    gamma_func: &GammaFunction,
+    atoms: &[Atom],
+    n_atoms: usize,
+    n_orbs: usize,
+) -> (Array3<f64>, Array3<f64>) {
+    let g1: Array3<f64> =
+        gamma_gradients_atomwise(gamma_func, &atoms, n_atoms);
+    let mut g1_a0: Array3<f64> = Array3::zeros((3 * n_atoms, n_orbs, n_orbs));
+    let mut mu: usize = 0;
+    let mut nu: usize;
+    let mut atom_iter:usize = 0;
+    for (atomi,g1_i) in atoms.iter().zip(g1.slice(s![(3 * atom_iter)..(3 * atom_iter + 3),atom_iter,..]).outer_iter()) {
+        for _ in 0..atomi.n_orbs {
+            nu = 0;
+            for (j, (atomj, g_ij)) in atoms.iter().zip(g1_i.axis_iter(Axis(1))).enumerate() {
+                for _ in 0..atomj.n_orbs {
+                    if atom_iter != j {
+                        g1_a0
+                            .slice_mut(s![(3 * atom_iter)..(3 * atom_iter + 3), mu, nu])
+                            .assign(&g_ij);
+                        g1_a0
+                            .slice_mut(s![(3 * atom_iter)..(3 * atom_iter + 3), nu, mu])
+                            .assign(&g_ij);
+                    }
+                    nu = nu + 1;
+                }
+            }
+            mu = mu + 1;
+        }
+        atom_iter += 1;
     }
     return (g1, g1_a0);
 }

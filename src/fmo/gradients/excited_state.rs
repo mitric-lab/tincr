@@ -6,7 +6,7 @@ use crate::utils::ToOwnedF;
 use ndarray::{s, Array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3, Axis};
 use ndarray_linalg::{into_col, into_row, IntoTriangular, Solve, UPLO};
 use crate::initialization::Atom;
-use crate::scc::gamma_approximation::{gamma_gradients_ao_wise,gamma_ao_wise};
+use crate::scc::gamma_approximation::{gamma_gradients_ao_wise, gamma_ao_wise, gamma_ao_wise_from_gamma_atomwise};
 use crate::scc::h0_and_s::h0_and_s_gradients;
 
 impl ExcitedStateMonomerGradient for Monomer{
@@ -61,10 +61,9 @@ impl ExcitedStateMonomerGradient for Monomer{
             self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
         }
         // prepare gamma and grad gamma AO matrix
-        let (g0,g0_ao):(Array2<f64>,Array2<f64>) = gamma_ao_wise(
-            &self.gammafunction,
+        let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+            self.properties.gamma().unwrap(),
             atoms,
-            self.n_atoms,
             self.n_orbs
         );
         let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
@@ -73,9 +72,6 @@ impl ExcitedStateMonomerGradient for Monomer{
             self.n_atoms,
             self.n_orbs,
         );
-        if self.properties.contains_key("gamma") == false{
-            self.properties.set_gamma(g0);
-        }
         self.properties.set_gamma_ao(g0_ao);
         self.properties.set_grad_gamma_ao(g1_ao);
 
