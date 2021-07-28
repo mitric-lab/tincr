@@ -94,8 +94,6 @@ impl ExcitedStateMonomerGradient for Monomer{
         let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
         let orbe_occ: Array1<f64> = occ_indices.iter().map(|&occ| orbe[occ]).collect();
         let orbe_virt: Array1<f64> = virt_indices.iter().map(|&virt| orbe[virt]).collect();
-        drop(occ_indices);
-        drop(virt_indices);
 
         // transform the energies to a diagonal 2d matrix
         let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
@@ -105,18 +103,16 @@ impl ExcitedStateMonomerGradient for Monomer{
         let n_virt: usize = orbe_virt.len();
 
         // take state specific values from the excitation vectors
-        let xmy_state: Array2<f64> = self
+        let xmy_state: ArrayView3<f64> = self
             .properties
-            .take_xmy()
-            .unwrap()
-            .slice(s![state, .., ..])
-            .to_owned();
-        let xpy_state: Array2<f64> = self
+            .xmy()
+            .unwrap();
+        let xmy_state: ArrayView2<f64> = xmy_state.slice(s![state,..,..]);
+        let xpy_state: ArrayView3<f64> = self
             .properties
-            .take_xpy()
-            .unwrap()
-            .slice(s![state, .., ..])
-            .to_owned();
+            .xpy()
+            .unwrap();
+        let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
         // excitation energy of the state
         let omega_state: f64 = self.properties.excited_states().unwrap()[state];
 
@@ -135,17 +131,16 @@ impl ExcitedStateMonomerGradient for Monomer{
             0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov: Array3<f64> = self.properties.take_q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: Array3<f64> = self.properties.take_q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: Array3<f64> = self.properties.take_q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.properties.q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.properties.q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.properties.q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
         let qtrans_vo: Array3<f64> = qtrans_ov
-            .view()
             .permuted_axes([0, 2, 1])
             .as_standard_layout()
             .to_owned();
 
         // create struct hplus
-        let hplus: Hplus = Hplus::new(&qtrans_ov, &qtrans_vv, &qtrans_oo, &qtrans_vo);
+        let hplus: Hplus = Hplus::new(qtrans_ov, qtrans_vv, qtrans_oo, qtrans_vo.view());
         // set gamma matrices
         let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
         let g0_lr: ArrayView2<f64> = self.properties.gamma_lr().unwrap();
@@ -164,18 +159,18 @@ impl ExcitedStateMonomerGradient for Monomer{
         // calculate q_ia
         let mut q_ia: Array2<f64> = xpy_state.dot(
             &hplus
-                .compute(g0, g0_lr, xpy_state.view(), HplusType::Qia_Xpy)
+                .compute(g0, g0_lr, xpy_state, HplusType::Qia_Xpy)
                 .t(),
         );
         q_ia = q_ia
             + xmy_state.dot(
             &h_minus(
                 g0_lr,
-                qtrans_vv.view(),
+                qtrans_vv,
                 qtrans_vo.view(),
                 qtrans_vo.view(),
-                qtrans_vv.view(),
-                xmy_state.view(),
+                qtrans_vv,
+                xmy_state,
             )
                 .t(),
         );
@@ -186,15 +181,15 @@ impl ExcitedStateMonomerGradient for Monomer{
         let mut q_ai: Array2<f64> =
             xpy_state
                 .t()
-                .dot(&hplus.compute(g0, g0_lr, xpy_state.view(), HplusType::Qai));
+                .dot(&hplus.compute(g0, g0_lr, xpy_state, HplusType::Qai));
         q_ai = q_ai
             + xmy_state.t().dot(&h_minus(
             g0_lr,
-            qtrans_ov.view(),
-            qtrans_oo.view(),
-            qtrans_oo.view(),
-            qtrans_ov.view(),
-            xmy_state.view(),
+            qtrans_ov,
+            qtrans_oo,
+            qtrans_oo,
+            qtrans_ov,
+            xmy_state,
         ));
 
         // calculate right hand side of the z-vector equation
@@ -213,9 +208,9 @@ impl ExcitedStateMonomerGradient for Monomer{
             r_matrix.view(),
             g0,
             g0_lr,
-            qtrans_oo.view(),
-            qtrans_vv.view(),
-            qtrans_ov.view(),
+            qtrans_oo,
+            qtrans_vv,
+            qtrans_ov,
             1,
             Array1::zeros(self.n_atoms).view(),
         );
@@ -259,37 +254,35 @@ impl ExcitedStateMonomerGradient for Monomer{
 
         // get arrays from properties
         let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
-        let grad_s: Array3<f64> = self.properties.take_grad_s().unwrap();
-        let g0_ao: Array2<f64> = self.properties.take_gamma_ao().unwrap();
-        let g1_ao: Array3<f64> = self.properties.take_grad_gamma_ao().unwrap();
-        let grad_h: Array3<f64> = self.properties.take_grad_h0().unwrap();
-        let g1lr_ao: Array3<f64> = self.properties.take_grad_gamma_lr_ao().unwrap();
+        let grad_s: ArrayView3<f64> = self.properties.grad_s().unwrap();
+        let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
+        let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
+        let grad_h: ArrayView3<f64> = self.properties.grad_h0().unwrap();
+        let g1lr_ao: ArrayView3<f64> = self.properties.grad_gamma_lr_ao().unwrap();
         let g0lr_ao: ArrayView2<f64> = self.properties.gamma_lr_ao().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let occ_indices:&[usize] = self.properties.occ_indices().unwrap();
-        let virt_indices:&[usize] = self.properties.virt_indices().unwrap();
 
         // calculate F[diff_p] and F_lr[diff_p] matrix
         let f_dmd0: Array3<f64> = f_v(
             diff_p.view(),
             s,
-            grad_s.view(),
-            g0_ao.view(),
-            g1_ao.view(),
+            grad_s,
+            g0_ao,
+            g1_ao,
             self.n_atoms,
             self.n_orbs,
         );
         let flr_dmd0:Array3<f64> = f_lr(
             diff_p.view(),
             s,
-            grad_s.view(),
+            grad_s,
             self.properties.gamma_lr_ao().unwrap(),
-            g1lr_ao.view(),
+            g1lr_ao,
             self.n_atoms,
             self.n_orbs,
         );
         // calculate gradH: gradH0 + gradHexc
-        let grad_h: Array3<f64> = grad_h + f_dmd0 - 0.5 * flr_dmd0;
+        let grad_h: Array3<f64> = &grad_h + &(f_dmd0 - 0.5 * flr_dmd0);
 
         // set the occupied and virtuals orbital coefficients
         let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
@@ -317,27 +310,27 @@ impl ExcitedStateMonomerGradient for Monomer{
         let f: Array3<f64> = f_v(
             xpy_ao.view(),
             s,
-            grad_s.view(),
-            g0_ao.view(),
-            g1_ao.view(),
+            grad_s,
+            g0_ao,
+            g1_ao,
             self.n_atoms,
             self.n_orbs,
         );
         let flr_p = f_lr(
             (&xpy_ao + &xpy_ao.t()).view(),
             s,
-            grad_s.view(),
+            grad_s,
             g0lr_ao,
-            g1lr_ao.view(),
+            g1lr_ao,
             self.n_atoms,
             self.n_orbs,
         );
         let flr_m = -f_lr(
             (&xmy_ao - &xmy_ao.t()).view(),
             s,
-            grad_s.view(),
+            grad_s,
             g0lr_ao,
-            g1lr_ao.view(),
+            g1lr_ao,
             self.n_atoms,
             self.n_orbs,
         );
@@ -381,6 +374,7 @@ impl ExcitedStateMonomerGradient for Monomer{
             .unwrap()
             .dot(&xmy_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
 
+        self.properties.clear_excited_gradient_lc();
         return gradExc;
     }
     fn excited_gradient_no_lc(&mut self, state: usize)->Array1<f64> {
@@ -392,8 +386,6 @@ impl ExcitedStateMonomerGradient for Monomer{
         let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
         let orbe_occ: Array1<f64> = occ_indices.iter().map(|&occ| orbe[occ]).collect();
         let orbe_virt: Array1<f64> = virt_indices.iter().map(|&virt| orbe[virt]).collect();
-        drop(occ_indices);
-        drop(virt_indices);
 
         // transform the energies to a diagonal 2d matrix
         let ei: Array2<f64> = Array2::from_diag(&orbe_occ);
@@ -403,18 +395,16 @@ impl ExcitedStateMonomerGradient for Monomer{
         let n_virt: usize = orbe_virt.len();
 
         // take state specific values from the excitation vectors
-        let xmy_state: Array2<f64> = self
+        let xmy_state: ArrayView3<f64> = self
             .properties
-            .take_xmy()
-            .unwrap()
-            .slice(s![state, .., ..])
-            .to_owned();
-        let xpy_state: Array2<f64> = self
+            .xmy()
+            .unwrap();
+        let xmy_state: ArrayView2<f64> = xmy_state.slice(s![state,..,..]);
+        let xpy_state: ArrayView3<f64> = self
             .properties
-            .take_xpy()
-            .unwrap()
-            .slice(s![state, .., ..])
-            .to_owned();
+            .xpy()
+            .unwrap();
+        let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
         // excitation energy of the state
         let omega_state: f64 = self.properties.excited_states().unwrap()[state];
 
@@ -433,18 +423,18 @@ impl ExcitedStateMonomerGradient for Monomer{
             0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov: Array3<f64> = self.properties.take_q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: Array3<f64> = self.properties.take_q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: Array3<f64> = self.properties.take_q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.properties.q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.properties.q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.properties.q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
 
         // set gamma matrix
         let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
 
         // compute hplus of tab and tij
         let hplus_tab: Array2<f64> =
-            h_plus_no_lr(g0, qtrans_oo.view(), qtrans_vv.view(), t_ab.view());
+            h_plus_no_lr(g0, qtrans_oo, qtrans_vv, t_ab.view());
         let hplus_tij: Array2<f64> =
-            h_plus_no_lr(g0, qtrans_oo.view(), qtrans_oo.view(), t_ij.view());
+            h_plus_no_lr(g0, qtrans_oo, qtrans_oo, t_ij.view());
 
         // calculate q_ij
         let g_ij: Array2<f64> = hplus_tab - hplus_tij;
@@ -455,16 +445,16 @@ impl ExcitedStateMonomerGradient for Monomer{
 
         // calculate q_ia
         let mut q_ia: Array2<f64> = xpy_state
-            .dot(&h_plus_no_lr(g0, qtrans_vv.view(), qtrans_ov.view(), xpy_state.view()).t());
-        q_ia = q_ia + h_plus_no_lr(g0, qtrans_ov.view(), qtrans_vv.view(), t_ab.view());
-        q_ia = q_ia - h_plus_no_lr(g0, qtrans_ov.view(), qtrans_oo.view(), t_ij.view());
+            .dot(&h_plus_no_lr(g0, qtrans_vv, qtrans_ov, xpy_state).t());
+        q_ia = q_ia + h_plus_no_lr(g0, qtrans_ov, qtrans_vv, t_ab.view());
+        q_ia = q_ia - h_plus_no_lr(g0, qtrans_ov, qtrans_oo, t_ij.view());
 
         // calculate q_ai
         let q_ai: Array2<f64> = xpy_state.t().dot(&h_plus_no_lr(
             g0,
-            qtrans_oo.view(),
-            qtrans_ov.view(),
-            xpy_state.view(),
+            qtrans_oo,
+            qtrans_ov,
+            xpy_state,
         ));
 
         // calculate right hand side of the z-vector equation
@@ -482,14 +472,14 @@ impl ExcitedStateMonomerGradient for Monomer{
             omega_input.view(),
             r_matrix.view(),
             g0,
-            qtrans_oo.view(),
+            qtrans_ov,
             1,
             Array1::zeros(self.n_atoms).view(),
         );
 
         // calculate w_ij
         let mut w_ij: Array2<f64> =
-            q_ij + h_plus_no_lr(g0, qtrans_oo.view(), qtrans_ov.view(), z_ia.view());
+            q_ij + h_plus_no_lr(g0, qtrans_oo, qtrans_ov, z_ia.view());
         for i in 0..w_ij.dim().0 {
             w_ij[[i, i]] = w_ij[[i, i]] / 2.0;
         }
@@ -527,25 +517,23 @@ impl ExcitedStateMonomerGradient for Monomer{
 
         // get arrays from properties
         let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
-        let grad_s: Array3<f64> = self.properties.take_grad_s().unwrap();
-        let g0_ao: Array2<f64> = self.properties.take_gamma_ao().unwrap();
-        let g1_ao: Array3<f64> = self.properties.take_grad_gamma_ao().unwrap();
-        let grad_h: Array3<f64> = self.properties.take_grad_h0().unwrap();
+        let grad_s: ArrayView3<f64> = self.properties.grad_s().unwrap();
+        let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
+        let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
+        let grad_h: ArrayView3<f64> = self.properties.grad_h0().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let occ_indices:&[usize] = self.properties.occ_indices().unwrap();
-        let virt_indices:&[usize] = self.properties.virt_indices().unwrap();
 
         // calculate gradH: gradH0 + gradHexc
         let f_dmd0: Array3<f64> = f_v(
             diff_p.view(),
             s,
-            grad_s.view(),
-            g0_ao.view(),
-            g1_ao.view(),
+            grad_s,
+            g0_ao,
+            g1_ao,
             self.n_atoms,
             self.n_orbs,
         );
-        let grad_h: Array3<f64> = grad_h + f_dmd0;
+        let grad_h: Array3<f64> = &grad_h + &f_dmd0;
 
         // set the occupied and virtuals orbital coefficients
         let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
@@ -572,9 +560,9 @@ impl ExcitedStateMonomerGradient for Monomer{
         let f: Array3<f64> = f_v(
             xpy_ao.view(),
             s,
-            grad_s.view(),
-            g0_ao.view(),
-            g1_ao.view(),
+            grad_s,
+            g0_ao,
+            g1_ao,
             self.n_atoms,
             self.n_orbs,
         );
@@ -604,6 +592,7 @@ impl ExcitedStateMonomerGradient for Monomer{
             .unwrap()
             .dot(&xpy_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
 
+        self.properties.clear_excited_gradient_no_lc();
         return gradExc;
     }
 }

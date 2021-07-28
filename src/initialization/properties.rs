@@ -42,6 +42,43 @@ impl Properties {
         }
     }
 
+    pub fn clear_excited_gradient_lc(&mut self){
+        let multi_dim_data = [
+            "gradH0",
+            "gradS",
+            "gamma_ao_wise",
+            "gamma_atom_wise_gradient",
+            "q_ov",
+            "q_oo",
+            "q_vv",
+            "xpy",
+            "xmy,"
+        ];
+        for data_name in multi_dim_data.iter() {
+            self.map.remove(*data_name);
+        }
+    }
+
+    pub fn clear_excited_gradient_no_lc(&mut self){
+        let multi_dim_data = [
+            "gradH0",
+            "gradS",
+            "gamma_ao_wise",
+            "gamma_lr_ao_wise",
+            "gamma_atom_wise_gradient",
+            "gamma_lr_atom_wise_gradient",
+            "gamma_lr_ao_wise_gradient",
+            "q_ov",
+            "q_oo",
+            "q_vv",
+            "xpy",
+            "xmy,"
+        ];
+        for data_name in multi_dim_data.iter() {
+            self.map.remove(*data_name);
+        }
+    }
+
     pub fn get(&self, name: &'static str) -> Option<&Property> {
         self.map.get(name)
     }
@@ -601,7 +638,7 @@ impl Properties {
     }
 
     /// Returns a reference to the sum of the excitation vectors
-    pub fn xpy(&mut self) -> Option<ArrayView3<f64>> {
+    pub fn xpy(&self) -> Option<ArrayView3<f64>> {
         match self.get("xpy") {
             Some(value) => Some(value.as_array3().unwrap().view()),
             _ => None,
@@ -609,7 +646,7 @@ impl Properties {
     }
 
     /// Returns a reference to the difference of the excitation vectors
-    pub fn xmy(&mut self) -> Option<ArrayView3<f64>> {
+    pub fn xmy(&self) -> Option<ArrayView3<f64>> {
         match self.get("xmy") {
             Some(value) => Some(value.as_array3().unwrap().view()),
             _ => None,
@@ -617,9 +654,17 @@ impl Properties {
     }
 
     /// Return a reference to the eigenvalues of the excited states
-    pub fn excited_states(&mut self) ->Option<ArrayView1<f64>> {
+    pub fn excited_states(&self) ->Option<ArrayView1<f64>> {
         match self.get("excited_energies") {
             Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the flr matrix of the long-range corrected contribution to the gradient
+    pub fn f_lr_dmd0(&self) ->Option<ArrayView3<f64>> {
+        match self.get("f_lr_dmd0") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
             _ => None,
         }
     }
