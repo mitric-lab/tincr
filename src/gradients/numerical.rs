@@ -165,6 +165,7 @@ mod tests {
     #[test]
     fn assert_deriv_simple_function() {
         let data: Array1<f64> = array![1.0, 2.0, 3.0, 4.0];
-        assert_deriv(simple_function, simple_gradient, data, 0.01, 1e-10);
+        panic!("SOMETHING IS WRONG HERE");
+        //assert_deriv(simple_function, simple_gradient, data, 0.01, 1e-10);
     }
 }

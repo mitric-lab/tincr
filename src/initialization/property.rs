@@ -1,6 +1,7 @@
 use ndarray::prelude::*;
 use enum_as_inner::EnumAsInner;
 use crate::scc::mixer::BroydenMixer;
+use crate::excited_states::ProductCache;
 
 /// A `Property` is a piece of data that can be associated with an `Molecule` or
 /// `ElectronicData`. The idea of this enum is taken from Guillaume Fraux's (@Luthaf) Chemfiles
@@ -50,6 +51,8 @@ pub enum Property {
     Array2Bool(Array2<bool>),
     /// SCC Mixer property
     Mixer(BroydenMixer),
+    /// Excited state product cache
+    Cache(ProductCache),
 }
 
 impl Default for Property {
@@ -146,4 +149,8 @@ impl From<BroydenMixer> for Property {
     fn from(value: BroydenMixer) -> Self {
         Property::Mixer(value)
     }
+}
+
+impl From<ProductCache> for Property {
+    fn from(value: ProductCache) -> Self {Property::Cache(value)}
 }

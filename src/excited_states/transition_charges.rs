@@ -34,8 +34,8 @@ pub fn trans_charges(
     // Matrix product of overlap matrix with the MO coefficients.
     let s_c: Array2<f64> = s.dot(&orbs);
 
-    let mut mu: usize = 0;
     for (n, atom) in atoms.iter().enumerate() {
+        let mut mu: usize = 0;
         // Iteration over the atomic orbitals Mu.
         for _ in 0..atom.n_orbs {
             // Iteration over occupied orbital I.
@@ -54,7 +54,7 @@ pub fn trans_charges(
                 {   // The index to determine the pair of MOs is computed.
                     let idx: usize = (i * dim_v) + a;
                     // The occupied - virtual transition charge is computed.
-                    q_trans_ov[[n, idx]] = 0.5 * (orb_mu_i * s_c_mu_a + orb_mu_a * s_c_mu_i);
+                    q_trans_ov[[n, idx]] += 0.5 * (orb_mu_i * s_c_mu_a + orb_mu_a * s_c_mu_i);
                 }
                 // Iteration over occupied orbital J.
                 for (j, (orb_mu_j, s_c_mu_j)) in orbs
@@ -66,7 +66,7 @@ pub fn trans_charges(
                     // The index is computed.
                     let idx: usize = (i * dim_o) + j;
                     // The occupied - occupied transition charge is computed.
-                    q_trans_oo[[n, idx]] = 0.5 * (orb_mu_i * s_c_mu_j + orb_mu_j * s_c_mu_i);
+                    q_trans_oo[[n, idx]] += 0.5 * (orb_mu_i * s_c_mu_j + orb_mu_j * s_c_mu_i);
                 }
             }
             // Iteration over virtual orbital A.
@@ -84,7 +84,7 @@ pub fn trans_charges(
                 {   // The index is computed.
                     let idx: usize = (a * dim_v) + b;
                     // The virtual - virtual transition charge is computed.
-                    q_trans_vv[[n, idx]] = 0.5 * (orb_mu_a * s_c_mu_b + orb_mu_b + s_c_mu_a);
+                    q_trans_vv[[n, idx]] += 0.5 * (orb_mu_a * s_c_mu_b + orb_mu_b * s_c_mu_a);
                 }
             }
         }

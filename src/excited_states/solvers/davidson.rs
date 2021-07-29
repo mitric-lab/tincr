@@ -48,7 +48,7 @@ pub trait DavidsonEngine {
     /// Expected output:
     ///  The product`A x X_{i}` for each `X_{i}` in `X`, in that order.
     ///   Where `A` is the hermitian matrix to be diagonalized.
-    fn compute_products(&self, x: ArrayView2<f64>) -> Array2<f64>;
+    fn compute_products(&mut self, x: ArrayView2<f64>) -> Array2<f64>;
 
     /// Apply the preconditioner to a Residual vector.
     /// The preconditioner is usually defined as :math:`(w_k - D_{i})^-1` where
@@ -63,7 +63,7 @@ impl<S> DavidsonEngine for ArrayBase<S, Ix2>
     where
         S: Data<Elem = f64>,
 {
-    fn compute_products(&self, x: ArrayView2<'_, f64>) -> Array2<f64> {
+    fn compute_products(&mut self, x: ArrayView2<'_, f64>) -> Array2<f64> {
         self.dot(&x)
     }
 
@@ -92,7 +92,7 @@ impl Davidson {
     /// * `tolerance` numerical tolerance for convergence.
     /// * `max_iter` the maximal number of iterations.
     pub fn new<D: DavidsonEngine>(
-        engine: D,
+        engine: &mut D,
         guess: Array2<f64>,
         n_roots: usize,
         tolerance: f64,

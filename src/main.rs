@@ -25,8 +25,9 @@ use crate::utils::Timer;
 use crate::scc::gamma_approximation::gamma_atomwise;
 use crate::fmo::gradients::GroundStateGradient;
 use ndarray::{Array2, Array1};
-use crate::excited_states::{orbe_differences, trans_charges};
+use crate::excited_states::{orbe_differences, trans_charges, initial_subspace, ProductCache};
 use crate::scc::scc_routine_unrestricted::UnrestrictedSCC;
+use crate::excited_states::davidson::Davidson;
 
 mod constants;
 mod defaults;
@@ -100,13 +101,33 @@ fn main() {
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
     let timer: Timer = Timer::start();
+
     //let virts: Vec<usize> = vec![4, 5, 6, 7, 8];
     //let occs: Vec<usize> = vec![0, 1, 2, 3];
     //println!("ENERGIES {:10.6}", orbe_differences(occs.view(), virts.view()));
-    //let mut system = SuperSystem::from((frame, config));
+    let mut system = System::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
-    //system.prepare_scc();
-    //system.run_scc();
+    system.prepare_scc();
+    system.run_scc();
+    let orbs: ArrayView2<f64> = system.properties.orbs().unwrap();
+    let s: ArrayView2<f64> = system.properties.s().unwrap();
+    let (qov, qoo, qvv) = trans_charges(system.n_atoms, &system.atoms, orbs, s, &system.occ_indices, &system.virt_indices);
+    system.properties.set_q_oo(qoo);
+    system.properties.set_q_ov(qov);
+    system.properties.set_q_vv(qvv);
+    let orbe: ArrayView1<f64> = system.properties.orbe().unwrap();
+    let homo: usize = system.occ_indices[system.occ_indices.len()-1];
+    let lumo: usize = system.virt_indices[0];
+    let orbe_occ: ArrayView1<f64> = orbe.slice(s![0..homo+1]);
+    let orbe_virt: ArrayView1<f64> = orbe.slice(s![lumo..]);
+    let omega: Array1<f64> = orbe_differences(orbe_occ, orbe_virt);
+    system.properties.set_omega(omega);
+    let omega: ArrayView1<f64> = system.properties.omega().unwrap();
+    let guess: Array2<f64> = initial_subspace(omega, 8);
+    system.properties.set_cache(ProductCache::new());
+    println!("{} {}", system.occ_indices.len(), system.virt_indices.len());
+    let dav = Davidson::new(&mut system, guess, 8, 1e-6, 50).unwrap();
+    println!("Eigenvalues {:8.6}", dav.eigenvalues);
     //let fock: Array2<f64> = system.build_lcmo_fock_matrix();
     //println!("{:5.3e}", fock);
     //let result = system.test_monomer_gradient();
