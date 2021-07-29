@@ -830,16 +830,18 @@ fn mult_apb_v(
     let mut u_l: Array2<f64> = &omega * &vs;
 
     // 2nd term - Coulomb
-    let mut tmp21: Array1<f64> = Array1::zeros(n_at);
-    for at in (0..n_at){
-        let tmp: Array2<f64> = &qtrans_ov.slice(s![at, .., ..]) * &vs;
-        tmp21[at] = tmp.sum()
-    }
-
-    let tmp22: Array1<f64> = 4.0 * gamma_equiv.dot(&tmp21);
-    for at in (0..n_at).into_iter() {
-        u_l = u_l + &qtrans_ov.slice(s![at, .., ..]) * tmp22[at];
-    }
+    u_l = u_l + 4.0 * gamma_equiv.dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()
+        .dot(&vs.into_shape(n_occ*n_virt).unwrap()))
+        .dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()).into_shape([n_occ,n_virt]).unwrap();
+    // let mut tmp21: Array1<f64> = Array1::zeros(n_at);
+    // for at in (0..n_at){
+    //     let tmp: Array2<f64> = &qtrans_ov.slice(s![at, .., ..]) * &vs;
+    //     tmp21[at] = tmp.sum()
+    // }
+    // let tmp22: Array1<f64> = 4.0 * gamma_equiv.dot(&tmp21);
+    // for at in (0..n_at).into_iter() {
+    //     u_l = u_l + &qtrans_ov.slice(s![at, .., ..]) * tmp22[at];
+    // }
 
     // 3rd term - Exchange
     let tmp31: Array3<f64> = qtrans_vv_reshaped
@@ -904,15 +906,18 @@ fn mult_apb_v_no_lc(
     let mut u_l: Array2<f64> = &omega * &vs;
 
     // 2nd term - Coulomb
-    let mut tmp21: Array1<f64> = Array1::zeros(n_at);
-    for at in (0..n_at){
-        let tmp: Array2<f64> = &qtrans_ov.slice(s![at, .., ..]) * &vs;
-        tmp21[at] = tmp.sum()
-    }
-    let tmp22: Array1<f64> = 4.0 * gamma_equiv.dot(&tmp21);
-    for at in (0..n_at).into_iter() {
-        u_l = u_l + &qtrans_ov.slice(s![at, .., ..]) * tmp22[at];
-    }
+    u_l = u_l + 4.0 * gamma_equiv.dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()
+        .dot(&vs.into_shape(n_occ*n_virt).unwrap()))
+        .dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()).into_shape([n_occ,n_virt]).unwrap();
+    // let mut tmp21: Array1<f64> = Array1::zeros(n_at);
+    // for at in (0..n_at){
+    //     let tmp: Array2<f64> = &qtrans_ov.slice(s![at, .., ..]) * &vs;
+    //     tmp21[at] = tmp.sum()
+    // }
+    // let tmp22: Array1<f64> = 4.0 * gamma_equiv.dot(&tmp21);
+    // for at in (0..n_at).into_iter() {
+    //     u_l = u_l + &qtrans_ov.slice(s![at, .., ..]) * tmp22[at];
+    // }
 
     return u_l;
 }
