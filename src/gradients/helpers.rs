@@ -760,6 +760,8 @@ pub fn zvector_no_lc(
         qtrans_ov,
         a_diag,
         bs.view(),
+        n_occ,
+        n_virt,
         multiplicity,
         spin_couplings,
     );
@@ -775,6 +777,8 @@ pub fn zvector_no_lc(
             qtrans_ov,
             a_diag,
             pkm1.view().into_shape((n_occ,n_virt)).unwrap(),
+            n_occ,
+            n_virt,
             multiplicity,
             spin_couplings,
         );
@@ -887,6 +891,8 @@ fn mult_apb_v_no_lc(
     qtrans_ov: ArrayView3<f64>,
     omega: ArrayView2<f64>,
     vs: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
     multiplicity: u8,
     spin_couplings: ArrayView1<f64>,
 ) -> (Array2<f64>) {
