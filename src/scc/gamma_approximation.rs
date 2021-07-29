@@ -306,7 +306,7 @@ pub fn gamma_ao_wise_faster(
                 for _ in 0..atom_j.n_orbs {
                     if mu <= nu{
                         g0_a0[[mu, nu]] = *g0_ij;
-                        g0_a0[[nu,mu]] = g0_a0[[mu,nu]]
+                        g0_a0[[nu,mu]] = *g0_ij;
                     }
                     nu = nu + 1;
                 }
@@ -387,18 +387,18 @@ pub fn gamma_gradients_ao_wise_faster(
     let mut g1_a0: Array3<f64> = Array3::zeros((3 * n_atoms, n_orbs, n_orbs));
     let mut mu: usize = 0;
     let mut nu: usize;
-    let mut atom_iter:usize = 0;
-    for (atomi,g1_i) in atoms.iter().zip(g1.slice(s![(3 * atom_iter)..(3 * atom_iter + 3),atom_iter,..]).outer_iter()) {
+
+    for (i,atomi) in atoms.iter().enumerate(){
         for _ in 0..atomi.n_orbs {
             nu = 0;
-            for (j, (atomj, g_ij)) in atoms.iter().zip(g1_i.axis_iter(Axis(1))).enumerate() {
+            for (j, (atomj, g_ij)) in atoms.iter().zip(g1.slice(s![(3*i)..(3*i+3),i,..]).axis_iter(Axis(1))).enumerate() {
                 for _ in 0..atomj.n_orbs {
-                    if atom_iter != j {
+                    if i != j {
                         g1_a0
-                            .slice_mut(s![(3 * atom_iter)..(3 * atom_iter + 3), mu, nu])
+                            .slice_mut(s![(3 * i)..(3 * i + 3), mu, nu])
                             .assign(&g_ij);
                         g1_a0
-                            .slice_mut(s![(3 * atom_iter)..(3 * atom_iter + 3), nu, mu])
+                            .slice_mut(s![(3 * i)..(3 * i + 3), nu, mu])
                             .assign(&g_ij);
                     }
                     nu = nu + 1;
@@ -406,7 +406,6 @@ pub fn gamma_gradients_ao_wise_faster(
             }
             mu = mu + 1;
         }
-        atom_iter += 1;
     }
     return (g1, g1_a0);
 }
