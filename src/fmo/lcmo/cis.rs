@@ -2,6 +2,7 @@ use crate::fmo::{Monomer, SuperSystem};
 use crate::initialization::Atom;
 use ndarray::{Array2, ArrayView1, s, ArrayView2, Array1};
 use crate::excited_states::trans_charges_fast;
+use crate::fmo::lcmo::helpers::{inter_fragment_exchange_integral, inter_fragment_trans_charges};
 
 impl SuperSystem{
     pub fn build_cis_matrix(&self){
@@ -47,13 +48,13 @@ impl SuperSystem{
             // reference to the overlap matrix of fragment J
             let s_j:ArrayView2<f64> = self.monomers[index_j].properties.s().unwrap();
             // occupied orbitals of fragment I.
-            let occ_indices_i: [usize] = self.monomers[index_i].properties.occ_indices().unwrap()[0..n_occ_m];
+            let occ_indices_i: &[usize] = &self.monomers[index_i].properties.occ_indices().unwrap()[0..n_occ_m];
             // virtual orbitals of fragment I.
-            let virt_indices_i: [usize] = self.monomers[index_i].properties.virt_indices().unwrap()[0..n_virt_m];
+            let virt_indices_i: &[usize] = &self.monomers[index_i].properties.virt_indices().unwrap()[0..n_virt_m];
             // occupied orbitals of fragment J.
-            let occ_indices_j: [usize] = self.monomers[index_j].properties.occ_indices().unwrap()[0..n_occ_m];;
+            let occ_indices_j: &[usize] = &self.monomers[index_j].properties.occ_indices().unwrap()[0..n_occ_m];
             // virtual orbitals of fragment J.
-            let virt_indices_j: [usize] = self.monomers[index_j].properties.virt_indices().unwrap()[0..n_virt_m];;
+            let virt_indices_j: &[usize] = &self.monomers[index_j].properties.virt_indices().unwrap()[0..n_virt_m];
 
             // calculate transition charges for monomer I
             let (q_ov_i,q_oo_i,q_vv_i):(Array2<f64>,Array2<f64>,Array2<f64>) = trans_charges_fast(
@@ -76,21 +77,45 @@ impl SuperSystem{
             );
             // get gamma_AB matrix of the pair
             let mut gamma_ab:ArrayView2<f64> = pair.properties.gamma().unwrap();
-            gamma_ab = gamma_ab.slice(s![..n_atoms_i,n_atoms_i..]);
+            let gamma_ab_off_diag:ArrayView2<f64> = gamma_ab.slice(s![..n_atoms_i,n_atoms_i..]);
 
             // eletron-hole exchange integral (ia|ia)
-            // TODO: new transition charges between the monomer fragements are required!
+            // get reference to full overlap matrix of the pair
+            let s_pair:ArrayView2<f64> = pair.properties.s().unwrap();
+            // calculate the exchange integral with a loop
+            let exchange:Array1<f64> = inter_fragment_exchange_integral(
+                &atoms[self.monomers[index_i].slice.atom_as_range()],
+                &atoms[self.monomers[index_j].slice.atom_as_range()],
+                c_mo_i,
+                c_mo_j,
+                s_pair,
+                occ_indices_i,
+                virt_indices_j,
+                gamma_ab,
+            );
+            // alternative way of calculating the exchange integral
+            // using transition densities
+            let qtrans_mu_nu:Array2<f64> = inter_fragment_trans_charges(
+                &atoms[self.monomers[index_i].slice.atom_as_range()],
+                &atoms[self.monomers[index_j].slice.atom_as_range()],
+                c_mo_i,
+                c_mo_j,
+                s_pair,
+                occ_indices_i,
+                virt_indices_j,
+            );
+            let exchange_alternative:Array1<f64> = qtrans_mu_nu.t().dot(&gamma_ab.dot(&qtrans_mu_nu)).into_shape([n_occ_m*n_virt_m]);
 
             // coulomb-interaction integral (ii|aa) = sum_AB q_A^II gamma_AB q_B^aa
             // q_oo(I) * gamma_AB (pair) * q_vv(J)
-            let coulomb:Array2<f64> = q_oo_i.t().dot(&gamma_ab.dot(&q_vv_j));
+            let coulomb:Array1<f64> = q_oo_i.t().dot(&gamma_ab_off_diag.dot(&q_vv_j)).into_shape(n_ct).unwrap();
 
-
-            // let mut ct_arr:Array1<f64> = Array1::zeros((n_ct));
-            // for i in 0..n_ct{
-            //     ct_arr[i] = lcmo_h[[index_i,index_i]] - lcmo_h[[index_j,index_j]];
-            // }
-            // cis_matrix.slice_mut(s![i..(i+n_ct),i..(i+n_ct)]).assign(&ct_arr);
+            // add all terms of the diagonal CT block
+            let mut ct_arr:Array1<f64> = Array1::zeros((n_ct));
+            for i in 0..n_ct{
+                ct_arr[i] = lcmo_h[[index_i,index_i]] - lcmo_h[[index_j,index_j]] + 2.0 * exchange[i] - coulomb[i];
+            }
+            cis_matrix.slice_mut(s![i..(i+n_ct),i..(i+n_ct)]).assign(&ct_arr);
         }
     }
 }
