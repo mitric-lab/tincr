@@ -276,6 +276,8 @@ impl<'a> RestrictedSCC for System {
         if log_enabled!(Level::Info) {
             print_scc_end(timer, self.config.jobtype.as_str(), scf_energy, rep_energy, orbe.view(), &f);
         }
+        self.properties.set_orbs(orbs);
+        self.properties.set_orbe(orbe);
         return total_energy;
     }
 }

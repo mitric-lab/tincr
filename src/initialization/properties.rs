@@ -2,6 +2,7 @@ use crate::initialization::property::Property;
 use crate::scc::mixer::BroydenMixer;
 use hashbrown::HashMap;
 use ndarray::prelude::*;
+use crate::excited_states::ProductCache;
 
 pub struct Properties {
     map: HashMap<&'static str, Property>,
@@ -44,6 +45,10 @@ impl Properties {
 
     pub fn get(&self, name: &'static str) -> Option<&Property> {
         self.map.get(name)
+    }
+
+    pub fn get_mut(&mut self, name: &'static str) -> Option<&mut Property> {
+        self.map.get_mut(name)
     }
 
     /// Returns the Property without a reference and removes it from the dict
@@ -175,6 +180,14 @@ impl Properties {
     pub fn take_gamma(&mut self) -> Result<Array2<f64>, Property> {
         match self.take("gamma_atom_wise") {
             Some(value) => value.into_array2(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    /// Returns the `ProductCache` for the Davidson diagonalization.
+    pub fn take_cache(&mut self) -> Result<ProductCache, Property> {
+        match self.take("cache") {
+            Some(value) => value.into_cache(),
             _ => Err(Property::default()),
         }
     }
@@ -407,6 +420,23 @@ impl Properties {
             _ => None,
         }
     }
+
+    /// Returns a reference to the orbital energy differences between virtual and occupied orbitals
+    pub fn omega(&self) -> Option<ArrayView1<f64>> {
+        match self.get("omega") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a mutable reference to the `ProductCache`.
+    pub fn cache(&self) -> Option<&ProductCache> {
+        match self.get("cache") {
+            Some(value) => Some(value.as_cache().unwrap()),
+            _ => None,
+        }
+    }
+
 
     /// Returns a reference to the converged Z-vector from the FMO grad. response term.
     pub fn z_vector(&self) -> Option<ArrayView1<f64>> {
@@ -655,6 +685,14 @@ impl Properties {
     pub fn set_q_vv(&mut self, q_vv: Array2<f64>) {
         self.set("q_vv", Property::from(q_vv));
     }
+
+    /// Set the orbital energy differences between virtual and occupied orbitals.
+    pub fn set_omega(&mut self, omega: Array1<f64>) {
+        self.set("omega", Property::from(omega));
+    }
+
+    /// Set the `ProductCache`.
+    pub fn set_cache(&mut self, cache: ProductCache) {self.set("cache", Property::from(cache));}
 
     /// Set the converged Z-vector from the FMO gradient response term.
     pub fn set_z_vector(&mut self, z_vector: Array1<f64>) {

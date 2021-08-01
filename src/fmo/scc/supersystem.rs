@@ -152,18 +152,6 @@ impl SuperSystem {
             embedding += esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
             // The embedding energy for Monomer J in the pair is computed.
             embedding += esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
-
-            // println!("DDQ {} = {}", pair.i, &ddq.slice(s![..m_i.n_atoms]));
-            // println!("DDQ {} = {}", pair.j, &ddq.slice(s![m_i.n_atoms..]));
-            // println!("ESP I {} = {}", pair.i, esp_q_i);
-            // println!("ESP J {} = {}", pair.j, esp_q_j);
-
-            // let pair_energy: f64 = esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms])) + esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
-            // let i_energy: f64 = esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
-            // let j_energy: f64 = esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
-            // println!("FRAG {} EMB Energy {}", pair.i, i_energy);
-            // println!("FRAG {} EMB Energy {}", pair.j, j_energy);
-            // println!("PAIR EMB Energy {}", pair_energy);
         }
         return embedding;
     }

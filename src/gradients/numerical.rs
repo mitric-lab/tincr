@@ -12,7 +12,7 @@ use crate::fmo::GroundStateGradient;
 /// The implementation is based on the one described in the Book Numerical Recipes by
 /// W. H. Press and S. A. Teukolsky, the section is available as an article in
 /// [Computers in Physics](https://aip.scitation.org/doi/pdf/10.1063/1.4822971). Also the Python
-/// implementation [derivcheck](https://github.com/theochem/derivcheck) by T. Verstraelen
+/// implementation derivcheckby T. Verstraelen
 /// influenced the implementation and the idea to create an `assert_deriv` function was adopted.
 fn ridders_method<S, F, D>(
     system: &mut S,
@@ -90,7 +90,7 @@ where
 /// * origin: The point at which the derivatives are computed.
 /// * stepsize: The initial (maximal) step size for the finite difference method.
 /// * tol: The allowed relative error on the derivative.
-/// The idea of this function comes from the [derivcheck](https://github.com/theochem/derivcheck)
+/// The idea of this function comes from the derivcheck
 /// Python package by T. Verstraelen.
 pub fn assert_deriv<S, F, G>(
     system: &mut S,
@@ -165,6 +165,7 @@ mod tests {
     #[test]
     fn assert_deriv_simple_function() {
         let data: Array1<f64> = array![1.0, 2.0, 3.0, 4.0];
-        assert_deriv(simple_function, simple_gradient, data, 0.01, 1e-10);
+        panic!("SOMETHING IS WRONG HERE");
+        //assert_deriv(simple_function, simple_gradient, data, 0.01, 1e-10);
     }
 }
