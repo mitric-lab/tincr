@@ -1,5 +1,3 @@
-mod embedding;
-mod es_dimer;
 mod pair;
 mod monomer;
 pub(crate) mod helpers;
