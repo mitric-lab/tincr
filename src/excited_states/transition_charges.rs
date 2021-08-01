@@ -34,8 +34,8 @@ pub fn trans_charges(
     // Matrix product of overlap matrix with the MO coefficients.
     let s_c: Array2<f64> = s.dot(&orbs);
 
+    let mut mu: usize = 0;
     for (n, atom) in atoms.iter().enumerate() {
-        let mut mu: usize = 0;
         // Iteration over the atomic orbitals Mu.
         for _ in 0..atom.n_orbs {
             // Iteration over occupied orbital I.
@@ -87,8 +87,8 @@ pub fn trans_charges(
                     q_trans_vv[[n, idx]] += 0.5 * (orb_mu_a * s_c_mu_b + orb_mu_b * s_c_mu_a);
                 }
             }
+            mu += 1;
         }
-        mu += 1;
     }
     (q_trans_ov, q_trans_oo, q_trans_vv)
 }

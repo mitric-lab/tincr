@@ -5,8 +5,7 @@ use crate::excited_states::ProductCache;
 
 /// A `Property` is a piece of data that can be associated with an `Molecule` or
 /// `ElectronicData`. The idea of this enum is taken from Guillaume Fraux's (@Luthaf) Chemfiles
-/// library. The original implementation can be found on:
-/// [Github](https://github.com/chemfiles/chemfiles.rs/blob/master/src/property.rs)
+/// library.
 /// The functionality of the `Property` enum is expanded by the use of the `EnumAsInner` macro.
 /// This allows to get direct access to the inner values of the enum without doing
 /// case matching. As an example the inner fields can be accessed by using the methods `into_$name()`

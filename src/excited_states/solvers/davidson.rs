@@ -112,7 +112,7 @@ impl Davidson {
         let mut dim_sub: usize = dim_sub_origin;
 
         // The maximal possible subspace, before it will be collapsed.
-        let max_space: usize = 50;
+        let max_space: usize = 150;
 
         // The initial information of the Davidson routine are printed.
         utils::print_davidson_init(max_iter, n_roots, tolerance);
@@ -131,7 +131,11 @@ impl Davidson {
 
             // 2. Solve the eigenvalue problem for the subspace Hamiltonian.
             // The eigenvalues (u) and eigenvectors (v) are already sorted in ascending order.
-            let (u, v): (Array1<f64>, Array2<f64>) = a_proj.eigh(UPLO::Upper).unwrap();
+            let (mut u, mut v): (Array1<f64>, Array2<f64>) = a_proj.eigh(UPLO::Upper).unwrap();
+
+            // Only the first n_roots eigenvalues and eigenvectors are used.
+            u = u.slice_move(s![0..n_roots]);
+            v = v.slice_move(s![.., 0..n_roots]);
 
             // 3. Convergence checks are made.
             // 3.1 Compute the Ritz vectors.
@@ -141,7 +145,7 @@ impl Davidson {
             let rk: Array2<f64> = ax.dot(&v) - ritz.dot(&Array::from_diag(&u));
 
             // 3.3 Convergence check for each pair of eigenvalue and eigenvector.
-            let errors: Array1<f64> = rk.slice(s![.., 0..n_roots])
+            let errors: Array1<f64> = rk
                 .axis_iter(Axis(1))
                 .map(|col| col.norm()).collect();
 
@@ -163,11 +167,11 @@ impl Davidson {
                     ritz.view(),
                     n_roots,
                 ));
-                utils::print_davidson_iteration(i, roots_cvd, n_roots - roots_cvd, error, max_error);
+                utils::print_davidson_iteration(i, roots_cvd, n_roots - roots_cvd, dim_sub,error, max_error);
                 break;
             }
             // The information of the current iteration is printed to the console.
-            utils::print_davidson_iteration(i, roots_cvd, n_roots - roots_cvd, error, max_error);
+            utils::print_davidson_iteration(i, roots_cvd, n_roots - roots_cvd, dim_sub, error, max_error);
 
             // 5.  If the eigenvalues are not yet converged, the subspace basis is updated.
             // 5.1 Correction vectors are added to the current subspace basis, if the new
@@ -190,13 +194,13 @@ impl Davidson {
                 // The new subspace vectors are orthonormalized and added to the existing basis.
                 guess.append(Axis(1), add_space.view()).unwrap();
                 guess = guess.qr().unwrap().0;
-
             }
             // 5.1 If the dimension is larger than the maximal subspace size, the subspace is
             //     collapsed.
             else {
                 // The dimension of the subspace is reset to the initial value.
-                dim_sub = dim_sub_origin;
+                dim_sub = dim_sub_origin - roots_cvd;
+                println!("DIM SUB {}", dim_sub);
                 guess = ritz.slice(s![.., 0..dim_sub]).to_owned();
             }
         }

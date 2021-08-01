@@ -6,7 +6,8 @@
 
 use ndarray::prelude::*;
 use ndarray_linalg::generate::random;
-use log::info;
+//use log::info;
+use std::{println as info, println as warn};
 use std::time::Instant;
 use std::cmp::Ordering;
 use approx::relative_eq;
@@ -87,18 +88,19 @@ pub fn print_davidson_init(max_iter: usize, nroots: usize, tolerance: f64) {
     info!("{: >4} {: <25}", nroots, " Roots will be computed.");
     info!("{:-^75} ", "");
     info!(
-        "{: <5}{: >15}{: >15}{: >15}{: >15}",
-        "Iter.", "Roots conv.", "Roots left", "Total dev.", "Max dev."
+        "{: <5}{: >14}{: >14}{: >14}{: >14}{: >14}",
+        "Iter.", "Roots conv.", "Roots left", "# subsp. Vec.", "Total dev.", "Max dev."
     );
     info!("{:-^75} ", "");
 }
 
-pub fn print_davidson_iteration(iter: usize, roots_cvd: usize, roots_lft: usize, t_dev: f64, max_dev:f64) {
+pub fn print_davidson_iteration(iter: usize, roots_cvd: usize, roots_lft: usize, nvec:usize, t_dev: f64, max_dev:f64) {
     info!(
-        "{: >5}{:>15}{:>15}{:>15.8}{:>15.8}",
+        "{: >5}{:>14}{:>14}{:>14}{:>14.8}{:>14.8}",
         iter + 1,
         roots_cvd,
         roots_lft,
+        nvec,
         t_dev,
         max_dev
     );

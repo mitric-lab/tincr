@@ -6,7 +6,7 @@ use crate::utils::get_path_prefix;
 use data_reader::reader::{load_txt_f64, Delimiter, ReaderParams};
 use ndarray::prelude::*;
 
-pub const AVAILAIBLE_MOLECULES: [&'static str; 4] = ["h2o", "benzene", "ammonia", "uracil"];
+pub const AVAILAIBLE_MOLECULES: [&'static str; 3] = ["benzene", "ammonia", "uracil"];
 
 fn get_config() -> Configuration {
     let config_string: String = String::from("");

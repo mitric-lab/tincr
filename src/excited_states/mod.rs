@@ -8,7 +8,7 @@ mod transition_charges;
 //mod tda;
 // mod helpers;
 // mod a_and_b;
-mod tda;
+pub(crate) mod tda;
 mod solvers;
 mod utils;
 // mod casida;

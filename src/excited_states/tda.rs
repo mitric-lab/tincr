@@ -37,18 +37,25 @@ impl TDA for System {
         }
         // Check the same for the orbital energy differences.
         if self.properties.omega().is_none() {
+            // Reference to the orbital energies.
             let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
+            // The index of the HOMO (zero based).
             let homo: usize = self.occ_indices[self.occ_indices.len()-1];
+            // The index of the LUMO (zero based).
             let lumo: usize = self.virt_indices[0];
+            // Energies of the occupied orbitals.
             let orbe_occ: ArrayView1<f64> = orbe.slice(s![0..homo+1]);
+            // Energies of the virtual orbitals.
             let orbe_virt: ArrayView1<f64> = orbe.slice(s![lumo..]);
+            // Energy differences between virtual and occupied orbitals.
             let omega: Array1<f64> = orbe_differences(orbe_occ, orbe_virt);
+            // Energy differences are stored in the molecule.
             self.properties.set_omega(omega);
         }
         // Reference to the energy differences between virtuals and occupied orbitals.
         let omega: ArrayView1<f64> = self.properties.omega().unwrap();
         let n_roots: usize = 4;
-        let tolerance: f64 = 1e-4;
+        let tolerance: f64 = 1e-8;
         // The initial guess for the subspace is created.
         let guess: Array2<f64> = initial_subspace(omega.view(), n_roots);
         // Iterative Davidson diagonalization of the CIS Hamiltonian in a matrix free way.
@@ -94,8 +101,7 @@ impl DavidsonEngine for System {
         let mut two_el: Array2<f64> = 2.0 * q_ov.t().dot(&gamma.dot(&q_ov.dot(&compute_vectors)));
 
         // If long-range correction is requested the exchange part needs to be computed.
-        //if self.gammafunction_lc.is_some() {
-        if false {
+        if self.gammafunction_lc.is_some()  {
             // Reference to the transition charges between occupied-occupied orbitals.
             let q_oo: ArrayView2<f64> = self.properties.q_oo().unwrap();
             // Number of occupied orbitals.
@@ -116,26 +122,24 @@ impl DavidsonEngine for System {
             // Initialization of the product of the exchange part with the subspace part.
             let mut k_x: Array2<f64> = Array::zeros(two_el.raw_dim());
             // Iteration over the subspace vectors.
-            for (i, mut k) in k_x.axis_iter_mut(Axis(1)).enumerate() {
+            for (i, (mut k, xi)) in k_x.axis_iter_mut(Axis(1)).zip(compute_vectors.axis_iter(Axis(1))).enumerate() {
                 // The current vector reshaped into the form of n_occ, n_virt
-                let xi = compute_vectors
-                    .slice(s![.., i])
-                    .into_shape((n_occ, n_virt))
-                    .unwrap();
+                let xi = xi.as_standard_layout().into_shape((n_occ, n_virt)).unwrap();
                 // The v-v transition have to be reshaped as well.
                 let q_vv_r = q_vv.into_shape((self.n_atoms * n_virt, n_virt)).unwrap();
                 // Contraction of the v-v transition charges with the subspace vector and the
                 // and the product of the Gamma matrix wit the o-o transition charges.
                 k.assign(
+                    // nocc, natoms*nocc
                     &gamma_oo.t().dot(
-                        &xi.dot(&q_vv_r.t())
+                        &xi.dot(&q_vv_r.t()) //xi: nocc, nvirt | qvvrT: nvirt, natoms*nvirt
                             .into_shape((n_occ, self.n_atoms, n_virt))
                             .unwrap()
-                            .permuted_axes([1, 0, 2])
+                            .permuted_axes([1, 0, 2]) // natoms, nocc, nvirt
                             .as_standard_layout()
                             .into_shape((self.n_atoms * n_occ, n_virt))
                             .unwrap(),
-                    ),
+                    ).into_shape((n_occ*n_virt)).unwrap(),
                 );
             }
             // The product of the Exchange part with the subspace vector is added to the Coulomb part.
@@ -155,8 +159,8 @@ impl DavidsonEngine for System {
         // The denominator is build from the orbital energy differences and the shift value.
         let mut denom: Array1<f64> = w_k - &self.properties.omega().unwrap();
         // Values smaller than 0.0001 are replaced by 1.0.
-        denom.mapv_inplace(|x| if x < 0.0001 { 1.0 } else { x });
-        &r_k / &denom
+        denom.mapv_inplace(|x| if x.abs() < 0.0001 { 1.0 } else { x });
+        &r_k * &denom
     }
 
     fn get_size(&self) -> usize {
@@ -172,29 +176,75 @@ mod tests {
     use crate::scc::scc_routine::RestrictedSCC;
     use crate::utils::*;
     use approx::AbsDiffEq;
+    use std::borrow::BorrowMut;
 
     pub const EPSILON: f64 = 1e-15;
 
-    fn exact_tda(molecule: &System) -> (Array1<f64>, Array2<f64>) {
-        let qov: ArrayView2<f64> = molecule.properties.q_ov().unwrap();
-        let gamma: ArrayView2<f64> = molecule.properties.gamma().unwrap();
-        let omega: ArrayView1<f64> = molecule.properties.omega().unwrap();
-        let h_cis: Array2<f64> = Array2::from_diag(&omega) + 2.0 * qov.t().dot(&gamma.dot(&qov));
-        h_cis.eigh(UPLO::Upper).unwrap()
+    // The Exchange contribution to the CIS Hamiltonian is computed.
+    fn exchange(molecule: &System) -> Array2<f64> {
+        // Number of occupied orbitals.
+        let n_occ: usize = molecule.occ_indices.len();
+        // Number of virtual orbitals.
+        let n_virt: usize = molecule.virt_indices.len();
+        // Reference to the o-o transition charges.
+        let qoo: ArrayView2<f64> = molecule.properties.q_oo().unwrap();
+        // Reference to the v-v transition charges.
+        let qvv: ArrayView2<f64> = molecule.properties.q_vv().unwrap();
+        // Reference to the screened Gamma matrix.
+        let gamma_lr: ArrayView2<f64> = molecule.properties.gamma_lr().unwrap();
+        // The exchange part to the CIS Hamiltonian is computed.
+        let result = qoo.t().dot(&gamma_lr.dot(&qvv))
+            .into_shape((n_occ, n_occ, n_virt, n_virt)).unwrap()
+            .permuted_axes([0, 2, 1, 3])
+            .as_standard_layout()
+            .into_shape([n_occ*n_virt, n_occ*n_virt])
+            .unwrap().to_owned();
+        result
     }
 
-    fn test_tda(molecule_and_properties: (&str, System, Properties)) {
+    // The one-electron and Coulomb contribution to the CIS Hamiltonian is computed.
+    fn fock_and_coulomb(molecule: &System) -> Array2<f64> {
+        // Reference to the o-v transition charges.
+        let qov: ArrayView2<f64> = molecule.properties.q_ov().unwrap();
+        // Reference to the unscreened Gamma matrix.
+        let gamma: ArrayView2<f64> = molecule.properties.gamma().unwrap();
+        // Reference to the energy differences of the orbital energies.
+        let omega: ArrayView1<f64> = molecule.properties.omega().unwrap();
+        // The sum of one-electron part and Coulomb part is computed and retzurned.
+        Array2::from_diag(&omega) + 2.0 * qov.t().dot(&gamma.dot(&qov))
+    }
+
+    fn test_tda_without_lc(molecule_and_properties: (&str, System, Properties)) {
         let name = molecule_and_properties.0;
         let mut molecule = molecule_and_properties.1;
         let props = molecule_and_properties.2;
-        let atomic_numbers: Vec<u8> = molecule.atoms.iter().map(|atom| atom.number).collect();
+        molecule.gammafunction_lc = None;
+        molecule.prepare_scc();
+        molecule.run_scc();
+        println!("ORBES {}", molecule.properties.orbe().unwrap());
+        let (u, v) = molecule.run_tda();
+        let h: Array2<f64> = fock_and_coulomb(&molecule);
+        let (u_ref, v_ref) = h.eigh(UPLO::Upper).unwrap();
+        assert!(
+            u.abs_diff_eq(&u_ref.slice(s![0..4]), 1e-10),
+            "Molecule: {}, Eigenvalues (ref): {}  Eigenvalues: {}",
+            name,
+            u_ref.slice(s![0..4]),
+            u
+        );
+    }
+
+    fn test_tda_with_lc(molecule_and_properties: (&str, System, Properties)) {
+        let name = molecule_and_properties.0;
+        let mut molecule = molecule_and_properties.1;
+        let props = molecule_and_properties.2;
         molecule.prepare_scc();
         molecule.run_scc();
         let (u, v) = molecule.run_tda();
-        let (u_ref, v_ref) = exact_tda(&molecule);
-
+        let h: Array2<f64> = fock_and_coulomb(&molecule) - exchange(&molecule);
+        let (u_ref, v_ref) = h.eigh(UPLO::Upper).unwrap();
         assert!(
-            u.abs_diff_eq(&u_ref.slice(s![0..4]), 1e-16),
+            u.abs_diff_eq(&u_ref.slice(s![0..4]), 1e-10),
             "Molecule: {}, Eigenvalues (ref): {}  Eigenvalues: {}",
             name,
             u_ref.slice(s![0..4]),
@@ -203,10 +253,20 @@ mod tests {
     }
 
     #[test]
-    fn tda_energies() {
+    fn tda_without_lc() {
+        let _ = env_logger::builder().is_test(true).try_init();
         let names = AVAILAIBLE_MOLECULES;
         for molecule in names.iter() {
-            test_tda(get_molecule(molecule, "no_lc_gs"));
+            test_tda_without_lc(get_molecule(molecule, "no_lc_gs"));
+        }
+    }
+
+    #[test]
+    fn tda_with_lc() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let names = AVAILAIBLE_MOLECULES;
+        for molecule in names.iter() {
+            test_tda_with_lc(get_molecule(molecule, "no_lc_gs"));
         }
     }
 }
