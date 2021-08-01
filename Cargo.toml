@@ -25,7 +25,7 @@ peroxide = {version = "0.27.0", features = ["serde"]}
 itertools = "0.9"
 libm = "0.2.1"
 bspline = "0.2.3"
-rusty-fitpack = { path = "/Users/hochej/rusty_dierckx" }
+rusty-fitpack = { git = "https://github.com/mitric-lab/Rusty-FITPACK.git"}
 ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
 nalgebra = "0.26.1"
