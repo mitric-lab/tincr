@@ -669,6 +669,14 @@ impl Properties {
         }
     }
 
+    // Returns a reference to the excited coefficients
+    pub fn excited_coefficients(&self) -> Option<ArrayView3<f64>>{
+        match self.get("excited_coefficients"){
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Set the energy of the last scc iteration
     pub fn set_occupation(&mut self, f: Vec<f64>) {
         self.set("occupation", Property::VecF64(f))
@@ -893,6 +901,13 @@ impl Properties {
         self.set(
             "excited_energies",
             Property::from(excited_energies),
+        )
+    }
+
+    pub fn set_excited_coefficients(&mut self, coefficients:Array3<f64>){
+        self.set(
+            "excited_coefficients",
+            Property::from(coefficients),
         )
     }
 
