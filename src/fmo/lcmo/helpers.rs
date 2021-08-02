@@ -41,7 +41,7 @@ pub fn le_i_ct_one_electron_ji(
         let mut ct_counter:usize = 0;
         for occ in occ_indices_j.iter(){
             for virt in virt_indices_i.iter(){
-                coupling_matrix[[state,ct_counter]] = -1.0* exc_coeff_state_i.slice(s![*virt,..]).dot(&lcmo_h.slice(s![..,*occ]));
+                coupling_matrix[[state,ct_counter]] = -1.0* exc_coeff_state_i.slice(s![..,*virt]).dot(&lcmo_h.slice(s![..,*occ]));
                 ct_counter +=1;
             }
         }
@@ -87,7 +87,7 @@ pub fn outer_diagonal_le_le_interaction_loop(
                                 .dot(&exc_coeff_j.slice(s![state_j,..,..])
                                     .dot(&orbs_i.slice(s![sigma,virt_index_start_j..])));
 
-                            coupling_matrix[[state_i,state_j]] += t_mu_nu * t_lambda_sigma *
+                            coupling_matrix[[state_i,state_j]] += 0.25 * t_mu_nu * t_lambda_sigma *
                                 (2.0 * s_pair[[mu,nu]] *s_pair[[(n_orb_i-1)+lambda,(n_orb_i-1)+sigma]]
                                     *(g0_ao_pair[[mu,(n_orb_i-1)+lambda]] +
                                     g0_ao_pair[[mu,(n_orb_i-1)+sigma]] + g0_ao_pair[[nu,(n_orb_i-1)+lambda]] + g0_ao_pair[[nu,(n_orb_i-1)+sigma]])
@@ -135,7 +135,7 @@ pub fn inter_fragment_exchange_integral(
                             let nu_pair:usize = nu + n_orb_i;
                             let sigma_pair:usize = sigma + n_orb_i;
 
-                            exchange[[occ,virt]] += orbs_i[[mu,occ_i]] * orbs_i[[lambda,occ_i]] * orbs_j[[nu,virt_j]] * orbs_j[[sigma,virt_j]]
+                            exchange[[occ,virt]] += 0.25* orbs_i[[mu,occ_i]] * orbs_i[[lambda,occ_i]] * orbs_j[[nu,virt_j]] * orbs_j[[sigma,virt_j]]
                                 * s_ij[[mu,nu_pair]] * s_ij[[lambda,sigma_pair]] * (g0_pair[[mu,lambda]] + g0_pair[[mu,sigma_pair]]
                                 + g0_pair[[nu_pair,lambda]] + g0_pair[[nu_pair,sigma_pair]]);
                         }
