@@ -1,5 +1,5 @@
-use ndarray::prelude::*;
 use crate::initialization::Atom;
+use ndarray::prelude::*;
 
 /// Computes the Mulliken transition charges between occupied-occupied,
 /// occupied-virtual and virtual-virtual molecular orbitals.
@@ -12,7 +12,7 @@ pub fn trans_charges(
     s: ArrayView2<f64>,
     occ_indices: &[usize],
     virt_indices: &[usize],
-) -> (Array2<f64>, Array2<f64>, Array2<f64>) {
+) -> (Array2<f64>, Array2<f64>, Array2<f64>, Array2<f64>) {
     // Number of occupied orbitals.
     let dim_o: usize = occ_indices.len();
     // Number of virtual orbitals.
@@ -51,7 +51,8 @@ pub fn trans_charges(
                     .iter()
                     .zip(s_c.slice(s![mu, i_v..f_v]).iter())
                     .enumerate()
-                {   // The index to determine the pair of MOs is computed.
+                {
+                    // The index to determine the pair of MOs is computed.
                     let idx: usize = (i * dim_v) + a;
                     // The occupied - virtual transition charge is computed.
                     q_trans_ov[[n, idx]] += 0.5 * (orb_mu_i * s_c_mu_a + orb_mu_a * s_c_mu_i);
@@ -75,13 +76,15 @@ pub fn trans_charges(
                 .iter()
                 .zip(s_c.slice(s![mu, i_v..f_v]).iter())
                 .enumerate()
-            {   // Iteration over virtual orbital B.
+            {
+                // Iteration over virtual orbital B.
                 for (b, (orb_mu_b, s_c_mu_b)) in orbs
                     .slice(s![mu, i_v..f_v])
                     .iter()
                     .zip(s_c.slice(s![mu, i_v..f_v]).iter())
                     .enumerate()
-                {   // The index is computed.
+                {
+                    // The index is computed.
                     let idx: usize = (a * dim_v) + b;
                     // The virtual - virtual transition charge is computed.
                     q_trans_vv[[n, idx]] += 0.5 * (orb_mu_a * s_c_mu_b + orb_mu_b * s_c_mu_a);
@@ -90,5 +93,15 @@ pub fn trans_charges(
             mu += 1;
         }
     }
-    (q_trans_ov, q_trans_oo, q_trans_vv)
+
+    let q_trans_vo: Array2<f64> = q_trans_ov
+        .clone()
+        .into_shape([n_atoms, dim_o, dim_v])
+        .unwrap()
+        .permuted_axes([0, 2, 1])
+        .as_standard_layout()
+        .into_shape([n_atoms, dim_o * dim_v])
+        .unwrap()
+        .to_owned();
+    (q_trans_ov, q_trans_oo, q_trans_vv, q_trans_vo)
 }

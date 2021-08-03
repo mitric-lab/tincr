@@ -22,7 +22,7 @@ impl TDA for System {
         // Check if transition charges are already computed.
         if self.properties.q_ov().is_none() {
             // If not, they are computed now.
-            let (qov, qoo, qvv): (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
+            let (qov, qoo, qvv, qvo): (Array2<f64>, Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
                 self.n_atoms,
                 atoms,
                 orbs,
@@ -34,6 +34,7 @@ impl TDA for System {
             self.properties.set_q_oo(qoo);
             self.properties.set_q_ov(qov);
             self.properties.set_q_vv(qvv);
+            self.properties.set_q_vo(qvo);
         }
         // Check the same for the orbital energy differences.
         if self.properties.omega().is_none() {
@@ -59,6 +60,15 @@ impl TDA for System {
         // The initial guess for the subspace is created.
         let guess: Array2<f64> = initial_subspace(omega.view(), n_roots);
         // Iterative Davidson diagonalization of the CIS Hamiltonian in a matrix free way.
+        // Transition charges between occupied-virtual orbitals, of shape: [n_atoms, n_occ * n_virt]
+        let q_ov: ArrayView2<f64> = self.properties.q_ov().unwrap();
+        // Transition charges between virtual-occupied orbitals, of shape: [natoms, n_virt * n_occ]
+        let q_vo: ArrayView2<f64> = self.properties.q_vo().unwrap();
+        // The gamma matrix of the shape: [n_atoms, n_atoms]
+        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        // The energy differences between virtual and occupied orbitals, shape: [n_occ * n_virt]
+        let omega: ArrayView1<f64> = self.properties.omega().unwrap();
+        let mut h: Array2<f64> = Array2::from_diag(&omega) + 2.0 * q_ov.t().dot(&gamma.dot(&q_ov));
         let davidson: Davidson = Davidson::new(self, guess, n_roots, tolerance, 50).unwrap();
         // The eigenvalues and eigenvectors are returned.
         (davidson.eigenvalues, davidson.eigenvectors)
@@ -97,7 +107,7 @@ impl DavidsonEngine for System {
         let fock: Array2<f64> =
             &omega.broadcast((n_comp, omega.len())).unwrap().t() * &compute_vectors;
 
-        // The product of the Coulomb matrix elements with the supspace vectors is computed.
+        // The product of the Coulomb matrix elements with the subspace vectors is computed.
         let mut two_el: Array2<f64> = 2.0 * q_ov.t().dot(&gamma.dot(&q_ov.dot(&compute_vectors)));
 
         // If long-range correction is requested the exchange part needs to be computed.
@@ -146,10 +156,11 @@ impl DavidsonEngine for System {
             two_el = &two_el - &k_x;
         }
 
+        //let new: Array2<f64> = fock + two_el;
         // The new products are saved in the cache.
         let ax: Array2<f64> = cache.add("TDA", fock + two_el).to_owned();
         self.properties.set_cache(cache);
-        // The product of the CIS-Hamiltonian with the subspace vectors is returned.
+        // // The product of the CIS-Hamiltonian with the subspace vectors is returned.
         ax
     }
 
@@ -157,10 +168,10 @@ impl DavidsonEngine for System {
     /// The energy difference of the virtual and occupied orbitals is used as a preconditioner.
     fn precondition(&self, r_k: ArrayView1<f64>, w_k: f64) -> Array1<f64> {
         // The denominator is build from the orbital energy differences and the shift value.
-        let mut denom: Array1<f64> = w_k - &self.properties.omega().unwrap();
+        let mut denom: Array1<f64> = &(Array1::from_elem(self.get_size(), w_k)) - &self.properties.omega().unwrap();
         // Values smaller than 0.0001 are replaced by 1.0.
         denom.mapv_inplace(|x| if x.abs() < 0.0001 { 1.0 } else { x });
-        &r_k * &denom
+        &r_k / &denom
     }
 
     fn get_size(&self) -> usize {

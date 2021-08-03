@@ -192,15 +192,19 @@ impl Davidson {
                 dim_sub += roots_lft;
 
                 // The new subspace vectors are orthonormalized and added to the existing basis.
-                guess.append(Axis(1), add_space.view()).unwrap();
-                guess = guess.qr().unwrap().0;
+                for vec in add_space.axis_iter(Axis(1)) {
+                    let orth_v: Array1<f64> = &vec - &guess.dot(&guess.t().dot(&vec));
+                    let norm: f64 = orth_v.norm();
+                    if norm > 1.0e-8 {
+                        guess.push_column((&orth_v / norm).view());
+                    }
+                }
             }
             // 5.1 If the dimension is larger than the maximal subspace size, the subspace is
             //     collapsed.
             else {
                 // The dimension of the subspace is reset to the initial value.
                 dim_sub = dim_sub_origin - roots_cvd;
-                println!("DIM SUB {}", dim_sub);
                 guess = ritz.slice(s![.., 0..dim_sub]).to_owned();
             }
         }
