@@ -1,4 +1,5 @@
 use ndarray::prelude::*;
+use ndarray_linalg::Trace;
 use crate::initialization::Atom;
 
 pub fn le_i_ct_one_electron_ij(
@@ -49,7 +50,53 @@ pub fn le_i_ct_one_electron_ji(
     return coupling_matrix;
 }
 
-pub fn outer_diagonal_le_le_interaction_loop(
+pub fn le_le_two_electron(
+    n_le:usize,
+    exc_coeff_i:ArrayView3<f64>,
+    exc_coeff_j:ArrayView3<f64>,
+    g0_pair:ArrayView2<f64>,
+    g0_ij:ArrayView2<f64>,
+    q_ov_i:ArrayView2<f64>,
+    q_ov_j:ArrayView2<f64>,
+    q_oo_inter_frag:ArrayView2<f64>,
+    q_vv_inter_frag:ArrayView2<f64>,
+){
+    let nat:usize = g0_pair.dim().0;
+    let nocc_i:usize = exc_coeff_i.dim().1;
+    let nocc_j:usize = exc_coeff_j.dim().1;
+    let nvirt_i:usize = exc_coeff_i.dim().2;
+    let nvirt_j:usize = exc_coeff_j.dim().2;
+
+    let mut coupling_matrix:Array2<f64> = Array2::zeros((n_le,n_le));
+    let qvv_shape:ArrayView2<f64> = q_vv_inter_frag.into_shape((nat*nvirt_i,nvirt_j)).unwrap();
+
+    for state_i in 0..n_le{
+        // coulomb part
+        let qov_b_i:Array1<f64> = q_ov_i.dot(&exc_coeff_i.slice(s![state_i,..,..]).into_shape(nocc_i*nvirt_i).unwrap());
+        // exchange part
+        // calculate einsum of g0 and q_oo_inter_frag: aa,aik -> aik
+        // and reshape into [nocc_j * nat, nocc_i]
+        let g0_qoo:Array2<f64> = g0_pair.dot(&q_oo_inter_frag) // nat,nocc_i*nocc_j
+            .into_shape([nat,nocc_i,nocc_j]).unwrap().permuted_axes([2,0,1]).as_standard_layout()
+            .into_shape([nocc_j * nat, nocc_i]).unwrap().to_owned();
+
+        for state_j in 0..n_le{
+            // coulomb part
+            let qov_b_j:Array1<f64> = q_ov_j.dot(&exc_coeff_j.slice(s![state_j,..,..]).into_shape(nocc_j*nvirt_j).unwrap());
+            // exchange part
+            // einsum of b_j and reshaped q_vv_inter_frag: kl,laj -> kaj
+            let bj_qvv:Array2<f64> = exc_coeff_j.slice(s![state_j,..,..]).dot(&qvv_shape.t()).into_shape([nocc_j*nat,nvirt_i]).unwrap();
+            // dot of [nvirt_i,nocc_j*nat] and [nocc_j * nat, nocc_i]
+            let temp:Array2<f64> = bj_qvv.t().dot(&g0_qoo); // nvirt_i ,nocc_i
+            // Dot [nocc_i,nvirt_i] [nvirt_i,nocc_i] and trace
+            let exchange:f64 = (temp.dot(&exc_coeff_i.slice(s![state_i,..,..]))).trace().unwrap();
+
+            coupling_matrix[[state_i,state_j]] = 2.0* qov_b_i.dot(&g0_ij.dot(&qov_b_j)) - exchange;
+        }
+    }
+}
+
+pub fn le_le_two_electron_loop(
     orbs_i: ArrayView2<f64>,
     orbs_j: ArrayView2<f64>,
     exc_coeff_i:ArrayView3<f64>,
@@ -148,7 +195,7 @@ pub fn inter_fragment_exchange_integral(
     return exchange;
 }
 
-pub fn inter_fragment_trans_charges(
+pub fn inter_fragment_trans_charge_ct(
     atoms_i: &[Atom],
     atoms_j: &[Atom],
     orbs_i: ArrayView2<f64>,
@@ -175,8 +222,8 @@ pub fn inter_fragment_trans_charges(
     let c_i_s:Array2<f64> = orbs_i.slice(s![..,occ_index_start..occ_index_end]).t().dot(&s_ij);
     // define separate arrays for transition charges for atoms on I and atoms on J
     // the arrays have to be appended after the calculation
-    let mut qtrans_i:Array3<f64> = Array3::zeros([n_atoms_i,n_occ_m,n_virt_m]);
-    let mut qtrans_j:Array3<f64> = Array3::zeros([n_atoms_j,n_occ_m,n_virt_m]);
+    let mut qov_i:Array3<f64> = Array3::zeros([n_atoms_i,n_occ_m,n_virt_m]);
+    let mut qov_j:Array3<f64> = Array3::zeros([n_atoms_j,n_occ_m,n_virt_m]);
 
     let mut mu: usize = 0;
     // calculate sum_mu(on atom A of I) sum_nu(on J) S_mu,nu * orbs_i_mu,i * orbs_j_nu,a
@@ -184,7 +231,7 @@ pub fn inter_fragment_trans_charges(
         for _ in 0..(atom_i.n_orbs) {
             for (i, occi) in occ_indices_i.iter().enumerate() {
                 for (a, virta) in virt_indices_j.iter().enumerate() {
-                    qtrans_i[[n_i,i,a]] += orbs_i[[mu, *occi]] * s_c_j[[mu, *virta]];
+                    qov_i[[n_i,i,a]] += orbs_i[[mu, *occi]] * s_c_j[[mu, a]];
                 }
             }
             mu += 1;
@@ -197,14 +244,94 @@ pub fn inter_fragment_trans_charges(
         for _ in 0..(atom_j.n_orbs) {
             for (i, occi) in occ_indices_i.iter().enumerate() {
                 for (a, virta) in virt_indices_j.iter().enumerate() {
-                    qtrans_j[[n_j,i,a]] += orbs_j[[nu, *virta]] * c_i_s[[*occi, nu]];
+                    qov_j[[n_j,i,a]] += orbs_j[[nu, *virta]] * c_i_s[[i, nu]];
                 }
             }
             nu += 1;
         }
     }
-    qtrans_i.append(Axis(0),qtrans_j.view()).unwrap();
-    let qtrans_result:Array2<f64> = qtrans_i.into_shape([n_atoms_i+n_atoms_j,n_occ_m*n_virt_m]).unwrap();
+    qov_i.append(Axis(0),qov_j.view()).unwrap();
+    let qtrans_result:Array2<f64> = qov_i.into_shape([n_atoms_i+n_atoms_j,n_occ_m*n_virt_m]).unwrap();
 
     return qtrans_result;
+}
+
+pub fn inter_fragment_trans_charges_le(
+    atoms_i: &[Atom],
+    atoms_j: &[Atom],
+    orbs_i: ArrayView2<f64>,
+    orbs_j: ArrayView2<f64>,
+    s_ij: ArrayView2<f64>,
+    occ_indices_i:&[usize],
+    occ_indices_j:&[usize],
+    virt_indices_i: &[usize],
+    virt_indices_j: &[usize],
+)->(Array2<f64>,Array2<f64>){
+    // set n_atoms
+    let n_atoms_i: usize = atoms_i.len();
+    let n_atoms_j: usize = atoms_j.len();
+
+    // set indices for slicing mo coefficients
+    let virt_index_start_i:usize = virt_indices_i[0];
+    let virt_index_start_j:usize = virt_indices_j[0];
+    let occ_index_end_i:usize = virt_indices_i[0] -1;
+    let occ_index_end_j:usize = virt_indices_j[0] -1;
+
+    let nocc_i:usize = virt_index_start_i;
+    let nocc_j:usize = virt_index_start_j;
+    let nvirt_i:usize = virt_indices_i.len();
+    let nvirt_j:usize = virt_indices_j.len();
+
+    let mut qoo_i:Array3<f64> = Array3::zeros([n_atoms_i,nocc_i,nocc_j]);
+    let mut qoo_j:Array3<f64> = Array3::zeros([n_atoms_i,nocc_i,nocc_j]);
+    let mut qvv_i:Array3<f64> = Array3::zeros([n_atoms_i,nvirt_i,nvirt_j]);
+    let mut qvv_j:Array3<f64> = Array3::zeros([n_atoms_i,nvirt_i,nvirt_j]);
+
+    let sc_mu_i:Array2<f64> = s_ij.dot(&orbs_j.slice(s![..,..occ_index_end_j]));
+    let cs_i_lambda:Array2<f64> = orbs_i.slice(s![..,..occ_index_end_i]).t().dot(&s_ij);
+    let sc_nu_a:Array2<f64> = s_ij.dot(&orbs_j.slice(s![..,virt_index_start_j..]));
+    let cs_a_sigma:Array2<f64> = orbs_i.slice(s![..,virt_index_start_i..]).t().dot(&s_ij);
+
+    let mut mu: usize = 0;
+    let mut nu:usize = 0;
+    for (n_i, atom_i) in atoms_i.iter().enumerate() {
+        for _ in 0..(atom_i.n_orbs) {
+            for (i, occi) in occ_indices_i.iter().enumerate() {
+                for (j, occj) in occ_indices_j.iter().enumerate() {
+                    qoo_i[[n_i,i,j]] += orbs_i[[mu, *occi]] * sc_mu_i[[mu, *occj]];
+                }
+            }
+            for (i, virti) in virt_indices_i.iter().enumerate() {
+                for (j, virtj) in virt_indices_j.iter().enumerate() {
+                    qoo_i[[n_i,i,j]] += orbs_i[[nu, *virti]] * sc_nu_a[[nu, j]];
+                }
+            }
+            mu += 1;
+            nu += 1;
+        }
+    }
+    let mut lambda:usize = 0;
+    let mut sigma:usize = 0;
+    for (n_j, atom_j) in atoms_j.iter().enumerate() {
+        for _ in 0..(atom_j.n_orbs) {
+            for (i, occi) in occ_indices_i.iter().enumerate() {
+                for (j, occj) in occ_indices_j.iter().enumerate() {
+                    qoo_j[[n_j,i,j]] += orbs_j[[lambda, *occj]] * cs_i_lambda[[i, lambda]];
+                }
+            }
+            for (i, virti) in virt_indices_i.iter().enumerate() {
+                for (j, virtj) in virt_indices_j.iter().enumerate() {
+                    qvv_j[[n_j,i,j]] += orbs_j[[sigma, *virtj]] * cs_a_sigma[[i, sigma]];
+                }
+            }
+            lambda += 1;
+            sigma +=1;
+        }
+    }
+    qoo_i.append(Axis(0),qoo_j.view()).unwrap();
+    qvv_i.append(Axis(0),qvv_j.view()).unwrap();
+    let qoo_result:Array2<f64> = qoo_i.into_shape([n_atoms_i+n_atoms_j,nocc_i*nocc_j]).unwrap();
+    let qvv_result:Array2<f64> = qvv_i.into_shape([n_atoms_i+n_atoms_j,nvirt_i*nvirt_j]).unwrap();
+
+    return (qoo_result,qvv_result);
 }

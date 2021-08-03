@@ -2,7 +2,7 @@ use crate::fmo::{Monomer, SuperSystem};
 use crate::initialization::Atom;
 use ndarray::{Array2, ArrayView1, s, ArrayView2, Array1, ArrayView3};
 use crate::excited_states::trans_charges_fast;
-use crate::fmo::lcmo::helpers::{inter_fragment_exchange_integral, inter_fragment_trans_charges, outer_diagonal_le_le_interaction_loop, le_i_ct_one_electron_ji, le_i_ct_one_electron_ij};
+use crate::fmo::lcmo::helpers::*;
 
 impl SuperSystem{
     pub fn build_cis_matrix(&self,lcmo_h:ArrayView2<f64>){
@@ -157,7 +157,7 @@ impl SuperSystem{
 
             // Calculate the off-diagonal elements of the LE - LE block
             // TODO: Try another version instead of a loop
-            let le_le_matrix:Array2<f64> = outer_diagonal_le_le_interaction_loop(
+            let le_le_matrix:Array2<f64> = le_le_two_electron_loop(
                 c_mo_i,
                 c_mo_j,
                 exc_coeff_i,
