@@ -274,23 +274,26 @@ pub fn inter_fragment_trans_charges_le(
     // set indices for slicing mo coefficients
     let virt_index_start_i:usize = virt_indices_i[0];
     let virt_index_start_j:usize = virt_indices_j[0];
+    let occ_index_start_i:usize = occ_indices_i[0];
+    let occ_index_start_j:usize = occ_indices_j[0];
     let occ_index_end_i:usize = virt_indices_i[0] -1;
     let occ_index_end_j:usize = virt_indices_j[0] -1;
-
     let nocc_i:usize = virt_index_start_i;
     let nocc_j:usize = virt_index_start_j;
     let nvirt_i:usize = virt_indices_i.len();
     let nvirt_j:usize = virt_indices_j.len();
+    let virt_index_end_i:usize = virt_indices_i[nvirt_i-1];
+    let virt_index_end_j:usize = virt_indices_j[nvirt_j-1];
 
     let mut qoo_i:Array3<f64> = Array3::zeros([n_atoms_i,nocc_i,nocc_j]);
     let mut qoo_j:Array3<f64> = Array3::zeros([n_atoms_i,nocc_i,nocc_j]);
     let mut qvv_i:Array3<f64> = Array3::zeros([n_atoms_i,nvirt_i,nvirt_j]);
     let mut qvv_j:Array3<f64> = Array3::zeros([n_atoms_i,nvirt_i,nvirt_j]);
 
-    let sc_mu_i:Array2<f64> = s_ij.dot(&orbs_j.slice(s![..,..occ_index_end_j]));
-    let cs_i_lambda:Array2<f64> = orbs_i.slice(s![..,..occ_index_end_i]).t().dot(&s_ij);
-    let sc_nu_a:Array2<f64> = s_ij.dot(&orbs_j.slice(s![..,virt_index_start_j..]));
-    let cs_a_sigma:Array2<f64> = orbs_i.slice(s![..,virt_index_start_i..]).t().dot(&s_ij);
+    let sc_mu_i:Array2<f64> = s_ij.dot(&orbs_j.slice(s![..,occ_index_start_j..occ_index_end_j]));
+    let cs_i_lambda:Array2<f64> = orbs_i.slice(s![..,occ_index_start_i..occ_index_end_i]).t().dot(&s_ij);
+    let sc_nu_a:Array2<f64> = s_ij.dot(&orbs_j.slice(s![..,virt_index_start_j..virt_index_end_j]));
+    let cs_a_sigma:Array2<f64> = orbs_i.slice(s![..,virt_index_start_i..virt_index_end_i]).t().dot(&s_ij);
 
     let mut mu: usize = 0;
     let mut nu:usize = 0;
@@ -334,4 +337,49 @@ pub fn inter_fragment_trans_charges_le(
     let qvv_result:Array2<f64> = qvv_i.into_shape([n_atoms_i+n_atoms_j,nvirt_i*nvirt_j]).unwrap();
 
     return (qoo_result,qvv_result);
+}
+
+pub fn le_ct_two_electron(
+    n_le:usize,
+    n_ct:usize,
+    exc_coeff_i:ArrayView3<f64>,
+    g0_pair:ArrayView2<f64>,
+    g0_ij:ArrayView2<f64>,
+    q_ov_i:ArrayView2<f64>,
+    q_ov_j:ArrayView2<f64>,
+    q_oo_inter_frag:ArrayView2<f64>,
+    q_vv_inter_frag:ArrayView2<f64>,
+    nocc_j:usize,
+    nvirt_j:usize,
+){
+    let nocc_i:usize = exc_coeff_i.dim().1;
+    let nvirt_i:usize = exc_coeff_i.dim().2;
+    let n_atoms:usize = g0_pair.dim().0;
+    let mut coupling_matrix:Array2<f64> = Array2::zeros([n_le,n_ct]);
+
+    // calculate the dot product between qoo and g0
+    // shape: nocc_i * nocc_j, n_atoms
+    let qoo_g0:Array2<f64> = q_oo_inter_frag.t().dot(&g0_pair)
+        .into_shape([nocc_i, nocc_j * n_atoms]).unwrap();
+    let qvv_reshaped:ArrayView2<f64> = q_vv_inter_frag.into_shape([n_atoms * nvirt_i,nvirt_j]).unwrap();
+
+    for state in 0..n_le{
+        // Coulomb term
+        // excited state matrix * qov -> result: natoms_i
+        let qov_exc:Array1<f64> = q_ov_i.dot(&exc_coeff_i.slice(s![state,..,..]).into_shape([nocc_i*nvirt_i]).unwrap());
+        // qov_exc * g0_ij -> natoms_i X [natoms_i,natoms_j] -> result: natoms_j
+        let qov_exc_g0:Array1<f64> = qov_exc.dot(&g0_ij);
+        // qov_exc_g0 * q_ov_j: result -> nocc_j * nvirt_j = n_ct
+        let coulomb:Array1<f64> = 2.0* qov_exc_g0.dot(&q_ov_j);
+
+        // Exchange term
+        let bi_qoo_g0:Array2<f64> = exc_coeff_i.slice(s![state,..,..]).t().dot(&qoo_g0)
+            .into_shape([nvirt_i,nocc_j,n_atoms]).unwrap()
+            .permuted_axes([1,0,2]).as_standard_layout()
+            .into_shape([nocc_j,nvirt_i*n_atoms]).unwrap().to_owned();
+        let exchange:Array1<f64> = bi_qoo_g0.dot(&qvv_reshaped).into_shape(nocc_j*nvirt_j).unwrap();
+
+        coupling_matrix.slice_mut(s![state,..]).assign(&(coulomb-exchange));
+    }
+
 }

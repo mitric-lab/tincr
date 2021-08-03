@@ -130,7 +130,7 @@ impl SuperSystem{
             );
             // alternative way of calculating the exchange integral
             // using transition densities
-            let qtrans_mu_nu:Array2<f64> = inter_fragment_trans_charges(
+            let qtrans_mu_nu:Array2<f64> = inter_fragment_trans_charge_ct(
                 &atoms[self.monomers[index_i].slice.atom_as_range()],
                 &atoms[self.monomers[index_j].slice.atom_as_range()],
                 c_mo_i,
