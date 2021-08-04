@@ -60,7 +60,7 @@ pub fn le_le_two_electron(
     q_ov_j:ArrayView2<f64>,
     q_oo_inter_frag:ArrayView2<f64>,
     q_vv_inter_frag:ArrayView2<f64>,
-){
+)->Array2<f64>{
     let nat:usize = g0_pair.dim().0;
     let nocc_i:usize = exc_coeff_i.dim().1;
     let nocc_j:usize = exc_coeff_j.dim().1;
@@ -94,6 +94,7 @@ pub fn le_le_two_electron(
             coupling_matrix[[state_i,state_j]] = 2.0* qov_b_i.dot(&g0_ij.dot(&qov_b_j)) - exchange;
         }
     }
+    return coupling_matrix;
 }
 
 pub fn le_le_two_electron_loop(
@@ -195,7 +196,7 @@ pub fn inter_fragment_exchange_integral(
     return exchange;
 }
 
-pub fn inter_fragment_trans_charge_ct(
+pub fn inter_fragment_trans_charge_ct_ov(
     atoms_i: &[Atom],
     atoms_j: &[Atom],
     orbs_i: ArrayView2<f64>,
@@ -231,7 +232,7 @@ pub fn inter_fragment_trans_charge_ct(
         for _ in 0..(atom_i.n_orbs) {
             for (i, occi) in occ_indices_i.iter().enumerate() {
                 for (a, virta) in virt_indices_j.iter().enumerate() {
-                    qov_i[[n_i,i,a]] += orbs_i[[mu, *occi]] * s_c_j[[mu, a]];
+                    qov_i[[n_i,i,a]] += 0.5 *orbs_i[[mu, *occi]] * s_c_j[[mu, a]];
                 }
             }
             mu += 1;
@@ -244,7 +245,7 @@ pub fn inter_fragment_trans_charge_ct(
         for _ in 0..(atom_j.n_orbs) {
             for (i, occi) in occ_indices_i.iter().enumerate() {
                 for (a, virta) in virt_indices_j.iter().enumerate() {
-                    qov_j[[n_j,i,a]] += orbs_j[[nu, *virta]] * c_i_s[[i, nu]];
+                    qov_j[[n_j,i,a]] += 0.5 * orbs_j[[nu, *virta]] * c_i_s[[i, nu]];
                 }
             }
             nu += 1;
@@ -256,7 +257,7 @@ pub fn inter_fragment_trans_charge_ct(
     return qtrans_result;
 }
 
-pub fn inter_fragment_trans_charges_le(
+pub fn inter_fragment_trans_charges_oovv(
     atoms_i: &[Atom],
     atoms_j: &[Atom],
     orbs_i: ArrayView2<f64>,
@@ -351,7 +352,7 @@ pub fn le_ct_two_electron(
     q_vv_inter_frag:ArrayView2<f64>,
     nocc_j:usize,
     nvirt_j:usize,
-){
+)->Array2<f64>{
     let nocc_i:usize = exc_coeff_i.dim().1;
     let nvirt_i:usize = exc_coeff_i.dim().2;
     let n_atoms:usize = g0_pair.dim().0;
@@ -381,5 +382,5 @@ pub fn le_ct_two_electron(
 
         coupling_matrix.slice_mut(s![state,..]).assign(&(coulomb-exchange));
     }
-
+    return coupling_matrix;
 }
