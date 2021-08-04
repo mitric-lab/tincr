@@ -34,7 +34,9 @@ impl SuperSystem{
             // reference to the excited state energies of the monomers
             let excited_states:ArrayView1<f64> = mol.properties.excited_states().unwrap();
             // fill the diagonal of the matrix
-            cis_matrix.slice_mut(s![i..(i+n_le),i..(i+n_le)]).assign(&excited_states.slice(s![0..n_le]));
+            for le_index in 0..n_le{
+                cis_matrix[[i+le_index,i+le_index]] = excited_states[le_index];
+            }
         }
         // the diagonal elements for the CT-CT block are set
         for pair in self.pairs.iter(){
