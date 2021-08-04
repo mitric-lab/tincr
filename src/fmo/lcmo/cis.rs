@@ -89,7 +89,6 @@ impl SuperSystem{
             // get reference to full overlap matrix of the pair
             let s_pair:ArrayView2<f64> = pair.properties.s().unwrap();
             let s_off_diag:ArrayView2<f64> = s_pair.slice(s![0..norbs_i,norbs_i..]);
-            let s_i:ArrayView2<f64> = s_pair.slice(s![0..norbs_i,0..norbs_i]);
 
             // calculate outer-diagonal LE-CT one-electron matrix elements
             // for the LE on fragment I and the CT from I->J
@@ -325,6 +324,110 @@ impl SuperSystem{
             let term_2:Array2<f64> = qoo_ctct_ji.t().dot(&gamma.dot(&qvv_ctct_ij));
 
             cis_matrix.slice_mut(s![cis_index_ab..(cis_index_ab+n_ct),cis_index_ba..(cis_index_ba+n_ct)]).add_assign(&(term_1-term_2));
+        }
+
+        // ESD pair loop
+        for pair in self.esd_pairs.iter(){
+            // set pair indices
+            let index_i:usize = pair.i;
+            let index_j:usize = pair.j;
+            // set n_atoms of fragments
+            let n_atoms_i:usize = self.monomers[index_i].n_atoms;
+            let n_atoms_j:usize = self.monomers[index_j].n_atoms;
+            // reference to the mo coefficients of fragment I
+            let c_mo_i:ArrayView2<f64> = self.monomers[index_i].properties.orbs().unwrap();
+            // reference to the mo coefficients of fragment J
+            let c_mo_j:ArrayView2<f64> = self.monomers[index_j].properties.orbs().unwrap();
+            // reference to the overlap matrix of fragment I
+            let s_i:ArrayView2<f64> = self.monomers[index_i].properties.s().unwrap();
+            // reference to the overlap matrix of fragment J
+            let s_j:ArrayView2<f64> = self.monomers[index_j].properties.s().unwrap();
+            // active occupied orbitals of fragment I.
+            let occ_indices_i: &[usize] = &self.monomers[index_i].properties.occ_indices().unwrap()[0..n_occ_m];
+            // active virtual orbitals of fragment I.
+            let virt_indices_i: &[usize] = &self.monomers[index_i].properties.virt_indices().unwrap()[0..n_virt_m];
+            // active occupied orbitals of fragment J.
+            let occ_indices_j: &[usize] = &self.monomers[index_j].properties.occ_indices().unwrap()[0..n_occ_m];
+            // active virtual orbitals of fragment J.
+            let virt_indices_j: &[usize] = &self.monomers[index_j].properties.virt_indices().unwrap()[0..n_virt_m];
+            // occupied orbitals of fragment I.
+            let full_occ_indices_i: &[usize] = &self.monomers[index_i].properties.occ_indices().unwrap();
+            // virtual orbitals of fragment I.
+            let full_virt_indices_i: &[usize] = &self.monomers[index_i].properties.virt_indices().unwrap();
+            // occupied orbitals of fragment J.
+            let full_occ_indices_j: &[usize] = &self.monomers[index_j].properties.occ_indices().unwrap();
+            // virtual orbitals of fragment J.
+            let full_virt_indices_j: &[usize] = &self.monomers[index_j].properties.virt_indices().unwrap();
+
+            // get excited coefficients of the fragment I
+            let exc_coeff_i:ArrayView3<f64> = self.monomers[index_i].properties.excited_coefficients().unwrap();
+            // get excited coefficients of the fragment J
+            let exc_coeff_j:ArrayView3<f64> = self.monomers[index_j].properties.excited_coefficients().unwrap();
+
+            // get gamma matrix of the pair
+            let mut gamma:ArrayView2<f64> = pair.properties.gamma().unwrap();
+            let gamma_ab_off_diag:ArrayView2<f64> = gamma.slice(s![..n_atoms_i,n_atoms_i..]);
+
+            // calculate the CT transition charges for monomer I
+            let (qov_ct_i,qoo_ct_i,qvv_ct_i):(Array2<f64>,Array2<f64>,Array2<f64>) = trans_charges_fast(
+                n_atoms_i,
+                &atoms[self.monomers[index_i].slice.atom_as_range()],
+                c_mo_i,
+                s_i,
+                &occ_indices_i,
+                &virt_indices_i,
+            );
+            // calculate the CT transition charges for monomer J
+            let (qov_ct_j,qoo_ct_j,qvv_ct_j):(Array2<f64>,Array2<f64>,Array2<f64>) = trans_charges_fast(
+                n_atoms_j,
+                &atoms[self.monomers[index_j].slice.atom_as_range()],
+                c_mo_j,
+                s_j,
+                &occ_indices_j,
+                &virt_indices_j,
+            );
+
+            // CT-CT block of the cis matrix
+            // the exchange term is neglected for the ESD pairs
+            let coulomb_ij:Array2<f64> = -1.0* qoo_ct_i.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_j));
+            let coulomb_ji:Array2<f64> = -1.0* qoo_ct_j.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_i));
+
+            // assign the arrays to the correct position in the cis matrix
+            let cis_index_ab:usize = dim_le + index_i * (self.n_mol-1) *n_ct + (index_j-1) * n_ct;
+            let cis_index_ba:usize = dim_le + index_j * (self.n_mol-1) *n_ct + index_i *n_ct;
+            cis_matrix.slice_mut(s![cis_index_ab..(cis_index_ab+n_ct),cis_index_ab..(cis_index_ab+n_ct)]).add_assign(&coulomb_ij);
+            cis_matrix.slice_mut(s![cis_index_ba..(cis_index_ba+n_ct),cis_index_ba..(cis_index_ba+n_ct)]).add_assign(&coulomb_ji);
+
+            // LE-LE block of the cis matrix
+            // calculate the LE transition charges for monomer I
+            let (qov_le_i,qoo_le_i,qvv_le_i):(Array2<f64>,Array2<f64>,Array2<f64>) = trans_charges_fast(
+                n_atoms_i,
+                &atoms[self.monomers[index_i].slice.atom_as_range()],
+                c_mo_i,
+                s_i,
+                full_occ_indices_i,
+                full_virt_indices_i,
+            );
+            // calculate the LE transition charges for monomer J
+            let (qov_le_j,qoo_le_j,qvv_le_j):(Array2<f64>,Array2<f64>,Array2<f64>) = trans_charges_fast(
+                n_atoms_j,
+                &atoms[self.monomers[index_j].slice.atom_as_range()],
+                c_mo_j,
+                s_j,
+                full_occ_indices_j,
+                full_virt_indices_j,
+            );
+
+            let le_le_matrix:Array2<f64> = le_le_two_electron_esd(
+                n_le,
+                exc_coeff_i,
+                exc_coeff_j,
+                gamma,
+                gamma_ab_off_diag,
+                qov_le_i.view(),
+                qov_le_j.view(),
+            );
+            cis_matrix.slice_mut(s![(index_i * n_le)..(index_i * n_le)+n_le,(index_j * n_le)..(index_j * n_le)+n_le]).assign(&le_le_matrix);
         }
     }
 }

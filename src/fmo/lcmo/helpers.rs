@@ -97,6 +97,36 @@ pub fn le_le_two_electron(
     return coupling_matrix;
 }
 
+pub fn le_le_two_electron_esd(
+    n_le:usize,
+    exc_coeff_i:ArrayView3<f64>,
+    exc_coeff_j:ArrayView3<f64>,
+    g0_pair:ArrayView2<f64>,
+    g0_ij:ArrayView2<f64>,
+    q_ov_i:ArrayView2<f64>,
+    q_ov_j:ArrayView2<f64>,
+)->Array2<f64>{
+    let nocc_i:usize = exc_coeff_i.dim().1;
+    let nocc_j:usize = exc_coeff_j.dim().1;
+    let nvirt_i:usize = exc_coeff_i.dim().2;
+    let nvirt_j:usize = exc_coeff_j.dim().2;
+
+    let mut coupling_matrix:Array2<f64> = Array2::zeros((n_le,n_le));
+
+    for state_i in 0..n_le{
+        // coulomb part
+        let qov_b_i:Array1<f64> = q_ov_i.dot(&exc_coeff_i.slice(s![state_i,..,..]).into_shape(nocc_i*nvirt_i).unwrap());
+
+        for state_j in 0..n_le{
+            // coulomb part
+            let qov_b_j:Array1<f64> = q_ov_j.dot(&exc_coeff_j.slice(s![state_j,..,..]).into_shape(nocc_j*nvirt_j).unwrap());
+
+            coupling_matrix[[state_i,state_j]] = 2.0* qov_b_i.dot(&g0_ij.dot(&qov_b_j));
+        }
+    }
+    return coupling_matrix;
+}
+
 pub fn le_le_two_electron_loop(
     orbs_i: ArrayView2<f64>,
     orbs_j: ArrayView2<f64>,
