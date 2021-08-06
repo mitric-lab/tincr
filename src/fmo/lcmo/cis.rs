@@ -137,7 +137,7 @@ impl SuperSystem {
                 n_le,
                 n_ct,
             );
-            let cis_index_ct: usize = dim_le + index_j * (self.n_mol - 1) * n_ct + index_i * n_ct; // index if n_occ and n_virt are 1
+            let cis_index_ct: usize = dim_le + index_j * (self.n_mol - 1) * n_ct + index_i * n_ct;
             cis_matrix
                 .slice_mut(s![
                     cis_index_le..cis_index_le + n_le,
@@ -178,11 +178,11 @@ impl SuperSystem {
                 occ_indices_i,
                 virt_indices_j,
             );
-            let exchange_ij: Array2<f64> = 2.0 * qov_ct_ij.t().dot(&gamma.dot(&qov_ct_ij));
-
-            // coulomb-interaction integral (ii|aa) = sum_AB q_A^II gamma q_B^aa
-            // q_oo(I) * gamma (pair) * q_vv(J)
-            let coulomb_ij: Array2<f64> = qoo_ct_i.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_j));
+            // let exchange_ij: Array2<f64> = 2.0 * qov_ct_ij.t().dot(&gamma.dot(&qov_ct_ij));
+            //
+            // // coulomb-interaction integral (ii|aa) = sum_AB q_A^II gamma q_B^aa
+            // // q_oo(I) * gamma (pair) * q_vv(J)
+            // let coulomb_ij: Array2<f64> = qoo_ct_i.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_j));
 
             // calculate the CT-CT interaction for the fragment combination J-I
             let qov_ct_ji: Array2<f64> = inter_fragment_trans_charge_ct_ov(
@@ -194,8 +194,29 @@ impl SuperSystem {
                 occ_indices_j,
                 virt_indices_i,
             );
-            let exchange_ji: Array2<f64> = 2.0 * qov_ct_ji.t().dot(&gamma.dot(&qov_ct_ji));
-            let coulomb_ji: Array2<f64> = qoo_ct_j.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_i));
+            // let exchange_ji: Array2<f64> = 2.0 * qov_ct_ji.t().dot(&gamma.dot(&qov_ct_ji));
+            // let coulomb_ji: Array2<f64> = qoo_ct_j.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_i));
+
+            // create the CT handler
+            let mut ct_handler: CtHandler = CtHandler::new(n_occ_m, n_virt_m,false);
+            ct_handler.create_index_mat();
+            // calculate the CT-CT matrix elements for I-J
+            let ct_coupling_i: Array2<f64> = ct_handler.compute_ct_ct(
+                qoo_ct_i.view(),
+                qvv_ct_j.view(),
+                Some(qov_ct_ij.view()),
+                gamma.view(),
+                gamma_ab_off_diag.view(),
+            );
+            // calculate the CT-CT matrix elements for J-I
+            // TODO: might need changed gamma matrix
+            let ct_coupling_j: Array2<f64> = ct_handler.compute_ct_ct(
+                qoo_ct_j.view(),
+                qvv_ct_i.view(),
+                Some(qov_ct_ji.view()),
+                gamma.view(),
+                gamma_ab_off_diag.view(),
+            );
 
             // assign the arrays to the correct position in the cis matrix
             let cis_index_ab: usize =
@@ -213,13 +234,13 @@ impl SuperSystem {
                     cis_index_ab..(cis_index_ab + n_ct),
                     cis_index_ab..(cis_index_ab + n_ct)
                 ])
-                .add_assign(&(exchange_ij - coulomb_ij));
+                .add_assign(&ct_coupling_i);
             cis_matrix
                 .slice_mut(s![
                     cis_index_ba..(cis_index_ba + n_ct),
                     cis_index_ba..(cis_index_ba + n_ct)
                 ])
-                .add_assign(&(exchange_ji - coulomb_ji));
+                .add_assign(&ct_coupling_j);
 
             // calculate the transition charges using the full space of orbitals for the
             // LE-LE calculation (Eq. 15)
@@ -359,11 +380,8 @@ impl SuperSystem {
                 ])
                 .assign(&le_ct_matrix_ij);
 
-            // CT-CT outer-diagonal block (Eq. 20)
-            // term 1 (ia|jb) on fragments (JI, IJ)
-            let term_1: Array2<f64> = 2.0 * qov_ct_ji.t().dot(&gamma.dot(&qov_ct_ij));
 
-            // term 2 (ij|ab) on fragments (JI,IJ)
+            // CT-CT outer-diagonal block (Eq. 20)
             // calculate qoo and qvv transition charges
             let (qoo_ctct_ij, qvv_ctct_ij): (Array2<f64>, Array2<f64>) =
                 inter_fragment_trans_charges_oovv(
@@ -377,22 +395,43 @@ impl SuperSystem {
                     virt_indices_i,
                     virt_indices_j,
                 );
-            let qoo_ctct_ji: Array2<f64> = qoo_ctct_ij
-                .into_shape([n_atoms_i + n_atoms_j, n_occ_m, n_occ_m])
+            // let qoo_ctct_ji: Array2<f64> = qoo_ctct_ij
+            //     .into_shape([n_atoms_i + n_atoms_j, n_occ_m, n_occ_m])
+            //     .unwrap()
+            //     .permuted_axes([0, 2, 1])
+            //     .as_standard_layout()
+            //     .into_shape([n_atoms_i + n_atoms_j, n_occ_m * n_occ_m])
+            //     .unwrap()
+            //     .to_owned();
+            // // term 1 (ia|jb) on fragments (JI, IJ)
+            // let term_1: Array2<f64> = 2.0 * qov_ct_ji.t().dot(&gamma.dot(&qov_ct_ij));
+            // // term 2 (ij|ab) on fragments (JI,IJ)
+            // let term_2: Array2<f64> = qoo_ctct_ji.t().dot(&gamma.dot(&qvv_ctct_ij));
+
+            let qvv_ctct_ji: Array2<f64> = qvv_ctct_ij
+                .into_shape([n_atoms_i + n_atoms_j, n_virt_m, n_virt_m])
                 .unwrap()
                 .permuted_axes([0, 2, 1])
                 .as_standard_layout()
-                .into_shape([n_atoms_i + n_atoms_j, n_occ_m * n_occ_m])
+                .into_shape([n_atoms_i + n_atoms_j, n_virt_m * n_virt_m])
                 .unwrap()
                 .to_owned();
-            let term_2: Array2<f64> = qoo_ctct_ji.t().dot(&gamma.dot(&qvv_ctct_ij));
 
+            // calculate CT-CT matrix elements
+            let ct_coupling_ij:Array2<f64> = ct_handler.compute_ct_ct_off_diag(
+                qov_ct_ij.view(),
+                qov_ct_ji.view(),
+                qoo_ctct_ij.view(),
+                qvv_ctct_ji.view(),
+                gamma.view(),
+            );
+            // assign to cis matrix
             cis_matrix
                 .slice_mut(s![
                     cis_index_ab..(cis_index_ab + n_ct),
                     cis_index_ba..(cis_index_ba + n_ct)
                 ])
-                .add_assign(&(term_1 - term_2));
+                .add_assign(&ct_coupling_ij);
         }
 
         // ESD pair loop
@@ -474,10 +513,30 @@ impl SuperSystem {
 
             // CT-CT block of the cis matrix
             // the exchange term is neglected for the ESD pairs
-            let coulomb_ij: Array2<f64> =
-                -1.0 * qoo_ct_i.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_j));
-            let coulomb_ji: Array2<f64> =
-                -1.0 * qoo_ct_j.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_i));
+            // create the CT handler
+            let mut ct_handler: CtHandler = CtHandler::new(n_occ_m, n_virt_m,true);
+            ct_handler.create_index_mat();
+            // calculate the CT-CT matrix elements for I-J
+            let ct_coupling_i: Array2<f64> = ct_handler.compute_ct_ct(
+                qoo_ct_i.view(),
+                qvv_ct_j.view(),
+                None,
+                gamma.view(),
+                gamma_ab_off_diag.view(),
+            );
+            // calculate the CT-CT matrix elements for J-I
+            // TODO: might need changed gamma matrix
+            let ct_coupling_j: Array2<f64> = ct_handler.compute_ct_ct(
+                qoo_ct_j.view(),
+                qvv_ct_i.view(),
+                None,
+                gamma.view(),
+                gamma_ab_off_diag.view(),
+            );
+            // let coulomb_ij: Array2<f64> =
+            //     -1.0 * qoo_ct_i.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_j));
+            // let coulomb_ji: Array2<f64> =
+            //     -1.0 * qoo_ct_j.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_i));
 
             // assign the arrays to the correct position in the cis matrix
             let cis_index_ab: usize =
@@ -488,13 +547,13 @@ impl SuperSystem {
                     cis_index_ab..(cis_index_ab + n_ct),
                     cis_index_ab..(cis_index_ab + n_ct)
                 ])
-                .add_assign(&coulomb_ij);
+                .add_assign(&ct_coupling_i);
             cis_matrix
                 .slice_mut(s![
                     cis_index_ba..(cis_index_ba + n_ct),
                     cis_index_ba..(cis_index_ba + n_ct)
                 ])
-                .add_assign(&coulomb_ji);
+                .add_assign(&ct_coupling_j);
 
             // LE-LE block of the cis matrix
             // calculate the LE transition charges for monomer I

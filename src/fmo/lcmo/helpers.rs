@@ -504,9 +504,21 @@ pub fn le_ct_two_electron(
             .into_shape(nocc_j * nvirt_j)
             .unwrap();
 
+        // reorder the matrix elements of the LE-CT coupling
+        let matrix_elements: Array2<f64> =
+            (coulomb - exchange).into_shape([nocc_j, nvirt_j]).unwrap();
+        let mut ordered_vec: Array1<f64> = Array1::zeros(nocc_j * nvirt_j);
+        let mut it: usize = 0;
+        for ct_i in 0..nocc_j {
+            for ct_j in 0..nvirt_j {
+                ordered_vec[it] = matrix_elements[[ct_i, ct_j]];
+                it += 1;
+            }
+        }
+
         coupling_matrix
             .slice_mut(s![state, ..])
-            .assign(&(coulomb - exchange));
+            .assign(&(ordered_vec));
     }
     return coupling_matrix;
 }
@@ -515,12 +527,13 @@ pub struct CtHandler {
     nocc: usize,
     nvirt: usize,
     n_ct: usize,
+    esd_pair:bool,
     index_mat_half: Vec<Vec<(usize, usize, usize, usize)>>,
     index_mat_full: Vec<Vec<(usize, usize, usize, usize)>>,
 }
 
 impl CtHandler {
-    pub fn new(nocc: usize, nvirt: usize) -> CtHandler {
+    pub fn new(nocc: usize, nvirt: usize,esd_pair:bool) -> CtHandler {
         let n_ct: usize = nocc * nvirt;
         let index_mat: Vec<Vec<(usize, usize, usize, usize)>> = Vec::new();
 
@@ -528,6 +541,7 @@ impl CtHandler {
             nocc: nocc,
             nvirt: nvirt,
             n_ct: n_ct,
+            esd_pair:esd_pair,
             index_mat_half: index_mat.clone(),
             index_mat_full: index_mat,
         }
@@ -568,17 +582,17 @@ impl CtHandler {
         &self,
         qoo_i: ArrayView2<f64>,
         qvv_j: ArrayView2<f64>,
-        qov_ij: ArrayView2<f64>,
+        qov_ij: Option<ArrayView2<f64>>,
         gamma: ArrayView2<f64>,
         gamma_offdiag: ArrayView2<f64>,
     ) -> Array2<f64> {
         let mut coupling_mat: Array2<f64> = Array2::zeros((self.n_ct, self.n_ct));
         // set n_atoms
-        let n_at_ij: usize = qov_ij.dim().0;
         let n_at_i: usize = qoo_i.dim().0;
         let n_at_j: usize = qvv_j.dim().0;
+        let n_at_ij: usize = n_at_i+n_at_j;
         // convert transition charges from 2d to 3d arrays
-        let qov_3d: ArrayView3<f64> = qov_ij.into_shape([n_at_ij, self.nocc, self.nvirt]).unwrap();
+        let qov_3d: ArrayView3<f64> = qov_ij.unwrap().into_shape([n_at_ij, self.nocc, self.nvirt]).unwrap();
         let qoo_3d: ArrayView3<f64> = qoo_i.into_shape([n_at_i, self.nocc, self.nocc]).unwrap();
         let qvv_3d: ArrayView3<f64> = qvv_j.into_shape([n_at_j, self.nvirt, self.nvirt]).unwrap();
 
@@ -587,18 +601,23 @@ impl CtHandler {
                 let index_j: usize = ind_j + ind_i;
                 let (i, a, j, b): (usize, usize, usize, usize) = *tuple;
 
-                // exchange integral is (ia|jb)
-                let exchange: f64 =
-                    qov_3d
-                        .slice(s![.., i, a])
-                        .dot(&gamma.dot(&qov_3d.slice(s![.., j, b])));
-
                 // coulomb integral (ij|ab)
                 let coulomb: f64 = qoo_3d
                     .slice(s![.., i, j])
                     .dot(&gamma_offdiag.dot(&qvv_3d.slice(s![.., a, b])));
 
-                coupling_mat[[ind_i, index_j]] = 2.0 * exchange - coulomb;
+                if self.esd_pair == false{
+                    // exchange integral is (ia|jb)
+                    let exchange: f64 =
+                        qov_3d
+                            .slice(s![.., i, a])
+                            .dot(&gamma.dot(&qov_3d.slice(s![.., j, b])));
+
+                    coupling_mat[[ind_i, index_j]] = 2.0 * exchange - coulomb;
+                }
+                else{
+                    coupling_mat[[ind_i, index_j]] = -1.0* coulomb;
+                }
             }
         }
         return coupling_mat;
@@ -611,7 +630,7 @@ impl CtHandler {
         qoo_ij: ArrayView2<f64>,
         qvv_ji: ArrayView2<f64>,
         gamma: ArrayView2<f64>,
-    ) {
+    ) ->Array2<f64>{
         let mut coupling_mat: Array2<f64> = Array2::zeros((self.n_ct, self.n_ct));
         // set n_atoms
         let n_at: usize = qov_ij.dim().0;
@@ -626,18 +645,19 @@ impl CtHandler {
                 let (i, a, j, b): (usize, usize, usize, usize) = *tuple;
 
                 // exchange integral is (ia|jb)
-                let exchange: f64 =
-                    qov_ij_3d
-                        .slice(s![.., i, a])
-                        .dot(&gamma.dot(&qov_ji_3d.slice(s![.., j, b])));
+                let exchange: f64 = qov_ij_3d
+                    .slice(s![.., i, a])
+                    .dot(&gamma.dot(&qov_ji_3d.slice(s![.., j, b])));
 
                 // coulomb integral (ij|ab)
-                let coulomb: f64 = qoo_3d
-                    .slice(s![.., i, j])
-                    .dot(&gamma.dot(&qvv_3d.slice(s![.., a, b])));
+                let coulomb: f64 =
+                    qoo_3d
+                        .slice(s![.., i, j])
+                        .dot(&gamma.dot(&qvv_3d.slice(s![.., a, b])));
 
                 coupling_mat[[ind_i, ind_j]] = 2.0 * exchange - coulomb;
             }
         }
+        return coupling_mat;
     }
 }
