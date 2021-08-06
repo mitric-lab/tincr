@@ -177,6 +177,7 @@ impl SuperSystem {
                 s_off_diag,
                 occ_indices_i,
                 virt_indices_j,
+                "ij",
             );
             // let exchange_ij: Array2<f64> = 2.0 * qov_ct_ij.t().dot(&gamma.dot(&qov_ct_ij));
             //
@@ -193,6 +194,7 @@ impl SuperSystem {
                 s_off_diag.t(),
                 occ_indices_j,
                 virt_indices_i,
+                "ji",
             );
             // let exchange_ji: Array2<f64> = 2.0 * qov_ct_ji.t().dot(&gamma.dot(&qov_ct_ji));
             // let coulomb_ji: Array2<f64> = qoo_ct_j.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_i));
@@ -209,13 +211,12 @@ impl SuperSystem {
                 gamma_ab_off_diag.view(),
             );
             // calculate the CT-CT matrix elements for J-I
-            // TODO: might need changed gamma matrix
             let ct_coupling_j: Array2<f64> = ct_handler.compute_ct_ct(
                 qoo_ct_j.view(),
                 qvv_ct_i.view(),
                 Some(qov_ct_ji.view()),
                 gamma.view(),
-                gamma_ab_off_diag.view(),
+                gamma_ab_off_diag.t(),
             );
 
             // assign the arrays to the correct position in the cis matrix
@@ -525,13 +526,12 @@ impl SuperSystem {
                 gamma_ab_off_diag.view(),
             );
             // calculate the CT-CT matrix elements for J-I
-            // TODO: might need changed gamma matrix
             let ct_coupling_j: Array2<f64> = ct_handler.compute_ct_ct(
                 qoo_ct_j.view(),
                 qvv_ct_i.view(),
                 None,
                 gamma.view(),
-                gamma_ab_off_diag.view(),
+                gamma_ab_off_diag.t(),
             );
             // let coulomb_ij: Array2<f64> =
             //     -1.0 * qoo_ct_i.t().dot(&gamma_ab_off_diag.dot(&qvv_ct_j));

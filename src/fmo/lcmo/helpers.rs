@@ -292,6 +292,7 @@ pub fn inter_fragment_trans_charge_ct_ov(
     s_ij: ArrayView2<f64>,
     occ_indices_i: &[usize],
     virt_indices_j: &[usize],
+    order:&str,
 ) -> Array2<f64> {
     // set n_atoms
     let n_atoms_i: usize = atoms_i.len();
@@ -342,10 +343,21 @@ pub fn inter_fragment_trans_charge_ct_ov(
             nu += 1;
         }
     }
-    qov_i.append(Axis(0), qov_j.view()).unwrap();
-    let qtrans_result: Array2<f64> = qov_i
-        .into_shape([n_atoms_i + n_atoms_j, n_occ_m * n_virt_m])
-        .unwrap();
+    // append both arrays
+    let mut qtrans_result: Array2<f64>
+        = Array2::zeros([n_atoms_i + n_atoms_j, n_occ_m * n_virt_m]);
+    if order == "ij"{
+        qov_i.append(Axis(0), qov_j.view()).unwrap();
+        qtrans_result = qov_i
+            .into_shape([n_atoms_i + n_atoms_j, n_occ_m * n_virt_m])
+            .unwrap();
+    }
+    else if order == "ji"{
+        qov_j.append(Axis(0), qov_i.view()).unwrap();
+        qtrans_result = qov_j
+            .into_shape([n_atoms_i + n_atoms_j, n_occ_m * n_virt_m])
+            .unwrap();
+    }
 
     return qtrans_result;
 }
