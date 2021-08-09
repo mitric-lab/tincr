@@ -46,16 +46,16 @@ pub const LINEAR_MIXING_COEFFICIENT: f64 = 0.33;
 pub const DIIS_LIMIT: usize = 8;
 
 // Broyden Mixer
-pub const BROYDEN_OMEGA0: f64 = 0.01;
+pub const BROYDEN_OMEGA0: f64 = 1.0e-2;
 pub const BROYDEN_MIN_WEIGHT: f64 = 1.0;
 pub const BROYDEN_MAX_WEIGHT: f64 = 1.0e5;
 pub const BROYDEN_WEIGHT_FACTOR: f64 = 1.0e-2;
-pub const BROYDEN_MIXING_PARAMETER: f64 = 0.35;
+pub const BROYDEN_MIXING_PARAMETER: f64 = 0.25;
 
 pub const SOURCE_DIR_VARIABLE: &str = "TINCR_SRC_DIR";
 
 // Number of active orbitals
-pub const ACTIVE_ORBITALS: (usize, usize) = (1000, 1000);
+pub const ACTIVE_ORBITALS: (usize, usize) = (0, 0);
 // Numver of excited states
 pub const EXCITED_STATES: usize = 1000;
 // DO RPA or Casida
@@ -67,3 +67,7 @@ pub const GEOM_OPT_MAX_CYCLES: usize = 500;
 pub const GEOM_OPT_TOL_DISPLACEMENT: f64 = 0.0;
 pub const GEOM_OPT_TOL_GRADIENT: f64 = 0.0;
 pub const GEOM_OPT_TOL_ENERGY: f64 = 0.0;
+
+// Directory of the mio parameters
+pub const MIO_DIR:&str = " ";
+pub const USE_MIO:bool = false;

@@ -2,35 +2,41 @@
 name = "tincr"
 version = "0.1.0"
 authors = ["Joscha Hoche <joscha.hoche@uni-wuerzburg.de>",
-           "Richard Einsele <richard.einsele@uni-wuerzburg.de>",
-           "Xincheng Miao <xincheng.miao@uni-wuerzburg.de>",
-           "Roland Mitric <roland.mitric@uni-wuerzburg.de>"]
+    "Richard Einsele <richard.einsele@uni-wuerzburg.de>",
+    "Xincheng Miao <xincheng.miao@uni-wuerzburg.de>",
+    "Roland Mitric <roland.mitric@uni-wuerzburg.de>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chemfiles = "0.9"
-ndarray = {version = "0.13.1", features = ["serde-1", "approx"]}
+chemfiles = "0.10"
+ndarray = {version = "0.15.3", features = ["serde-1", "approx", "rayon"]}
 approx = "0.3.2"
-ndarray-linalg = { version = "0.12.1", features = ["intel-mkl"]}
-ndarray-stats = "0.3"
+ndarray-linalg = { version = "0.14", features = ["netlib-system"]}
+ndarray-stats = "0.5"
 phf = { version = "0.8.0", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_derive = "1.0"
+rayon = "1.5.0"
 ron = "0.6.0"
 peroxide = {version = "0.27.0", features = ["serde"]}
 itertools = "0.9"
 libm = "0.2.1"
 bspline = "0.2.3"
-rusty-fitpack = { path = "/Users/hochej/rusty_dierckx" }
+rusty-fitpack = { git = "https://github.com/mitric-lab/Rusty-FITPACK.git"}
 ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
-nalgebra = "0.24.1"
+nalgebra = "0.26.1"
+nshare = {version = "0.4", features = ["ndarray", "nalgebra"]}
 clap = "3.0.0-beta.2"
 toml = "0.5"
 rand = "0.8.3"
 log = "0.4.0"
 env_logger = "0.8.3"
 pretty_env_logger = "0.4"
+enum-as-inner = "0.3.3"
+soa_derive = "0.10.0"
+data_reader = "0.3.0"
+hashbrown = "0.11.2"
