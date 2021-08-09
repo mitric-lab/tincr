@@ -3,80 +3,8 @@ use ndarray_einsum_beta::tensordot;
 use rayon::prelude::*;
 
 
-pub fn get_orbital_en_diff(
-    orbe: ArrayView1<f64>,
-    n_occ: usize,
-    n_virt: usize,
-    active_occupied_orbs: &[usize],
-    active_virtual_orbs: &[usize],
-) -> Array2<f64> {
-    // energy difference between occupied and virtual Kohn-Sham orbitals
-    // omega_ia = omega_a - omega_i
-    let mut omega: Array2<f64> = Array2::zeros([n_occ, n_virt]);
-    for (i, occ_i) in active_occupied_orbs.iter().enumerate() {
-        for (a, virt_a) in active_virtual_orbs.iter().enumerate() {
-            omega[[i, a]] = orbe[*virt_a] - orbe[*occ_i];
-        }
-    }
-    return omega;
-}
 
-pub fn get_orbital_occ_diff(
-    f: ArrayView1<f64>,
-    n_occ: usize,
-    n_virt: usize,
-    active_occupied_orbs: &[usize],
-    active_virtual_orbs: &[usize],
-) -> Array2<f64> {
-    // occupation difference between occupied and virtual Kohn-Sham orbitals
-    // f_ia = f_a - f_i
-    let mut df: Array2<f64> = Array2::zeros([n_occ, n_virt]);
-    for (i, occ_i) in active_occupied_orbs.iter().enumerate() {
-        for (a, virt_a) in active_virtual_orbs.iter().enumerate() {
-            df[[i, a]] = f[*occ_i] - f[*virt_a];
-        }
-    }
-    return df;
-}
 
-pub fn initial_expansion_vectors(omega_guess: Array2<f64>, lmax: usize) -> (Array3<f64>) {
-    //     The initial guess vectors are the lmax lowest energy
-    //     single excitations
-    let n_occ: usize = omega_guess.dim().0;
-    let n_virt: usize = omega_guess.dim().1;
-    let mut bs: Array3<f64> = Array::zeros((n_occ, n_virt, lmax));
-    // flatten omega, python: numpy.ravel(omega)
-    let omega_length: usize = omega_guess.iter().len();
-    let omega_flat = omega_guess.into_shape(omega_length).unwrap();
-    // sort omega, only possible for vectors
-    //let mut omega_vec = omega_flat.to_vec();
-    //omega_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    //let omega_flat_new = Array::from_vec(omega_vec);
-    //let mut indices_new:Array1<usize> = Array::zeros(lmax);
-    //for i in 0.. lmax{
-    //    for j in 0.. lmax{
-    //        if omega_flat[j] == omega_flat_new[i]{
-    //            indices_new[i] = j;
-    //        }
-    //    }
-    //}
-    let indices_argsort: Vec<usize> = argsort(omega_flat.view());
-    //let indices: Array1<usize> = omega_flat_new
-    //    .indexed_iter()
-    //    .filter_map(|(index, &item)| Some(index))
-    //   .collect();
-
-    for j in 0..lmax {
-        let idx = indices_argsort[j];
-        // row - occupied index
-        let i: usize = (idx / n_virt) as usize;
-        // col - virtual index
-        let a: usize = idx % n_virt;
-
-        bs[[i, a, j]] = 1.0;
-    }
-    return bs;
-}
 
 pub fn reorder_vectors_lambda2(
     Oia: &ArrayView2<f64>,

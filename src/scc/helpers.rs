@@ -256,6 +256,9 @@ mod tests {
             &molecule.vrep,
         );
         let e_rep_ref: f64 = props.get("E_rep").unwrap().as_array1().unwrap()[0];
+        println!("Ref. Rep. Energy {}", e_rep_ref);
+        println!("Act. Rep. Energy {}", e_rep);
+        println!("Difference {}", e_rep_ref-e_rep);
         assert!(
             e_rep_ref.abs_diff_eq(&e_rep, EPSILON),
             "Molecule: {}, E_rep (ref): {}  E_rep: {}",

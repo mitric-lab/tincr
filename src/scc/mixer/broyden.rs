@@ -6,9 +6,7 @@ use ndarray_stats::QuantileExt;
 
 /// Modified Broyden mixer
 ///
-/// The algorithm is based on the implementation in the DFTB+ Code
-/// see https://github.com/dftbplus/dftbplus/blob/master/prog/dftb%2B/lib_mixer/broydenmixer.F90
-/// and J. Chem. Phys. 152, 124101 (2020); https://doi.org/10.1063/1.5143190
+/// The algorithm is based on J. Chem. Phys. 152, 124101 (2020); https://doi.org/10.1063/1.5143190
 #[derive(Debug, Clone)]
 pub struct BroydenMixer {
     // current iteration
@@ -77,7 +75,7 @@ impl Mixer for BroydenMixer {
 
         let rel_change: f64 = &delta_q.norm() / &self.delta_q_old.norm();
 
-        // it is sometimes beneficial to restart the Broyden mixer, to prevent convergence problems
+        // it is sometimes beneficial to restart the Broyden mixer to prevent convergence problems
         if self.iter > 0 && rel_change > 1.0 {
             self.reset(q.len());
         }

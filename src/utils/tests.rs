@@ -6,7 +6,7 @@ use crate::utils::get_path_prefix;
 use data_reader::reader::{load_txt_f64, Delimiter, ReaderParams};
 use ndarray::prelude::*;
 
-pub const AVAILAIBLE_MOLECULES: [&'static str; 5] = ["h2", "h2o", "benzene", "ammonia", "uracil"];
+pub const AVAILAIBLE_MOLECULES: [&'static str; 3] = ["benzene", "ammonia", "uracil"];
 
 fn get_config() -> Configuration {
     let config_string: String = String::from("");
@@ -109,17 +109,17 @@ fn get_properties(mol: &str, _name: &str) -> Properties {
         "lc_exchange_energy",
     ];
     for property_name in props1d.iter() {
-        println!("{}", property_name);
+        // println!("{}", property_name);
         let tmp: Property = Property::from(load_1d(&format!("{}/{}.dat", path, property_name)));
         properties.set(property_name, tmp);
     }
     for property_name in props2d.iter() {
-        println!("{}", property_name);
+        // println!("{}", property_name);
         let tmp: Property = Property::from(load_2d(&format!("{}/{}.dat", path, property_name)));
         properties.set(property_name, tmp);
     }
     for property_name in props3d.iter() {
-        println!("{}", property_name);
+        // println!("{}", property_name);
         let tmp: Property = Property::from(load_3d(&format!("{}/{}.dat", path, property_name)));
         properties.set(property_name, tmp);
     }

@@ -197,6 +197,8 @@ impl SuperSystem {
     }
 }
 
+
+
 fn get_grad_delta_dq(pair: &Pair, m_i: &Monomer, m_j: &Monomer) -> Array1<f64> {
     // get the derivatives of the charge differences w.r.t to the each degree of freedom
     let grad_dq: ArrayView2<f64> = pair.properties.grad_dq().unwrap();
