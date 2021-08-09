@@ -1,4 +1,4 @@
-use crate::excited_states::trans_charges_fast;
+use crate::excited_states::trans_charges;
 use crate::fmo::lcmo::helpers::*;
 use crate::fmo::{Monomer, SuperSystem};
 use crate::initialization::Atom;
@@ -8,7 +8,6 @@ use std::ops::AddAssign;
 impl SuperSystem {
     pub fn build_cis_matrix(&self, lcmo_h: ArrayView2<f64>) {
         // TODO: READ THIS FROM THE INPUT FILE
-        // test
         // Number of active orbitals per monomer
         let n_occ_m: usize = 1;
         let n_virt_m: usize = 1;
@@ -148,7 +147,7 @@ impl SuperSystem {
 
             // calculate the CT transition charges for monomer I
             let (qov_ct_i, qoo_ct_i, qvv_ct_i): (Array2<f64>, Array2<f64>, Array2<f64>) =
-                trans_charges_fast(
+                trans_charges(
                     n_atoms_i,
                     &atoms[self.monomers[index_i].slice.atom_as_range()],
                     c_mo_i,
@@ -158,7 +157,7 @@ impl SuperSystem {
                 );
             // calculate the CT transition charges for monomer J
             let (qov_ct_j, qoo_ct_j, qvv_ct_j): (Array2<f64>, Array2<f64>, Array2<f64>) =
-                trans_charges_fast(
+                trans_charges(
                     n_atoms_j,
                     &atoms[self.monomers[index_j].slice.atom_as_range()],
                     c_mo_j,
@@ -262,7 +261,7 @@ impl SuperSystem {
             // transition charges of both fragments
             // calculate the LE transition charges for monomer I
             let (qov_le_i, qoo_le_i, qvv_le_i): (Array2<f64>, Array2<f64>, Array2<f64>) =
-                trans_charges_fast(
+                trans_charges(
                     n_atoms_i,
                     &atoms[self.monomers[index_i].slice.atom_as_range()],
                     c_mo_i,
@@ -272,7 +271,7 @@ impl SuperSystem {
                 );
             // calculate the LE transition charges for monomer J
             let (qov_le_j, qoo_le_j, qvv_le_j): (Array2<f64>, Array2<f64>, Array2<f64>) =
-                trans_charges_fast(
+                trans_charges(
                     n_atoms_j,
                     &atoms[self.monomers[index_j].slice.atom_as_range()],
                     c_mo_j,
@@ -494,7 +493,7 @@ impl SuperSystem {
 
             // calculate the CT transition charges for monomer I
             let (qov_ct_i, qoo_ct_i, qvv_ct_i): (Array2<f64>, Array2<f64>, Array2<f64>) =
-                trans_charges_fast(
+                trans_charges(
                     n_atoms_i,
                     &atoms[self.monomers[index_i].slice.atom_as_range()],
                     c_mo_i,
@@ -504,7 +503,7 @@ impl SuperSystem {
                 );
             // calculate the CT transition charges for monomer J
             let (qov_ct_j, qoo_ct_j, qvv_ct_j): (Array2<f64>, Array2<f64>, Array2<f64>) =
-                trans_charges_fast(
+                trans_charges(
                     n_atoms_j,
                     &atoms[self.monomers[index_j].slice.atom_as_range()],
                     c_mo_j,
@@ -559,7 +558,7 @@ impl SuperSystem {
             // LE-LE block of the cis matrix
             // calculate the LE transition charges for monomer I
             let (qov_le_i, qoo_le_i, qvv_le_i): (Array2<f64>, Array2<f64>, Array2<f64>) =
-                trans_charges_fast(
+                trans_charges(
                     n_atoms_i,
                     &atoms[self.monomers[index_i].slice.atom_as_range()],
                     c_mo_i,
@@ -569,7 +568,7 @@ impl SuperSystem {
                 );
             // calculate the LE transition charges for monomer J
             let (qov_le_j, qoo_le_j, qvv_le_j): (Array2<f64>, Array2<f64>, Array2<f64>) =
-                trans_charges_fast(
+                trans_charges(
                     n_atoms_j,
                     &atoms[self.monomers[index_j].slice.atom_as_range()],
                     c_mo_j,
