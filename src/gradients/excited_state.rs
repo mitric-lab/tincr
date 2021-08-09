@@ -1,4 +1,4 @@
-use crate::excited_states::{trans_charges_fast};
+use crate::excited_states::{trans_charges};
 use crate::gradients::helpers::{
     f_lr, f_v, h_minus, h_plus_no_lr, zvector_lc, zvector_no_lc, Hplus, HplusType,
 };
@@ -10,7 +10,7 @@ use std::time::Instant;
 
 impl System {
     pub fn calculate_trans_charges(&mut self) {
-        let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges_fast(
+        let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
             self.n_atoms,
             &self.atoms,
             self.properties.orbs().unwrap(),
