@@ -8,7 +8,6 @@ use std::ops::AddAssign;
 impl SuperSystem {
     pub fn build_cis_matrix(&self, lcmo_h: ArrayView2<f64>) {
         // TODO: READ THIS FROM THE INPUT FILE
-        // test
         // Number of active orbitals per monomer
         let n_occ_m: usize = 1;
         let n_virt_m: usize = 1;
