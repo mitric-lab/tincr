@@ -14,6 +14,7 @@ use log::LevelFilter;
 use petgraph::stable_graph::*;
 use toml;
 
+use ndarray::prelude::*;
 use crate::defaults::CONFIG_FILE_NAME;
 use crate::io::{Configuration, write_header, read_file_to_frame};
 use chemfiles::Frame;
@@ -23,7 +24,11 @@ use crate::fmo::SuperSystem;
 use crate::utils::Timer;
 use crate::scc::gamma_approximation::gamma_atomwise;
 use crate::fmo::gradients::GroundStateGradient;
+use ndarray::{Array2, Array1};
+use crate::excited_states::{orbe_differences, trans_charges, initial_subspace, ProductCache};
 use crate::scc::scc_routine_unrestricted::UnrestrictedSCC;
+use crate::excited_states::davidson::Davidson;
+use crate::excited_states::tda::TDA;
 
 mod constants;
 mod defaults;
@@ -97,17 +102,14 @@ fn main() {
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
     let timer: Timer = Timer::start();
+
+    //let virts: Vec<usize> = vec![4, 5, 6, 7, 8];
+    //let occs: Vec<usize> = vec![0, 1, 2, 3];
+    //println!("ENERGIES {:10.6}", orbe_differences(occs.view(), virts.view()));
     let mut system = System::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
-    //let result = system.test_monomer_gradient();
-    //let result = system.test_embedding_gradient();
-    //let result = system.test_esd_gradient();
-    //system.test_pair_gradient();
-    //system.test_embedding_gradient();
-    // println!("{}", system.ground_state_gradient());
-    //println!("Grad {:?}", system.test_total_gradient());
 
     info!("{}", timer);
     info!("{: ^80}", "");

@@ -1,6 +1,6 @@
 use ndarray::prelude::*;
 use ndarray_linalg::*;
-use ndarray::stack;
+use ndarray::{concatenate};
 use ndarray_stats::QuantileExt;
 use crate::fmo::scc::helpers::*;
 use crate::fmo::{Pair, Monomer};
@@ -108,14 +108,11 @@ impl Pair {
         // if this is the first SCC calculation the charge will be taken from the corresponding
         // monomers
         if !self.properties.contains_key("dq") {
-            // self.properties.set_dq(stack![
-            //     Axis(0),
-            //     m1.properties.dq().unwrap(),
-            //     m2.properties.dq().unwrap()
-            // ]);
-            let mut dq:Array1<f64> = m1.properties.dq().unwrap().to_owned();
-            dq.append(Axis(0),m2.properties.dq().unwrap());
-            self.properties.set_dq(dq);
+            self.properties.set_dq(concatenate![
+                Axis(0),
+                m1.properties.dq().unwrap(),
+                m2.properties.dq().unwrap()
+            ]);
         }
 
         // this is also only needed in the first SCC calculation
@@ -208,6 +205,8 @@ impl Pair {
                 let e_rep: f64 = get_repulsive_energy(&atoms, self.n_atoms, &self.vrep);
                 self.properties.set_last_energy(scf_energy + e_rep);
                 self.properties.set_p(p);
+                self.properties.set_orbs(orbs);
+                self.properties.set_orbe(orbe);
                 break 'scf_loop;
             }
         }

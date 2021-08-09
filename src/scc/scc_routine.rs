@@ -278,7 +278,6 @@ impl<'a> RestrictedSCC for System {
         }
         self.properties.set_orbs(orbs);
         self.properties.set_orbe(orbe);
-
         return total_energy;
     }
 }
