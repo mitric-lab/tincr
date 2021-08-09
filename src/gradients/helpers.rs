@@ -331,6 +331,25 @@ pub fn h_plus_no_lr(
     return hplus_pq;
 }
 
+pub fn h_a_nolr(
+    g0: ArrayView2<f64>,
+    q_pq: ArrayView3<f64>,
+    q_rs: ArrayView3<f64>,
+    v_rs: ArrayView2<f64>,
+) -> (Array2<f64>) {
+    // term 1
+    let n_at:usize = q_pq.dim().0;
+    let q_rs_dim_1:usize = q_rs.dim().1;
+    let q_rs_dim_2:usize = q_rs.dim().2;
+    let q_pq_dim_1:usize = q_pq.dim().1;
+    let q_pq_dim_2:usize = q_pq.dim().2;
+
+    let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(q_rs_dim_1*q_rs_dim_2).unwrap());
+    let tmp2: Array1<f64> = g0.dot(&tmp);
+    let hplus_pq:Array2<f64> = 2.0 * tmp2.dot(&q_pq.into_shape((n_at,q_pq_dim_1*q_pq_dim_2)).unwrap()).into_shape((q_pq_dim_1,q_pq_dim_2)).unwrap();
+    return hplus_pq;
+}
+
 pub struct Hplus<'a>{
     qtrans_ov:ArrayView3<'a,f64>,
     qtrans_vv:ArrayView3<'a,f64>,
@@ -802,6 +821,83 @@ pub fn zvector_no_lc(
     return out;
 }
 
+pub fn tda_zvector_no_lc(
+    a_diag: ArrayView2<f64>,
+    r_matrix: ArrayView2<f64>,
+    g0: ArrayView2<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array2<f64>) {
+    // Parameters:
+    // ===========
+    // A: linear operator, such that A(X) = A.X
+    // Adiag: diagonal elements of A-matrix, with dimension (nocc,nvirt)
+    // B: right hand side of equation, (nocc,nvirt, k)
+    let maxiter: usize = 10000;
+    let conv:f64 = 1.0e-16;
+
+    let n_occ: usize = r_matrix.dim().0;
+    let n_virt: usize = r_matrix.dim().1;
+    let kmax: usize = n_occ * n_virt;
+    let n_at:usize = qtrans_ov.dim().0;
+
+    // bs are expansion vectors
+    let a_inv: Array2<f64> = 1.0 / &a_diag.to_owned();
+    let mut bs: Array2<f64> = &a_inv * &r_matrix;
+
+    let mut rhs_2: Array1<f64> = Array::zeros((kmax));
+    let mut rkm1: Array1<f64> = Array::zeros((kmax));
+    let mut pkm1: Array1<f64> = Array::zeros((kmax));
+    let rhs:Array1<f64> = r_matrix.into_shape(kmax).unwrap().to_owned();
+
+    let apbv:Array2<f64> = mult_av_nolc(
+        g0,
+        qtrans_ov,
+        a_diag,
+        bs.view(),
+        n_occ,
+        n_virt,
+        multiplicity,
+        spin_couplings,
+    );
+
+    rkm1 = apbv.into_shape(kmax).unwrap();
+    rhs_2 = bs.into_shape(kmax).unwrap();
+    rkm1 = rhs - rkm1;
+    pkm1 = rkm1.clone();
+
+    for it in 0..maxiter {
+        let apbv:Array2<f64> = mult_av_nolc(
+            g0,
+            qtrans_ov,
+            a_diag,
+            pkm1.view().into_shape((n_occ,n_virt)).unwrap(),
+            n_occ,
+            n_virt,
+            multiplicity,
+            spin_couplings,
+        );
+        let apk:Array1<f64> = apbv.into_shape((kmax)).unwrap();
+
+        let tmp1:f64 = rkm1.dot(&rkm1);
+        let tmp2:f64 = pkm1.dot(&apk);
+
+        rhs_2 = rhs_2 + (tmp1/tmp2) * &pkm1;
+        rkm1 = rkm1 - (tmp1/tmp2) * &apk;
+
+        let tmp2:f64 = rkm1.dot(&rkm1);
+
+        if tmp2 <= conv{
+            break;
+        }
+        pkm1 = (tmp2/tmp1) * &pkm1 + &rkm1;
+    }
+
+    let out:Array2<f64> = rhs_2.into_shape((n_occ,n_virt)).unwrap();
+    return out;
+}
+
 fn mult_apb_v(
     gamma: ArrayView2<f64>,
     gamma_lr: ArrayView2<f64>,
@@ -924,6 +1020,39 @@ fn mult_apb_v_no_lc(
     // for at in (0..n_at).into_iter() {
     //     u_l = u_l + &qtrans_ov.slice(s![at, .., ..]) * tmp22[at];
     // }
+
+    return u_l;
+}
+
+fn mult_av_nolc(
+    gamma: ArrayView2<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    vs: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array2<f64>) {
+    let n_at:usize = qtrans_ov.dim().0;
+    let gamma_equiv: Array2<f64> = if multiplicity == 1 {
+        gamma.to_owned()
+    } else if multiplicity == 3 {
+        Array2::from_diag(&spin_couplings)
+    } else {
+        panic!(
+            "Currently only singlets and triplets are supported, you wished a multiplicity of {}!",
+            multiplicity
+        );
+    };
+
+    // 1st term - KS orbital energy differences
+    let mut u_l: Array2<f64> = &omega * &vs;
+
+    // 2nd term - Coulomb
+    u_l = u_l + 2.0 * gamma_equiv.dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()
+        .dot(&vs.into_shape(n_occ*n_virt).unwrap()))
+        .dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()).into_shape([n_occ,n_virt]).unwrap();
 
     return u_l;
 }

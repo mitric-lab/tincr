@@ -5,7 +5,7 @@ use crate::scc::scc_routine;
 use crate::scc::scc_routine::RestrictedSCC;
 
 impl System{
-    pub fn calculate_gradients(&mut self,state:usize){
+    pub fn calculate_gradients(&mut self,state:usize)->(Array1<f64>,Array1<f64>){
         // ground state scc routine
         self.prepare_scc();
         self.run_scc();
@@ -23,8 +23,8 @@ impl System{
             // prepare excited gradient calculation
             // the transition charges and the ground state gradient calculation
             // are mandatory
-            self.calculate_trans_charges();
             ground_state_gradient = self.ground_state_gradient(true);
+            self.prepare_excited_grad();
 
             // calculate the excited state gradient
             if self.config.lc.long_range_correction{
@@ -34,6 +34,7 @@ impl System{
                 excited_state_gradient = self.excited_state_gradient_no_lc(state-1);
             }
         }
+        return (ground_state_gradient,excited_state_gradient);
     }
 }
 

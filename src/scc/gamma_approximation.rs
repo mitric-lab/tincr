@@ -376,6 +376,37 @@ pub fn gamma_gradients_ao_wise(
     return (g1, g1_a0);
 }
 
+pub fn gamma_gradients_ao_wise_from_atomwise(
+    g1:ArrayView3<f64>,
+    atoms: &[Atom],
+    n_atoms: usize,
+    n_orbs: usize,
+) -> Array3<f64> {
+    let mut g1_a0: Array3<f64> = Array3::zeros((3 * n_atoms, n_orbs, n_orbs));
+    let mut mu: usize = 0;
+    let mut nu: usize;
+    for (i, atomi) in atoms.iter().enumerate() {
+        for _ in 0..atomi.n_orbs {
+            nu = 0;
+            for (j, atomj) in atoms.iter().enumerate() {
+                for _ in 0..atomj.n_orbs {
+                    if i != j {
+                        g1_a0
+                            .slice_mut(s![(3 * i)..(3 * i + 3), mu, nu])
+                            .assign(&g1.slice(s![(3 * i)..(3 * i + 3), i, j]));
+                        g1_a0
+                            .slice_mut(s![(3 * i)..(3 * i + 3), nu, mu])
+                            .assign(&g1.slice(s![(3 * i)..(3 * i + 3), i, j]));
+                    }
+                    nu = nu + 1;
+                }
+            }
+            mu = mu + 1;
+        }
+    }
+    return g1_a0;
+}
+
 pub fn gamma_gradients_ao_wise_faster(
     gamma_func: &GammaFunction,
     atoms: &[Atom],

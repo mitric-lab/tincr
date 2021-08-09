@@ -6,8 +6,8 @@
 
 use ndarray::prelude::*;
 use ndarray_linalg::generate::random;
-//use log::info;
-use std::{println as info, println as warn};
+use log::info;
+// use std::{println as info, println as warn};
 use std::time::Instant;
 use std::cmp::Ordering;
 use approx::relative_eq;

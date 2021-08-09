@@ -63,7 +63,7 @@ fn main() {
         )
         .get_matches();
 
-    let log_level: LevelFilter = match 0 {
+    let log_level: LevelFilter = match -1 {
         2 => LevelFilter::Trace,
         1 => LevelFilter::Debug,
         0 => LevelFilter::Info,
@@ -110,6 +110,8 @@ fn main() {
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
+
+    system.test_tda_gradient();
 
     info!("{}", timer);
     info!("{: ^80}", "");

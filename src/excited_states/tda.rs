@@ -55,7 +55,7 @@ impl TDA for System {
         // Reference to the energy differences between virtuals and occupied orbitals.
         let omega: ArrayView1<f64> = self.properties.omega().unwrap();
         let n_roots: usize = 4;
-        let tolerance: f64 = 1e-8;
+        let tolerance: f64 = 1e-5;
         // The initial guess for the subspace is created.
         let guess: Array2<f64> = initial_subspace(omega.view(), n_roots);
         // Iterative Davidson diagonalization of the CIS Hamiltonian in a matrix free way.
@@ -160,7 +160,7 @@ impl DavidsonEngine for System {
         let mut denom: Array1<f64> = w_k - &self.properties.omega().unwrap();
         // Values smaller than 0.0001 are replaced by 1.0.
         denom.mapv_inplace(|x| if x.abs() < 0.0001 { 1.0 } else { x });
-        &r_k * &denom
+        &r_k / &denom
     }
 
     fn get_size(&self) -> usize {

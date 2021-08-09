@@ -42,17 +42,11 @@ impl System {
         let h0: ArrayView2<f64> = self.properties.h0().unwrap();
         let dq: ArrayView1<f64> = self.properties.dq().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let esp_q: ArrayView1<f64> = self.properties.esp_q().unwrap();
 
         // transform the expression Sum_c_in_X (gamma_AC + gamma_aC) * dq_C
         // into matrix of the dimension (norb, norb) to do an element wise multiplication with P
         let mut coulomb_mat: Array2<f64> =
             atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms) * 0.5;
-        // Transform the Equation sum_K sum_c_in_K (gamma_ac + gamma_Ac) * dq_c into the dimension
-        // of the AOs.
-        let mut esp_mat: Array2<f64> =
-            atomvec_to_aomat(esp_q.view(), self.n_orbs, &self.atoms) * 0.5;
-        esp_mat += &coulomb_mat;
 
         // The product of the Coulomb interaction matrix and the density matrix flattened as vector.
         let coulomb_x_p: Array1<f64> = (&p * &coulomb_mat)
