@@ -175,8 +175,9 @@ impl<'a> RestrictedSCC for System {
                     lc_exact_exchange(s.view(), self.properties.gamma_lr_ao().unwrap(), p0.view(), p.view());
                 h = h + h_x;
             }
+            let mut h_save:Array2<f64> = h.clone();
 
-            if level_shifter.is_on {
+                if level_shifter.is_on {
                 if level_shifter.is_empty() {
                     level_shifter = LevelShifter::new(
                         self.n_orbs,
@@ -267,6 +268,7 @@ impl<'a> RestrictedSCC for System {
 
             if converged {
                 total_energy = Ok(scf_energy + rep_energy);
+                self.properties.set_h_coul_x(h_save);
                 break 'scf_loop;
             }
             total_energy = Err(SCCError::new(i,last_energy - scf_energy,delta_dq_max));

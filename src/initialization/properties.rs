@@ -709,6 +709,13 @@ impl Properties {
         }
     }
 
+    pub fn h_coul_x(&self) ->Option<ArrayView2<f64>>{
+        match self.get("h_coul_x"){
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Set the energy of the last scc iteration
     pub fn set_occupation(&mut self, f: Vec<f64>) {
         self.set("occupation", Property::VecF64(f))
@@ -948,6 +955,13 @@ impl Properties {
         self.set(
             "excited_coefficients",
             Property::from(coefficients),
+        )
+    }
+
+    pub fn set_h_coul_x(&mut self,h:Array2<f64>){
+        self.set(
+            "h_coul_x",
+            Property::from(h),
         )
     }
 

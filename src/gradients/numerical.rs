@@ -65,8 +65,17 @@ impl System{
         self.prepare_scc();
         self.run_scc();
 
-        let grad = self.ground_state_gradient(true);
+        let grad = self.ground_state_gradient(false);
         return grad;
+    }
+
+    pub fn gs_gradient_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
+        self.properties.reset();
+        self.update_xyz(geometry);
+        self.prepare_scc();
+        let en = self.run_scc().unwrap();
+
+        return en
     }
 
     pub fn test_tda_nolc_gradient(&mut self){
@@ -75,6 +84,10 @@ impl System{
 
     pub fn test_tda_lc_gradient(&mut self){
         assert_deriv(self,System::tda_gradient_wrapper,System::tda_lc_gradients_for_testing,self.get_xyz(), 0.0001, 1e-6);
+    }
+
+    pub fn test_gs_gradient(&mut self){
+        assert_deriv(self,System::gs_gradient_wrapper,System::gs_grad,self.get_xyz(), 0.001, 1e-6);
     }
 }
 

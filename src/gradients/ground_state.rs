@@ -4,7 +4,7 @@ use crate::gradients::helpers::{f_lr, gradient_v_rep};
 use crate::initialization::*;
 use crate::scc::gamma_approximation::{gamma_gradients_ao_wise, gamma_gradients_atomwise};
 use crate::scc::h0_and_s::h0_and_s_gradients;
-use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, Axis};
+use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, Axis,s};
 use ndarray_einsum_beta::tensordot;
 use std::time::Instant;
 
@@ -68,10 +68,14 @@ impl System {
             .unwrap();
 
         // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
+        // let w: Array1<f64> = 0.5
+        //     * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
+        //         .into_shape([self.n_orbs * self.n_orbs])
+        //         .unwrap();
         let w: Array1<f64> = 0.5
-            * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
-                .into_shape([self.n_orbs * self.n_orbs])
-                .unwrap();
+            * (p.dot(&self.properties.h_coul_x().unwrap()).dot(&p))
+            .into_shape([self.n_orbs * self.n_orbs])
+            .unwrap();
 
         // calculation of the gradient
         // 1st part:  dH0 / dR . P
