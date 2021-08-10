@@ -346,7 +346,7 @@ pub fn h_a_nolr(
 
     let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(q_rs_dim_1*q_rs_dim_2).unwrap());
     let tmp2: Array1<f64> = g0.dot(&tmp);
-    let hplus_pq:Array2<f64> = 2.0 * tmp2.dot(&q_pq.into_shape((n_at,q_pq_dim_1*q_pq_dim_2)).unwrap()).into_shape((q_pq_dim_1,q_pq_dim_2)).unwrap();
+    let hplus_pq:Array2<f64> = 4.0 * tmp2.dot(&q_pq.into_shape((n_at,q_pq_dim_1*q_pq_dim_2)).unwrap()).into_shape((q_pq_dim_1,q_pq_dim_2)).unwrap();
     return hplus_pq;
 }
 
@@ -835,7 +835,7 @@ pub fn tda_zvector_no_lc(
     // Adiag: diagonal elements of A-matrix, with dimension (nocc,nvirt)
     // B: right hand side of equation, (nocc,nvirt, k)
     let maxiter: usize = 10000;
-    let conv:f64 = 1.0e-16;
+    let conv:f64 = 1.0e-19;
 
     let n_occ: usize = r_matrix.dim().0;
     let n_virt: usize = r_matrix.dim().1;
@@ -1050,7 +1050,7 @@ fn mult_av_nolc(
     let mut u_l: Array2<f64> = &omega * &vs;
 
     // 2nd term - Coulomb
-    u_l = u_l + 2.0 * gamma_equiv.dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()
+    u_l = u_l + 4.0 * gamma_equiv.dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()
         .dot(&vs.into_shape(n_occ*n_virt).unwrap()))
         .dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()).into_shape([n_occ,n_virt]).unwrap();
 

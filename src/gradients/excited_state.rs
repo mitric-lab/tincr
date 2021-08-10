@@ -1,5 +1,5 @@
 use crate::excited_states::{trans_charges};
-use crate::gradients::helpers::{f_lr, f_v, h_minus, h_plus_no_lr, zvector_lc, zvector_no_lc, Hplus, HplusType, h_a_nolr};
+use crate::gradients::helpers::{f_lr, f_v, h_minus, h_plus_no_lr, zvector_lc, zvector_no_lc, Hplus, HplusType, h_a_nolr, tda_zvector_no_lc};
 use crate::initialization::*;
 use crate::utils::ToOwnedF;
 use ndarray::{s, Array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3, Axis};
@@ -138,7 +138,7 @@ impl System {
         let r_matrix: Array2<f64> = r_ia_flat.into_shape((n_occ, n_virt)).unwrap();
 
         // calculate the z-vector
-        let z_ia: Array2<f64> = zvector_no_lc(
+        let z_ia: Array2<f64> = tda_zvector_no_lc(
             omega_input.view(),
             r_matrix.view(),
             g0,
@@ -154,10 +154,10 @@ impl System {
             w_ij[[i, i]] = w_ij[[i, i]] / 2.0;
         }
         // w_ia
-        let w_ia: Array2<f64> = &q_ai.t() + &ei.dot(&z_ia);
+        let w_ia: Array2<f64> = &q_ai.t() + &ei.dot(&z_ia); //+ h_a_nolr(g0, qtrans_ov, qtrans_ov, z_ia.view());
 
         // w_ai
-        let w_ai: Array2<f64> = w_ia.clone().reversed_axes();
+        let w_ai: Array2<f64> = &q_ai + &ei.dot(&z_ia).t();
 
         // w_ab
         let mut w_ab: Array2<f64> = q_ab;
