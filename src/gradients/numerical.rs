@@ -18,7 +18,7 @@ impl System{
         return u[0];
     }
 
-    pub fn tda_gradients_for_testing(&mut self)->Array1<f64>{
+    pub fn tda_nolc_gradients_for_testing(&mut self)->Array1<f64>{
         self.properties.reset();
         self.prepare_scc();
         self.run_scc();
@@ -39,6 +39,27 @@ impl System{
         return grad_exc;
     }
 
+    pub fn tda_lc_gradients_for_testing(&mut self)->Array1<f64>{
+        self.properties.reset();
+        self.prepare_scc();
+        self.run_scc();
+
+        let (u, v) = self.run_tda();
+        println!("u analytic {}",u);
+        let nocc:usize = self.occ_indices.len();
+        let nvirt:usize = self.virt_indices.len();
+        let c:Array3<f64> = v.t().as_standard_layout().to_owned().into_shape([4,nocc,nvirt]).unwrap();
+        self.properties.set_excited_energies(u);
+        self.properties.set_excited_coefficients(c);
+        self.ground_state_gradient(true);
+        self.prepare_excited_grad();
+        let grad_exc:Array1<f64> = self.tda_gradient_lc(0);
+
+        self.properties.clear_excited_gradient_no_lc();
+
+        return grad_exc;
+    }
+
     pub fn gs_grad(&mut self)->Array1<f64> {
         self.properties.reset();
         self.prepare_scc();
@@ -48,8 +69,12 @@ impl System{
         return grad;
     }
 
-    pub fn test_tda_gradient(&mut self){
-        assert_deriv(self,System::tda_gradient_wrapper,System::tda_gradients_for_testing,self.get_xyz(), 0.0001, 1e-6);
+    pub fn test_tda_nolc_gradient(&mut self){
+        assert_deriv(self,System::tda_gradient_wrapper,System::tda_nolc_gradients_for_testing,self.get_xyz(), 0.0001, 1e-6);
+    }
+
+    pub fn test_tda_lc_gradient(&mut self){
+        assert_deriv(self,System::tda_gradient_wrapper,System::tda_lc_gradients_for_testing,self.get_xyz(), 0.0001, 1e-6);
     }
 }
 

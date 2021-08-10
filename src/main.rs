@@ -111,7 +111,7 @@ fn main() {
     system.prepare_scc();
     system.run_scc();
 
-    system.test_tda_gradient();
+    system.test_tda_lc_gradient();
 
     info!("{}", timer);
     info!("{: ^80}", "");
