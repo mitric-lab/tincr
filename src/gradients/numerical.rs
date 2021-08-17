@@ -217,7 +217,7 @@ pub fn assert_deriv<S, F, G>(
         // Ridder's method
         let (numerical_deriv, deriv_error): (f64, f64) = ridders_method(system, &function, origin.clone(), i, stepsize, con, safe, maxiter);
         let diff: f64 = (numerical_deriv - analytic_deriv).abs();
-        let correct: bool = if diff >= deriv_error && diff > 1e-10 {false} else {true};
+        let correct: bool = if diff >= deriv_error && diff > 1e-8 {false} else {true};
         errors.push(correct);
         error_values[i] = diff;
 

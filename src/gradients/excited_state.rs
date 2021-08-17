@@ -415,7 +415,7 @@ impl System {
             self.n_atoms,
             self.n_orbs,
         );
-        let grad_h: Array3<f64> = &grad_h + &f_dmd0 - 0.5 * &flr_dmd0;
+        let grad_h: Array3<f64> = &grad_h + &f_dmd0- 0.5 * &flr_dmd0;
 
         // set the occupied and virtuals orbital coefficients
         let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
@@ -453,7 +453,7 @@ impl System {
             self.n_orbs,
         );
         let flr_p = f_lr(
-            (&x_ao + &x_ao.t()).view(),
+            x_ao.t(),
             s,
             grad_s,
             g0lr_ao,
@@ -492,7 +492,6 @@ impl System {
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap()
             .dot(&x_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
-
         return gradExc;
     }
 

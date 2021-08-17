@@ -1395,7 +1395,7 @@ fn mult_av_lc(
         .unwrap();
 
     let tmp31_reshaped: Array2<f64> = tmp31.into_shape((n_at, n_virt * n_occ)).unwrap();
-    let mut tmp32: Array3<f64> = 1.0*gamma_lr
+    let mut tmp32: Array3<f64> = gamma_lr
         .dot(&tmp31_reshaped)
         .into_shape((n_at, n_virt, n_occ))
         .unwrap();
