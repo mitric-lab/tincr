@@ -103,7 +103,7 @@ pub fn get_exc_energies(
     // get df
     // occupation differences between occupied and virtual Kohn-Sham orbitals
     let df: Array2<f64> = get_orbital_occ_diff(
-        Array::from_vec(f_occ.clone()).view(),
+        Array::from(f_occ.clone()).view(),
         n_occ,
         n_virt,
         &active_occ[..],
@@ -414,16 +414,15 @@ pub fn build_a_matrix(
         ) // aik,ajl->ikjl
         .into_dimensionality::<Ix4>()
         .unwrap();
+    k_a.swap_axes(1, 2); // ikjl->ijkl
+    k_a = k_a.as_standard_layout().to_owned();
 
     // alternative to tensordots
     // let test:Array2<f64> = gamma_lr.dot(&q_trans_vv.into_shape((n_atoms,n_virt*n_virt)).unwrap());
     // let test_2:Array4<f64> = -1.0* q_trans_oo.t().into_shape((n_occ*n_occ,n_atoms)).unwrap().dot(&test).into_shape((n_occ,n_occ,n_virt,n_virt)).unwrap();
     // assert!(test_2.abs_diff_eq(&k_a,1e-14));
     // assert!(1==2);
-
-    k_a.swap_axes(1, 2); // ikjl->ijkl
-    k_a = k_a.as_standard_layout().to_owned();
-
+    // let mut k_a:Array4<f64> = Array4::zeros([n_occ , n_virt, n_occ , n_virt]);
     if multiplicity == 1 {
         // calculate coulomb integrals for singlets
         // 2 * K_A =  2 K_{ov,o'v'} = 2 sum_{A,B} q_A^{ov} \gamma_{AB} q_B^{o'v'}
@@ -2140,6 +2139,101 @@ pub fn get_apbv_fortran(
     return us;
 }
 
+pub fn get_apbv_fortran_new(
+    gamma: &ArrayView2<f64>,
+    gamma_lr: &ArrayView2<f64>,
+    qtrans_oo: &ArrayView3<f64>,
+    qtrans_vv: &ArrayView3<f64>,
+    qtrans_ov: &ArrayView3<f64>,
+    omega: &ArrayView2<f64>,
+    vs: &Array3<f64>,
+    n_at: usize,
+    n_occ: usize,
+    n_virt: usize,
+    n_vec: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array3<f64>) {
+    let tmp_q_vv: ArrayView2<f64> = qtrans_vv
+        .into_shape((n_virt * n_at, n_virt))
+        .unwrap();
+    let tmp_q_oo: ArrayView2<f64> = qtrans_oo
+        .into_shape((n_at * n_occ, n_occ))
+        .unwrap();
+    let tmp_q_ov_swapped: ArrayView3<f64> = qtrans_ov.permuted_axes([0,2,1]);
+    // tmp_q_ov_swapped.swap_axes(1, 2);
+    let tmp_q_ov_shape_1: Array2<f64> =
+        tmp_q_ov_swapped.as_standard_layout().to_owned().into_shape((n_at * n_virt, n_occ)).unwrap();
+    let mut tmp_q_ov_swapped_2: ArrayView3<f64> = qtrans_ov.permuted_axes([1,0,2]);
+    // tmp_q_ov_swapped_2.swap_axes(0, 1);
+    let tmp_q_ov_shape_2: Array2<f64> =
+        tmp_q_ov_swapped_2.as_standard_layout().to_owned().into_shape((n_occ, n_at * n_virt))
+            .unwrap();
+    let mut us: Array3<f64> = Array::zeros(vs.raw_dim());
+
+    let gamma_equiv: Array2<f64> = if multiplicity == 1 {
+        gamma.to_owned()
+    } else if multiplicity == 3 {
+        Array2::from_diag(&spin_couplings)
+    } else {
+        panic!(
+            "Currently only singlets and triplets are supported, you wished a multiplicity of {}!",
+            multiplicity
+        );
+        Array::zeros(gamma.raw_dim())
+    };
+
+    for i in (0..n_vec) {
+        let vl: Array2<f64> = vs.slice(s![.., .., i]).to_owned();
+        // 1st term - KS orbital energy differences
+        let mut u_l: Array2<f64> = omega * &vl;
+
+        // 2nd term - Coulomb
+        let tmp21:Array1<f64> = qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap().dot(&vl.view().into_shape(n_occ*n_virt).unwrap());
+        let tmp22: Array1<f64> = 4.0 * gamma_equiv.dot(&tmp21);
+        u_l = u_l + tmp22.dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()).into_shape([n_occ,n_virt]).unwrap();
+
+        // 3rd term - Exchange
+        let tmp31: Array3<f64> = tmp_q_vv
+            .dot(&vl.t())
+            .into_shape((n_at, n_virt, n_occ))
+            .unwrap();
+
+        let tmp31_reshaped: Array2<f64> = tmp31.into_shape((n_at, n_virt * n_occ)).unwrap();
+        let mut tmp32: Array3<f64> = gamma_lr
+            .dot(&tmp31_reshaped)
+            .into_shape((n_at, n_virt, n_occ))
+            .unwrap();
+        tmp32.swap_axes(1, 2);
+        let tmp32 = tmp32.as_standard_layout();
+
+        let tmp33: Array2<f64> = tmp_q_oo
+            .t()
+            .dot(&tmp32.into_shape((n_at * n_occ, n_virt)).unwrap());
+        u_l = u_l - tmp33;
+
+        // 4th term - Exchange
+        let tmp41: Array3<f64> = tmp_q_ov_shape_1
+            .dot(&vl)
+            .into_shape((n_at, n_virt, n_virt))
+            .unwrap();
+        let tmp41_reshaped: Array2<f64> = tmp41.into_shape((n_at, n_virt * n_virt)).unwrap();
+        let mut tmp42: Array3<f64> = gamma_lr
+            .dot(&tmp41_reshaped)
+            .into_shape((n_at, n_virt, n_virt))
+            .unwrap();
+        tmp42.swap_axes(1, 2);
+        let tmp42 = tmp42.as_standard_layout();
+
+        let tmp43: Array2<f64> =
+            tmp_q_ov_shape_2.dot(&tmp42.into_shape((n_at * n_virt, n_virt)).unwrap());
+        u_l = u_l - tmp43;
+
+        us.slice_mut(s![.., .., i]).assign(&u_l);
+    }
+    return us;
+}
+
 pub fn get_apbv_fortran_no_lc(
     gamma: &ArrayView2<f64>,
     qtrans_ov: &ArrayView3<f64>,
@@ -3087,7 +3181,7 @@ pub fn krylov_solver_zvector_test(
     //     multiplicity,
     //     spin_couplings,
     // );
-    let temp:Array3<f64> = get_apbv_fortran(
+    let temp:Array3<f64> = get_apbv_fortran_new(
         &g0,
         &g0_lr.view(),
         &qtrans_oo.clone().unwrap(),
@@ -3112,7 +3206,7 @@ pub fn krylov_solver_zvector_test(
         // representation of A in the basis of expansion vectors
         println!("iteration {}",it);
 
-        let temp:Array3<f64> = get_apbv_fortran(
+        let temp:Array3<f64> = get_apbv_fortran_new(
             &g0,
             &g0_lr.view(),
             &qtrans_oo.clone().unwrap(),
@@ -3908,7 +4002,7 @@ pub fn non_hermitian_davidson_new(
         //         .assign(&bm_new_vec);
         // }
         if it < 2 {
-        bp = get_apbv_fortran(
+        bp = get_apbv_fortran_new(
             &gamma,
             &gamma_lr,
             &qtrans_oo,
@@ -3938,7 +4032,7 @@ pub fn non_hermitian_davidson_new(
         );
         }
         else {
-            let bp_new_vec: Array3<f64> = get_apbv_fortran(
+            let bp_new_vec: Array3<f64> = get_apbv_fortran_new(
                 &gamma,
                 &gamma_lr,
                 &qtrans_oo,

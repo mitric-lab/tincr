@@ -57,7 +57,7 @@ impl DFTBCalculator {
             HashMap<u8, HashMap<(i8, i8), f64>>,
             HashMap<u8, f64>,
             HashMap<u8, f64>,
-        ) = get_electronic_configuration_mio(&atomtypes);
+        ) = get_electronic_configuration(&atomtypes);
         // NOTE: The spin-coupling constants are taken from
         // https://dftb.org/fileadmin/DFTB/public/slako/mio/mio-1-1.spinw.txt
         // However, the coupling constants are only tabulated there on an angular momentum level
@@ -430,10 +430,10 @@ fn get_parameters(
             continue 'pair_loop;
         }
         // load precalculated slako table
-        // let mut slako_module: SlaterKosterTable =
-        //     get_slako_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
         let mut slako_module: SlaterKosterTable =
-            get_slako_table_mio(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+            get_slako_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+        // let mut slako_module: SlaterKosterTable =
+        //     get_slako_table_mio(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
         // println!("elements {} {}",zi,zj);
         // println!("s spline {:?}",slako_module.s[&(0,0,0)]);
         // println!("h spline {:?}",slako_module.h[&(0,0,0)]);
@@ -443,10 +443,10 @@ fn get_parameters(
         slako_module.s_spline = slako_module.spline_overlap();
         slako_module.h_spline = slako_module.spline_hamiltonian();
         // load repulsive potential table
-        let reppot_module: RepulsivePotentialTable =
-            get_reppot_table_mio(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
         // let reppot_module: RepulsivePotentialTable =
-        //     get_reppot_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+        //     get_reppot_table_mio(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
+        let reppot_module: RepulsivePotentialTable =
+            get_reppot_table(ATOM_NAMES[zi as usize], ATOM_NAMES[zj as usize]);
         skt.insert((zi, zj), slako_module);
         v_rep.insert((zi, zj), reppot_module);
     }

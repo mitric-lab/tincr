@@ -26,6 +26,7 @@ mod solver;
 mod test;
 mod transition_charges;
 mod zbrent;
+mod tda_gradient;
 // mod fmo_gradients;
 //mod transition_charges;
 //mod solver;
@@ -60,6 +61,7 @@ use toml;
 use approx::AbsDiffEq;
 use std::collections::HashMap;
 use crate::calculator::gamma_gradient_dot_dq;
+use crate::tda_gradient::{get_tda_gradients, dftb_numerical_tda_gradients, dftb_tda_numerical_gradients_4th_order};
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
@@ -178,23 +180,38 @@ fn main() {
             // println!("numerical dftb gradient {}",num_grad);
             // println!("");
             // println!("Norm of difference: {}", (grad_e0+ grad_vrep-num_grad).norm());
+            println!("orbe {}",orbe);
 
             let excited_timer: Instant = Instant::now();
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
-               get_exc_energies(&f, &mol, Some(8), &s, &orbe, &orbs, false, None);
+               get_exc_energies(&f, &mol, Some(200008), &s, &orbe, &orbs, false, Some(String::from("TDA")));
             println!("{:>68} {:>8.6} s","elapsed time exited states:",excited_timer.elapsed().as_secs_f32());
-            println!("eigenvalues {}",tmp.0.slice(s![0..6]));
+            println!("eigenvalues {}",tmp.0.slice(s![0..4]));
             drop(excited_timer);
 
-            let gradients_timer: Instant = Instant::now();
-            let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+            let (grad_e0, grad_vrep, grad_exc): (
                 Array1<f64>,
                 Array1<f64>,
                 Array1<f64>,
-                Array3<f64>,
-            ) = get_gradients(&orbe, &orbs, &s, &mut mol, &Some(tmp.2), &Some(tmp.3), Some(1), &Some(tmp.0), None,&f);
-            println!("{:>68} {:>8.6} s","elapsed time gradients:",gradients_timer.elapsed().as_secs_f32());
-            drop(gradients_timer);
+            ) = get_tda_gradients(&orbe,&orbs,&s,&mut mol,tmp.1.view(),Some(0),&Some(tmp.0),&f);
+
+            let numerical_exc_grad:Array1<f64> = dftb_numerical_tda_gradients(&mut mol,0);
+            // let numerical_exc_2:Array1<f64> = dftb_tda_numerical_gradients_4th_order(&mut mol,0);
+            println!("grad exc {}",grad_exc.slice(s![0..8]));
+            println!(" ");
+            println!("grad exc num {}",numerical_exc_grad.slice(s![0..8]));
+            println!("difference {}",(grad_exc-numerical_exc_grad).slice(s![0..8]));
+            // println!("grad exc num 4th {}",numerical_exc_2);
+
+            // let gradients_timer: Instant = Instant::now();
+            // let (grad_e0, grad_vrep, grad_exc, empty_z_vec): (
+            //     Array1<f64>,
+            //     Array1<f64>,
+            //     Array1<f64>,
+            //     Array3<f64>,
+            // ) = get_gradients(&orbe, &orbs, &s, &mut mol, &Some(tmp.2), &Some(tmp.3), Some(1), &Some(tmp.0), None,&f);
+            // println!("{:>68} {:>8.6} s","elapsed time gradients:",gradients_timer.elapsed().as_secs_f32());
+            // drop(gradients_timer);
             0
         }
         // "unrestricted" => {

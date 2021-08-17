@@ -399,10 +399,10 @@ fn get_electronic_energy(
     //println!("P {}", p);
     // band structure energy
     let e_band_structure: f64 = (&p * &h0).sum();
-    println!("E H0 {}",e_band_structure);
+    //println!("E H0 {}",e_band_structure);
     // Coulomb energy from monopoles
     let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
-    println!("E coulomb {}",e_coulomb);
+    //println!("E coulomb {}",e_coulomb);
     // electronic energy as sum of band structure energy and Coulomb energy
     //println!("E BS {} E COUL {} dQ {}", e_band_structure, e_coulomb, dq);
     let mut e_elec: f64 = e_band_structure + e_coulomb;

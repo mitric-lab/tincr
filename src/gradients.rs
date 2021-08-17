@@ -2026,7 +2026,7 @@ pub fn f_v_new(
     return f_return;
 }
 
-fn f_lr_new(
+pub fn f_lr_new(
     v: ArrayView2<f64>,
     s: ArrayView2<f64>,
     grad_s: ArrayView3<f64>,
@@ -2381,7 +2381,7 @@ fn h_minus(
     return h_minus_pq;
 }
 
-fn h_plus_lr(
+pub fn h_plus_lr(
     g0_ao: ArrayView2<f64>,
     g0_lr_a0: ArrayView2<f64>,
     q_pq: ArrayView3<f64>,
@@ -2426,7 +2426,7 @@ fn h_plus_lr(
     return hplus_pq;
 }
 
-fn h_plus_no_lr(
+pub fn h_plus_no_lr(
     g0: ArrayView2<f64>,
     q_pq: ArrayView3<f64>,
     q_rs: ArrayView3<f64>,
