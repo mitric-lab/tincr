@@ -110,10 +110,14 @@ impl GroundStateGradient for Monomer {
             .unwrap();
 
         // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
+        // let w: Array1<f64> = 0.5
+        //     * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
+        //         .into_shape([self.n_orbs * self.n_orbs])
+        //         .unwrap();
         let w: Array1<f64> = 0.5
-            * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
-                .into_shape([self.n_orbs * self.n_orbs])
-                .unwrap();
+            * (p.dot(&self.properties.h_coul_x().unwrap()).dot(&p))
+            .into_shape([self.n_orbs * self.n_orbs])
+            .unwrap();
 
         // calculation of the gradient
         // 1st part:  dH0 / dR . P

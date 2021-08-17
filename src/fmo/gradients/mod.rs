@@ -29,6 +29,8 @@ pub trait GroundStateGradient {
 
 pub trait ExcitedStateMonomerGradient{
     fn prepare_excited_gradient(&mut self,atoms: &[Atom]);
+    fn tda_gradient_nolc(&mut self, state: usize)->Array1<f64>;
+    fn tda_gradient_lc(&mut self, state: usize)->Array1<f64>;
     fn excited_gradient_lc(&mut self,state:usize)->Array1<f64>;
     fn excited_gradient_no_lc(&mut self,state:usize)->Array1<f64>;
 }

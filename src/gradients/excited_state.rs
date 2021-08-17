@@ -24,17 +24,6 @@ impl System {
             self.properties.set_q_oo(tmp.1);
             self.properties.set_q_vv(tmp.2);
         }
-        // prepare the grad gamma_lr ao matrix
-        if self.gammafunction_lc.is_some(){
-            // calculate the gamma gradient matrix in AO basis
-            let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-                self.gammafunction_lc.as_ref().unwrap(),
-                &self.atoms,
-                self.n_atoms,
-                self.n_orbs,
-            );
-            self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
-        }
         // prepare gamma and grad gamma AO matrix
         let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
             self.properties.gamma().unwrap(),
