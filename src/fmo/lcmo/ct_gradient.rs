@@ -9,6 +9,7 @@ use crate::scc::gamma_approximation::{
 };
 use crate::scc::h0_and_s::{h0_and_s_ab, h0_and_s_gradients};
 use ndarray::prelude::*;
+use ndarray_linalg::trace::Trace;
 use std::ops::AddAssign;
 
 impl SuperSystem {
@@ -32,7 +33,7 @@ impl SuperSystem {
 
         // calculate the gradients of the fock matrix elements
         let mut gradh_i = m_i.calculate_ct_fock_gradient(atoms_i, ct_ind_i, true);
-        let gradh_j = m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
+        let gradh_j = -1.0*m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
         // append the fock matrix gradients
         gradh_i.append(Axis(0), gradh_j.view()).unwrap();
 
@@ -178,11 +179,14 @@ impl Monomer {
         // get necessary arrays from properties
         let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
         let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
+        let g0:ArrayView2<f64> = self.properties.gamma().unwrap();
+        let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
         let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
         let g1lr_ao: ArrayView3<f64> = self.properties.grad_gamma_lr_ao().unwrap();
         let g0lr_ao: ArrayView2<f64> = self.properties.gamma_lr_ao().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
+        let orbe:ArrayView1<f64> = self.properties.orbe().unwrap();
 
         // calculate gradH: gradH0 + gradHexc
         let f_dmd0: Array3<f64> = f_v(
@@ -209,18 +213,24 @@ impl Monomer {
 
         // get MO coefficient for the occupied or virtual orbital
         let mut c_mo: Array1<f64> = Array1::zeros(self.n_orbs);
+        let mut ind:usize = 0;
+        let occ_indices: &[usize] = self.properties.occ_indices().unwrap();
+        let virt_indices: &[usize] = self.properties.virt_indices().unwrap();
         if hole {
-            let occ_indices: &[usize] = self.properties.occ_indices().unwrap();
-            let ind: usize = occ_indices[occ_indices.len() - 1 - ct_index];
+            ind= occ_indices[occ_indices.len() - 1 - ct_index];
             c_mo = orbs.slice(s![.., ind]).to_owned();
         } else {
-            let virt_indices: &[usize] = self.properties.virt_indices().unwrap();
-            let ind: usize = virt_indices[ct_index];
+            ind = virt_indices[ct_index];
             c_mo = orbs.slice(s![.., ind]).to_owned();
+        }
+        let nocc:usize = occ_indices.len();
+        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, nocc));
+        for (i, index) in occ_indices.iter().enumerate() {
+            orbs_occ.slice_mut(s![.., i]).assign(&orbs.column(*index));
         }
 
         // transform grad_h into MO basis
-        let grad: Array1<f64> = c_mo.dot(
+        let grad_h_mo: Array1<f64> = c_mo.dot(
             &(grad_h
                 .into_shape([3 * self.n_atoms * self.n_orbs, self.n_orbs])
                 .unwrap()
@@ -229,6 +239,36 @@ impl Monomer {
                 .unwrap()
                 .t()),
         );
+        let grad_s_mo:Array1<f64> = c_mo.dot(
+            &(grad_s.view()
+                .into_shape([3 * self.n_atoms * self.n_orbs, self.n_orbs])
+                .unwrap()
+                .dot(&c_mo)
+                .into_shape([3 * self.n_atoms, self.n_orbs])
+                .unwrap()
+                .t()),
+        );
+
+        let mut gradient_term:Array1<f64> = Array1::zeros(3*self.n_atoms);
+        let (qov,qoo,qvv) = trans_charges(self.n_atoms,atoms,orbs,s,occ_indices,virt_indices);
+        for n_at in 0..3*self.n_atoms{
+            // grads in MO basis of occupied orbitals for one gradient index
+            let ds_mo:Array2<f64> = orbs_occ.t().dot(&grad_s.slice(s![n_at,..,..]).dot(&orbs_occ));
+            // integral (ii|kl)
+            let term_1:Array2<f64> = qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,ind]).dot(&g0.dot(&qoo))
+                .into_shape([nocc,nocc]).unwrap();
+            // integral (ik|il)
+            let term_2:Array2<f64> = qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
+                .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])));
+            let integrals:Array2<f64> = 2.0 *term_1 - term_2;
+
+            gradient_term[n_at] = ds_mo.dot(&integrals.t()).trace().unwrap();
+            // gradient_term[n_at] = (ds_mo * integrals).sum();
+        }
+
+        println!("orbe {}",orbe[ind]);
+        println!("grad s {}",grad_s_mo);
+        let grad = grad_h_mo - orbe[ind] * grad_s_mo - gradient_term;
 
         return grad;
     }

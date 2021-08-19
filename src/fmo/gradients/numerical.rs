@@ -5,15 +5,72 @@
 //! Ridder's method as implemented in [ridders_method](crate::gradients::numerical::ridders_method)).
 //! In this way the analytic gradients can be tested.
 
-use crate::fmo::SuperSystem;
+use crate::fmo::{Monomer, SuperSystem, ExcitedStateMonomerGradient};
 use ndarray::prelude::*;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::gradients::assert_deriv;
 use crate::initialization::Atom;
 use crate::constants::BOHR_TO_ANGS;
 
-
 impl SuperSystem {
+    pub fn monomer_orbital_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64{
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.update_xyz(geometry);
+        self.prepare_scc();
+        let maxiter: usize = self.config.scf.scf_max_cycles;
+        let (energy, _dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
+
+        // get homo orbital energy of monomer 0
+        let mol = &self.monomers[0];
+        let orbe = mol.properties.orbe().unwrap();
+        let virtual_indices = mol.properties.virt_indices().unwrap();
+        let orbe_homo:f64 = orbe[virtual_indices[0]-1];
+        return orbe_homo;
+    }
+
+    pub fn test_monomer_orbital_energy_gradient(&mut self)->Array1<f64>{
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.prepare_scc();
+        let maxiter: usize = self.config.scf.scf_max_cycles;
+        let (_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
+
+        let mol = &mut self.monomers[0];
+        let atoms = &self.atoms[mol.slice.atom_as_range()];
+        mol.prepare_excited_gradient(atoms);
+        let grad = mol.calculate_ct_fock_gradient(atoms,0,true);
+        mol.properties.clear_excited_gradient_lc();
+        mol.properties.reset();
+
+        return grad;
+    }
+
+    pub fn test_orbital_energy_derivative(&mut self){
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.prepare_scc();
+        let maxiter: usize = self.config.scf.scf_max_cycles;
+        let (_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
+
+        assert_deriv(self, SuperSystem::monomer_orbital_energy_wrapper, SuperSystem::test_monomer_orbital_energy_gradient, self.get_xyz(), 0.0001, 1e-6);
+    }
+
     pub fn monomer_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
         self.properties.reset();
         for mol in self.monomers.iter_mut() {

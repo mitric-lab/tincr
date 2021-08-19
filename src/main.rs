@@ -106,12 +106,13 @@ fn main() {
     //let virts: Vec<usize> = vec![4, 5, 6, 7, 8];
     //let occs: Vec<usize> = vec![0, 1, 2, 3];
     //println!("ENERGIES {:10.6}", orbe_differences(occs.view(), virts.view()));
-    let mut system = System::from((frame, config));
+    let mut system = SuperSystem::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
 
-    system.test_tda_lc_gradient();
+    system.test_orbital_energy_derivative();
+    // system.test_tda_lc_gradient();
 
     info!("{}", timer);
     info!("{: ^80}", "");
