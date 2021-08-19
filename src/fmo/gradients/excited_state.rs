@@ -444,7 +444,7 @@ impl ExcitedStateMonomerGradient for Monomer{
             diff_p.view(),
             s,
             grad_s,
-            self.properties.gamma_lr_ao().unwrap(),
+            g0lr_ao,
             g1lr_ao,
             self.n_atoms,
             self.n_orbs,
