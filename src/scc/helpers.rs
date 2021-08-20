@@ -6,14 +6,14 @@ use log::{debug};
 use ndarray::prelude::*;
 use ndarray_linalg::Norm;
 
-// find indeces of HOMO and LUMO orbitals (starting from 0)
+// find indices of HOMO and LUMO orbitals (starting from 0)
 pub fn get_frontier_orbitals(n_elec: usize) -> (usize, usize) {
     let homo: usize = (n_elec / 2) - 1;
     let lumo: usize = homo + 1;
     return (homo, lumo);
 }
 
-// find indeces of HOMO and LUMO orbitals (starting from 0)
+// find indices of HOMO and LUMO orbitals (starting from 0)
 pub fn get_frontier_orbitals_from_occ(f: &[f64]) -> (usize, usize) {
     let n_occ: usize = f
         .iter()
@@ -115,10 +115,8 @@ pub fn get_electronic_energy_unrestricted(
 pub fn lc_exact_exchange(
     s: ArrayView2<f64>,
     g0_lr_ao: ArrayView2<f64>,
-    p0: ArrayView2<f64>,
-    p: ArrayView2<f64>,
+    dp: ArrayView2<f64>,
 ) -> Array2<f64> {
-    let dp: Array2<f64> = &p - &p0;
     let mut hx: Array2<f64> = (&g0_lr_ao * &s.dot(&dp)).dot(&s);
     hx = hx + &g0_lr_ao * &(s.dot(&dp)).dot(&s);
     hx = hx + (s.dot(&(&dp * &g0_lr_ao))).dot(&s);

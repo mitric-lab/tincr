@@ -3,7 +3,7 @@ use ndarray_linalg::*;
 use ndarray::stack;
 use ndarray_stats::{QuantileExt, DeviationExt};
 use crate::fmo::scc::helpers::*;
-use crate::fmo::{Pair, Monomer};
+use crate::fmo::{Pair, Monomer, Fragment};
 use crate::scc::h0_and_s::*;
 use crate::scc::gamma_approximation::*;
 use crate::scc::{density_matrix_ref, lc_exact_exchange, density_matrix, get_repulsive_energy, get_electronic_energy};
@@ -12,6 +12,7 @@ use crate::scc::mulliken::mulliken;
 use crate::initialization::Atom;
 use crate::io::SccConfig;
 
+impl Fragment for Monomer {}
 
 impl Monomer {
     pub fn prepare_scc(&mut self, atoms: &[Atom]) {
@@ -55,14 +56,15 @@ impl Monomer {
             );
             self.properties.set_gamma_lr(gamma_lr);
             self.properties.set_gamma_lr_ao(gamma_lr_ao);
+            self.properties.set_mixer(BroydenMixer::new(self.n_orbs * self.n_orbs));
+        } else {
+            self.properties.set_mixer(BroydenMixer::new(self.n_atoms));
         }
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
         if !self.properties.contains_key("dq") {
             self.properties.set_dq(Array1::zeros(self.n_atoms));
         }
-
-        self.properties.set_mixer(BroydenMixer::new(self.n_atoms));
 
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
@@ -77,18 +79,17 @@ impl Monomer {
         }
     }
 
-    //pub fn scc_step(&mut self) -> bool {
     pub fn scc_step(&mut self, atoms: &[Atom], v_esp: Array2<f64>, config: SccConfig) -> bool {
         let scf_charge_conv: f64 = config.scf_charge_conv;
         let scf_energy_conv: f64 = config.scf_energy_conv;
         let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
         let mut mixer: BroydenMixer = self.properties.take_mixer().unwrap();
+        let mut p: Array2<f64> = self.properties.take_p().unwrap();
         let x: ArrayView2<f64> = self.properties.x().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
         let h0: ArrayView2<f64> = self.properties.h0().unwrap();
         let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
-        let p: ArrayView2<f64> = self.properties.p().unwrap();
         let last_energy: f64 = self.properties.last_energy().unwrap();
         let f: &[f64] = self.properties.occupation().unwrap();
 
@@ -99,8 +100,9 @@ impl Monomer {
         let h_coul: Array2<f64> = v_esp * &s * 0.5;
         let mut h: Array2<f64> = h_coul + h0;
         if self.gammafunction_lc.is_some() {
+            let dp: Array2<f64> = &p - &p0;
             let h_x: Array2<f64> =
-                lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), p0, p);
+                lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), dp.view());
             h = h + h_x;
         }
 
@@ -112,7 +114,18 @@ impl Monomer {
         let orbs: Array2<f64> = x.dot(&tmp.1);
 
         // calculate the density matrix
-        let p: Array2<f64> = density_matrix(orbs.view(), &f[..]);
+        let new_p: Array2<f64> = density_matrix(orbs.view(), &f[..]);
+
+        // If the long-range correction is used, the density matrix needs to be mixed instead of
+        // the Mulliken charges. TODO: It might be better to use DIIS if the long-range correction
+        // is used. This should be checked.
+        p = if self.gammafunction_lc.is_some() {
+            let p_flat: Array1<f64> = p.into_shape([self.n_orbs * self.n_orbs]).unwrap();
+            let delta_p: Array1<f64> = new_p.into_shape([self.n_orbs * self.n_orbs]).unwrap() - &p_flat;
+            mixer.next(p_flat, delta_p).into_shape(h.dim()).unwrap()
+        } else {
+            new_p
+        };
 
         // update partial charges using Mulliken analysis
         let (new_q, new_dq): (Array1<f64>, Array1<f64>) =
@@ -126,7 +139,11 @@ impl Monomer {
         let dq_old = dq.clone();
         let delta_q_old = delta_dq.clone();
         // Broyden mixing of partial charges # changed new_dq to dq
-        dq = mixer.next(dq, delta_dq);
+        dq = if self.gammafunction_lc.is_none() {
+            mixer.next(dq, delta_dq)
+        } else {
+            new_dq
+        };
         let q: Array1<f64> = new_q;
 
         // compute electronic energy

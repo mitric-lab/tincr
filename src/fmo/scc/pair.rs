@@ -153,8 +153,9 @@ impl Pair {
                 atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &atoms) * &s * 0.5;
             let mut h: Array2<f64> = h_coul + &h_esp;
             if self.gammafunction_lc.is_some() {
+                let dp: Array2<f64> = &p - &p0;
                 let h_x: Array2<f64> =
-                    lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), p0, p);
+                    lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), dp.view());
                 h = h + h_x;
             }
 

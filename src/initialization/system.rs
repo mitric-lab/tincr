@@ -1,7 +1,7 @@
 use crate::initialization::atom::Atom;
 use crate::initialization::geometry::*;
 use crate::initialization::parameters::*;
-use crate::initialization::properties::Properties;
+use crate::properties::Properties;
 use crate::initialization::{
     get_unique_atoms, get_unique_atoms_mio, initialize_gamma_function, initialize_unrestricted_elec,
 };
@@ -14,6 +14,7 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use std::borrow::BorrowMut;
+use crate::fmo::Fragment;
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
 /// This type is only used for non-FMO calculations. In the case of FMO based calculation
@@ -67,6 +68,8 @@ pub struct System {
     /// Gamma function for the long-range correction. Only used if long-range correction is requested
     pub gammafunction_lc: Option<GammaFunction>,
 }
+
+impl Fragment for System {}
 
 impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
     /// Creates a new [System] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and

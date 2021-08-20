@@ -171,8 +171,9 @@ impl<'a> RestrictedSCC for System {
             let mut h: Array2<f64> = h_coul + h0.view();
 
             if self.gammafunction_lc.is_some() {
+                let dp: Array2<f64> = &p - &p0;
                 let h_x: Array2<f64> =
-                    lc_exact_exchange(s.view(), self.properties.gamma_lr_ao().unwrap(), p0.view(), p.view());
+                    lc_exact_exchange(s.view(), self.properties.gamma_lr_ao().unwrap(), dp.view());
                 h = h + h_x;
             }
 

@@ -35,7 +35,7 @@ pub struct BroydenMixer {
 }
 
 impl Mixer for BroydenMixer {
-    fn new(n_atoms: usize) -> BroydenMixer {
+    fn new(dim: usize) -> BroydenMixer {
         BroydenMixer {
             iter: -1,
             maxiter: defaults::MAX_ITER,
@@ -45,11 +45,11 @@ impl Mixer for BroydenMixer {
             max_weight: defaults::BROYDEN_MAX_WEIGHT,
             weight_factor: defaults::BROYDEN_WEIGHT_FACTOR,
             weights: Array1::zeros([defaults::MAX_ITER - 1]),
-            delta_q_old: Array1::zeros([n_atoms]),
-            q_old: Array1::zeros([n_atoms]),
+            delta_q_old: Array1::zeros([dim]),
+            q_old: Array1::zeros([dim]),
             a_mat: Array2::zeros([defaults::MAX_ITER - 1, defaults::MAX_ITER - 1]),
-            df: Array2::zeros([n_atoms, defaults::MAX_ITER - 1]),
-            uu: Array2::zeros([n_atoms, defaults::MAX_ITER - 1]),
+            df: Array2::zeros([dim, defaults::MAX_ITER - 1]),
+            uu: Array2::zeros([dim, defaults::MAX_ITER - 1]),
         }
     }
 
@@ -57,15 +57,15 @@ impl Mixer for BroydenMixer {
         self.mix(q, delta_q)
     }
 
-    fn reset(&mut self, n_atoms: usize) {
+    fn reset(&mut self, dim: usize) {
         self.iter = 0;
         self.weights = Array1::zeros([self.maxiter - 1]);
         self.a_mat = Array2::zeros([self.maxiter - 1, self.maxiter - 1]);
-        self.delta_q_old = Array1::zeros([n_atoms]);
-        self.q_old = Array1::zeros([n_atoms]);
+        self.delta_q_old = Array1::zeros([dim]);
+        self.q_old = Array1::zeros([dim]);
         self.a_mat = Array2::zeros([defaults::MAX_ITER - 1, defaults::MAX_ITER - 1]);
-        self.df = Array2::zeros([n_atoms, defaults::MAX_ITER - 1]);
-        self.uu = Array2::zeros([n_atoms, defaults::MAX_ITER - 1]);
+        self.df = Array2::zeros([dim, defaults::MAX_ITER - 1]);
+        self.uu = Array2::zeros([dim, defaults::MAX_ITER - 1]);
     }
 
     /// Mixes dq from current diagonalization and the difference to the last iteration

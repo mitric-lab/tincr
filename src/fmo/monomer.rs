@@ -1,7 +1,8 @@
 use ndarray::prelude::*;
 use crate::io::{Configuration, frame_to_coordinates};
-use crate::initialization::{Atom, Geometry, Properties};
+use crate::initialization::{Atom, Geometry};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
+use crate::properties::Properties;
 use crate::scc::gamma_approximation::GammaFunction;
 use chemfiles::Frame;
 use ndarray::{Slice, SliceInfo};
@@ -49,5 +50,12 @@ impl Monomer {
     }
 }
 
+impl PartialEq for Monomer {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+    }
+}
 
+impl Eq for Monomer {
 
+}

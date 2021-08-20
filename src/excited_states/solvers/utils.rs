@@ -85,11 +85,15 @@ pub fn print_davidson_init(max_iter: usize, nroots: usize, tolerance: f64) {
     info!("{:-^80}", "");
     info!("{: <25} {:4.2e}", "Energy is converged when residual is below:", tolerance);
     info!("{: <25} {}", "Maximum number of iterations:", max_iter);
-    info!("{: >4} {: <25}", nroots, " Roots will be computed.");
+    if nroots == 1 {
+        info!("{: >4} {: <25}", nroots, " Root will be computed.");
+    } else {
+        info!("{: >4} {: <25}", nroots, " Roots will be computed.");
+    }
     info!("{:-^75} ", "");
     info!(
         "{: <5}{: >14}{: >14}{: >14}{: >14}{: >14}",
-        "Iter.", "Roots conv.", "Roots left", "# subsp. Vec.", "Total dev.", "Max dev."
+        "Iter.", "Roots conv.", "Roots left", "#subsp. Vec.", "Total dev.", "Max dev."
     );
     info!("{:-^75} ", "");
 }

@@ -12,7 +12,7 @@ pub fn trans_charges(
     s: ArrayView2<f64>,
     occ_indices: &[usize],
     virt_indices: &[usize],
-) -> (Array2<f64>, Array2<f64>, Array2<f64>, Array2<f64>) {
+) -> (Array2<f64>, Array2<f64>, Array2<f64>) {
     // Number of occupied orbitals.
     let dim_o: usize = occ_indices.len();
     // Number of virtual orbitals.
@@ -94,14 +94,5 @@ pub fn trans_charges(
         }
     }
 
-    let q_trans_vo: Array2<f64> = q_trans_ov
-        .clone()
-        .into_shape([n_atoms, dim_o, dim_v])
-        .unwrap()
-        .permuted_axes([0, 2, 1])
-        .as_standard_layout()
-        .into_shape([n_atoms, dim_o * dim_v])
-        .unwrap()
-        .to_owned();
-    (q_trans_ov, q_trans_oo, q_trans_vv, q_trans_vo)
+    (q_trans_ov, q_trans_oo, q_trans_vv)
 }

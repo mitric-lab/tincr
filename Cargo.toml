@@ -28,8 +28,8 @@ bspline = "0.2.3"
 rusty-fitpack = { git = "https://github.com/mitric-lab/Rusty-FITPACK.git"}
 ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
-nalgebra = "0.26.1"
-nshare = {version = "0.4", features = ["ndarray", "nalgebra"]}
+nalgebra = "0.27.1"
+nshare = {version = "0.7", features = ["ndarray", "nalgebra"]}
 clap = "3.0.0-beta.2"
 toml = "0.5"
 rand = "0.8.3"
