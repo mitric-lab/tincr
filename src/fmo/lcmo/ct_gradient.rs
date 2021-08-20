@@ -32,8 +32,8 @@ impl SuperSystem {
         let n_orbs_j: usize = m_j.n_orbs;
 
         // calculate the gradients of the fock matrix elements
-        let mut gradh_i = m_i.calculate_ct_fock_gradient(atoms_i, ct_ind_i, true);
-        let gradh_j = -1.0*m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
+        let mut gradh_i = -1.0*m_i.calculate_ct_fock_gradient(atoms_i, ct_ind_i, true);
+        let gradh_j = m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
         // append the fock matrix gradients
         gradh_i.append(Axis(0), gradh_j.view()).unwrap();
 
@@ -188,7 +188,7 @@ impl Monomer {
         let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
         let orbe:ArrayView1<f64> = self.properties.orbe().unwrap();
 
-        // calculate gradH: gradH0 + gradHexc
+        // calculate grad_Hxc
         let f_dmd0: Array3<f64> = f_v(
             diff_p.view(),
             s,
@@ -207,8 +207,7 @@ impl Monomer {
             self.n_atoms,
             self.n_orbs,
         );
-
-        // derivative of a fock matrix element in AO basis
+        // assemble grad_H: gradH0 + grad_Hxc
         let grad_h: Array3<f64> = &grad_h0 + &f_dmd0 - 0.5 * &flr_dmd0;
 
         // get MO coefficient for the occupied or virtual orbital
@@ -216,17 +215,70 @@ impl Monomer {
         let mut ind:usize = 0;
         let occ_indices: &[usize] = self.properties.occ_indices().unwrap();
         let virt_indices: &[usize] = self.properties.virt_indices().unwrap();
-        if hole {
-            ind= occ_indices[occ_indices.len() - 1 - ct_index];
-            c_mo = orbs.slice(s![.., ind]).to_owned();
-        } else {
-            ind = virt_indices[ct_index];
-            c_mo = orbs.slice(s![.., ind]).to_owned();
-        }
         let nocc:usize = occ_indices.len();
+        let nvirt:usize = virt_indices.len();
         let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, nocc));
         for (i, index) in occ_indices.iter().enumerate() {
             orbs_occ.slice_mut(s![.., i]).assign(&orbs.column(*index));
+        }
+
+        let mut gradient_term:Array1<f64> = Array1::zeros(3*self.n_atoms);
+        // calculate transition charges
+        let (qov,qoo,qvv) = trans_charges(self.n_atoms,atoms,orbs,s,occ_indices,virt_indices);
+
+        // check the type of charge transfer of the fragment
+        if hole {
+            // orbital index
+            ind= occ_indices[occ_indices.len() - 1 - ct_index];
+            // orbital coefficients
+            c_mo = orbs.slice(s![.., ind]).to_owned();
+
+            // calculate last term of the orbital energy derivative
+            // as shown in the Paper of H.F.Schaefer https://doi.org/10.1063/1.464483
+            // in equation (25)
+            // integral (ii|kl)
+            let term_1:Array2<f64> = qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,ind]).dot(&g0.dot(&qoo))
+                .into_shape([nocc,nocc]).unwrap();
+            // integral (ik|il)
+            let term_2:Array2<f64> = qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
+                .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])));
+            let integrals:Array2<f64> = 2.0 *term_1 - term_2;
+            // loop over gradient
+            for n_at in 0..3*self.n_atoms{
+                // grads in MO basis of occupied orbitals for one gradient index
+                let ds_mo:Array2<f64> = orbs_occ.t().dot(&grad_s.slice(s![n_at,..,..]).dot(&orbs_occ));
+                gradient_term[n_at] = ds_mo.dot(&integrals.t()).trace().unwrap();
+                // gradient_term[n_at] = (ds_mo * integrals).sum();
+            }
+        } else {
+            // orbital index
+            ind = virt_indices[ct_index];
+            // orbital coefficients
+            c_mo = orbs.slice(s![.., ind]).to_owned();
+
+            // virtual-occupied transition charges
+            let qvo:Array2<f64> = qov.into_shape([self.n_atoms,nocc,nvirt]).unwrap()
+                .permuted_axes([0, 2, 1])
+                .as_standard_layout()
+                .to_owned().into_shape([self.n_atoms,nvirt*nocc]).unwrap();
+
+            // calculate last term of the orbital energy derivative
+            // as shown in the Paper of H.F.Schaefer https://doi.org/10.1063/1.464483
+            // in equation (25)
+            // integral (ii|kl)
+            let term_1:Array2<f64> = qvv.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,ind]).dot(&g0.dot(&qoo))
+                .into_shape([nocc,nocc]).unwrap();
+            // integral (ik|il)
+            let term_2:Array2<f64> = qvo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
+                .dot(&g0_lr.dot(&qvo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])));
+            let integrals:Array2<f64> = 2.0 *term_1 - term_2;
+            // loop over gradient
+            for n_at in 0..3*self.n_atoms{
+                // grads in MO basis of occupied orbitals for one gradient index
+                let ds_mo:Array2<f64> = orbs_occ.t().dot(&grad_s.slice(s![n_at,..,..]).dot(&orbs_occ));
+                gradient_term[n_at] = ds_mo.dot(&integrals.t()).trace().unwrap();
+                // gradient_term[n_at] = (ds_mo * integrals).sum();
+            }
         }
 
         // transform grad_h into MO basis
@@ -239,6 +291,7 @@ impl Monomer {
                 .unwrap()
                 .t()),
         );
+        // transform grad_s into MO basis
         let grad_s_mo:Array1<f64> = c_mo.dot(
             &(grad_s.view()
                 .into_shape([3 * self.n_atoms * self.n_orbs, self.n_orbs])
@@ -248,23 +301,6 @@ impl Monomer {
                 .unwrap()
                 .t()),
         );
-
-        let mut gradient_term:Array1<f64> = Array1::zeros(3*self.n_atoms);
-        let (qov,qoo,qvv) = trans_charges(self.n_atoms,atoms,orbs,s,occ_indices,virt_indices);
-        for n_at in 0..3*self.n_atoms{
-            // grads in MO basis of occupied orbitals for one gradient index
-            let ds_mo:Array2<f64> = orbs_occ.t().dot(&grad_s.slice(s![n_at,..,..]).dot(&orbs_occ));
-            // integral (ii|kl)
-            let term_1:Array2<f64> = qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,ind]).dot(&g0.dot(&qoo))
-                .into_shape([nocc,nocc]).unwrap();
-            // integral (ik|il)
-            let term_2:Array2<f64> = qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
-                .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])));
-            let integrals:Array2<f64> = 2.0 *term_1 - term_2;
-
-            gradient_term[n_at] = ds_mo.dot(&integrals.t()).trace().unwrap();
-            // gradient_term[n_at] = (ds_mo * integrals).sum();
-        }
 
         println!("orbe {}",orbe[ind]);
         println!("grad s {}",grad_s_mo);
