@@ -324,10 +324,10 @@ pub fn gamma_gradients_ao_wise(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::initialization::Properties;
     use crate::initialization::System;
     use crate::utils::*;
     use approx::AbsDiffEq;
+    use crate::properties::Properties;
 
     pub const EPSILON: f64 = 1e-15;
 

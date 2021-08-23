@@ -13,10 +13,10 @@ use log::{info};
 use log::LevelFilter;
 use petgraph::stable_graph::*;
 use toml;
-
+use crate::io::MoldenExporterBuilder;
 use ndarray::prelude::*;
 use crate::defaults::CONFIG_FILE_NAME;
-use crate::io::{Configuration, write_header, read_file_to_frame, read_input};
+use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter};
 use chemfiles::Frame;
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
@@ -96,12 +96,21 @@ fn main() {
     // Computations.
     // ................................................................
 
-    let mut system = SuperSystem::from((frame, config));
+    let mut system = System::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
-    let hamiltonian = system.create_exciton_hamiltonian();
-    println!("Hamiltonian\n {:12.8}", hamiltonian);
+    let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
+        .atoms(&system.atoms)
+        .orbs(system.properties.orbs().unwrap())
+        .orbe(system.properties.orbe().unwrap())
+        .f(system.properties.occupation().unwrap().to_vec())
+        .build()
+        .unwrap();
+
+    //let hamiltonian = system.create_exciton_hamiltonian();
+    let path = Path::new("/Users/hochej/Downloads/test.molden");
+    molden_exp.write_to(path);
 
     // ................................................................
 

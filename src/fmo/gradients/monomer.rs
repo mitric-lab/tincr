@@ -50,8 +50,6 @@ impl GroundStateGradient for Monomer {
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
 
-        drop(s);
-
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
         // into one dimension to be able to just matrix-matrix products for the computation of the gradient
         let grad_s: Array2<f64> = grad_s

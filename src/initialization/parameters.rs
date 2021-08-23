@@ -475,7 +475,7 @@ impl From<&SkfHandler> for RepulsivePotentialTable {
 
             iteration_count += 1;
         }
-        assert!(end == cutoff);
+        assert!((end - cutoff).abs() < f64::EPSILON);
 
         // Now we evaluate the spline on a equidistant grid
         let npoints: usize = 100;

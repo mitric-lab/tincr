@@ -8,6 +8,7 @@ use std::cmp::Ordering;
 use nalgebra::Vector3;
 use ndarray::prelude::*;
 use crate::constants;
+use crate::utils::array_helper::argsort_usize;
 
 /// `Atom` type that contains basic information about the chemical element as well as the
 /// data used for the semi-empirical parameters that are used in the DFTB calculations.
@@ -143,6 +144,10 @@ impl Atom {
         self.xyz = xyz;
     }
 
+    pub fn sort_indices_atomic_orbitals(&self) -> Vec<usize> {
+        let indices: Array1<usize> = self.valorbs.iter().map(|orb| orb.ord_idx()).collect();
+        argsort_usize(indices.view())
+    }
 }
 
 impl From<&str> for Atom {
@@ -228,6 +233,47 @@ impl From<((i8, i8, i8), f64)> for AtomicOrbital {
             m: numbers_energy.0 .2,
             energy: numbers_energy.1,
         }
+    }
+}
+
+impl PartialOrd for AtomicOrbital {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.ord_idx().partial_cmp(&other.ord_idx())
+    }
+}
+
+impl AtomicOrbital {
+    /// Compute an index, that orders the AtomicOrbital in Cartesian order.
+    /// 1 s  => 100 |
+    /// 2 s  => 200 | 2 px  => 210 | 2 py  => 211 | 2  pz => 212 |
+    /// 3 s  => 300 | 3 px  => 310 | 3 py  => 311 | 3  pz => 312 |
+    ///             | 3 dz2 => 320 | 3 dzx => 321 | 3 dyz => 322 | 3 dx2y2 => 323 | 3 dxy => 324
+    fn ord_idx(&self) -> usize {
+        let mut index: usize = (self.n * 100) as usize;
+        index += (self.l * 10) as usize;
+        index += match self.l {
+            0 => 0, // s-orbitals
+            1 => { // p-orbitals
+                match self.m {
+                    1 => 0, // px
+                    -1 => 1,// py
+                    0 => 2, // pz
+                    _ => 3,
+                }
+            },
+            2 => { // d-orbitals
+                match self.m {
+                    0 => 0,  // dz2
+                    1 => 1,  // dzx
+                    -1 => 2, // dyz
+                    -2 => 3, // dx2y2
+                    2 => 4,   // dxy
+                    _ => 5,
+                }
+            },
+            _ => 6,
+        };
+        index
     }
 }
 

@@ -51,7 +51,7 @@ impl GroundStateGradient for Pair {
         // on the derivative of S and this is available here at no additional cost.
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
-        drop(s);
+
         self.properties.set_grad_dq(grad_dq);
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
