@@ -180,7 +180,7 @@ impl Monomer {
         let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
         let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
         let g0:ArrayView2<f64> = self.properties.gamma().unwrap();
-        // let g1:ArrayView3<f64> = self.properties.grad_gamma().unwrap();
+        let g1:ArrayView3<f64> = self.properties.grad_gamma().unwrap();
         let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
@@ -216,10 +216,10 @@ impl Monomer {
             grad_h = grad_h - 0.5 * &flr_dmd0;
         }
 
-        // // esp atomwise
-        // let esp_atomwise:Array1<f64> = 0.5*g0.dot(&self.properties.dq().unwrap());
-        // // get Omega_AB
-        // let omega_ab:Array2<f64> = atomwise_to_aowise(esp_atomwise.view(),self.n_orbs,atoms);
+        // esp atomwise
+        let esp_atomwise:Array1<f64> = 0.5*g0.dot(&self.properties.dq().unwrap());
+        // get Omega_AB
+        let omega_ab:Array2<f64> = atomwise_to_aowise(esp_atomwise.view(),self.n_orbs,atoms);
 
         // get MO coefficient for the occupied or virtual orbital
         let mut c_mo: Array1<f64> = Array1::zeros(self.n_orbs);
@@ -237,7 +237,7 @@ impl Monomer {
         // calculate transition charges
         let (qov,qoo,qvv) = trans_charges(self.n_atoms,atoms,orbs,s,occ_indices,virt_indices);
         // virtual-occupied transition charges
-        let qvo:Array2<f64> = qov.clone().into_shape([self.n_atoms,nvirt,nocc]).unwrap()
+        let qvo:Array2<f64> = qov.clone().into_shape([self.n_atoms,nocc,nvirt]).unwrap()
             .permuted_axes([0, 2, 1])
             .as_standard_layout()
             .to_owned().into_shape([self.n_atoms,nvirt*nocc]).unwrap();
@@ -342,10 +342,11 @@ impl Monomer {
         // // println!("umat {}",u_mat);
         // // calculate a matrix A_ii,kl = 4 * (ii|kl) - (ik|il) - (il|ik)
         // // k = virt, l = occ
+        // // let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
         // let a_mat:Array2<f64> = 4.0* qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap()
         //     .slice(s![..,ind,ind]).dot(&g0.dot(&qvo)).into_shape([nvirt,nocc]).unwrap();
         //     // - qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]).t()
-        //     // .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])));
+        //     // .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])))
         //     // - qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
         //     // .dot(&g0_lr.dot(&qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]))).t();
         //
@@ -358,7 +359,7 @@ impl Monomer {
         //         }
         //     }
         // }
-        // let grad = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term + 1.4*&u_term;
+        // let grad = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term + 1.37*&u_term;
         // let grad_u = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term;// + 1.4*&u_term;
         //
         // // second try for gradient calculation
