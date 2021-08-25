@@ -1,8 +1,11 @@
 use crate::fmo::{Monomer, SuperSystem};
 use crate::initialization::Atom;
 use ndarray::prelude::*;
-use nalgebra::max;
+use nalgebra::{max, Vector3};
 use crate::excited_states::tda::TDA;
+use ndarray_linalg::{Eigh, UPLO};
+use std::fmt::{Display, Formatter};
+use crate::fmo::lcmo::utils::print_lcmo_states;
 
 impl SuperSystem {
     /// The diabatic basis states are constructed, which will be used for the Exciton-Hamiltonian.
@@ -11,7 +14,7 @@ impl SuperSystem {
         let max_iter: usize = 50;
         let tolerance: f64 = 1e-4;
         // Number of LE states per monomer.
-        let n_le: usize = 1;
+        let n_le: usize = 2;
         // Number of occupied orbitals for construction of CT states.
         let n_occ: usize = 1;
         // Number of virtual orbitals for construction of CT states.
@@ -36,6 +39,7 @@ impl SuperSystem {
                     occs: mol.properties.orbs_slice(0, Some(homo+1)).unwrap(),
                     virts: mol.properties.orbs_slice(homo + 1, None).unwrap(),
                     tdm: tdm,
+                    tr_dipole: mol.properties.tr_dipole(n).unwrap(),
                 }))
             }
         }
@@ -116,7 +120,7 @@ impl SuperSystem {
         let max_iter: usize = 50;
         let tolerance: f64 = 1e-4;
         // Number of LE states per monomer.
-        let n_le: usize = 1;
+        let n_le: usize = 2;
         // Compute the n_le excited states for each monomer.
         for mol in self.monomers.iter_mut() {
             mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
@@ -136,9 +140,14 @@ impl SuperSystem {
                 h[[i, j+i]] = self.exciton_coupling(state_i, state_j);
             }
         }
+        println!("{}", h);
         // The Hamiltonian is returned. Only the upper triangle is filled, so this has to be
         // considered when using eigh.
-        h
+        // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
+        let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+
+        print_lcmo_states(energies.view(), eigvectors.view(), &states, self.properties.last_energy().unwrap());
+        eigvectors
     }
 }
 
@@ -149,6 +158,16 @@ pub enum BasisState<'a> {
     // Charge transfer state between two different monomers and two MOs.
     CT(ChargeTransfer<'a>),
 }
+
+impl Display for BasisState<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BasisState::LE(state) => write!(f, "{}", state),
+            BasisState::CT(state) => write!(f, "{}", state),
+        }
+    }
+}
+
 
 /// Type that holds all the relevant data that characterize a locally excited diabatic basis state.
 pub struct LocallyExcited<'a> {
@@ -166,6 +185,14 @@ pub struct LocallyExcited<'a> {
     pub virts: ArrayView2<'a, f64>,
     //
     pub tdm: ArrayView1<'a, f64>,
+    //
+    pub tr_dipole: Vector3<f64>,
+}
+
+impl Display for LocallyExcited<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LE(S{}) on Frag. {:>4}", self.n + 1, self.monomer.index + 1)
+    }
 }
 
 impl PartialEq for LocallyExcited<'_> {
@@ -185,6 +212,12 @@ pub struct ChargeTransfer<'a> {
     pub electron: Particle<'a>,
 }
 
+impl Display for ChargeTransfer<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CT: {} -> {}", self.hole, self.electron)
+    }
+}
+
 impl PartialEq for ChargeTransfer<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.hole == other.hole && self.electron == other.electron
@@ -202,6 +235,12 @@ pub struct Particle<'a> {
     pub monomer: &'a Monomer,
     // The MO-energy of the corresponding orbital.
     pub energy: f64,
+}
+
+impl Display for Particle<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Frag. {: >4}", self.monomer.index + 1)
+    }
 }
 
 // TODO: this definition could lead to mistakes for degenerate orbitals

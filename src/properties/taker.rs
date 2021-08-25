@@ -77,6 +77,14 @@ impl Properties {
         }
     }
 
+    /// Returns the Mulliken charge per orbital.
+    pub fn take_q_ao(&mut self) -> Result<Array1<f64>, Property> {
+        match self.take("q_ao") {
+            Some(value) => value.into_array1(),
+            _ => Err(Property::default()),
+        }
+    }
+
     /// Returns the charge differences per atom.
     pub fn take_dq_alpha(&mut self) -> Result<Array1<f64>, Property> {
         match self.take("dq_alpha") {

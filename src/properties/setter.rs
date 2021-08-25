@@ -146,6 +146,8 @@ impl Properties {
         self.set("oscillator_strengths", Property::from(f));
     }
 
+    pub fn set_q_ao(&mut self, q_ao: Array1<f64>) { self.set("q_ao", Property::from(q_ao));}
+
     /// Set the transition charges between occupied and virtual orbitals
     pub fn set_q_ov(&mut self, q_ov: Array2<f64>) {
         self.set("q_ov", Property::from(q_ov));

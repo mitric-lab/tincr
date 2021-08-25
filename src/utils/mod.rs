@@ -14,7 +14,6 @@ pub enum Calculation {
     Converged,
     NotConverged,
 }
-
 /// A simple timer based on std::time::Instant, to implement the std::fmt::Display trait on
 pub struct Timer {
     time: Instant,

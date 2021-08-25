@@ -122,6 +122,8 @@ impl SuperSystem {
             }
             PairType::None => 0.0,
         };
+        println!("I {} J {}", i, j);
+        println!("Coulomb: {}, Exchange: {}", coulomb, exchange);
         2.0 * coulomb - exchange
     }
 

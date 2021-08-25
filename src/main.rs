@@ -20,15 +20,20 @@ use crate::io::{Configuration, write_header, read_file_to_frame, read_input, Mol
 use chemfiles::Frame;
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
-use crate::fmo::SuperSystem;
-use crate::utils::Timer;
 use crate::scc::gamma_approximation::gamma_atomwise;
-use crate::fmo::gradients::GroundStateGradient;
+
+use crate::utils::Timer;
 use ndarray::{Array2, Array1};
-use crate::excited_states::{orbe_differences, trans_charges, initial_subspace, ProductCache};
 use crate::scc::scc_routine_unrestricted::UnrestrictedSCC;
+
+
 use crate::excited_states::davidson::Davidson;
 use crate::excited_states::tda::TDA;
+use crate::excited_states::{orbe_differences, trans_charges, initial_subspace, ProductCache};
+
+use crate::fmo::gradients::GroundStateGradient;
+use crate::fmo::SuperSystem;
+
 
 mod constants;
 mod defaults;
@@ -96,21 +101,21 @@ fn main() {
     // Computations.
     // ................................................................
 
-    let mut system = System::from((frame, config));
+    let mut system = SuperSystem::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
-    let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
-        .atoms(&system.atoms)
-        .orbs(system.properties.orbs().unwrap())
-        .orbe(system.properties.orbe().unwrap())
-        .f(system.properties.occupation().unwrap().to_vec())
-        .build()
-        .unwrap();
+    // let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
+    //     .atoms(&system.atoms)
+    //     .orbs(system.properties.orbs().unwrap())
+    //     .orbe(system.properties.orbe().unwrap())
+    //     .f(system.properties.occupation().unwrap().to_vec())
+    //     .build()
+    //     .unwrap();
 
-    //let hamiltonian = system.create_exciton_hamiltonian();
-    let path = Path::new("/Users/hochej/Downloads/test.molden");
-    molden_exp.write_to(path);
+    let hamiltonian = system.create_exciton_hamiltonian();
+    // let path = Path::new("/Users/hochej/Downloads/test.molden");
+    // molden_exp.write_to(path);
 
     // ................................................................
 

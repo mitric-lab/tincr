@@ -56,14 +56,14 @@ impl Monomer {
             );
             self.properties.set_gamma_lr(gamma_lr);
             self.properties.set_gamma_lr_ao(gamma_lr_ao);
-            self.properties.set_mixer(BroydenMixer::new(self.n_orbs * self.n_orbs));
-        } else {
-            self.properties.set_mixer(BroydenMixer::new(self.n_atoms));
         }
+
+        self.properties.set_mixer(BroydenMixer::new(self.n_orbs));
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
         if !self.properties.contains_key("dq") {
             self.properties.set_dq(Array1::zeros(self.n_atoms));
+            self.properties.set_q_ao(Array1::zeros(self.n_orbs));
         }
 
         // this is also only needed in the first SCC calculation
@@ -83,6 +83,7 @@ impl Monomer {
         let scf_charge_conv: f64 = config.scf_charge_conv;
         let scf_energy_conv: f64 = config.scf_energy_conv;
         let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
+        let mut q_ao: Array1<f64> = self.properties.take_q_ao().unwrap();
         let mut mixer: BroydenMixer = self.properties.take_mixer().unwrap();
         let mut p: Array2<f64> = self.properties.take_p().unwrap();
         let x: ArrayView2<f64> = self.properties.x().unwrap();
@@ -92,7 +93,6 @@ impl Monomer {
         let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
         let last_energy: f64 = self.properties.last_energy().unwrap();
         let f: &[f64] = self.properties.occupation().unwrap();
-
         // electrostatic interaction between the atoms of the same monomer and all the other atoms
         // the coulomb term and the electrostatic potential term are combined into one:
         // H_mu_nu = H0_mu_nu + HCoul_mu_nu + HESP_mu_nu
@@ -114,37 +114,23 @@ impl Monomer {
         let orbs: Array2<f64> = x.dot(&tmp.1);
 
         // calculate the density matrix
-        let new_p: Array2<f64> = density_matrix(orbs.view(), &f[..]);
+        p = density_matrix(orbs.view(), &f[..]);
 
-        // If the long-range correction is used, the density matrix needs to be mixed instead of
-        // the Mulliken charges. TODO: It might be better to use DIIS if the long-range correction
-        // is used. This should be checked.
-        p = if self.gammafunction_lc.is_some() {
-            let p_flat: Array1<f64> = p.into_shape([self.n_orbs * self.n_orbs]).unwrap();
-            let delta_p: Array1<f64> = new_p.into_shape([self.n_orbs * self.n_orbs]).unwrap() - &p_flat;
-            mixer.next(p_flat, delta_p).into_shape(h.dim()).unwrap()
-        } else {
-            new_p
-        };
+        // New Mulliken charges for each atomic orbital.
+        let q_ao_n: Array1<f64> = s.dot(&p).diag().to_owned();
 
-        // update partial charges using Mulliken analysis
-        let (new_q, new_dq): (Array1<f64>, Array1<f64>) =
-            mulliken(p.view(), p0.view(), s.view(), &atoms, self.n_atoms);
+        // Charge difference to previous iteration
+        let delta_dq: Array1<f64> = &q_ao_n - &q_ao;
 
-        // charge difference to previous iteration
-        let delta_dq: Array1<f64> = &new_dq - &dq;
+        let diff_dq_max: f64 = q_ao.root_mean_sq_err(&q_ao_n).unwrap();
 
-        let diff_dq_max: f64 = dq.root_mean_sq_err(&new_dq).unwrap();
+        // Broyden mixing of Mulliken charges.
+        q_ao = mixer.next(q_ao, delta_dq);
 
-        let dq_old = dq.clone();
-        let delta_q_old = delta_dq.clone();
-        // Broyden mixing of partial charges # changed new_dq to dq
-        dq = if self.gammafunction_lc.is_none() {
-            mixer.next(dq, delta_dq)
-        } else {
-            new_dq
-        };
-        let q: Array1<f64> = new_q;
+        // The density matrix is updated in accordance with the Mulliken charges.
+        p = p * &(&q_ao / &q_ao_n);
+        let dp: Array2<f64> = &p - &p0;
+        dq = mulliken(dp.view(), s.view(), &atoms);
 
         // compute electronic energy
         let scf_energy = get_electronic_energy(
@@ -168,6 +154,7 @@ impl Monomer {
         self.properties.set_dq(dq);
         self.properties.set_mixer(mixer);
         self.properties.set_last_energy(scf_energy);
+        self.properties.set_q_ao(q_ao);
 
         // scc (for one fragment) is converged if both criteria are passed
         conv_charge && conv_energy

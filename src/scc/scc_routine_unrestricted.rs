@@ -220,19 +220,15 @@ impl<'a> UnrestrictedSCC for System{
             p_beta = density_matrix(orbs_beta.view(), &f_beta[..]);
 
             // update partial charges using Mulliken analysis
-            let (new_q_alpha, new_dq_alpha): (Array1<f64>, Array1<f64>) = mulliken(
+            let new_dq_alpha: Array1<f64> = mulliken(
                 p_alpha.view(),
-                p0.view(),
                 s.view(),
                 &self.atoms,
-                self.n_atoms,
             );
-            let (new_q_beta, new_dq_beta): (Array1<f64>, Array1<f64>) = mulliken(
+            let new_dq_beta:  Array1<f64> = mulliken(
                 p_beta.view(),
-                p0.view(),
                 s.view(),
                 &self.atoms,
-                self.n_atoms,
             );
 
             // charge difference to previous iteration
@@ -256,14 +252,12 @@ impl<'a> UnrestrictedSCC for System{
 
             // Broyden mixing of partial charges # changed new_dq to dq
             dq_alpha = broyden_mixer_alpha.next(dq_alpha, delta_dq_alpha);
-            q_alpha = new_q_alpha;
             dq_beta = broyden_mixer_beta.next(dq_beta, delta_dq_beta);
-            q_beta = new_q_beta;
 
-            if log_enabled!(Level::Debug) {
-                print_charges(q_alpha.view(), dq_alpha.view());
-                print_charges(q_beta.view(), dq_beta.view());
-            }
+            // if log_enabled!(Level::Debug) {
+            //     print_charges(q_alpha.view(), dq_alpha.view());
+            //     print_charges(q_beta.view(), dq_beta.view());
+            // }
 
             // compute electronic energy
             scf_energy = get_electronic_energy_unrestricted(

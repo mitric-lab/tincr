@@ -48,7 +48,7 @@ impl TDA for Monomer {
         self.properties.set_q_trans(q_trans);
         self.properties.set_tr_dipoles(tr_dipoles);
         self.properties.set_oscillator_strengths(f);
-
+        println!("ALMOST");
         print_states(&self, n_roots);
     }
 }

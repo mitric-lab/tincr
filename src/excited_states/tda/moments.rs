@@ -17,5 +17,5 @@ pub fn mulliken_dipoles(q_trans: ArrayView2<f64>, atoms: &[Atom]) -> Array2<f64>
 /// moments, µ, according to:
 /// f = 2/3 * E * |µ|^2
 pub fn oscillator_strength(exc_energies: ArrayView1<f64>, tr_dipoles: ArrayView2<f64>) -> Array1<f64>{
-    2.0 / 3.0 * &exc_energies * &tr_dipoles.dot(&tr_dipoles.t()).diag()
+    2.0 / 3.0 * &exc_energies * &tr_dipoles.t().dot(&tr_dipoles).diag()
 }

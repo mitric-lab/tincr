@@ -12,7 +12,7 @@ use crate::utils::Timer;
 use log::{debug, error, info, log_enabled, trace, warn, Level};
 use ndarray::prelude::*;
 use ndarray_linalg::*;
-use ndarray_stats::QuantileExt;
+use ndarray_stats::{QuantileExt, DeviationExt};
 use std::fmt;
 
 
@@ -131,12 +131,14 @@ impl<'a> RestrictedSCC for System {
         let mut p: Array2<f64> = self.properties.take_p().unwrap();
         let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
         let mut q: Array1<f64>;
+        let mut q_ao: Array1<f64> = Array1::zeros([self.n_orbs]);
 
         // molecular properties, we take all properties that are needed from the Properties type
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let h0: ArrayView2<f64> = self.properties.h0().unwrap();
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
         let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
+        let mut dp: Array2<f64> = &p - &p0;
 
         // the orbital energies and coefficients can be safely reset, since the
         // Hamiltonian does not depends on the charge differences and not on the orbital coefficients
@@ -148,14 +150,14 @@ impl<'a> RestrictedSCC for System {
         // variables that are updated during the iterations
         let mut last_energy: f64 = 0.0;
         let mut total_energy: Result<f64, SCCError> = Ok(0.0);
-        let mut delta_dq_max: f64 = 0.0;
         let mut scf_energy: f64 = 0.0;
+        let mut diff_dq_max: f64 = 0.0;
         let mut converged: bool = false;
         // add nuclear energy to the total scf energy
         let rep_energy: f64 = get_repulsive_energy(&self.atoms, self.n_atoms, &self.vrep);
 
         // initialize the charge mixer
-        let mut broyden_mixer: BroydenMixer = BroydenMixer::new(self.n_atoms);
+        let mut broyden_mixer: BroydenMixer = BroydenMixer::new(self.n_orbs);
         // initialize the orbital level shifter
         let mut level_shifter: LevelShifter = LevelShifter::default();
 
@@ -171,7 +173,6 @@ impl<'a> RestrictedSCC for System {
             let mut h: Array2<f64> = h_coul + h0.view();
 
             if self.gammafunction_lc.is_some() {
-                let dp: Array2<f64> = &p - &p0;
                 let h_x: Array2<f64> =
                     lc_exact_exchange(s.view(), self.properties.gamma_lr_ao().unwrap(), dp.view());
                 h = h + h_x;
@@ -184,10 +185,10 @@ impl<'a> RestrictedSCC for System {
                         get_frontier_orbitals(self.n_elec).1,
                     );
                 } else {
-                    if delta_dq_max < (1.0e5 * scf_charge_conv) {
+                    if diff_dq_max < (1.0e5 * scf_charge_conv) {
                         level_shifter.reduce_weight();
                     }
-                    if delta_dq_max < (1.0e3 * scf_charge_conv) {
+                    if diff_dq_max < (1.0e3 * scf_charge_conv) {
                         level_shifter.turn_off();
                     }
                 }
@@ -218,36 +219,35 @@ impl<'a> RestrictedSCC for System {
             // calculate the density matrix
             p = density_matrix(orbs.view(), &f[..]);
 
-            // update partial charges using Mulliken analysis
-            let (new_q, new_dq): (Array1<f64>, Array1<f64>) = mulliken(
-                p.view(),
-                p0.view(),
-                s.view(),
-                &self.atoms,
-                self.n_atoms,
-            );
+            // New Mulliken charges for each atomic orbital.
+            let q_ao_n: Array1<f64> = s.dot(&p).diag().to_owned();
 
-            // charge difference to previous iteration
-            let delta_dq: Array1<f64> = &new_dq - &dq;
+            // Charge difference to previous iteration
+            let delta_dq: Array1<f64> = &q_ao_n - &q_ao;
 
-            delta_dq_max = *delta_dq.map(|x| x.abs()).max().unwrap();
+            diff_dq_max = q_ao.root_mean_sq_err(&q_ao_n).unwrap();
 
             if log_enabled!(Level::Trace) {
                 print_orbital_information(orbe.view(), &f);
             }
 
             // check if charge difference to the previous iteration is lower than 1e-5
-            if (delta_dq_max < scf_charge_conv)
+            if (diff_dq_max < scf_charge_conv)
                 && (last_energy - scf_energy).abs() < scf_energy_conv
             {
                 converged = true;
             }
 
-            // Broyden mixing of partial charges # changed new_dq to dq
-            dq = broyden_mixer.next(dq, delta_dq);
-            q = new_q;
+            // Broyden mixing of Mulliken charges per orbital.
+            q_ao = broyden_mixer.next(q_ao, delta_dq);
+
+            // The density matrix is updated in accordance with the Mulliken charges.
+            p = p * &(&q_ao / &q_ao_n);
+            dp = &p - &p0;
+            dq = mulliken(dp.view(), s.view(), &self.atoms);
 
             if log_enabled!(Level::Debug) {
+                q = mulliken(p.view(), s.view(), &self.atoms);
                 print_charges(q.view(), dq.view());
             }
 
@@ -263,20 +263,21 @@ impl<'a> RestrictedSCC for System {
             );
 
             if log_enabled!(Level::Info) {
-                print_energies_at_iteration(i, scf_energy, rep_energy, last_energy, delta_dq_max, level_shifter.weight)
+                print_energies_at_iteration(i, scf_energy, rep_energy, last_energy, diff_dq_max, level_shifter.weight)
             }
 
             if converged {
                 total_energy = Ok(scf_energy + rep_energy);
                 break 'scf_loop;
             }
-            total_energy = Err(SCCError::new(i,last_energy - scf_energy,delta_dq_max));
+            total_energy = Err(SCCError::new(i,last_energy - scf_energy,diff_dq_max));
             // save the scf energy from the current iteration
             last_energy = scf_energy;
         }
         if log_enabled!(Level::Info) {
             print_scc_end(timer, self.config.jobtype.as_str(), scf_energy, rep_energy, orbe.view(), &f);
         }
+
         self.properties.set_orbs(orbs);
         self.properties.set_orbe(orbe);
         self.properties.set_occupation(f);

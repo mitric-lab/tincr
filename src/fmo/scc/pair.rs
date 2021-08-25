@@ -113,6 +113,11 @@ impl Pair {
                 m1.properties.dq().unwrap(),
                 m2.properties.dq().unwrap()
             ]);
+            self.properties.set_q_ao(concatenate![
+                Axis(0),
+                m1.properties.q_ao().unwrap(),
+                m2.properties.q_ao().unwrap()
+            ]);
         }
 
         // this is also only needed in the first SCC calculation
@@ -132,20 +137,20 @@ impl Pair {
         let scf_charge_conv: f64 = config.scf_charge_conv;
         let scf_energy_conv: f64 = config.scf_energy_conv;
         let max_iter: usize = config.scf_max_cycles;
+        let mut p: Array2<f64> = self.properties.take_p().unwrap();
+        let mut q_ao: Array1<f64> = self.properties.take_q_ao().unwrap();
         // Create a copy of the dq's as they will be used later for the calculation of the
         // Delta dq
         let mut dq: Array1<f64> = self.properties.dq().unwrap().to_owned();
-        let mut mixer: BroydenMixer = BroydenMixer::new(self.n_atoms);
+        let mut mixer: BroydenMixer = BroydenMixer::new(self.n_orbs);
         let x: ArrayView2<f64> = self.properties.x().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
         let h0: ArrayView2<f64> = self.properties.h0().unwrap();
         let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
-        let p: ArrayView2<f64> = self.properties.p().unwrap();
         let mut last_energy: f64 = self.properties.last_energy().unwrap();
         let f: &[f64] = self.properties.occupation().unwrap();
         let v: ArrayView2<f64> = self.properties.v().unwrap();
-
         let h_esp: Array2<f64> = &h0 + &v;
 
         'scf_loop: for iter in 0..max_iter {
@@ -167,20 +172,21 @@ impl Pair {
             let orbs: Array2<f64> = x.dot(&tmp.1);
 
             // calculate the density matrix
-            let p: Array2<f64> = density_matrix(orbs.view(), &f[..]);
+            p = density_matrix(orbs.view(), &f[..]);
 
-            // update partial charges using Mulliken analysis
-            let (new_q, new_dq): (Array1<f64>, Array1<f64>) =
-                mulliken(p.view(), p0.view(), s.view(), &atoms, self.n_atoms);
+            let q_ao_n: Array1<f64> = s.dot(&p).diag().to_owned();
 
             // charge difference to previous iteration
-            let delta_dq: Array1<f64> = &new_dq - &dq;
+            let delta_dq: Array1<f64> = &q_ao_n - &q_ao;
 
             let delta_dq_max: f64 = *delta_dq.map(|x| x.abs()).max().unwrap();
 
             // Broyden mixing of partial charges # changed new_dq to dq
-            dq = mixer.next(dq, delta_dq);
-            let q: Array1<f64> = new_q;
+            q_ao = mixer.next(q_ao, delta_dq);
+            // The density matrix is updated in accordance with the Mulliken charges.
+            p = p * &(&q_ao / &q_ao_n);
+            let dp: Array2<f64> = &p - &p0;
+            dq = mulliken(dp.view(), s.view(), &atoms);
 
             // compute electronic energy
             let scf_energy = get_electronic_energy(

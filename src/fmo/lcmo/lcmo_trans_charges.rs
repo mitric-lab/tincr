@@ -25,6 +25,7 @@ pub fn q_lele<'a>(
 ) -> Array3<f64> {
     // Check if the transition charges are on the same monomer or not.
     let inter: bool = a.monomer != b.monomer;
+
     // Number of atoms.
     let n_atoms: usize = if inter {
         a.monomer.n_atoms + b.monomer.n_atoms
@@ -53,15 +54,15 @@ pub fn q_lele<'a>(
     // Matrix product of overlap matrix with the orbitals on J.
     let sc_j: Array2<f64> = s.t().dot(&orbs_i);
     // Either append or sum the contributions, depending whether the orbitals are on the same monomer.
-    let csc_i: Array2<f64> = if inter {
-        concatenate![Axis(0), orbs_i, sc_i]
+    let sc_ij: Array2<f64> = if inter {
+        concatenate![Axis(0), sc_i, sc_j]
     } else {
         &orbs_i + &sc_i
     };
-    let csc_j: Array2<f64> = if inter {
-        concatenate![Axis(0), orbs_j, sc_j]
+    let orbs_ij: Array2<f64> = if inter {
+        concatenate![Axis(0), orbs_i, orbs_j]
     } else {
-        &orbs_j + &sc_j
+        &orbs_j + &sc_j // TODO: CHECK IF CORRECT
     };
 
     // Iterator over the atoms.
@@ -74,15 +75,15 @@ pub fn q_lele<'a>(
 
     let mut mu: usize = 0;
     // Iteration over all atoms (A).
-    for (n, atom) in atom_iter.enumerate() {
+    for (atom, mut q_n) in atom_iter.zip(q_trans.axis_iter_mut(Axis(0))) {
         // Iteration over atomic orbitals mu on A.
         for _ in 0..atom.n_orbs {
             // Iteration over occupied orbital i.
-            for (i, orb_i) in csc_i.row(mu).iter().enumerate() {
+            for (orb_i, mut q_j) in sc_ij.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
                 // Iteration over occupied orbital j.
-                for (j, orb_j) in csc_j.row(mu).iter().enumerate() {
+                for (orb_j, mut q) in orbs_ij.row(mu).iter().zip(q_j.iter_mut()) {
                     // The transition charge is computed.
-                    q_trans[[n, i, j]] += orb_i * orb_j;
+                    *q += orb_i * orb_j;
                 }
             }
             mu += 1;

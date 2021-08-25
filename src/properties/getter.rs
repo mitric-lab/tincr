@@ -5,6 +5,7 @@ use ndarray::Slice;
 use crate::fmo::PairType;
 use hashbrown::HashMap;
 use crate::excited_states::ProductCache;
+use nalgebra::Vector3;
 
 impl Properties {
     /// Returns a reference the atomic numbers
@@ -31,6 +32,14 @@ impl Properties {
         }
     }
 
+    /// Returns the Mulliken charge for every atomic orbital
+    pub fn q_ao(&self) -> Option<ArrayView1<f64>> {
+        match self.get("q_ao") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns the transition dipole moments for all excited states.
     pub fn tr_dipoles(&self) -> Option<ArrayView2<f64>> {
         match self.get("tr_dipoles") {
@@ -40,9 +49,12 @@ impl Properties {
     }
 
     /// Returns the transition dipole moment for a specific excited state.
-    pub fn tr_dipole(&self, idx:usize) -> Option<ArrayView1<f64>> {
+    pub fn tr_dipole(&self, idx:usize) -> Option<Vector3<f64>> {
         match self.get("tr_dipoles") {
-            Some(value) => Some(value.as_array2().unwrap().column(idx)),
+            Some(value) => {
+                let dip = value.as_array2().unwrap().column(idx);
+                Some(Vector3::new( dip[0], dip[1], dip[2]))
+            },
             _ => None,
         }
     }

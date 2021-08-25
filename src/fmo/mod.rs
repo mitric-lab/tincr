@@ -20,8 +20,8 @@ use crate::io::Configuration;
 use crate::properties::Properties;
 use crate::initialization::{Atom, Geometry};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
-use crate::scc::gamma_approximation::GammaFunction;
 use std::collections::HashMap;
 pub use scc::*;
+use crate::scc::gamma_approximation::GammaFunction;
 
 pub trait Fragment {}

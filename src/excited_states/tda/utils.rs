@@ -3,6 +3,7 @@ use log::info;
 use ndarray::prelude::*;
 use crate::fmo::Monomer;
 use crate::constants::HARTREE_TO_EV;
+use nalgebra::Vector3;
 
 
 pub fn print_states(fragment: &Monomer, n_roots: usize) {
@@ -16,7 +17,7 @@ pub fn print_states(fragment: &Monomer, n_roots: usize) {
         let exc_energy: f64 = fragment.properties.ci_eigenvalue(n).unwrap();
         let energy: f64 = total_energy + exc_energy;
         let tdm: ArrayView2<f64> = fragment.properties.tdm(n).unwrap();
-        let tr_dipole: ArrayView1<f64> = fragment.properties.tr_dipole(n).unwrap();
+        let tr_dipole: Vector3<f64> = fragment.properties.tr_dipole(n).unwrap();
         print_excited_state(n + 1, exc_energy, energy, tr_dipole, f[n]);
         print_eigenvalues(tdm, threshold);
         if n < n_roots - 1 {
@@ -27,12 +28,12 @@ pub fn print_states(fragment: &Monomer, n_roots: usize) {
     info!("{:-^75} ", "");
 }
 
-fn print_excited_state(index: usize, exc_energy: f64, energy: f64, tr_dip: ArrayView1<f64>, f: f64) {
+fn print_excited_state(index: usize, exc_energy: f64, energy: f64, tr_dip: Vector3<f64>, f: f64) {
     let exc_energy: f64 = exc_energy * HARTREE_TO_EV;
     info!("Excited state {: >5}: Excitation energy = {:>8.6} eV", index, exc_energy);
     info!("Total energy for state {: >5}: {:22.12} Hartree", index, energy);
     info!("  Multiplicity: Singlet");
-    info!("  Trans. Mom. (a.u.): {:10.6} X  {:10.6} Y  {:10.6} Z", tr_dip[0], tr_dip[1], tr_dip[2]);
+    info!("  Trans. Mom. (a.u.): {:10.6} X  {:10.6} Y  {:10.6} Z", tr_dip.x, tr_dip.y, tr_dip.z);
     info!("  Oscillator Strength:  {:12.8}", f);
 }
 
@@ -49,8 +50,8 @@ fn print_eigenvalues(tdm: ArrayView2<f64>, threshold: f64) {
             } else {
                 format!("L+{}", l)
             };
-            if value > &threshold {
-                info!("  {: <4} --> {: <4}  Amplitude: {:6.4} => {:>4.1} %", occ_label, virt_label, value, value.powi(2) * 1e2);
+            if value.abs() > threshold {
+                info!("  {: <4} --> {: <4}  Amplitude: {:6.4} => {:>4.1} %", occ_label, virt_label, value.abs(), value.powi(2) * 1e2);
             }
         }
     }
