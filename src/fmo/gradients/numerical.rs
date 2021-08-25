@@ -5,7 +5,7 @@
 //! Ridder's method as implemented in [ridders_method](crate::gradients::numerical::ridders_method)).
 //! In this way the analytic gradients can be tested.
 
-use crate::fmo::{Monomer, SuperSystem, ExcitedStateMonomerGradient};
+use crate::fmo::{Monomer, SuperSystem, ExcitedStateMonomerGradient, GroundStateGradient};
 use ndarray::prelude::*;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::gradients::assert_deriv;
@@ -30,7 +30,7 @@ impl SuperSystem {
         let mol = &self.monomers[0];
         let orbe = mol.properties.orbe().unwrap();
         let virtual_indices = mol.properties.virt_indices().unwrap();
-        let orbe_homo:f64 = orbe[virtual_indices[0]-1];
+        let orbe_homo:f64 = orbe[virtual_indices[0]-3];
         return orbe_homo;
     }
 
@@ -49,7 +49,7 @@ impl SuperSystem {
         let mol = &mut self.monomers[0];
         let atoms = &self.atoms[mol.slice.atom_as_range()];
         mol.prepare_excited_gradient(atoms);
-        let grad = mol.calculate_ct_fock_gradient(atoms,0,true);
+        let grad = mol.calculate_ct_fock_gradient(atoms,2,true);
         mol.properties.clear_excited_gradient_lc();
         mol.properties.reset();
 

@@ -71,6 +71,7 @@ impl ExcitedStateMonomerGradient for Monomer{
             self.n_atoms,
             self.n_orbs,
         );
+        self.properties.set_grad_gamma(g1);
         self.properties.set_gamma_ao(g0_ao);
         self.properties.set_grad_gamma_ao(g1_ao);
 
