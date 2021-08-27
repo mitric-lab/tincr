@@ -58,8 +58,6 @@ impl RestrictedSCC for SuperSystem {
         let max_iter: usize = self.config.scf.scf_max_cycles;
         logging::fmo_scc_init(max_iter);
 
-
-
         // Assembling of the energy following Eq. 11 in
         // https://pubs.acs.org/doi/pdf/10.1021/ct500489d
         // E = sum_I^N E_I^ + sum_(I>J)^N ( E_(IJ) - E_I - E_J ) + sum_(I>J)^(N) DeltaE_(IJ)^V
@@ -86,6 +84,7 @@ impl RestrictedSCC for SuperSystem {
         // Print information of the SCC-routine
         logging::fmo_scc_end(timer, monomer_energies, pair_energies, embedding, esd_pair_energies);
 
+        self.properties.set_last_energy(total_energy);
         // Return the energy
         Ok(total_energy)
     }

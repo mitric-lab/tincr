@@ -107,9 +107,9 @@ pub fn q_pp<'a>(a: &'a Particle<'a>, b: &'a Particle<'a>, s: ArrayView2<f64>) ->
     };
 
     // Matrix product of overlap matrix with the orbital on I.
-    let c_sc_i: Array1<f64> = &a.orb * &s.dot(&b.orb);
+    let c_sc_i: Array1<f64> = &a.mo.c * &s.dot(&b.mo.c);
     // Matrix product of overlap matrix with the orbital on J.
-    let c_sc_j: Array1<f64> = &b.orb * &s.t().dot(&a.orb);
+    let c_sc_j: Array1<f64> = &b.mo.c * &s.t().dot(&a.mo.c);
     // Both coefficients are added.
     let c_sc: Array1<f64> = if inter {
         c_sc_i.into_iter().chain(c_sc_j.into_iter()).collect()
@@ -171,10 +171,10 @@ pub fn q_le_p<'a>(
 
     // 1. (2nd term) Matrix-vector product of Overlap matrix S_mu_(on I)_nu_(on J) with C_nu_(on J)_b
     // 2. Element-wise product with C_mu_(on I)_i
-    let c_sc_i: Array2<f64> = &orbs * &s.dot(&b.orb).broadcast((dim, n_orbs_i)).unwrap().t();
+    let c_sc_i: Array2<f64> = &orbs * &s.dot(&b.mo.c).broadcast((dim, n_orbs_i)).unwrap().t();
     // 1. Matrix product of Overlap matrix S_nu_(on J)_mu_(on_I) with C_mu_(on I)_i
     // 2. Element-wise product with C_nu_(on J)_b
-    let c_sc_j: Array2<f64> = &s.t().dot(&orbs) * &b.orb.broadcast((dim, n_orbs_j)).unwrap().t();
+    let c_sc_j: Array2<f64> = &s.t().dot(&orbs) * &b.mo.c.broadcast((dim, n_orbs_j)).unwrap().t();
     // Both products are added.
     let csc: Array2<f64> = if inter {
         concatenate![Axis(0), c_sc_i, c_sc_j]

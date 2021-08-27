@@ -1,11 +1,10 @@
-use crate::fmo::{Monomer, SuperSystem};
-use crate::initialization::Atom;
+use crate::fmo::{Monomer, SuperSystem, ExcitonStates};
+use crate::initialization::{Atom, MO};
 use ndarray::prelude::*;
 use nalgebra::{max, Vector3};
-use crate::excited_states::tda::TDA;
+use crate::excited_states::tda::*;
 use ndarray_linalg::{Eigh, UPLO};
 use std::fmt::{Display, Formatter};
-use crate::fmo::lcmo::utils::print_lcmo_states;
 
 impl SuperSystem {
     /// The diabatic basis states are constructed, which will be used for the Exciton-Hamiltonian.
@@ -14,7 +13,7 @@ impl SuperSystem {
         let max_iter: usize = 50;
         let tolerance: f64 = 1e-4;
         // Number of LE states per monomer.
-        let n_le: usize = 2;
+        let n_le: usize = 4;
         // Number of occupied orbitals for construction of CT states.
         let n_occ: usize = 1;
         // Number of virtual orbitals for construction of CT states.
@@ -48,33 +47,41 @@ impl SuperSystem {
         for (idx, m_i) in self.monomers.iter().enumerate() {
             // Indices of the occupied orbitals of Monomer I.
             let occs_i: &[usize] = m_i.properties.occ_indices().unwrap();
+
             // Indices of the virtual orbitals of Monomer I.
             let virts_i: &[usize] = m_i.properties.virt_indices().unwrap();
 
             for m_j in self.monomers[idx+1..].iter() {
                 // Indices of the occupied orbitals of Monomer J.
                 let occs_j: &[usize] = m_j.properties.occ_indices().unwrap();
+
                 // Indices of the virtual orbitals of Monomer J.
                 let virts_j: &[usize] = m_j.properties.virt_indices().unwrap();
-                println!("I {} J {}", m_i.index, m_j.index);
+
                 // First create all CT states from I to J.
                 for occ in occs_i[occs_i.len() - n_occ..].iter().rev() {
                     for virt in virts_j[0..n_virt].iter() {
+                        let mo_hole = MO::new(m_i.properties.mo_coeff(*occ).unwrap(),
+                                              m_i.properties.orbe().unwrap()[*occ],
+                                             *occ,
+                                              m_i.properties.occupation().unwrap()[*occ]);
+                        let mo_elec = MO::new(m_j.properties.mo_coeff(*virt).unwrap(),
+                                              m_j.properties.orbe().unwrap()[*virt],
+                                             *virt,
+                                              m_j.properties.occupation().unwrap()[*virt]);
                         states.push(BasisState::CT(ChargeTransfer {
                             system: &self,
                             hole: Particle {
                                 idx: m_i.index,
-                                orb: m_i.properties.mo_coeff(*occ).unwrap(),
                                 atoms: &atoms[m_i.slice.atom_as_range()],
                                 monomer: &m_i,
-                                energy: m_i.properties.orbe().unwrap()[*occ],
+                                mo: mo_hole,
                             },
                             electron: Particle {
                                 idx: m_j.index,
-                                orb: m_j.properties.mo_coeff(*virt).unwrap(),
                                 atoms: &atoms[m_j.slice.atom_as_range()],
                                 monomer: &m_j,
-                                energy: m_j.properties.orbe().unwrap()[*virt]
+                                mo: mo_elec,
                             }
                         }));
                     }
@@ -83,44 +90,45 @@ impl SuperSystem {
                 // And create all CT states from J to I.
                 for occ in occs_j[occs_j.len() - n_occ..].iter().rev() {
                     for virt in virts_i[0..n_virt].iter() {
+                        let mo_hole = MO::new(m_j.properties.mo_coeff(*occ).unwrap(),
+                                              m_j.properties.orbe().unwrap()[*occ],
+                                              *occ,
+                                              m_j.properties.occupation().unwrap()[*occ]);
+                        let mo_elec = MO::new(m_i.properties.mo_coeff(*virt).unwrap(),
+                                              m_i.properties.orbe().unwrap()[*virt],
+                                              *virt,
+                                              m_i.properties.occupation().unwrap()[*virt]);
                         states.push(BasisState::CT(ChargeTransfer {
                             system: &self,
                             hole: Particle {
                                 idx: m_j.index,
-                                orb: m_j.properties.mo_coeff(*occ).unwrap(),
                                 atoms: &atoms[m_j.slice.atom_as_range()],
                                 monomer: &m_j,
-                                energy: m_j.properties.orbe().unwrap()[*occ]
+                                mo: mo_hole,
                             },
                             electron: Particle {
                                 idx: m_i.index,
-                                orb: m_i.properties.mo_coeff(*virt).unwrap(),
                                 atoms: &atoms[m_i.slice.atom_as_range()],
                                 monomer: &m_i,
-                                energy: m_i.properties.orbe().unwrap()[*virt]
+                                mo: mo_elec,
                             }
                         }));
                     }
                 }
             }
         }
-        println!("LEN STATES {}", states.len());
-        for state in states.iter() {
-            match state {
-                BasisState::CT(ct) => println!("hole {} elec {}", ct.hole.idx, ct.electron.idx),
-                BasisState::LE(le) => println!("le on {}", le.monomer.index),
-            }
-        }
+
         states
     }
 
-    pub fn create_exciton_hamiltonian(&mut self) -> Array2<f64> {
+    pub fn create_exciton_hamiltonian(&mut self) -> () {
+        self.properties.set_lcmo_fock(self.build_lcmo_fock_matrix());
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
         let max_iter: usize = 50;
         let tolerance: f64 = 1e-4;
         // Number of LE states per monomer.
-        let n_le: usize = 2;
+        let n_le: usize = 4;
         // Compute the n_le excited states for each monomer.
         for mol in self.monomers.iter_mut() {
             mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
@@ -140,18 +148,24 @@ impl SuperSystem {
                 h[[i, j+i]] = self.exciton_coupling(state_i, state_j);
             }
         }
-        println!("{}", h);
+
         // The Hamiltonian is returned. Only the upper triangle is filled, so this has to be
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
         let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
 
-        print_lcmo_states(energies.view(), eigvectors.view(), &states, self.properties.last_energy().unwrap());
-        eigvectors
+
+        let exciton = ExcitonStates::new(self.properties.last_energy().unwrap(),
+        energies, eigvectors, states.clone());
+
+        exciton.spectrum_to_npy("/Users/hochej/Downloads/spec.npy");
+        println!("{}", exciton);
+
     }
 }
 
 /// Different types of diabatic basis states that are used for the FMO-exciton model.
+#[derive(Clone)]
 pub enum BasisState<'a> {
     // Locally excited state that is on one monomer.
     LE(LocallyExcited<'a>),
@@ -170,6 +184,7 @@ impl Display for BasisState<'_> {
 
 
 /// Type that holds all the relevant data that characterize a locally excited diabatic basis state.
+#[derive(Clone)]
 pub struct LocallyExcited<'a> {
     // Reference to the corresponding monomer.
     pub monomer: &'a Monomer,
@@ -203,6 +218,7 @@ impl PartialEq for LocallyExcited<'_> {
 }
 
 /// Type that holds all the relevant data that characterize a charge-transfer diabatic basis state.
+#[derive(Copy, Clone)]
 pub struct ChargeTransfer<'a> {
     // Reference to the total system. This is needed to access the complete Gamma matrix.
     pub system: &'a SuperSystem,
@@ -223,18 +239,16 @@ impl PartialEq for ChargeTransfer<'_> {
         self.hole == other.hole && self.electron == other.electron
     }
 }
-
+#[derive(Copy, Clone)]
 pub struct Particle<'a> {
-    // The index of the corresponding monomer.
+    /// The index of the corresponding monomer.
     pub idx: usize,
-    // The MO coefficient of the corresponding orbital.
-    pub orb: ArrayView1<'a, f64>,
-    // The atoms of the corresponding monomer.
+    /// The atoms of the corresponding monomer.
     pub atoms: &'a [Atom],
-    // The corresponding monomer itself.
+    /// The corresponding monomer itself.
     pub monomer: &'a Monomer,
-    // The MO-energy of the corresponding orbital.
-    pub energy: f64,
+    /// The corresponding molecular orbital.
+    pub mo: MO<'a>,
 }
 
 impl Display for Particle<'_> {
@@ -246,6 +260,6 @@ impl Display for Particle<'_> {
 // TODO: this definition could lead to mistakes for degenerate orbitals
 impl PartialEq for Particle<'_> {
     fn eq(&self, other: &Self) -> bool {
-        self.idx == other.idx && self.energy == other.energy
+        self.idx == other.idx && self.mo.e == other.mo.e
     }
 }

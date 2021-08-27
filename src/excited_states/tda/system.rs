@@ -4,7 +4,7 @@ use crate::initialization::{System, Atom};
 use ndarray::prelude::*;
 use ndarray_linalg::{Eigh, UPLO};
 use crate::excited_states::davidson::Davidson;
-use crate::excited_states::tda::TDA;
+use crate::excited_states::tda::*;
 
 impl System {
     pub fn prepare_tda(&mut self) {

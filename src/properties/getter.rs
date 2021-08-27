@@ -166,6 +166,14 @@ impl Properties {
         }
     }
 
+    /// Returns a reference to LCMO Fock matrix.
+    pub fn lcmo_fock(&self) -> Option<ArrayView2<f64>> {
+        match self.get("lcmo_fock") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference to the H0 matrix in AO basis.
     pub fn h0(&self) -> Option<ArrayView2<f64>> {
         match self.get("H0") {

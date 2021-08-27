@@ -5,6 +5,7 @@ use crate::fmo::PairType;
 use crate::scc::mixer::BroydenMixer;
 use crate::properties::Properties;
 use crate::excited_states::ProductCache;
+use crate::initialization::MO;
 
 
 impl Properties {
@@ -67,6 +68,11 @@ impl Properties {
     /// Set the the difference of the density matrix between the pair and the corresponding monomers
     pub fn set_delta_p(&mut self, delta_p: Array2<f64>) {
         self.set("diff_density_matrix", Property::from(delta_p))
+    }
+
+    /// Set the LCMO Fock matrix in MO basis.
+    pub fn set_lcmo_fock(&mut self, fock: Array2<f64>) {
+        self.set("lcmo_fock", Property::from(fock));
     }
 
     /// Set the H0 matrix in AO basis.

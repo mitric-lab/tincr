@@ -32,7 +32,7 @@ impl SuperSystem {
             // Coupling between CT and CT
             (BasisState::CT(ref a), BasisState::CT(ref b)) => {
                 let one_elec: f64 = if a == b {
-                    a.electron.energy - a.hole.energy
+                    a.electron.mo.e - a.hole.mo.e
                 } else {0.0};
                 one_elec + self.ct_ct(a, b)
             },
@@ -122,8 +122,7 @@ impl SuperSystem {
             }
             PairType::None => 0.0,
         };
-        println!("I {} J {}", i, j);
-        println!("Coulomb: {}, Exchange: {}", coulomb, exchange);
+
         2.0 * coulomb - exchange
     }
 
@@ -334,10 +333,56 @@ impl SuperSystem {
         2.0 * ia_jb - ij_ab
     }
 
-    /// The matrix element of between a LE state (on monomer I) and a CT state from orbital j on
+    pub fn le_ct<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
+        self.le_ct_1e(i, j) + self.le_ct_2e(i, j)
+    }
+
+    pub fn le_ct_1e<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
+        // < LE I | H | CT K_j -> I_b >
+        if i.monomer.index == j.electron.idx {
+            // Index of the HOMO.
+            let homo: usize = i.monomer.properties.homo().unwrap();
+
+            // Transition Density Matrix of the LE state in MO basis.
+            let tdm: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+
+            // 1. LCMO Fock matrix between monomer of the LE state, I, and monomer of the hole, K.
+            // 2. Slice corresponding to the coupling between all occupied orbitals on I and
+            //    the orbital that corresponds to the hole on K.
+            let f_ij: ArrayView1<f64> = self.properties.lcmo_fock().unwrap()
+                .slice_move(s![i.monomer.slice.orb, j.hole.monomer.slice.orb])
+                .slice_move(s![..=homo, j.hole.mo.idx]);
+
+            // The matrix element is computed according to: - sum_i b_ib^In * F_ij and returned.
+            -1.0 *  tdm.column(j.electron.mo.idx - (homo + 1)).dot(&f_ij)
+
+        // < LE I | H | CT I_j -> J_b >
+        } else if i.monomer.index == j.hole.idx {
+            // Index of the LUMO.
+            let lumo: usize = i.monomer.properties.lumo().unwrap();
+
+            // Transition Density Matrix of the LE state in MO basis.
+            let tdm: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+
+            // 1. LCMO Fock matrix between monomer of the LE state, I, and the monomer of electron, J.
+            // 2. Slice corresponding to all virtual orbitals of monomer I and the orbital of the
+            //    hole at monomer J.
+            let f_ab: ArrayView1<f64> = self.properties.lcmo_fock().unwrap()
+                .slice_move(s![i.monomer.slice.orb, j.electron.monomer.slice.orb])
+                .slice_move(s![lumo.., j.electron.mo.idx]);
+
+            // The matrix element is computed according to: sum_a b_ja F_ab
+            tdm.row(j.hole.mo.idx).dot(&f_ab)
+        } else {
+            0.0
+        }
+    }
+
+
+    /// The two electron matrix element of between a LE state (on monomer I) and a CT state from orbital j on
     /// monomer J to orbital b to monomer K is computed.
     /// < LE I | H | CT J_j -> K_b >
-    pub fn le_ct<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
+    pub fn le_ct_2e<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
         // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
         let type_ij: PairType = self.properties.type_of_pair(i.monomer.index, j.hole.idx);
         // The same for I and K
