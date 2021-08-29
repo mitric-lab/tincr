@@ -5,6 +5,7 @@ use nalgebra::{max, Vector3};
 use crate::excited_states::tda::*;
 use ndarray_linalg::{Eigh, UPLO};
 use std::fmt::{Display, Formatter};
+use crate::excited_states::ExcitedState;
 
 impl SuperSystem {
     /// The diabatic basis states are constructed, which will be used for the Exciton-Hamiltonian.
@@ -159,6 +160,7 @@ impl SuperSystem {
         energies, eigvectors, states.clone());
 
         exciton.spectrum_to_npy("/Users/hochej/Downloads/spec.npy");
+        exciton.spectrum_to_txt("/Users/hochej/Downloads/spec.txt");
         println!("{}", exciton);
 
     }

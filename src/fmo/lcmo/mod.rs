@@ -12,6 +12,7 @@ use std::fmt::{Display, Formatter};
 use nalgebra::Vector3;
 use crate::utils::array_helper::argsort_abs;
 use num_traits::Zero;
+use crate::excited_states::ExcitedState;
 
 
 /// Structure that contains all necessary information to specify the excited states in
@@ -31,6 +32,32 @@ pub struct ExcitonStates<'a> {
     pub tr_dip: Vec<Vector3<f64>>,
 }
 
+
+impl ExcitedState for ExcitonStates<'_> {
+    fn get_lumo(&self) -> usize {
+        todo!()
+    }
+
+    fn get_mo_coefficients(&self) -> ArrayView2<f64> {
+        todo!()
+    }
+
+    fn get_transition_density_matrix(&self, state: usize) -> ArrayView2<f64> {
+        todo!()
+    }
+
+    fn get_energies(&self) -> ArrayView1<f64> {
+        self.energies.view()
+    }
+
+    fn get_oscillator_strengths(&self) -> ArrayView1<f64> {
+        self.f.view()
+    }
+
+    fn get_num_states(&self) -> usize {
+        self.f.len()
+    }
+}
 
 impl<'a> ExcitonStates<'a> {
 
@@ -69,20 +96,6 @@ impl<'a> ExcitonStates<'a> {
             tr_dip: transition_dipoles
         }
 
-    }
-
-    /// Write the excitation energies (in eV) and oscillator strength to a .npy file
-    pub fn spectrum_to_npy(&self, filename: &str) -> Result<(), WriteNpyError> {
-        // Stack the energies and osc. strengths into a 2D Array (columnwise).
-        let mut data: Array2<f64> = Array2::zeros([self.f.len(), 0]);
-
-        let energies_ev: Array1<f64> = HARTREE_TO_EV * &self.energies;
-        // Convert the excitation energy in eV.
-        data.push(Axis(1), energies_ev.view());
-        data.push(Axis(1), self.f.view());
-
-        // Write the npy file.
-        write_npy(filename, &data)
     }
 
 }

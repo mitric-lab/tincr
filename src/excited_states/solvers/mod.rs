@@ -1,14 +1,13 @@
-pub use utils::*;
-use crate::scc::scc_routine::RestrictedSCC;
-use ndarray::prelude::*;
 use crate::excited_states::ProductCache;
-use ndarray::Data;
 use crate::fmo::Monomer;
 use crate::initialization::System;
+use crate::scc::scc_routine::RestrictedSCC;
+use ndarray::prelude::*;
+use ndarray::Data;
+pub use utils::*;
 
-mod utils;
 pub(crate) mod davidson;
-
+mod utils;
 
 /// Abstract Trait defining the API required by solver engines.
 ///
@@ -27,15 +26,15 @@ pub trait DavidsonEngine {
     /// Apply the preconditioner to a Residual vector.
     /// The preconditioner is usually defined as :math:`(w_k - D_{i})^-1` where
     /// `D` is an approximation of the diagonal of the matrix that is being diagonalized.
-    fn precondition(&self, r_k: ArrayView1<f64>, w_k:f64) -> Array1<f64>;
+    fn precondition(&self, r_k: ArrayView1<f64>, w_k: f64) -> Array1<f64>;
 
     /// Return the size of the matrix problem.
     fn get_size(&self) -> usize;
 }
 
 impl<S> DavidsonEngine for ArrayBase<S, Ix2>
-    where
-        S: Data<Elem = f64>,
+where
+    S: Data<Elem = f64>,
 {
     fn compute_products(&mut self, x: ArrayView2<'_, f64>) -> Array2<f64> {
         self.dot(&x)
@@ -49,7 +48,6 @@ impl<S> DavidsonEngine for ArrayBase<S, Ix2>
         self.nrows()
     }
 }
-
 
 /// Implementation of Davidson engine for `System`, `Monomer`, `Pair`.
 /// In principle this is also an implementation for `SuperSystem` but that cannot work!
@@ -91,7 +89,7 @@ impl DavidsonEngine for Monomer {
         let mut two_el: Array2<f64> = 2.0 * q_ov.t().dot(&gamma.dot(&q_ov.dot(&compute_vectors)));
 
         // If long-range correction is requested the exchange part needs to be computed.
-        if self.gammafunction_lc.is_some()  {
+        if self.gammafunction_lc.is_some() {
             // Reference to the transition charges between occupied-occupied orbitals.
             let q_oo: ArrayView2<f64> = self.properties.q_oo().unwrap();
             // Number of occupied orbitals.
@@ -112,7 +110,11 @@ impl DavidsonEngine for Monomer {
             // Initialization of the product of the exchange part with the subspace part.
             let mut k_x: Array2<f64> = Array::zeros(two_el.raw_dim());
             // Iteration over the subspace vectors.
-            for (i, (mut k, xi)) in k_x.axis_iter_mut(Axis(1)).zip(compute_vectors.axis_iter(Axis(1))).enumerate() {
+            for (i, (mut k, xi)) in k_x
+                .axis_iter_mut(Axis(1))
+                .zip(compute_vectors.axis_iter(Axis(1)))
+                .enumerate()
+            {
                 // The current vector reshaped into the form of n_occ, n_virt
                 let xi = xi.as_standard_layout().into_shape((n_occ, n_virt)).unwrap();
                 // The v-v transition have to be reshaped as well.
@@ -148,7 +150,8 @@ impl DavidsonEngine for Monomer {
     /// The energy difference of the virtual and occupied orbitals is used as a preconditioner.
     fn precondition(&self, r_k: ArrayView1<f64>, w_k: f64) -> Array1<f64> {
         // The denominator is build from the orbital energy differences and the shift value.
-        let mut denom: Array1<f64> = &(Array1::from_elem(self.get_size(), w_k)) - &self.properties.omega().unwrap();
+        let mut denom: Array1<f64> =
+            &(Array1::from_elem(self.get_size(), w_k)) - &self.properties.omega().unwrap();
         // Values smaller than 0.0001 are replaced by 1.0.
         denom.mapv_inplace(|x| if x.abs() < 0.0001 { 1.0 } else { x });
         &r_k / &denom
@@ -158,8 +161,6 @@ impl DavidsonEngine for Monomer {
         self.properties.omega().unwrap().len()
     }
 }
-
-
 
 /// TODO: THIS IMPLEMENTATION IS A COPY OF THE MONOMER IMPLEMENTATION AND TOTALLY STUPID TO HAVE THE
 /// SAME IMPLEMNENTATION TWICE.
@@ -199,7 +200,7 @@ impl DavidsonEngine for System {
         let mut two_el: Array2<f64> = 2.0 * q_ov.t().dot(&gamma.dot(&q_ov.dot(&compute_vectors)));
 
         // If long-range correction is requested the exchange part needs to be computed.
-        if self.gammafunction_lc.is_some()  {
+        if self.gammafunction_lc.is_some() {
             // Reference to the transition charges between occupied-occupied orbitals.
             let q_oo: ArrayView2<f64> = self.properties.q_oo().unwrap();
             // Number of occupied orbitals.
@@ -220,7 +221,11 @@ impl DavidsonEngine for System {
             // Initialization of the product of the exchange part with the subspace part.
             let mut k_x: Array2<f64> = Array::zeros(two_el.raw_dim());
             // Iteration over the subspace vectors.
-            for (i, (mut k, xi)) in k_x.axis_iter_mut(Axis(1)).zip(compute_vectors.axis_iter(Axis(1))).enumerate() {
+            for (i, (mut k, xi)) in k_x
+                .axis_iter_mut(Axis(1))
+                .zip(compute_vectors.axis_iter(Axis(1)))
+                .enumerate()
+            {
                 // The current vector reshaped into the form of n_occ, n_virt
                 let xi = xi.as_standard_layout().into_shape((n_occ, n_virt)).unwrap();
                 // The v-v transition have to be reshaped as well.
@@ -256,7 +261,8 @@ impl DavidsonEngine for System {
     /// The energy difference of the virtual and occupied orbitals is used as a preconditioner.
     fn precondition(&self, r_k: ArrayView1<f64>, w_k: f64) -> Array1<f64> {
         // The denominator is build from the orbital energy differences and the shift value.
-        let mut denom: Array1<f64> = &(Array1::from_elem(self.get_size(), w_k)) - &self.properties.omega().unwrap();
+        let mut denom: Array1<f64> =
+            &(Array1::from_elem(self.get_size(), w_k)) - &self.properties.omega().unwrap();
         // Values smaller than 0.0001 are replaced by 1.0.
         denom.mapv_inplace(|x| if x.abs() < 0.0001 { 1.0 } else { x });
         &r_k / &denom

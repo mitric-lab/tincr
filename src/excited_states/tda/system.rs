@@ -1,10 +1,10 @@
+use crate::excited_states::davidson::Davidson;
 use crate::excited_states::solvers::DavidsonEngine;
-use crate::excited_states::{trans_charges, ProductCache, orbe_differences, initial_subspace};
-use crate::initialization::{System, Atom};
+use crate::excited_states::tda::*;
+use crate::excited_states::{initial_subspace, orbe_differences, trans_charges, ProductCache};
+use crate::initialization::{Atom, System};
 use ndarray::prelude::*;
 use ndarray_linalg::{Eigh, UPLO};
-use crate::excited_states::davidson::Davidson;
-use crate::excited_states::tda::*;
 
 impl System {
     pub fn prepare_tda(&mut self) {
@@ -29,13 +29,13 @@ impl System {
             let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
 
             // The index of the HOMO (zero based).
-            let homo: usize = self.occ_indices[self.occ_indices.len()-1];
+            let homo: usize = self.occ_indices[self.occ_indices.len() - 1];
 
             // The index of the LUMO (zero based).
             let lumo: usize = self.virt_indices[0];
 
             // Energies of the occupied orbitals.
-            let orbe_occ: ArrayView1<f64> = orbe.slice(s![0..homo+1]);
+            let orbe_occ: ArrayView1<f64> = orbe.slice(s![0..homo + 1]);
 
             // Energies of the virtual orbitals.
             let orbe_virt: ArrayView1<f64> = orbe.slice(s![lumo..]);
@@ -77,12 +77,16 @@ mod tests {
         // Reference to the screened Gamma matrix.
         let gamma_lr: ArrayView2<f64> = molecule.properties.gamma_lr().unwrap();
         // The exchange part to the CIS Hamiltonian is computed.
-        let result = qoo.t().dot(&gamma_lr.dot(&qvv))
-            .into_shape((n_occ, n_occ, n_virt, n_virt)).unwrap()
+        let result = qoo
+            .t()
+            .dot(&gamma_lr.dot(&qvv))
+            .into_shape((n_occ, n_occ, n_virt, n_virt))
+            .unwrap()
             .permuted_axes([0, 2, 1, 3])
             .as_standard_layout()
-            .into_shape([n_occ*n_virt, n_occ*n_virt])
-            .unwrap().to_owned();
+            .into_shape([n_occ * n_virt, n_occ * n_virt])
+            .unwrap()
+            .to_owned();
         result
     }
 

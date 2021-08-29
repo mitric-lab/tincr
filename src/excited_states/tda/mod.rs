@@ -1,20 +1,19 @@
-mod system;
-mod monomer;
-mod utils;
 mod moments;
+mod monomer;
 mod new_mod;
+mod system;
+mod utils;
 
-use ndarray::prelude::*;
-use crate::excited_states::{ProductCache, orbe_differences, initial_subspace};
-use crate::initialization::{Atom, System};
 use crate::excited_states::solvers::davidson::Davidson;
-use crate::fmo::{Fragment, Monomer};
-use moments::{mulliken_dipoles, oscillator_strength};
 use crate::excited_states::tda::new_mod::TdaStates;
-
+use crate::excited_states::{initial_subspace, orbe_differences, ExcitedState, ProductCache};
+use crate::fmo::{Fragment, Monomer};
+use crate::initialization::{Atom, System};
+use moments::{mulliken_dipoles, oscillator_strength};
+use ndarray::prelude::*;
 
 impl Monomer {
-    pub fn run_tda(&mut self, atoms: &[Atom], n_roots: usize, max_iter: usize, tolerance: f64)  {
+    pub fn run_tda(&mut self, atoms: &[Atom], n_roots: usize, max_iter: usize, tolerance: f64) {
         // Set an empty product cache.
         self.properties.set_cache(ProductCache::new());
 
@@ -41,7 +40,11 @@ impl Monomer {
 
         let n_occ: usize = self.properties.occ_indices().unwrap().len();
         let n_virt: usize = self.properties.virt_indices().unwrap().len();
-        let tdm: Array3<f64> = davidson.eigenvectors.clone().into_shape([n_occ, n_virt, f.len()]).unwrap();
+        let tdm: Array3<f64> = davidson
+            .eigenvectors
+            .clone()
+            .into_shape([n_occ, n_virt, f.len()])
+            .unwrap();
 
         let states: TdaStates = TdaStates {
             total_energy: self.properties.last_energy().unwrap(),
@@ -49,6 +52,7 @@ impl Monomer {
             tdm: tdm,
             f: f.clone(),
             tr_dip: tr_dipoles.clone(),
+            orbs: self.properties.orbs().unwrap().to_owned(),
         };
 
         // The eigenvalues are the excitation energies and the eigenvectors are the CI coefficients.
@@ -59,11 +63,12 @@ impl Monomer {
         self.properties.set_oscillator_strengths(f);
 
         println!("{}", states);
+        states.ntos_to_molden(&atoms, 0, "/Users/hochej/Downloads/s1.molden");
     }
 }
 
 impl System {
-    pub fn run_tda(&mut self, n_roots: usize, max_iter: usize, tolerance: f64)  {
+    pub fn run_tda(&mut self, n_roots: usize, max_iter: usize, tolerance: f64) {
         // Set an empty product cache.
         self.properties.set_cache(ProductCache::new());
 

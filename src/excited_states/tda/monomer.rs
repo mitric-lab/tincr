@@ -1,8 +1,8 @@
 use crate::excited_states::solvers::DavidsonEngine;
-use ndarray::prelude::*;
+use crate::excited_states::{orbe_differences, trans_charges, ProductCache};
 use crate::fmo::Monomer;
-use crate::excited_states::{ProductCache, trans_charges, orbe_differences};
 use crate::initialization::Atom;
+use ndarray::prelude::*;
 
 impl Monomer {
     pub fn prepare_tda(&mut self, atoms: &[Atom]) {
@@ -10,7 +10,7 @@ impl Monomer {
         let virt_indices: &[usize] = self.properties.virt_indices().unwrap();
 
         // The index of the HOMO (zero based).
-        let homo: usize = occ_indices[occ_indices.len()-1];
+        let homo: usize = occ_indices[occ_indices.len() - 1];
 
         // The index of the LUMO (zero based).
         let lumo: usize = virt_indices[0];
@@ -36,7 +36,7 @@ impl Monomer {
             let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
 
             // Energies of the occupied orbitals.
-            let orbe_occ: ArrayView1<f64> = orbe.slice(s![0..homo+1]);
+            let orbe_occ: ArrayView1<f64> = orbe.slice(s![0..homo + 1]);
 
             // Energies of the virtual orbitals.
             let orbe_virt: ArrayView1<f64> = orbe.slice(s![lumo..]);

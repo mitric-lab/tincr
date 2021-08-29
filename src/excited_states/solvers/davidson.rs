@@ -15,15 +15,15 @@ that the correction vector is computed.
 */
 
 use crate::excited_states::solvers::utils;
+use crate::excited_states::solvers::DavidsonEngine;
 use ndarray::prelude::*;
+use ndarray::prelude::*;
+use ndarray::Data;
 use ndarray_linalg::*;
 use ndarray_stats::QuantileExt;
 use std::error;
 use std::fmt;
 use std::time::Instant;
-use ndarray::prelude::*;
-use ndarray::Data;
-use crate::excited_states::solvers::DavidsonEngine;
 
 #[derive(Debug, PartialEq)]
 pub struct DavidsonError;
@@ -104,9 +104,7 @@ impl Davidson {
             let rk: Array2<f64> = ax.dot(&v) - ritz.dot(&Array::from_diag(&u));
 
             // 3.3 Convergence check for each pair of eigenvalue and eigenvector.
-            let errors: Array1<f64> = rk
-                .axis_iter(Axis(1))
-                .map(|col| col.norm()).collect();
+            let errors: Array1<f64> = rk.axis_iter(Axis(1)).map(|col| col.norm()).collect();
 
             // The sum of all errors.
             let error: f64 = errors.sum();
@@ -120,17 +118,27 @@ impl Davidson {
             let roots_lft: usize = n_roots - roots_cvd;
 
             // If all eigenvalues are converged, the Davidson routine finished successfully.
-            if roots_lft == 0 && i > 0{
-                result = Ok(Self::create_results(
-                    u.view(),
-                    ritz.view(),
-                    n_roots,
-                ));
-                utils::print_davidson_iteration(i, roots_cvd, n_roots - roots_cvd, dim_sub,error, max_error);
+            if roots_lft == 0 && i > 0 {
+                result = Ok(Self::create_results(u.view(), ritz.view(), n_roots));
+                utils::print_davidson_iteration(
+                    i,
+                    roots_cvd,
+                    n_roots - roots_cvd,
+                    dim_sub,
+                    error,
+                    max_error,
+                );
                 break;
             }
             // The information of the current iteration is printed to the console.
-            utils::print_davidson_iteration(i, roots_cvd, n_roots - roots_cvd, dim_sub, error, max_error);
+            utils::print_davidson_iteration(
+                i,
+                roots_cvd,
+                n_roots - roots_cvd,
+                dim_sub,
+                error,
+                max_error,
+            );
 
             // 5.  If the eigenvalues are not yet converged, the subspace basis is updated.
             // 5.1 Correction vectors are added to the current subspace basis, if the new

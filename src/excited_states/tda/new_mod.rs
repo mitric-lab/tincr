@@ -1,4 +1,5 @@
 use crate::constants::HARTREE_TO_EV;
+use crate::excited_states::ExcitedState;
 use nalgebra::Vector3;
 use ndarray::prelude::*;
 use ndarray_npy::{write_npy, WriteNpyError};
@@ -16,8 +17,35 @@ pub struct TdaStates {
     pub f: Array1<f64>,
     /// Transition Dipole moments.
     pub tr_dip: Array2<f64>,
+    /// View on the MO coefficients.
+    pub orbs: Array2<f64>,
 }
 
+impl ExcitedState for TdaStates {
+    fn get_lumo(&self) -> usize {
+        self.tdm.dim().1
+    }
+
+    fn get_mo_coefficients(&self) -> ArrayView2<f64> {
+        self.orbs.view()
+    }
+
+    fn get_transition_density_matrix(&self, state: usize) -> ArrayView2<f64> {
+        self.tdm.slice(s![.., .., state])
+    }
+
+    fn get_energies(&self) -> ArrayView1<f64> {
+        self.energies.view()
+    }
+
+    fn get_oscillator_strengths(&self) -> ArrayView1<f64> {
+        self.f.view()
+    }
+
+    fn get_num_states(&self) -> usize {
+        self.f.len()
+    }
+}
 
 impl Display for TdaStates {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -33,7 +61,6 @@ impl Display for TdaStates {
 
         // Iterate over all excited states.
         for n in 0..self.energies.len() {
-
             // Absolute energy of the current excited state.
             let abs_energy: f64 = self.total_energy + self.energies[n];
 

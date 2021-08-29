@@ -21,6 +21,7 @@ use chemfiles::Frame;
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::scc::gamma_approximation::gamma_atomwise;
+use crate::excited_states::ExcitedState;
 
 use crate::utils::Timer;
 use ndarray::{Array2, Array1};
