@@ -63,7 +63,7 @@ fn main() {
         )
         .get_matches();
 
-    let log_level: LevelFilter = match -1 {
+    let log_level: LevelFilter = match 0 {
         2 => LevelFilter::Trace,
         1 => LevelFilter::Debug,
         0 => LevelFilter::Info,
@@ -111,7 +111,7 @@ fn main() {
     system.prepare_scc();
     system.run_scc();
 
-    system.test_orbital_energy_derivative();
+    // system.test_orbital_energy_derivative();
     // system.test_tda_lc_gradient();
 
     info!("{}", timer);
