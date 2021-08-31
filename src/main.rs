@@ -48,7 +48,7 @@ extern crate clap;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(8)
         .build_global()
         .unwrap();
 
@@ -110,6 +110,7 @@ fn main() {
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
+    system.ground_state_gradient();
 
     // system.test_orbital_energy_derivative();
     // system.test_tda_lc_gradient();

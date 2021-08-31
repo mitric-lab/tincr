@@ -157,6 +157,7 @@ impl Pair {
                     lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), p0, p);
                 h = h + h_x;
             }
+            let mut h_save:Array2<f64> = h.clone();
 
             // H' = X^t.H.X
             h = x.t().dot(&h).dot(&x);
@@ -207,6 +208,7 @@ impl Pair {
                 self.properties.set_p(p);
                 self.properties.set_orbs(orbs);
                 self.properties.set_orbe(orbe);
+                self.properties.set_h_coul_x(h_save);
                 break 'scf_loop;
             }
         }

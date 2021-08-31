@@ -7,7 +7,6 @@ use ndarray::prelude::*;
 use std::iter::FromIterator;
 use std::ops::AddAssign;
 use log::info;
-
 mod embedding;
 mod monomer;
 mod pair;
@@ -16,11 +15,11 @@ mod es_dimer;
 mod response;
 mod excited_state;
 // mod numerical;
-
 pub use monomer::*;
 pub use pair::*;
 use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::gradients::embedding::diag_of_last_dimensions;
+use rayon::prelude::*;
 
 pub trait GroundStateGradient {
     fn get_grad_dq(&self, atoms: &[Atom], s: ArrayView2<f64>, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;
@@ -78,14 +77,13 @@ impl SuperSystem {
         // The derivative of the charge differences is initialized as an array with zeros.
         let mut grad_dq: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
 
-        // PARALLEL or this could also be done at once instead of getting the diag in the loop. However
-        // the disadvantage would be that we need to create the 3D Array and store it temporarily.
-        // The derivative is collected from the monomers and only the diagonal elements are used.
-        for mol in self.monomers.iter_mut() {
-            gradient
-                .slice_mut(s![mol.slice.grad])
-                .assign(&mol.scc_gradient(&atoms[mol.slice.atom_as_range()]));
+        // Parallelization
+        let mut gradient_vec:Vec<Array1<f64>> = self.monomers.par_iter_mut().map(|mol|{
+            let arr:Array1<f64> = mol.scc_gradient(&atoms[mol.slice.atom_as_range()]);
+            arr
+        }).collect();
 
+        for (mol,vector) in self.monomers.iter().zip(gradient_vec.iter()){
             let mol_grad_dq: ArrayView3<f64> = mol
                 .properties
                 .grad_dq()
@@ -96,7 +94,30 @@ impl SuperSystem {
             grad_dq
                 .slice_mut(s![mol.slice.grad])
                 .assign(&diag_of_last_dimensions(mol_grad_dq));
+
+            gradient
+                .slice_mut(s![mol.slice.grad]).assign(&vector);
         }
+
+        // PARALLEL or this could also be done at once instead of getting the diag in the loop. However
+        // the disadvantage would be that we need to create the 3D Array and store it temporarily.
+        // The derivative is collected from the monomers and only the diagonal elements are used.
+        // for mol in self.monomers.iter_mut() {
+        //     gradient
+        //         .slice_mut(s![mol.slice.grad])
+        //         .assign(&mol.scc_gradient(&atoms[mol.slice.atom_as_range()]));
+        //
+        //     let mol_grad_dq: ArrayView3<f64> = mol
+        //         .properties
+        //         .grad_dq()
+        //         .unwrap()
+        //         .into_shape([3, mol.n_atoms, mol.n_atoms])
+        //         .unwrap();
+        //
+        //     grad_dq
+        //         .slice_mut(s![mol.slice.grad])
+        //         .assign(&diag_of_last_dimensions(mol_grad_dq));
+        // }
         self.properties.set_grad_dq_diag(grad_dq);
 
         return gradient;
@@ -105,15 +126,24 @@ impl SuperSystem {
     fn pair_gradients(&mut self, monomer_gradient: ArrayView1<f64>) -> Array1<f64> {
         let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
         let atoms: &[Atom] = &self.atoms[..];
-        for pair in self.pairs.iter_mut() {
-            // get references to the corresponding monomers
-            let m_i: &Monomer = &self.monomers[pair.i];
-            let m_j: &Monomer = &self.monomers[pair.j];
+        let monomers:&Vec<Monomer> = &self.monomers;
 
+        // Parallelization
+        let gradient_vec:Vec<Array1<f64>> = self.pairs.par_iter_mut().map(|pair|{
+            // get references to the corresponding monomers
+            let m_i: &Monomer = &monomers[pair.i];
+            let m_j: &Monomer = &monomers[pair.j];
 
             let pair_atoms: Vec<Atom> = get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
             // compute the gradient of the pair
-            let pair_grad: Array1<f64> = pair.scc_gradient(&pair_atoms[..]);
+            pair.scc_gradient(&pair_atoms[..])
+        }).collect();
+
+        for (pair,pair_grad) in self.pairs.iter().zip(gradient_vec.iter()) {
+            // get references to the corresponding monomers
+            let m_i: &Monomer = &monomers[pair.i];
+            let m_j: &Monomer = &monomers[pair.j];
+
             // subtract the monomer contributions and assemble it into the gradient
             gradient.slice_mut(s![m_i.slice.grad]).add_assign(
                 &(&pair_grad.slice(s![0..(3*m_i.n_atoms)]) - &monomer_gradient.slice(s![m_i.slice.grad])),
@@ -122,6 +152,24 @@ impl SuperSystem {
                 &(&pair_grad.slice(s![(3*m_i.n_atoms)..]) - &monomer_gradient.slice(s![m_j.slice.grad])),
             );
         }
+
+        // for pair in self.pairs.iter_mut() {
+        //     // get references to the corresponding monomers
+        //     let m_i: &Monomer = &self.monomers[pair.i];
+        //     let m_j: &Monomer = &self.monomers[pair.j];
+        //
+        //
+        //     let pair_atoms: Vec<Atom> = get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
+        //     // compute the gradient of the pair
+        //     let pair_grad: Array1<f64> = pair.scc_gradient(&pair_atoms[..]);
+        //     // subtract the monomer contributions and assemble it into the gradient
+        //     gradient.slice_mut(s![m_i.slice.grad]).add_assign(
+        //         &(&pair_grad.slice(s![0..(3*m_i.n_atoms)]) - &monomer_gradient.slice(s![m_i.slice.grad])),
+        //     );
+        //     gradient.slice_mut(s![m_j.slice.grad]).add_assign(
+        //         &(&pair_grad.slice(s![(3*m_i.n_atoms)..]) - &monomer_gradient.slice(s![m_j.slice.grad])),
+        //     );
+        // }
         return gradient;
     }
 
