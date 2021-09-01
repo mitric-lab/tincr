@@ -33,15 +33,14 @@ use crate::excited_states::tda::TDA;
 mod constants;
 mod defaults;
 mod io;
-//mod optimization;
 mod initialization;
 mod scc;
 mod utils;
 mod fmo;
-//mod gradients;
+mod gradients;
 mod param;
 mod excited_states;
-mod gradients;
+mod optimization;
 
 #[macro_use]
 extern crate clap;
@@ -63,7 +62,7 @@ fn main() {
         )
         .get_matches();
 
-    let log_level: LevelFilter = match 0 {
+    let log_level: LevelFilter = match -1 {
         2 => LevelFilter::Trace,
         1 => LevelFilter::Debug,
         0 => LevelFilter::Info,
@@ -106,11 +105,12 @@ fn main() {
     //let virts: Vec<usize> = vec![4, 5, 6, 7, 8];
     //let occs: Vec<usize> = vec![0, 1, 2, 3];
     //println!("ENERGIES {:10.6}", orbe_differences(occs.view(), virts.view()));
-    let mut system = SuperSystem::from((frame, config));
+    let mut system = System::from((frame, config));
     //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
-    system.ground_state_gradient();
+    system.optimize_cartesian(Some(0));
+    // system.ground_state_gradient();
 
     // system.test_orbital_energy_derivative();
     // system.test_tda_lc_gradient();

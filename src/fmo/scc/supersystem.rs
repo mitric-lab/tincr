@@ -115,45 +115,10 @@ impl SuperSystem {
 
         let atoms: &[Atom] = &self.atoms[..];
         // SCC iteration for each pair that is treated exact
-        // for pair in self.pairs.iter_mut() {
-        //     // Get references to the corresponding monomers
-        //     let m_i: &Monomer = &self.monomers[pair.i];
-        //     let m_j: &Monomer = &self.monomers[pair.j];
-        //
-        //     // The atoms are in general a non-contiguous range of the atoms
-        //     let pair_atoms: Vec<Atom> =
-        //         get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
-        //     pair.prepare_scc(&pair_atoms[..], m_i, m_j);
-        //
-        //     // do the SCC iterations
-        //     pair.run_scc(&*pair_atoms, self.config.scf);
-        //
-        //     // and compute the SCC energy
-        //     pair_energies += pair.properties.last_energy().unwrap()
-        //         - m_i.properties.last_energy().unwrap()
-        //         - m_j.properties.last_energy().unwrap();
-        //
-        //     // Difference between density matrix of the pair and the density matrix of the
-        //     // corresponding monomers
-        //     let p: ArrayView2<f64> = pair.properties.p().unwrap();
-        //     let mut delta_p: Array2<f64> = p.to_owned();
-        //     delta_p
-        //         .slice_mut(s![0..m_i.n_orbs, 0..m_i.n_orbs])
-        //         .sub_assign(&m_i.properties.p().unwrap());
-        //     delta_p
-        //         .slice_mut(s![m_i.n_orbs.., m_i.n_orbs..])
-        //         .sub_assign(&m_j.properties.p().unwrap());
-        //     pair.properties.set_delta_p(delta_p);
-        // }
-        // return pair_energies;
-
-        // Parallelization
-        let monomers:&Vec<Monomer> = &self.monomers;
-        let scf_config = &self.config.scf;
-        let pair_energy:Vec<f64> = self.pairs.par_iter_mut().map(|pair| {
+        for pair in self.pairs.iter_mut() {
             // Get references to the corresponding monomers
-            let m_i: &Monomer = &monomers[pair.i];
-            let m_j: &Monomer = &monomers[pair.j];
+            let m_i: &Monomer = &self.monomers[pair.i];
+            let m_j: &Monomer = &self.monomers[pair.j];
 
             // The atoms are in general a non-contiguous range of the atoms
             let pair_atoms: Vec<Atom> =
@@ -161,10 +126,10 @@ impl SuperSystem {
             pair.prepare_scc(&pair_atoms[..], m_i, m_j);
 
             // do the SCC iterations
-            pair.run_scc(&*pair_atoms, *scf_config);
+            pair.run_scc(&*pair_atoms, self.config.scf);
 
             // and compute the SCC energy
-            let pair_energ:f64 = pair.properties.last_energy().unwrap()
+            pair_energies += pair.properties.last_energy().unwrap()
                 - m_i.properties.last_energy().unwrap()
                 - m_j.properties.last_energy().unwrap();
 
@@ -179,12 +144,47 @@ impl SuperSystem {
                 .slice_mut(s![m_i.n_orbs.., m_i.n_orbs..])
                 .sub_assign(&m_j.properties.p().unwrap());
             pair.properties.set_delta_p(delta_p);
+        }
+        return pair_energies;
 
-            pair_energ
-        }).collect();
-        let pair_energy:Array1<f64> = Array::from(pair_energy);
-
-        return pair_energy.sum();
+        // // Parallelization
+        // let monomers:&Vec<Monomer> = &self.monomers;
+        // let scf_config = &self.config.scf;
+        // let pair_energy:Vec<f64> = self.pairs.par_iter_mut().map(|pair| {
+        //     // Get references to the corresponding monomers
+        //     let m_i: &Monomer = &monomers[pair.i];
+        //     let m_j: &Monomer = &monomers[pair.j];
+        //
+        //     // The atoms are in general a non-contiguous range of the atoms
+        //     let pair_atoms: Vec<Atom> =
+        //         get_pair_slice(&atoms, m_i.slice.atom_as_range(), m_j.slice.atom_as_range());
+        //     pair.prepare_scc(&pair_atoms[..], m_i, m_j);
+        //
+        //     // do the SCC iterations
+        //     pair.run_scc(&*pair_atoms, *scf_config);
+        //
+        //     // and compute the SCC energy
+        //     let pair_energ:f64 = pair.properties.last_energy().unwrap()
+        //         - m_i.properties.last_energy().unwrap()
+        //         - m_j.properties.last_energy().unwrap();
+        //
+        //     // Difference between density matrix of the pair and the density matrix of the
+        //     // corresponding monomers
+        //     let p: ArrayView2<f64> = pair.properties.p().unwrap();
+        //     let mut delta_p: Array2<f64> = p.to_owned();
+        //     delta_p
+        //         .slice_mut(s![0..m_i.n_orbs, 0..m_i.n_orbs])
+        //         .sub_assign(&m_i.properties.p().unwrap());
+        //     delta_p
+        //         .slice_mut(s![m_i.n_orbs.., m_i.n_orbs..])
+        //         .sub_assign(&m_j.properties.p().unwrap());
+        //     pair.properties.set_delta_p(delta_p);
+        //
+        //     pair_energ
+        // }).collect();
+        // let pair_energy:Array1<f64> = Array::from(pair_energy);
+        //
+        // return pair_energy.sum();
     }
 
     pub fn embedding_energy(&self) -> f64 {
@@ -192,36 +192,7 @@ impl SuperSystem {
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
         // The embedding energy is initialized to zero.
         let mut embedding: f64 = 0.0;
-        // for pair in self.pairs.iter() {
-        //     // Reference to Monomer I.
-        //     let m_i: &Monomer = &self.monomers[pair.i];
-        //     // Reference to Monomer J.
-        //     let m_j: &Monomer = &self.monomers[pair.j];
-        //     // Reference to the charge differences of Monomer I.
-        //     let dq_i: ArrayView1<f64> = m_i.properties.dq().unwrap();
-        //     // Reference to the charge differences of Monomer J.
-        //     let dq_j: ArrayView1<f64> = m_j.properties.dq().unwrap();
-        //     // Electrostatic potential that acts on I without the self interaction with I.
-        //     let esp_q_i: ArrayView1<f64> = m_i.properties.esp_q().unwrap();
-        //     // ESP that acts on J without self-interaction.
-        //     let esp_q_j: ArrayView1<f64> = m_j.properties.esp_q().unwrap();
-        //     // Difference between the charge differences of the pair and the corresp. monomers
-        //     let ddq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
-        //     // The interaction with the other Monomer in the pair is subtracted.
-        //     let esp_q_i: Array1<f64> =
-        //         &esp_q_i - &gamma.slice(s![m_i.slice.atom, m_j.slice.atom]).dot(&dq_j);
-        //     let esp_q_j: Array1<f64> =
-        //         &esp_q_j - &gamma.slice(s![m_j.slice.atom, m_i.slice.atom]).dot(&dq_i);
-        //     // The embedding energy for Monomer I in the pair is computed.
-        //     embedding += esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
-        //     // The embedding energy for Monomer J in the pair is computed.
-        //     embedding += esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
-        // }
-        //
-        // return embedding;
-
-        // Parallelization
-        let embedding_energies:Vec<f64> = self.pairs.par_iter().map(|pair| {
+        for pair in self.pairs.iter() {
             // Reference to Monomer I.
             let m_i: &Monomer = &self.monomers[pair.i];
             // Reference to Monomer J.
@@ -242,41 +213,51 @@ impl SuperSystem {
             let esp_q_j: Array1<f64> =
                 &esp_q_j - &gamma.slice(s![m_j.slice.atom, m_i.slice.atom]).dot(&dq_i);
             // The embedding energy for Monomer I in the pair is computed.
-            let mut embedd:f64 = esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
+            embedding += esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
             // The embedding energy for Monomer J in the pair is computed.
-            embedd += esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
-            embedd
-        }).collect();
-        let embedding_energies:Array1<f64> = Array::from(embedding_energies);
+            embedding += esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
+        }
 
-        return embedding_energies.sum();
+        return embedding;
+
+        // // Parallelization
+        // let embedding_energies:Vec<f64> = self.pairs.par_iter().map(|pair| {
+        //     // Reference to Monomer I.
+        //     let m_i: &Monomer = &self.monomers[pair.i];
+        //     // Reference to Monomer J.
+        //     let m_j: &Monomer = &self.monomers[pair.j];
+        //     // Reference to the charge differences of Monomer I.
+        //     let dq_i: ArrayView1<f64> = m_i.properties.dq().unwrap();
+        //     // Reference to the charge differences of Monomer J.
+        //     let dq_j: ArrayView1<f64> = m_j.properties.dq().unwrap();
+        //     // Electrostatic potential that acts on I without the self interaction with I.
+        //     let esp_q_i: ArrayView1<f64> = m_i.properties.esp_q().unwrap();
+        //     // ESP that acts on J without self-interaction.
+        //     let esp_q_j: ArrayView1<f64> = m_j.properties.esp_q().unwrap();
+        //     // Difference between the charge differences of the pair and the corresp. monomers
+        //     let ddq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
+        //     // The interaction with the other Monomer in the pair is subtracted.
+        //     let esp_q_i: Array1<f64> =
+        //         &esp_q_i - &gamma.slice(s![m_i.slice.atom, m_j.slice.atom]).dot(&dq_j);
+        //     let esp_q_j: Array1<f64> =
+        //         &esp_q_j - &gamma.slice(s![m_j.slice.atom, m_i.slice.atom]).dot(&dq_i);
+        //     // The embedding energy for Monomer I in the pair is computed.
+        //     let mut embedd:f64 = esp_q_i.dot(&ddq.slice(s![..m_i.n_atoms]));
+        //     // The embedding energy for Monomer J in the pair is computed.
+        //     embedd += esp_q_j.dot(&ddq.slice(s![m_i.n_atoms..]));
+        //     embedd
+        // }).collect();
+        // let embedding_energies:Array1<f64> = Array::from(embedding_energies);
+        //
+        // return embedding_energies.sum();
     }
 
     pub fn esd_pair_energy(&mut self) -> f64 {
         let mut esd_energy: f64 = 0.0;
-        // for esd_pair in self.esd_pairs.iter() {
-        //     let m_i: &Monomer = &self.monomers[esd_pair.i];
-        //     let m_j: &Monomer = &self.monomers[esd_pair.j];
-        //     esd_energy += m_i
-        //         .properties
-        //         .dq()
-        //         .unwrap()
-        //         .dot(
-        //             &self
-        //                 .properties
-        //                 .gamma()
-        //                 .unwrap()
-        //                 .slice(s![m_i.slice.atom, m_j.slice.atom]),
-        //         )
-        //         .dot(&m_j.properties.dq().unwrap());
-        // }
-        // return esd_energy;
-
-        // Parallelization
-        let esd_energies:Vec<f64> = self.esd_pairs.par_iter().map(|esd_pair| {
+        for esd_pair in self.esd_pairs.iter() {
             let m_i: &Monomer = &self.monomers[esd_pair.i];
             let m_j: &Monomer = &self.monomers[esd_pair.j];
-            let esd_energy:f64 = m_i
+            esd_energy += m_i
                 .properties
                 .dq()
                 .unwrap()
@@ -288,10 +269,29 @@ impl SuperSystem {
                         .slice(s![m_i.slice.atom, m_j.slice.atom]),
                 )
                 .dot(&m_j.properties.dq().unwrap());
-            esd_energy
-        }).collect();
-        let esd_energies:Array1<f64> = Array::from(esd_energies);
+        }
+        return esd_energy;
 
-        return esd_energies.sum();
+        // Parallelization
+        // let esd_energies:Vec<f64> = self.esd_pairs.par_iter().map(|esd_pair| {
+        //     let m_i: &Monomer = &self.monomers[esd_pair.i];
+        //     let m_j: &Monomer = &self.monomers[esd_pair.j];
+        //     let esd_energy:f64 = m_i
+        //         .properties
+        //         .dq()
+        //         .unwrap()
+        //         .dot(
+        //             &self
+        //                 .properties
+        //                 .gamma()
+        //                 .unwrap()
+        //                 .slice(s![m_i.slice.atom, m_j.slice.atom]),
+        //         )
+        //         .dot(&m_j.properties.dq().unwrap());
+        //     esd_energy
+        // }).collect();
+        // let esd_energies:Array1<f64> = Array::from(esd_energies);
+        //
+        // return esd_energies.sum();
     }
 }

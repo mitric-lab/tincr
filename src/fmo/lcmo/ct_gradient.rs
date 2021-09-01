@@ -216,10 +216,10 @@ impl Monomer {
             grad_h = grad_h - 0.5 * &flr_dmd0;
         }
 
-        // esp atomwise
-        let esp_atomwise:Array1<f64> = 0.5*g0.dot(&self.properties.dq().unwrap());
-        // get Omega_AB
-        let omega_ab:Array2<f64> = atomwise_to_aowise(esp_atomwise.view(),self.n_orbs,atoms);
+        // // esp atomwise
+        // let esp_atomwise:Array1<f64> = 0.5*g0.dot(&self.properties.dq().unwrap());
+        // // get Omega_AB
+        // let omega_ab:Array2<f64> = atomwise_to_aowise(esp_atomwise.view(),self.n_orbs,atoms);
 
         // get MO coefficient for the occupied or virtual orbital
         let mut c_mo: Array1<f64> = Array1::zeros(self.n_orbs);
