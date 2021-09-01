@@ -11,6 +11,7 @@ use crate::fmo::{Fragment, Monomer};
 use crate::initialization::{Atom, System};
 use moments::{mulliken_dipoles, oscillator_strength};
 use ndarray::prelude::*;
+use ndarray_npy::write_npy;
 
 impl Monomer {
     pub fn run_tda(&mut self, atoms: &[Atom], n_roots: usize, max_iter: usize, tolerance: f64) {
@@ -93,12 +94,34 @@ impl System {
         // The oscillator strengths are computed.
         let f: Array1<f64> = oscillator_strength(davidson.eigenvalues.view(), tr_dipoles.view());
 
+        let n_occ: usize = self.properties.occ_indices().unwrap().len();
+        let n_virt: usize = self.properties.virt_indices().unwrap().len();
+        let tdm: Array3<f64> = davidson
+            .eigenvectors
+            .clone()
+            .into_shape([n_occ, n_virt, f.len()])
+            .unwrap();
+
+        let states: TdaStates = TdaStates {
+            total_energy: self.properties.last_energy().unwrap(),
+            energies: davidson.eigenvalues.clone(),
+            tdm: tdm,
+            f: f.clone(),
+            tr_dip: tr_dipoles.clone(),
+            orbs: self.properties.orbs().unwrap().to_owned(),
+        };
+
+
+        write_npy("/Users/hochej/Downloads/full_energies.npy", &davidson.eigenvalues.view());
+
         // The eigenvalues are the excitation energies and the eigenvectors are the CI coefficients.
         self.properties.set_ci_eigenvalues(davidson.eigenvalues);
         self.properties.set_ci_coefficients(davidson.eigenvectors);
         self.properties.set_q_trans(q_trans);
         self.properties.set_tr_dipoles(tr_dipoles);
         self.properties.set_oscillator_strengths(f);
+
+        println!("{}", states);
 
         //print_states(&self, n_roots);
     }

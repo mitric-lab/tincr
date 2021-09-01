@@ -171,7 +171,7 @@ impl Davidson {
             //     collapsed.
             else {
                 // The dimension of the subspace is reset to the initial value.
-                dim_sub = dim_sub_origin - roots_cvd;
+                dim_sub = dim_sub_origin;
                 guess = ritz.slice(s![.., 0..dim_sub]).to_owned();
             }
         }

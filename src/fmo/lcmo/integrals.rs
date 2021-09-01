@@ -317,7 +317,8 @@ impl SuperSystem {
             }
             (PairType::ESD, PairType::ESD) => 0.0,
             (p1, p2) => {
-                panic!("{} {} {} {} {} {} This is not possible", p1, p2, i.idx, j.idx, k.idx, l.idx)
+                0.0
+                //panic!("{} {} {} {} {} {} This is not possible", p1, p2, i.idx, j.idx, k.idx, l.idx)
             }
         };
 

@@ -9,10 +9,13 @@ use ndarray::prelude::*;
 use ndarray_npy::{write_npy, WriteNpyError};
 use crate::constants::HARTREE_TO_EV;
 use std::fmt::{Display, Formatter};
-use nalgebra::Vector3;
+use nalgebra::{Vector3};
 use crate::utils::array_helper::argsort_abs;
 use num_traits::Zero;
 use crate::excited_states::ExcitedState;
+use ndarray::Data;
+use ndarray_linalg::{Lapack, Scalar};
+use std::ops::AddAssign;
 
 
 /// Structure that contains all necessary information to specify the excited states in
@@ -30,21 +33,53 @@ pub struct ExcitonStates<'a> {
     pub f: Array1<f64>,
     /// Transition Dipole moments.
     pub tr_dip: Vec<Vector3<f64>>,
+    /// The concatenated MO coefficients of the monomers
+    pub orbs: Array2<f64>,
+    /// (# occupied orbitals, # virtual orbitals)
+    pub dim: (usize, usize),
 }
 
 
 impl ExcitedState for ExcitonStates<'_> {
     fn get_lumo(&self) -> usize {
-        todo!()
+        self.dim.0
     }
 
     fn get_mo_coefficients(&self) -> ArrayView2<f64> {
-        todo!()
+        self.orbs.view()
     }
 
-    fn get_transition_density_matrix(&self, state: usize) -> ArrayView2<f64> {
-        todo!()
+    fn get_transition_density_matrix(&self, state: usize) -> Array2<f64> {
+        // Initialization of the transition density matrix.
+        let mut tdm: Array2<f64> = Array2::zeros(self.dim);
+        let threshold = 1e-4;
+        for (state, c) in self.basis.iter().zip(self.coefficients.column(state).iter()) {
+            if c.abs() > threshold {
+                match state {
+                    BasisState::LE(state) => {
+                        // TDM of monomer * c
+                        let occs = state.monomer.slice.occ_orb;
+                        let virts = state.monomer.slice.virt_orb;
+                        let n_occ: usize = state.monomer.properties.n_occ().unwrap();
+                        let n_virt: usize = state.monomer.properties.n_virt().unwrap();
+                        tdm.slice_mut(s![occs, virts]).add_assign(&(*c * &state.tdm.into_shape((n_occ, n_virt)).unwrap()));
+                    },
+                    BasisState::CT(state) => {
+                        // Monomer indices
+                        let h_mo: usize = state.hole.mo.idx;
+                        let e_mo: usize = state.electron.mo.idx - state.electron.monomer.properties.n_occ().unwrap();
+                        let hole_slice = state.hole.monomer.slice.occ_orb;
+                        let particle_slice = state.electron.monomer.slice.virt_orb;
+                        tdm.slice_mut(s![hole_slice, particle_slice])[[h_mo, e_mo]] += *c;
+                    },
+                }
+            }
+
+        }
+
+        tdm
     }
+
 
     fn get_energies(&self) -> ArrayView1<f64> {
         self.energies.view()
@@ -62,14 +97,15 @@ impl ExcitedState for ExcitonStates<'_> {
 impl<'a> ExcitonStates<'a> {
 
     /// Create a type that contains all necessary information about all LCMO exciton states.
-    pub fn new(e_tot: f64, energies: Array1<f64>, coeffs: Array2<f64>, basis: Vec<BasisState<'a>>) -> Self {
+    pub fn new(e_tot: f64, eig: (Array1<f64>, Array2<f64>), basis: Vec<BasisState<'a>>, dim: (usize, usize),
+    orbs: Array2<f64>) -> Self {
 
         // The transition dipole moments and oscillator strengths need to be computed.
-        let mut f: Array1<f64> = Array1::zeros([energies.len()]);
-        let mut transition_dipoles: Vec<Vector3<f64>> = Vec::with_capacity(energies.len());
+        let mut f: Array1<f64> = Array1::zeros([eig.0.len()]);
+        let mut transition_dipoles: Vec<Vector3<f64>> = Vec::with_capacity(eig.0.len());
 
         // Iterate over all exciton states.
-        for (mut fi, (e, vs)) in f.iter_mut().zip(energies.iter().zip(coeffs.axis_iter(Axis(0)))) {
+        for (mut fi, (e, vs)) in f.iter_mut().zip(eig.0.iter().zip(eig.1.axis_iter(Axis(0)))) {
 
             // Initialize the transition dipole moment for the current state.
             let mut tr_dip: Vector3<f64> = Vector3::zero();
@@ -87,13 +123,17 @@ impl<'a> ExcitonStates<'a> {
             transition_dipoles.push(tr_dip);
         }
 
+
+
         Self{
             total_energy: e_tot,
-            energies,
-            coefficients: coeffs,
+            energies: eig.0,
+            coefficients: eig.1,
             basis,
             f,
-            tr_dip: transition_dipoles
+            tr_dip: transition_dipoles,
+            orbs: orbs,
+            dim: dim,
         }
 
     }
@@ -125,7 +165,7 @@ impl Display for ExcitonStates<'_> {
             let tr_dip: Vector3<f64> = self.tr_dip[n];
 
             txt += &format!("Excited state {: >5}: Excitation energy = {:>8.6} eV\n", n + 1, rel_energy_ev);
-            txt += &format!("Total energy for state {: >5}: {:22.12} Hartree\n", n, abs_energy);
+            txt += &format!("Total energy for state {: >5}: {:22.12} Hartree\n", n + 1, abs_energy);
             txt += &format!("  Multiplicity: Singlet\n");
             txt += &format!("  Trans. Mom. (a.u.): {:10.6} X  {:10.6} Y  {:10.6} Z\n",
                             tr_dip.x, tr_dip.y, tr_dip.z);

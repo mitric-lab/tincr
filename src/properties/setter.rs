@@ -30,6 +30,16 @@ impl Properties {
         self.set("lumo_index", Property::Usize(idx))
     }
 
+    /// Set the number of occupied orbitals.
+    pub fn set_n_occ(&mut self, idx: usize) {
+        self.set("n_occ", Property::Usize(idx))
+    }
+
+    /// Set the number of unoccupied orbitals.
+    pub fn set_n_virt(&mut self, idx: usize) {
+        self.set("n_virt", Property::Usize(idx))
+    }
+
     /// Set the energy of the last scc iteration
     pub fn set_last_energy(&mut self, energy: f64) {
         self.set("last_energy", Property::Double(energy))

@@ -1,5 +1,5 @@
 use crate::fmo::fragmentation::{build_graph, fragmentation, Graph};
-use crate::fmo::helpers::MolecularSlice;
+use crate::fmo::helpers::{MolecularSlice, MolIndices, MolIncrements};
 use crate::fmo::{get_pair_type, ESDPair, Monomer, Pair, PairType};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::properties::Properties;
@@ -105,8 +105,8 @@ impl From<(Frame, Configuration)> for SuperSystem {
 
         // The [Monomer]s are initialized
         // PARALLEL: this loop should be parallelized
-        let mut at_counter: usize = 0;
-        let mut orb_counter: usize = 0;
+        let mut mol_indices: MolIndices = MolIndices::new();
+
         for (idx, indices) in monomer_indices.into_iter().enumerate() {
             // Clone the atoms that belong to this monomer, they will be stored in the sorted list
             let mut monomer_atoms: Vec<Atom> =
@@ -115,9 +115,29 @@ impl From<(Frame, Configuration)> for SuperSystem {
             // Count the number of orbitals
             let m_n_orbs: usize = monomer_atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
 
+            // Count the number of electrons.
+            let n_elec: usize = monomer_atoms.iter().map(|atom| atom.n_elec).sum();
+
+            // Number of occupied orbitals.
+            let n_occ: usize = (n_elec / 2);
+
+            // Number of virtual orbitals.
+            let n_virt: usize = m_n_orbs - n_occ;
+
+            let mut props: Properties = Properties::new();
+            props.set_n_occ(n_occ);
+            props.set_n_virt(n_virt);
+
+            let increments: MolIncrements = MolIncrements {
+                atom: monomer_atoms.len(),
+                orbs: m_n_orbs,
+                occs: n_occ,
+                virts: n_virt,
+            };
+
             // Create the slices for the atoms, grads and orbitals
             let m_slice: MolecularSlice =
-                MolecularSlice::new(at_counter, monomer_atoms.len(), orb_counter, m_n_orbs);
+                MolecularSlice::new(mol_indices.clone(), increments);
 
             // Create the Monomer object
             let mut current_monomer = Monomer {
@@ -125,7 +145,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
                 n_orbs: m_n_orbs,
                 index: idx,
                 slice: m_slice,
-                properties: Properties::new(),
+                properties: props,
                 vrep: vrep.clone(),
                 slako: slako.clone(),
                 gammafunction: gf.clone(),
@@ -133,11 +153,10 @@ impl From<(Frame, Configuration)> for SuperSystem {
             };
             // Compute the number of electrons for the monomer and set the indices of the
             // occupied and virtual orbitals.
-            current_monomer.set_mo_indices(monomer_atoms.iter().map(|atom| atom.n_elec).sum());
+            current_monomer.set_mo_indices(n_elec);
 
-            // Increment the counter.
-            at_counter += current_monomer.n_atoms;
-            orb_counter += current_monomer.n_orbs;
+            // Increment the indices..
+            mol_indices.add(increments);
 
             // Save the current Monomer.
             monomers.push(current_monomer);
@@ -150,7 +169,10 @@ impl From<(Frame, Configuration)> for SuperSystem {
 
         // Calculate the number of atomic orbitals for the whole system as the sum of the monomer
         // number of orbitals
-        let n_orbs: usize = orb_counter;
+        let n_orbs: usize = mol_indices.orbs;
+        // Set the number of occupied and virtual orbitals.
+        properties.set_n_occ(mol_indices.occs);
+        properties.set_n_virt(mol_indices.virts);
 
         // Compute the Gamma function between all atoms if it is requested in the user input
         // TODO: Insert a input option for this choice

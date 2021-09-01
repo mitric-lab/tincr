@@ -4,7 +4,6 @@ use crate::initialization::Atom;
 use crate::io::MoldenExporter;
 use ndarray::prelude::*;
 use ndarray_npy::{write_npy, WriteNpyError};
-use peroxide::util::writer::ToWriter::Path;
 pub use solvers::*;
 use std::fs::File;
 use std::io::Write;
@@ -19,6 +18,8 @@ pub(crate) mod tda;
 mod transition_charges;
 mod utils;
 use crate::MoldenExporterBuilder;
+use ndarray::Data;
+use ndarray_linalg::{Scalar, Lapack};
 
 /// General trait for all excited states struct, to implement basis functions.
 pub trait ExcitedState {
@@ -30,7 +31,7 @@ pub trait ExcitedState {
 
     /// Returns the reduced one particle transition density matrix in MO basis for a specific
     /// excited states. 0 => S1, 1 => S2, ...
-    fn get_transition_density_matrix(&self, state: usize) -> ArrayView2<f64>;
+    fn get_transition_density_matrix(&self, state: usize) -> Array2<f64>;
 
     /// Returns the relative excitation energy of all excited states.
     fn get_energies(&self) -> ArrayView1<f64>;
@@ -84,7 +85,7 @@ pub trait ExcitedState {
     fn ntos_to_molden(&self, atoms: &[Atom], state: usize, filename: &str) {
         // Get NTOs.
         let (lambdas, ntos): (Array1<f64>, Array2<f64>) = natural_transition_orbitals(
-            self.get_transition_density_matrix(state),
+            self.get_transition_density_matrix(state).view(),
             self.get_mo_coefficients(),
             self.get_lumo(),
         );

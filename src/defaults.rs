@@ -71,3 +71,7 @@ pub const GEOM_OPT_TOL_ENERGY: f64 = 0.0;
 // Directory of the mio parameters
 pub const MIO_DIR:&str = " ";
 pub const USE_MIO:bool = false;
+
+pub const NUM_LE_STATES: usize = 2;
+pub const NUM_HOLES: usize = 1;
+pub const NUM_PARTICLES: usize = 1;

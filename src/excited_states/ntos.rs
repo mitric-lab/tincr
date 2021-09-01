@@ -54,6 +54,7 @@ pub fn natural_transition_orbitals(
     let mut u: Array2<f64> = u.unwrap();
     u.invert_axis(Axis(1));
 
+
     // Singular values.
     let lambda: Array1<f64> = &sigma * &sigma;
     let mut lambda_rev: Array1<f64> = lambda.clone();

@@ -152,7 +152,9 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         let mut geom: Geometry = Geometry::from(molecule.1);
         geom.set_matrices();
         // Create a new and empty Properties type
-        let properties: Properties = Properties::new();
+        let mut properties: Properties = Properties::new();
+        properties.set_occ_indices(occ_indices.clone());
+        properties.set_virt_indices(virt_indices.clone());
         let mut slako: SlaterKoster = SlaterKoster::new();
         let mut vrep: RepulsivePotential = RepulsivePotential::new();
 

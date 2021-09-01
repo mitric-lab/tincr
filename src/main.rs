@@ -103,22 +103,27 @@ fn main() {
 
     // Computations.
     // ................................................................
+    if config.jobtype == "sp" {
+        let mut system = System::from((frame, config.clone()));
+        system.prepare_scc();
+        system.run_scc();
+        system.prepare_tda();
+        system.run_tda(config.excited.nstates, 50, 1e-4);
+    } else if config.jobtype == "fmo" {
+        let mut system = SuperSystem::from((frame, config.clone()));
+        //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
+        system.prepare_scc();
+        system.run_scc();
+        // let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
+        //     .atoms(&system.atoms)
+        //     .orbs(system.properties.orbs().unwrap())
+        //     .orbe(system.properties.orbe().unwrap())
+        //     .f(system.properties.occupation().unwrap().to_vec())
+        //     .build()
+        //     .unwrap();
 
-    let mut system = SuperSystem::from((frame, config));
-    //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
-    system.prepare_scc();
-    system.run_scc();
-    // let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
-    //     .atoms(&system.atoms)
-    //     .orbs(system.properties.orbs().unwrap())
-    //     .orbe(system.properties.orbe().unwrap())
-    //     .f(system.properties.occupation().unwrap().to_vec())
-    //     .build()
-    //     .unwrap();
-
-    let hamiltonian = system.create_exciton_hamiltonian();
-
-    let filename: String = "/Users/hochej/Downloads/test.npy".to_owned();
+        let hamiltonian = system.create_exciton_hamiltonian();
+    }
 
     // let path = Path::new("/Users/hochej/Downloads/test.molden");
     // molden_exp.write_to(path);

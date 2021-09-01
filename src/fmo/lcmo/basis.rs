@@ -6,6 +6,9 @@ use crate::excited_states::tda::*;
 use ndarray_linalg::{Eigh, UPLO};
 use std::fmt::{Display, Formatter};
 use crate::excited_states::ExcitedState;
+use ndarray::concatenate;
+use crate::io::settings::LcmoConfig;
+use ndarray_npy::write_npy;
 
 impl SuperSystem {
     /// The diabatic basis states are constructed, which will be used for the Exciton-Hamiltonian.
@@ -13,12 +16,13 @@ impl SuperSystem {
         // TODO: The first three numbers should be read from the input file.
         let max_iter: usize = 50;
         let tolerance: f64 = 1e-4;
+        let lcmo_config: LcmoConfig = self.config.lcmo.clone();
         // Number of LE states per monomer.
-        let n_le: usize = 4;
+        let n_le: usize = lcmo_config.n_le;
         // Number of occupied orbitals for construction of CT states.
-        let n_occ: usize = 1;
+        let n_occ: usize = lcmo_config.n_holes;
         // Number of virtual orbitals for construction of CT states.
-        let n_virt: usize = 1;
+        let n_virt: usize = lcmo_config.n_particles;
         // The total number of states is given by: Sum_I n_LE_I + Sum_I Sum_J nocc_I * nvirt_J
         let n_states: usize = n_le * self.n_mol + n_occ * n_virt * self.n_mol * self.n_mol;
         // Reference to the atoms of the total system.
@@ -129,7 +133,7 @@ impl SuperSystem {
         let max_iter: usize = 50;
         let tolerance: f64 = 1e-4;
         // Number of LE states per monomer.
-        let n_le: usize = 4;
+        let n_le: usize = self.config.lcmo.n_le;
         // Compute the n_le excited states for each monomer.
         for mol in self.monomers.iter_mut() {
             mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
@@ -154,13 +158,28 @@ impl SuperSystem {
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
         let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+        let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
+        let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();
+        let n_orbs: usize = n_occ + n_virt;
+        let mut occ_orbs: Array2<f64> = Array2::zeros([n_orbs, n_occ]);
+        let mut virt_orbs: Array2<f64> = Array2::zeros([n_orbs, n_virt]);
 
+        for mol in self.monomers.iter() {
+            let mol_orbs: ArrayView2<f64> = mol.properties.orbs().unwrap();
+            let lumo: usize = mol.properties.lumo().unwrap();
+            occ_orbs.slice_mut(s![mol.slice.orb, mol.slice.occ_orb]).assign(&mol_orbs.slice(s![.., ..lumo]));
+            virt_orbs.slice_mut(s![mol.slice.orb, mol.slice.virt_orb]).assign(&mol_orbs.slice(s![.., lumo..]));
+        }
 
+        let orbs: Array2<f64> = concatenate![Axis(1), occ_orbs, virt_orbs];
+        write_npy("/Users/hochej/Downloads/lcmo_energies.npy", &energies.view());
         let exciton = ExcitonStates::new(self.properties.last_energy().unwrap(),
-        energies, eigvectors, states.clone());
+                                         (energies, eigvectors), states.clone(),
+                                         (n_occ, n_virt), orbs);
 
-        exciton.spectrum_to_npy("/Users/hochej/Downloads/spec.npy");
-        exciton.spectrum_to_txt("/Users/hochej/Downloads/spec.txt");
+        exciton.spectrum_to_npy("/Users/hochej/Downloads/lcmo_spec.npy");
+        exciton.spectrum_to_txt("/Users/hochej/Downloads/lcmo_spec.txt");
+        exciton.ntos_to_molden(&self.atoms, 1, "/Users/hochej/Downloads/ntos_fmo.molden");
         println!("{}", exciton);
 
     }

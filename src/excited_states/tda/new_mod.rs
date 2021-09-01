@@ -4,6 +4,8 @@ use nalgebra::Vector3;
 use ndarray::prelude::*;
 use ndarray_npy::{write_npy, WriteNpyError};
 use std::fmt::{Display, Formatter};
+use ndarray::Data;
+use ndarray_linalg::{Scalar, Lapack};
 
 /// Structure that contains all necessary information
 pub struct TdaStates {
@@ -23,15 +25,15 @@ pub struct TdaStates {
 
 impl ExcitedState for TdaStates {
     fn get_lumo(&self) -> usize {
-        self.tdm.dim().1
+        self.tdm.dim().0
     }
 
     fn get_mo_coefficients(&self) -> ArrayView2<f64> {
         self.orbs.view()
     }
 
-    fn get_transition_density_matrix(&self, state: usize) -> ArrayView2<f64> {
-        self.tdm.slice(s![.., .., state])
+    fn get_transition_density_matrix(&self, state: usize) -> Array2<f64> {
+        self.tdm.slice(s![.., .., state]).to_owned()
     }
 
     fn get_energies(&self) -> ArrayView1<f64> {

@@ -24,6 +24,22 @@ impl Properties {
         }
     }
 
+    /// Returns the number of occupied orbitals.
+    pub fn n_occ(&self) -> Option<usize> {
+        match self.get("n_occ") {
+            Some(value) => Some(*value.as_usize().unwrap()),
+            _ => None,
+        }
+    }
+
+    /// Returns the number of unoccupied orbitals.
+    pub fn n_virt(&self) -> Option<usize> {
+        match self.get("n_virt") {
+            Some(value) => Some(*value.as_usize().unwrap()),
+            _ => None,
+        }
+    }
+
     /// Returns the CI coefficients (in MO basis) for a specific excited state.
     pub fn q_trans(&self) -> Option<ArrayView2<f64>> {
         match self.get("q_trans") {
