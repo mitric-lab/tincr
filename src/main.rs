@@ -47,7 +47,7 @@ extern crate clap;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
-        .num_threads(8)
+        .num_threads(1)
         .build_global()
         .unwrap();
 
@@ -62,7 +62,25 @@ fn main() {
         )
         .get_matches();
 
-    let log_level: LevelFilter = match -1 {
+    // read tincr configuration file, if it does not exist in the directory
+    // the program initializes the default settings and writes a configuration file
+    // to the directory
+    let config_file_path: &Path = Path::new(CONFIG_FILE_NAME);
+    let mut config_string: String = if config_file_path.exists() {
+        fs::read_to_string(config_file_path).expect("Unable to read config file")
+    } else {
+        String::from("")
+    };
+    // load the configuration
+    let config: Configuration = toml::from_str(&config_string).unwrap();
+    // save the configuration file if it does not exist already so that the user can see
+    // all the used options
+    if config_file_path.exists() == false {
+        config_string = toml::to_string(&config).unwrap();
+        fs::write(config_file_path, config_string).expect("Unable to write config file");
+    }
+
+    let log_level: LevelFilter = match config.verbose {
         2 => LevelFilter::Trace,
         1 => LevelFilter::Debug,
         0 => LevelFilter::Info,
@@ -83,39 +101,19 @@ fn main() {
     let geometry_file = matches.value_of("xyz-File").unwrap();
     let frame: Frame = read_file_to_frame(geometry_file);
 
-    // read tincr configuration file, if it does not exist in the directory
-    // the program initializes the default settings and writes a configuration file
-    // to the directory
-    let config_file_path: &Path = Path::new(CONFIG_FILE_NAME);
-    let mut config_string: String = if config_file_path.exists() {
-        fs::read_to_string(config_file_path).expect("Unable to read config file")
-    } else {
-        String::from("")
-    };
-    // load the configuration
-    let config: Configuration = toml::from_str(&config_string).unwrap();
-    // save the configuration file if it does not exist already so that the user can see
-    // all the used options
-    if config_file_path.exists() == false {
-        config_string = toml::to_string(&config).unwrap();
-        fs::write(config_file_path, config_string).expect("Unable to write config file");
-    }
     let timer: Timer = Timer::start();
-
-    //let virts: Vec<usize> = vec![4, 5, 6, 7, 8];
-    //let occs: Vec<usize> = vec![0, 1, 2, 3];
-    //println!("ENERGIES {:10.6}", orbe_differences(occs.view(), virts.view()));
     let mut system = System::from((frame, config));
-    //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
     system.prepare_scc();
     system.run_scc();
-    system.optimize_cartesian(Some(0));
+    info!("scc finished: {}", timer);
+    system.ground_state_gradient(false);
+    // system.optimize_cartesian(Some(0));
     // system.ground_state_gradient();
 
     // system.test_orbital_energy_derivative();
     // system.test_tda_lc_gradient();
 
-    info!("{}", timer);
+    info!("Full time: {}", timer);
     info!("{: ^80}", "");
     info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::");
     info!("{: ^80}", "::    Thank you for using TINCR     ::");
