@@ -80,6 +80,7 @@ fn default_nstates() -> usize {
 }
 fn default_use_mio() -> bool { USE_MIO }
 fn default_mio_directory() ->String { String::from( MIO_DIR ) }
+fn default_number_of_cores()->usize{1}
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
     return mol_config;
@@ -104,6 +105,10 @@ fn default_slater_koster_config()->SlaterKosterConfig{
     let slako_config:SlaterKosterConfig = toml::from_str("").unwrap();
     return slako_config;
 }
+fn default_parallelization_config()->ParallelizationConfig{
+    let parallelization_config:ParallelizationConfig = toml::from_str("").unwrap();
+    return parallelization_config;
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Configuration {
@@ -126,7 +131,10 @@ pub struct Configuration {
     #[serde(default = "default_excited_state_config")]
     pub excited: ExcitedStatesConfig,
     #[serde(default = "default_slater_koster_config")]
-    pub slater_koster:SlaterKosterConfig
+    pub slater_koster:SlaterKosterConfig,
+    #[serde(default = "default_parallelization_config")]
+    pub parallelization:ParallelizationConfig,
+
 }
 
 impl Configuration {
@@ -211,4 +219,10 @@ pub struct SlaterKosterConfig{
     pub use_mio:bool,
     #[serde(default = "default_mio_directory")]
     pub mio_directory:String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ParallelizationConfig{
+    #[serde(default = "default_number_of_cores")]
+    pub number_of_cores:usize,
 }

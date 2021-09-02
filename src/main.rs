@@ -46,11 +46,6 @@ mod optimization;
 extern crate clap;
 
 fn main() {
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
-        .build_global()
-        .unwrap();
-
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .about("software package for tight-binding DFT calculations")
@@ -88,6 +83,11 @@ fn main() {
         -2 => LevelFilter::Error,
         _ => LevelFilter::Info,
     };
+
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(config.parallelization.number_of_cores)
+        .build_global()
+        .unwrap();
 
     Builder::new()
         .format(|buf, record| writeln!(buf, "{}", record.args()))
