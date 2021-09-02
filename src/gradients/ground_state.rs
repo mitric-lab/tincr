@@ -23,10 +23,10 @@ impl System {
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
         // into one dimension to be able to just matrix-matrix products for the computation of the gradient
-        let grad_s_2d: Array2<f64> = grad_s.clone()
+        let grad_s_2d: ArrayView2<f64> = grad_s.view()
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap();
-        let grad_h0_2d: Array2<f64> = grad_h0.clone()
+        let grad_h0_2d: ArrayView2<f64> = grad_h0.view()
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap();
 
