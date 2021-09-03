@@ -27,6 +27,7 @@ mod test;
 mod transition_charges;
 mod zbrent;
 mod tda_gradient;
+mod orbe_derivative;
 // mod fmo_gradients;
 //mod transition_charges;
 //mod solver;
@@ -62,6 +63,7 @@ use approx::AbsDiffEq;
 use std::collections::HashMap;
 use crate::calculator::gamma_gradient_dot_dq;
 use crate::tda_gradient::{get_tda_gradients, dftb_numerical_tda_gradients, dftb_tda_numerical_gradients_4th_order};
+use crate::orbe_derivative::numerical_orbe_gradients;
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
@@ -181,6 +183,10 @@ fn main() {
             // println!("");
             // println!("Norm of difference: {}", (grad_e0+ grad_vrep-num_grad).norm());
             println!("orbe {}",orbe);
+
+            // let orbe_gradient:Array1<f64> = numerical_orbe_gradients(&mut mol);
+            // println!("orbe gradient{}",orbe_gradient);
+            // assert!(1==2);
 
             let excited_timer: Instant = Instant::now();
             let tmp: (Array1<f64>, Array3<f64>, Array3<f64>, Array3<f64>) =
