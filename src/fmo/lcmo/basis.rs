@@ -158,29 +158,29 @@ impl SuperSystem {
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
         let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
-        let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
-        let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();
-        let n_orbs: usize = n_occ + n_virt;
-        let mut occ_orbs: Array2<f64> = Array2::zeros([n_orbs, n_occ]);
-        let mut virt_orbs: Array2<f64> = Array2::zeros([n_orbs, n_virt]);
-
-        for mol in self.monomers.iter() {
-            let mol_orbs: ArrayView2<f64> = mol.properties.orbs().unwrap();
-            let lumo: usize = mol.properties.lumo().unwrap();
-            occ_orbs.slice_mut(s![mol.slice.orb, mol.slice.occ_orb]).assign(&mol_orbs.slice(s![.., ..lumo]));
-            virt_orbs.slice_mut(s![mol.slice.orb, mol.slice.virt_orb]).assign(&mol_orbs.slice(s![.., lumo..]));
-        }
-
-        let orbs: Array2<f64> = concatenate![Axis(1), occ_orbs, virt_orbs];
-        write_npy("/Users/hochej/Downloads/lcmo_energies.npy", &energies.view());
-        let exciton = ExcitonStates::new(self.properties.last_energy().unwrap(),
-                                         (energies, eigvectors), states.clone(),
-                                         (n_occ, n_virt), orbs);
-
-        exciton.spectrum_to_npy("/Users/hochej/Downloads/lcmo_spec.npy");
-        exciton.spectrum_to_txt("/Users/hochej/Downloads/lcmo_spec.txt");
-        exciton.ntos_to_molden(&self.atoms, 1, "/Users/hochej/Downloads/ntos_fmo.molden");
-        println!("{}", exciton);
+        // let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
+        // let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();
+        // let n_orbs: usize = n_occ + n_virt;
+        // let mut occ_orbs: Array2<f64> = Array2::zeros([n_orbs, n_occ]);
+        // let mut virt_orbs: Array2<f64> = Array2::zeros([n_orbs, n_virt]);
+        //
+        // for mol in self.monomers.iter() {
+        //     let mol_orbs: ArrayView2<f64> = mol.properties.orbs().unwrap();
+        //     let lumo: usize = mol.properties.lumo().unwrap();
+        //     occ_orbs.slice_mut(s![mol.slice.orb, mol.slice.occ_orb]).assign(&mol_orbs.slice(s![.., ..lumo]));
+        //     virt_orbs.slice_mut(s![mol.slice.orb, mol.slice.virt_orb]).assign(&mol_orbs.slice(s![.., lumo..]));
+        // }
+        //
+        // let orbs: Array2<f64> = concatenate![Axis(1), occ_orbs, virt_orbs];
+        // write_npy("/Users/hochej/Downloads/lcmo_energies.npy", &energies.view());
+        // let exciton = ExcitonStates::new(self.properties.last_energy().unwrap(),
+        //                                  (energies, eigvectors), states.clone(),
+        //                                  (n_occ, n_virt), orbs);
+        //
+        // exciton.spectrum_to_npy("/Users/hochej/Downloads/lcmo_spec.npy");
+        // exciton.spectrum_to_txt("/Users/hochej/Downloads/lcmo_spec.txt");
+        // exciton.ntos_to_molden(&self.atoms, 1, "/Users/hochej/Downloads/ntos_fmo.molden");
+        // println!("{}", exciton);
 
     }
 }

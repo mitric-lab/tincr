@@ -42,9 +42,10 @@ impl SuperSystem {
         // reference to the mo coefficients of fragment J
         let c_mo_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
 
-        // get pair from indices
-        // TODO: Take pair index from hashmap with monomer and pair indices
-        let pair_ij: &mut Pair = &mut self.pairs[0];
+        // get pair index
+        let pair_index:usize = self.properties.index_of_pair(index_i,index_j);
+        // get correct pair from pairs vector
+        let pair_ij: &mut Pair = &mut self.pairs[pair_index];
         // get pair atoms
         let pair_atoms: Vec<Atom> = get_pair_slice(
             &self.atoms,

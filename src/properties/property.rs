@@ -40,6 +40,8 @@ pub enum Property {
     String(String),
     /// HashMap for types of pairs.
     PairMap(HashMap<(usize, usize), PairType>),
+    /// HashMap for indices of pairs.
+    PairIndexMap(HashMap<(usize, usize), usize>),
     /// Vector property of u8 type
     VecU8(Vec<u8>),
     /// Vector property of usize type

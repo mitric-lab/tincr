@@ -557,6 +557,18 @@ impl Properties {
         }
     }
 
+    /// Get the index of a monomer pair.
+    pub fn index_of_pair(&self, i: usize, j: usize) -> usize {
+        if i == j {
+            panic!("Choose differnt monomers!");
+            0
+        } else {
+            let map: &HashMap<(usize, usize), usize> = self.get("pair_indices").unwrap().as_pair_index_map().unwrap();
+            map.get(&(i, j))
+                .unwrap_or_else(|| map.get(&(j, i)).unwrap()).to_owned()
+        }
+    }
+
     /// Get the coul/lc-Hamiltonian, which is required for the ground state gradient
     pub fn h_coul_x(&self) ->Option<ArrayView2<f64>>{
         match self.get("h_coul_x"){

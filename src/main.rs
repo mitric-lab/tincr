@@ -122,7 +122,7 @@ fn main() {
         //     .build()
         //     .unwrap();
 
-        // let hamiltonian = system.create_exciton_hamiltonian();
+        let hamiltonian = system.create_exciton_hamiltonian();
     }
 
     // let path = Path::new("/Users/hochej/Downloads/test.molden");

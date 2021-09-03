@@ -15,6 +15,11 @@ impl Properties {
         self.set("pair_types", Property::PairMap(map))
     }
 
+    /// Set the HashMap that maps the monomers to the index of the pair they form.
+    pub fn set_pair_indices(&mut self, map: HashMap<(usize, usize), usize>) {
+        self.set("pair_indices", Property::PairIndexMap(map))
+    }
+
     /// Set the energy of the last scc iteration
     pub fn set_occupation(&mut self, f: Vec<f64>) {
         self.set("occupation", Property::VecF64(f))
