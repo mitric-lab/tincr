@@ -146,10 +146,10 @@ pub struct Configuration {
     pub excited: ExcitedStatesConfig,
     #[serde(default = "default_slater_koster_config")]
     pub slater_koster:SlaterKosterConfig,
-    #[serde(default = "default_lcmo_config")]
-    pub lcmo: LcmoConfig,
     #[serde(default = "default_parallelization_config")]
     pub parallelization:ParallelizationConfig,
+    #[serde(default = "default_lcmo_config")]
+    pub lcmo: LcmoConfig,
 
 }
 

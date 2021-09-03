@@ -41,6 +41,11 @@ impl Properties {
             "gamma_ao_wise_gradient",
             "gamma_lr_atom_wise_gradient",
             "gamma_lr_ao_wise_gradient",
+            "q_ov",
+            "q_oo",
+            "q_vv",
+            "xmy",
+            "xpy",
         ];
         for data_name in multi_dim_data.iter() {
             self.map.remove(*data_name);

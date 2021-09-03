@@ -75,7 +75,7 @@ fn main() {
 
     // Multithreading.
     rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
+        .num_threads(config.parallelization.number_of_cores)
         .build_global()
         .unwrap();
 
@@ -107,8 +107,8 @@ fn main() {
         let mut system = System::from((frame, config.clone()));
         system.prepare_scc();
         system.run_scc();
-        system.prepare_tda();
-        system.run_tda(config.excited.nstates, 50, 1e-4);
+        // system.prepare_tda();
+        // system.run_tda(config.excited.nstates, 50, 1e-4);
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
@@ -122,7 +122,7 @@ fn main() {
         //     .build()
         //     .unwrap();
 
-        let hamiltonian = system.create_exciton_hamiltonian();
+        // let hamiltonian = system.create_exciton_hamiltonian();
     }
 
     // let path = Path::new("/Users/hochej/Downloads/test.molden");

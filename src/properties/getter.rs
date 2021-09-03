@@ -129,6 +129,23 @@ impl Properties {
         }
     }
 
+    /// Returns the excitation energy of a tddft excited state.
+    /// The first excited state has the index 0.
+    pub fn tddft_eigenvalue(&self, idx:usize) -> Option<f64> {
+        match self.get("tddft_eigenvalues") {
+            Some(value) => Some(value.as_array1().unwrap()[idx]),
+            _ => None,
+        }
+    }
+
+    /// Get the tddft excitation energies.
+    pub fn tddft_eigenvalues(&self) -> Option<ArrayView1<f64>> {
+        match self.get("tddft_eigenvalues") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns the state energies for all states.
     pub fn state_energies(&self) -> Option<Array1<f64>> {
         // Reference to the excitation energies.
@@ -537,6 +554,38 @@ impl Properties {
             let map: &HashMap<(usize, usize), PairType> = self.get("pair_types").unwrap().as_pair_map().unwrap();
             map.get(&(i, j))
                 .unwrap_or_else(|| map.get(&(j, i)).unwrap()).to_owned()
+        }
+    }
+
+    /// Get the coul/lc-Hamiltonian, which is required for the ground state gradient
+    pub fn h_coul_x(&self) ->Option<ArrayView2<f64>>{
+        match self.get("h_coul_x"){
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the difference of the excitation vectors
+    pub fn xmy(&self) -> Option<ArrayView3<f64>> {
+        match self.get("xmy") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the sum of the excitation vectors
+    pub fn xpy(&self) -> Option<ArrayView3<f64>> {
+        match self.get("xpy") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the flr matrix of the long-range corrected contribution to the gradient
+    pub fn f_lr_dmd0(&self) ->Option<ArrayView3<f64>> {
+        match self.get("f_lr_dmd0") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
         }
     }
 }

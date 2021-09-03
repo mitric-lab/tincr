@@ -55,6 +55,11 @@ impl Properties {
         self.set("ci_eigenvalues", Property::Array1(eigenvalues))
     }
 
+    /// Set the tddft excitation energies.
+    pub fn set_tddft_eigenvalues(&mut self, eigenvalues: Array1<f64>) {
+        self.set("tddft_eigenvalues", Property::Array1(eigenvalues))
+    }
+
     /// Set the scc mixer
     pub fn set_mixer(&mut self, mixer: BroydenMixer) {
         self.set("mixer", Property::from(mixer))
@@ -273,5 +278,37 @@ impl Properties {
             "gamma_lr_ao_wise_gradient",
             Property::from(grad_gamma_lr_ao),
         );
+    }
+
+    /// Set the coul/lc-Hamiltonian, which is required for the ground state gradient
+    pub fn set_h_coul_x(&mut self,h:Array2<f64>){
+        self.set(
+            "h_coul_x",
+            Property::from(h),
+        )
+    }
+
+    /// set the sum of the excitation vectors x and y
+    pub fn set_xpy(&mut self, xpy:Array3<f64>){
+        self.set(
+            "xpy",
+            Property::from(xpy),
+        )
+    }
+
+    /// set the difference of the excitation vectors x and y
+    pub fn set_xmy(&mut self, xmy:Array3<f64>){
+        self.set(
+            "xpy",
+            Property::from(xmy),
+        )
+    }
+
+    /// Set the f matrix for the long-range contribution of the exc gradient
+    pub fn set_f_lr_dmd0(&mut self, f_lr_dmd0:Array3<f64>){
+        self.set(
+            "f_lr_dmd0",
+            Property::from(f_lr_dmd0),
+        )
     }
 }

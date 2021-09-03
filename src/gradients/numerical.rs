@@ -4,37 +4,29 @@ use std::cmp::max;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::fmo::GroundStateGradient;
 use crate::initialization::System;
-use crate::excited_states::tda::TDA;
+use crate::excited_states::tda;
 
 impl System{
     pub fn tda_gradient_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
         self.properties.reset();
-        self.properties.clear_excited_gradient_no_lc();
         self.update_xyz(geometry);
         self.prepare_scc();
-        let en = self.run_scc().unwrap();
-        let (u, v) = self.run_tda();
-        // println!("u {}",u[1] );
-        return u[0];
+        self.prepare_tda();
+        self.run_tda(self.config.excited.nstates, 50, 1e-4);
+
+        return self.properties.ci_eigenvalue(0).unwrap();
     }
 
     pub fn tda_nolc_gradients_for_testing(&mut self)->Array1<f64>{
         self.properties.reset();
         self.prepare_scc();
         self.run_scc();
+        self.prepare_tda();
+        self.run_tda(self.config.excited.nstates, 50, 1e-4);
 
-        let (u, v) = self.run_tda();
-        println!("u analytic {}",u);
-        let nocc:usize = self.occ_indices.len();
-        let nvirt:usize = self.virt_indices.len();
-        let c:Array3<f64> = v.t().as_standard_layout().to_owned().into_shape([4,nocc,nvirt]).unwrap();
-        self.properties.set_excited_energies(u);
-        self.properties.set_excited_coefficients(c);
         self.ground_state_gradient(true);
         self.prepare_excited_grad();
         let grad_exc:Array1<f64> = self.tda_gradient_nolc(0);
-
-        self.properties.clear_excited_gradient_no_lc();
 
         return grad_exc;
     }
@@ -43,19 +35,12 @@ impl System{
         self.properties.reset();
         self.prepare_scc();
         self.run_scc();
+        self.prepare_tda();
+        self.run_tda(self.config.excited.nstates, 50, 1e-4);
 
-        let (u, v) = self.run_tda();
-        println!("u analytic {}",u);
-        let nocc:usize = self.occ_indices.len();
-        let nvirt:usize = self.virt_indices.len();
-        let c:Array3<f64> = v.t().as_standard_layout().to_owned().into_shape([4,nocc,nvirt]).unwrap();
-        self.properties.set_excited_energies(u);
-        self.properties.set_excited_coefficients(c);
         self.ground_state_gradient(true);
         self.prepare_excited_grad();
         let grad_exc:Array1<f64> = self.tda_gradient_lc(0);
-
-        self.properties.clear_excited_gradient_no_lc();
 
         return grad_exc;
     }

@@ -66,11 +66,13 @@ impl System {
         let n_occ: usize = orbe_occ.len();
         let n_virt: usize = orbe_virt.len();
 
-        // take state specific values from the excitation vectors
-        let x_state:ArrayView3<f64> = self.properties.excited_coefficients().unwrap();
-        let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
         // excitation energy of the state
-        let omega_state: f64 = self.properties.excited_states().unwrap()[state];
+        let n_states:usize = self.config.excited.nstates;
+        let omega_state:f64 = self.properties.ci_eigenvalues().unwrap()[state];
+        // take state specific values from the excitation vectors
+        let x_state:ArrayView3<f64> = self.properties.ci_coefficients().unwrap()
+            .into_shape([n_states,n_occ,n_virt]).unwrap();
+        let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
 
         // calculate the vectors u, v and t
         // vectors U, V and T
@@ -267,11 +269,13 @@ impl System {
         let n_occ: usize = orbe_occ.len();
         let n_virt: usize = orbe_virt.len();
 
-        // take state specific values from the excitation vectors
-        let x_state:ArrayView3<f64> = self.properties.excited_coefficients().unwrap();
-        let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
         // excitation energy of the state
-        let omega_state: f64 = self.properties.excited_states().unwrap()[state];
+        let n_states:usize = self.config.excited.nstates;
+        let omega_state:f64 = self.properties.ci_eigenvalues().unwrap()[state];
+        // take state specific values from the excitation vectors
+        let x_state:ArrayView3<f64> = self.properties.ci_coefficients().unwrap()
+            .into_shape([n_states,n_occ,n_virt]).unwrap();
+        let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
 
         // calculate the vectors u, v and t
         // vectors U, V and T
@@ -509,7 +513,7 @@ impl System {
         let xmy_state: ArrayView2<f64> = xmy_state.slice(s![state,..,..]);
         let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
         // excitation energy of the state
-        let omega_state: f64 = self.properties.excited_states().unwrap()[state];
+        let omega_state: f64 = self.properties.tddft_eigenvalues().unwrap()[state];
 
         // calculate the vectors u, v and t
         let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);
@@ -791,7 +795,7 @@ impl System {
         let xmy_state: ArrayView2<f64> = xmy_state.slice(s![state,..,..]);
         let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
         // excitation energy of the state
-        let omega_state: f64 = self.properties.excited_states().unwrap()[state];
+        let omega_state: f64 = self.properties.tddft_eigenvalues().unwrap()[state];
 
         // calculate the vectors u, v and t
         let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);

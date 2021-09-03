@@ -50,7 +50,6 @@ impl SuperSystem {
         let atoms = &self.atoms[mol.slice.atom_as_range()];
         mol.prepare_excited_gradient(atoms);
         let grad = mol.calculate_ct_fock_gradient(atoms,0,true);
-        mol.properties.clear_excited_gradient_lc();
         mol.properties.reset();
 
         return grad;
