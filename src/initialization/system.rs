@@ -163,42 +163,41 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
             for handler in skf_handlers.iter() {
                 // in the heteronuclear case, the slako tables of the element combinations "AB"
                 // and "BA" must be combined
-                if handler.element_a == handler.element_b {
-                    let repot_table: RepulsivePotentialTable =
-                        RepulsivePotentialTable::from(handler);
-                    let slako_table: SlaterKosterTable =
-                        SlaterKosterTable::from((handler, None, "ab"));
+                // if handler.element_a == handler.element_b {
+                //     let repot_table: RepulsivePotentialTable =
+                //         RepulsivePotentialTable::from(handler);
+                //     let slako_table: SlaterKosterTable =
+                //         SlaterKosterTable::from((handler, None, "ab"));
+                //
+                //     // insert the tables into the hashmaps
+                //     slako
+                //         .map
+                //         .insert((handler.element_a, handler.element_b), slako_table);
+                //     // slako
+                //     //     .add_from_handler(handler.element_a, handler.element_b, handler.clone(),None,"ab");
+                //     vrep.map
+                //         .insert((handler.element_a, handler.element_b), repot_table);
+                // } else {
+                let repot_table: RepulsivePotentialTable =
+                    RepulsivePotentialTable::from(handler);
+                let slako_table_ab: SlaterKosterTable =
+                    SlaterKosterTable::from((handler, None, "ab"));
+                let slako_handler_ba: SkfHandler = SkfHandler::new(
+                    handler.element_b,
+                    handler.element_a,
+                    molecule.2.slater_koster.mio_directory.clone(),
+                );
+                let slako_table: SlaterKosterTable =
+                    SlaterKosterTable::from((&slako_handler_ba, Some(slako_table_ab), "ba"));
 
-                    // insert the tables into the hashmaps
-                    slako
-                        .map
-                        .insert((handler.element_a, handler.element_b), slako_table);
-                    // slako
-                    //     .add_from_handler(handler.element_a, handler.element_b, handler.clone(),None,"ab");
-                    vrep.map
-                        .insert((handler.element_a, handler.element_b), repot_table);
-                } else {
-                    let repot_table: RepulsivePotentialTable =
-                        RepulsivePotentialTable::from(handler);
-                    let slako_table_ab: SlaterKosterTable =
-                        SlaterKosterTable::from((handler, None, "ab"));
-                    let slako_handler_ba: SkfHandler = SkfHandler::new(
-                        handler.element_b,
-                        handler.element_a,
-                        molecule.2.slater_koster.mio_directory.clone(),
-                    );
-                    let slako_table: SlaterKosterTable =
-                        SlaterKosterTable::from((&slako_handler_ba, Some(slako_table_ab), "ba"));
-
-                    // insert the tables into the hashmaps
-                    slako
-                        .map
-                        .insert((handler.element_a, handler.element_b), slako_table);
-                    // slako
-                    //     .add_from_handler(handler.element_a, handler.element_b, slako_handler_ba,Some(slako_table_ab),"ba");
-                    vrep.map
-                        .insert((handler.element_a, handler.element_b), repot_table);
-                }
+                // insert the tables into the hashmaps
+                slako
+                    .map
+                    .insert((handler.element_a, handler.element_b), slako_table);
+                // slako
+                //     .add_from_handler(handler.element_a, handler.element_b, slako_handler_ba,Some(slako_table_ab),"ba");
+                vrep.map
+                    .insert((handler.element_a, handler.element_b), repot_table);
             }
         } else {
             let element_iter = unique_atoms.iter().map(|atom| Element::from(atom.number));
@@ -259,5 +258,30 @@ impl From<(&str, Configuration)> for System {
         let frame: Frame = read_file_to_frame(filename_and_config.0);
         let (numbers, coords) = frame_to_coordinates(frame);
         Self::from((numbers, coords, filename_and_config.1))
+    }
+}
+
+impl System{
+    pub fn update_xyz(&mut self, coordinates: Array1<f64>) {
+        let coordinates: Array2<f64> = coordinates.into_shape([self.atoms.len(), 3]).unwrap();
+        // TODO: The IntoIterator trait was released for ndarray 0.15. The dependencies should be
+        // updated, so that this can be used. At the moment of writing ndarray-linalg is not yet
+        // compatible with ndarray 0.15x
+        // PARALLEL
+        for (atom, xyz) in self.atoms
+            .iter_mut()
+            .zip(coordinates.outer_iter()){
+            atom.position_from_ndarray(xyz.to_owned());
+        }
+        //.for_each(|(atom, xyz)| atom.position_from_ndarray(xyz.to_owned()))
+    }
+
+    pub fn get_xyz(&self) -> Array1<f64> {
+        let xyz_list: Vec<Vec<f64>> = self
+            .atoms
+            .iter()
+            .map(|atom| atom.xyz.iter().cloned().collect())
+            .collect();
+        Array1::from_shape_vec((3 * self.atoms.len()), itertools::concat(xyz_list)).unwrap()
     }
 }

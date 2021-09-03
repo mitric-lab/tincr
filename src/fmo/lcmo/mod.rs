@@ -1,4 +1,7 @@
 mod hamiltonian;
+mod helpers;
+mod cis;
+mod ct_gradient;
 mod basis;
 mod integrals;
 mod lcmo_trans_charges;

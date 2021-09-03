@@ -3,6 +3,93 @@ use ndarray_stats::{QuantileExt, DeviationExt};
 use std::cmp::max;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::fmo::GroundStateGradient;
+use crate::initialization::System;
+use crate::excited_states::tda::TDA;
+
+impl System{
+    pub fn tda_gradient_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
+        self.properties.reset();
+        self.properties.clear_excited_gradient_no_lc();
+        self.update_xyz(geometry);
+        self.prepare_scc();
+        let en = self.run_scc().unwrap();
+        let (u, v) = self.run_tda();
+        // println!("u {}",u[1] );
+        return u[0];
+    }
+
+    pub fn tda_nolc_gradients_for_testing(&mut self)->Array1<f64>{
+        self.properties.reset();
+        self.prepare_scc();
+        self.run_scc();
+
+        let (u, v) = self.run_tda();
+        println!("u analytic {}",u);
+        let nocc:usize = self.occ_indices.len();
+        let nvirt:usize = self.virt_indices.len();
+        let c:Array3<f64> = v.t().as_standard_layout().to_owned().into_shape([4,nocc,nvirt]).unwrap();
+        self.properties.set_excited_energies(u);
+        self.properties.set_excited_coefficients(c);
+        self.ground_state_gradient(true);
+        self.prepare_excited_grad();
+        let grad_exc:Array1<f64> = self.tda_gradient_nolc(0);
+
+        self.properties.clear_excited_gradient_no_lc();
+
+        return grad_exc;
+    }
+
+    pub fn tda_lc_gradients_for_testing(&mut self)->Array1<f64>{
+        self.properties.reset();
+        self.prepare_scc();
+        self.run_scc();
+
+        let (u, v) = self.run_tda();
+        println!("u analytic {}",u);
+        let nocc:usize = self.occ_indices.len();
+        let nvirt:usize = self.virt_indices.len();
+        let c:Array3<f64> = v.t().as_standard_layout().to_owned().into_shape([4,nocc,nvirt]).unwrap();
+        self.properties.set_excited_energies(u);
+        self.properties.set_excited_coefficients(c);
+        self.ground_state_gradient(true);
+        self.prepare_excited_grad();
+        let grad_exc:Array1<f64> = self.tda_gradient_lc(0);
+
+        self.properties.clear_excited_gradient_no_lc();
+
+        return grad_exc;
+    }
+
+    pub fn gs_grad(&mut self)->Array1<f64> {
+        self.properties.reset();
+        self.prepare_scc();
+        self.run_scc();
+
+        let grad = self.ground_state_gradient(false);
+        return grad;
+    }
+
+    pub fn gs_gradient_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
+        self.properties.reset();
+        self.update_xyz(geometry);
+        self.prepare_scc();
+        let en = self.run_scc().unwrap();
+
+        return en
+    }
+
+    pub fn test_tda_nolc_gradient(&mut self){
+        assert_deriv(self,System::tda_gradient_wrapper,System::tda_nolc_gradients_for_testing,self.get_xyz(), 0.0001, 1e-6);
+    }
+
+    pub fn test_tda_lc_gradient(&mut self){
+        assert_deriv(self,System::tda_gradient_wrapper,System::tda_lc_gradients_for_testing,self.get_xyz(), 0.0001, 1e-6);
+    }
+
+    pub fn test_gs_gradient(&mut self){
+        assert_deriv(self,System::gs_gradient_wrapper,System::gs_grad,self.get_xyz(), 0.001, 1e-6);
+    }
+}
 
 /// Returns the derivative of a function `function` at an Array of points `origin` by Ridder's method.
 /// The value `stepsize` is an initial stepsize, it need to be small, but should be an increment
@@ -130,7 +217,7 @@ pub fn assert_deriv<S, F, G>(
         // Ridder's method
         let (numerical_deriv, deriv_error): (f64, f64) = ridders_method(system, &function, origin.clone(), i, stepsize, con, safe, maxiter);
         let diff: f64 = (numerical_deriv - analytic_deriv).abs();
-        let correct: bool = if diff >= deriv_error && diff > 1e-10 {false} else {true};
+        let correct: bool = if diff >= deriv_error && diff > 1e-8 {false} else {true};
         errors.push(correct);
         error_values[i] = diff;
 

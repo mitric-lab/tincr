@@ -46,11 +46,11 @@ mod initialization;
 mod scc;
 mod utils;
 mod fmo;
-//mod gradients;
 mod param;
 mod excited_states;
 mod gradients;
 mod properties;
+mod optimization;
 
 #[macro_use]
 extern crate clap;

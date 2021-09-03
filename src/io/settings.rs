@@ -89,6 +89,7 @@ fn default_n_particles() -> usize {
 }
 fn default_use_mio() -> bool { USE_MIO }
 fn default_mio_directory() ->String { String::from( MIO_DIR ) }
+fn default_number_of_cores()->usize{1}
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
     return mol_config;
@@ -112,6 +113,10 @@ fn default_excited_state_config() -> ExcitedStatesConfig {
 fn default_slater_koster_config()->SlaterKosterConfig{
     let slako_config:SlaterKosterConfig = toml::from_str("").unwrap();
     return slako_config;
+}
+fn default_parallelization_config()->ParallelizationConfig{
+    let parallelization_config:ParallelizationConfig = toml::from_str("").unwrap();
+    return parallelization_config;
 }
 
 fn default_lcmo_config()-> LcmoConfig{
@@ -143,6 +148,9 @@ pub struct Configuration {
     pub slater_koster:SlaterKosterConfig,
     #[serde(default = "default_lcmo_config")]
     pub lcmo: LcmoConfig,
+    #[serde(default = "default_parallelization_config")]
+    pub parallelization:ParallelizationConfig,
+
 }
 
 impl Configuration {
@@ -237,4 +245,10 @@ pub struct LcmoConfig{
     pub n_holes: usize,
     #[serde(default = "default_n_particles")]
     pub n_particles: usize,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ParallelizationConfig{
+    #[serde(default = "default_number_of_cores")]
+    pub number_of_cores:usize,
 }

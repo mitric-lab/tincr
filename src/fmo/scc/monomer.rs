@@ -105,6 +105,7 @@ impl Monomer {
                 lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), dp.view());
             h = h + h_x;
         }
+        let mut h_save:Array2<f64> = h.clone();
 
         // H' = X^t.H.X
         h = x.t().dot(&h).dot(&x);
@@ -155,6 +156,7 @@ impl Monomer {
         self.properties.set_mixer(mixer);
         self.properties.set_last_energy(scf_energy);
         self.properties.set_q_ao(q_ao);
+        self.properties.set_h_coul_x(h_save);
 
         // scc (for one fragment) is converged if both criteria are passed
         conv_charge && conv_energy

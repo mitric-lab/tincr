@@ -2,9 +2,10 @@
 //mod ground_state;
 //mod helpers;
 //mod grad;
-
-//pub use grad::get_gradients;
-
 mod numerical;
+mod ground_state;
+pub mod helpers;
+mod excited_state;
+mod grad;
 
 pub use numerical::*;

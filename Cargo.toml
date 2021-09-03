@@ -2,9 +2,9 @@
 name = "tincr"
 version = "0.1.0"
 authors = ["Joscha Hoche <joscha.hoche@uni-wuerzburg.de>",
-           "Richard Einsele <richard.einsele@uni-wuerzburg.de>",
-           "Xincheng Miao <xincheng.miao@uni-wuerzburg.de>",
-           "Roland Mitric <roland.mitric@uni-wuerzburg.de>"]
+    "Richard Einsele <richard.einsele@uni-wuerzburg.de>",
+    "Xincheng Miao <xincheng.miao@uni-wuerzburg.de>",
+    "Roland Mitric <roland.mitric@uni-wuerzburg.de>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,7 +14,7 @@ chemfiles = "0.10"
 ndarray = {version = "0.15.3", features = ["serde-1", "approx", "rayon"]}
 ndarray-npy = "0.8"
 approx = "0.3.2"
-ndarray-linalg = { version = "0.14", features = ["netlib-system"]}
+ndarray-linalg = { version = "0.14", features = ["intel-mkl"]}
 ndarray-stats = "0.5"
 phf = { version = "0.8.0", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
