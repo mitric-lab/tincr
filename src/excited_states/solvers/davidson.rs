@@ -15,7 +15,10 @@ that the correction vector is computed.
 */
 
 use crate::excited_states::solvers::utils;
+use crate::excited_states::solvers::DavidsonEngine;
 use ndarray::prelude::*;
+use ndarray::prelude::*;
+use ndarray::Data;
 use ndarray_linalg::*;
 use ndarray_stats::QuantileExt;
 use std::error;
@@ -32,50 +35,6 @@ impl fmt::Display for DavidsonError {
 }
 
 impl error::Error for DavidsonError {}
-
-use ndarray::prelude::*;
-use ndarray::Data;
-
-/// Abstract Trait defining the API required by solver engines.
-///
-/// Engines implement the correct product functions for iterative solvers that
-/// do not require the target matrix be stored directly.
-/// Classes intended to be used as an `engine` for `Davidson` or
-/// `Hamiltonian` should implement this Trait to ensure
-/// that the required methods are defined.
-pub trait DavidsonEngine {
-    /// Compute a Matrix * trial vector products
-    /// Expected output:
-    ///  The product`A x X_{i}` for each `X_{i}` in `X`, in that order.
-    ///   Where `A` is the hermitian matrix to be diagonalized.
-    fn compute_products(&mut self, x: ArrayView2<f64>) -> Array2<f64>;
-
-    /// Apply the preconditioner to a Residual vector.
-    /// The preconditioner is usually defined as :math:`(w_k - D_{i})^-1` where
-    /// `D` is an approximation of the diagonal of the matrix that is being diagonalized.
-    fn precondition(&self, r_k: ArrayView1<f64>, w_k:f64) -> Array1<f64>;
-
-    /// Return the size of the matrix problem.
-    fn get_size(&self) -> usize;
-}
-
-impl<S> DavidsonEngine for ArrayBase<S, Ix2>
-    where
-        S: Data<Elem = f64>,
-{
-    fn compute_products(&mut self, x: ArrayView2<'_, f64>) -> Array2<f64> {
-        self.dot(&x)
-    }
-
-    fn precondition(&self, r_k: ArrayView1<'_, f64>, w_k: f64) -> Array1<f64> {
-        &r_k / &(Array1::from_elem(self.nrows(), w_k) - self.diag())
-    }
-
-    fn get_size(&self) -> usize {
-        self.nrows()
-    }
-}
-
 
 /// Structure with the configuration data
 pub struct Davidson {
@@ -145,9 +104,7 @@ impl Davidson {
             let rk: Array2<f64> = ax.dot(&v) - ritz.dot(&Array::from_diag(&u));
 
             // 3.3 Convergence check for each pair of eigenvalue and eigenvector.
-            let errors: Array1<f64> = rk
-                .axis_iter(Axis(1))
-                .map(|col| col.norm()).collect();
+            let errors: Array1<f64> = rk.axis_iter(Axis(1)).map(|col| col.norm()).collect();
 
             // The sum of all errors.
             let error: f64 = errors.sum();
@@ -161,17 +118,27 @@ impl Davidson {
             let roots_lft: usize = n_roots - roots_cvd;
 
             // If all eigenvalues are converged, the Davidson routine finished successfully.
-            if roots_lft == 0 && i > 0{
-                result = Ok(Self::create_results(
-                    u.view(),
-                    ritz.view(),
-                    n_roots,
-                ));
-                utils::print_davidson_iteration(i, roots_cvd, n_roots - roots_cvd, dim_sub,error, max_error);
+            if roots_lft == 0 && i > 0 {
+                result = Ok(Self::create_results(u.view(), ritz.view(), n_roots));
+                utils::print_davidson_iteration(
+                    i,
+                    roots_cvd,
+                    n_roots - roots_cvd,
+                    dim_sub,
+                    error,
+                    max_error,
+                );
                 break;
             }
             // The information of the current iteration is printed to the console.
-            utils::print_davidson_iteration(i, roots_cvd, n_roots - roots_cvd, dim_sub, error, max_error);
+            utils::print_davidson_iteration(
+                i,
+                roots_cvd,
+                n_roots - roots_cvd,
+                dim_sub,
+                error,
+                max_error,
+            );
 
             // 5.  If the eigenvalues are not yet converged, the subspace basis is updated.
             // 5.1 Correction vectors are added to the current subspace basis, if the new
@@ -192,15 +159,19 @@ impl Davidson {
                 dim_sub += roots_lft;
 
                 // The new subspace vectors are orthonormalized and added to the existing basis.
-                guess.append(Axis(1), add_space.view()).unwrap();
-                guess = guess.qr().unwrap().0;
+                for vec in add_space.axis_iter(Axis(1)) {
+                    let orth_v: Array1<f64> = &vec - &guess.dot(&guess.t().dot(&vec));
+                    let norm: f64 = orth_v.norm();
+                    if norm > 1.0e-8 {
+                        guess.push_column((&orth_v / norm).view());
+                    }
+                }
             }
             // 5.1 If the dimension is larger than the maximal subspace size, the subspace is
             //     collapsed.
             else {
                 // The dimension of the subspace is reset to the initial value.
-                dim_sub = dim_sub_origin - roots_cvd;
-                println!("DIM SUB {}", dim_sub);
+                dim_sub = dim_sub_origin;
                 guess = ritz.slice(s![.., 0..dim_sub]).to_owned();
             }
         }

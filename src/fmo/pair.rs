@@ -1,7 +1,8 @@
 use crate::constants::{VDW_SUM, VDW_RADII};
 use crate::fmo::Monomer;
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
-use crate::initialization::{Atom, Geometry, Properties};
+use crate::initialization::{Atom, Geometry};
+use crate::properties::Properties;
 use crate::io::Configuration;
 use crate::scc::gamma_approximation::GammaFunction;
 use ndarray::prelude::*;
@@ -10,12 +11,25 @@ use crate::utils::Timer;
 use log::info;
 use ndarray::stack;
 use std::ops::Add;
+use std::fmt;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PairType {
     Pair,
     ESD,
     None,
 }
+
+impl fmt::Display for PairType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            PairType::Pair => write!(f, "Pair"),
+            PairType::ESD => write!(f, "ESD"),
+            PairType::None => write!(f, "None"),
+        }
+    }
+}
+
 
 /// Check if the monomers are close to each other or not.
 pub fn get_pair_type(mi_atoms: &[Atom], mj_atoms: &[Atom], vdw_scaling: f64) -> PairType {

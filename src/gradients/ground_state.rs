@@ -4,7 +4,7 @@ use crate::gradients::helpers::{f_lr, gradient_v_rep};
 use crate::initialization::*;
 use crate::scc::gamma_approximation::{gamma_gradients_ao_wise, gamma_gradients_atomwise};
 use crate::scc::h0_and_s::h0_and_s_gradients;
-use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, Axis};
+use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, Axis,s};
 use ndarray_einsum_beta::tensordot;
 use std::time::Instant;
 
@@ -23,10 +23,10 @@ impl System {
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
         // into one dimension to be able to just matrix-matrix products for the computation of the gradient
-        let grad_s_2d: Array2<f64> = grad_s.clone()
+        let grad_s_2d: ArrayView2<f64> = grad_s.view()
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap();
-        let grad_h0_2d: Array2<f64> = grad_h0.clone()
+        let grad_h0_2d: ArrayView2<f64> = grad_h0.view()
             .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
             .unwrap();
 
@@ -42,17 +42,11 @@ impl System {
         let h0: ArrayView2<f64> = self.properties.h0().unwrap();
         let dq: ArrayView1<f64> = self.properties.dq().unwrap();
         let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let esp_q: ArrayView1<f64> = self.properties.esp_q().unwrap();
 
         // transform the expression Sum_c_in_X (gamma_AC + gamma_aC) * dq_C
         // into matrix of the dimension (norb, norb) to do an element wise multiplication with P
         let mut coulomb_mat: Array2<f64> =
             atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &self.atoms) * 0.5;
-        // Transform the Equation sum_K sum_c_in_K (gamma_ac + gamma_Ac) * dq_c into the dimension
-        // of the AOs.
-        let mut esp_mat: Array2<f64> =
-            atomvec_to_aomat(esp_q.view(), self.n_orbs, &self.atoms) * 0.5;
-        esp_mat += &coulomb_mat;
 
         // The product of the Coulomb interaction matrix and the density matrix flattened as vector.
         let coulomb_x_p: Array1<f64> = (&p * &coulomb_mat)
@@ -74,10 +68,14 @@ impl System {
             .unwrap();
 
         // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
+        // let w: Array1<f64> = 0.5
+        //     * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
+        //         .into_shape([self.n_orbs * self.n_orbs])
+        //         .unwrap();
         let w: Array1<f64> = 0.5
-            * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
-                .into_shape([self.n_orbs * self.n_orbs])
-                .unwrap();
+            * (p.dot(&self.properties.h_coul_x().unwrap()).dot(&p))
+            .into_shape([self.n_orbs * self.n_orbs])
+            .unwrap();
 
         // calculation of the gradient
         // 1st part:  dH0 / dR . P

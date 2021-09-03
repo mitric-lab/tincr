@@ -3,9 +3,7 @@ use crate::fmo::scc::helpers::*;
 use crate::fmo::{Monomer, Pair, SuperSystem};
 use crate::initialization::parameters::RepulsivePotential;
 use crate::initialization::Atom;
-use crate::scc::gamma_approximation::{
-    gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise,
-};
+use crate::scc::gamma_approximation::{gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise, gamma_gradients_ao_wise};
 use crate::scc::h0_and_s::{h0_and_s, h0_and_s_ab, h0_and_s_gradients};
 use crate::scc::mixer::{BroydenMixer, Mixer};
 use crate::scc::mulliken::mulliken;
@@ -29,6 +27,7 @@ use rayon::prelude::IntoParallelRefMutIterator;
 use std::iter::FromIterator;
 use std::ops::{AddAssign, SubAssign};
 use crate::utils::array_helper::ToOwnedF;
+use crate::gradients::helpers::f_lr;
 
 
 impl GroundStateGradient for Pair {
@@ -51,7 +50,7 @@ impl GroundStateGradient for Pair {
         // on the derivative of S and this is available here at no additional cost.
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
-        drop(s);
+
         self.properties.set_grad_dq(grad_dq);
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
@@ -97,10 +96,14 @@ impl GroundStateGradient for Pair {
             .unwrap();
 
         // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
+        // let w: Array1<f64> = 0.5
+        //     * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
+        //         .into_shape([self.n_orbs * self.n_orbs])
+        //         .unwrap();
         let w: Array1<f64> = 0.5
-            * (p.dot(&(&h0 + &(&esp_mat * &s))).dot(&p))
-                .into_shape([self.n_orbs * self.n_orbs])
-                .unwrap();
+            * (p.dot(&self.properties.h_coul_x().unwrap()).dot(&p))
+            .into_shape([self.n_orbs * self.n_orbs])
+            .unwrap();
 
         // calculation of the gradient
         // 1st part:  dH0 / dR . P
@@ -117,6 +120,40 @@ impl GroundStateGradient for Pair {
 
         // last part: dV_rep / dR
         gradient = gradient + gradient_v_rep(&atoms, &self.vrep);
+
+        // long-range contribution to the gradient
+        if self.gammafunction_lc.is_some(){
+            // reshape gradS
+            let grad_s: Array3<f64> = grad_s
+                .into_shape([3 * self.n_atoms, self.n_orbs, self.n_orbs])
+                .unwrap();
+            // calculate the gamma gradient matrix in AO basis
+            let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            // calculate the difference density matrix
+            let diff_p: Array2<f64> = &p - &self.properties.p_ref().unwrap();
+            // calculate the matrix F_lr[diff_p]
+            let flr_dmd0:Array3<f64> = f_lr(
+                diff_p.view(),
+                self.properties.s().unwrap(),
+                grad_s.view(),
+                self.properties.gamma_lr_ao().unwrap(),
+                g1_lr_ao.view(),
+                self.n_atoms,
+                self.n_orbs,
+            );
+            // -0.25 * F_lr[diff_p] * diff_p
+            gradient = gradient
+                - 0.25
+                * flr_dmd0.view()
+                .into_shape((3 * self.n_atoms, self.n_orbs * self.n_orbs))
+                .unwrap()
+                .dot(&diff_p.into_shape(self.n_orbs * self.n_orbs).unwrap());
+        }
 
         return gradient;
     }

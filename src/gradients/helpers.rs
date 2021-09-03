@@ -331,6 +331,25 @@ pub fn h_plus_no_lr(
     return hplus_pq;
 }
 
+pub fn h_a_nolr(
+    g0: ArrayView2<f64>,
+    q_pq: ArrayView3<f64>,
+    q_rs: ArrayView3<f64>,
+    v_rs: ArrayView2<f64>,
+) -> (Array2<f64>) {
+    // term 1
+    let n_at:usize = q_pq.dim().0;
+    let q_rs_dim_1:usize = q_rs.dim().1;
+    let q_rs_dim_2:usize = q_rs.dim().2;
+    let q_pq_dim_1:usize = q_pq.dim().1;
+    let q_pq_dim_2:usize = q_pq.dim().2;
+
+    let tmp:Array1<f64> = q_rs.into_shape((n_at,q_rs_dim_1*q_rs_dim_2)).unwrap().dot(&v_rs.into_shape(q_rs_dim_1*q_rs_dim_2).unwrap());
+    let tmp2: Array1<f64> = g0.dot(&tmp);
+    let hplus_pq:Array2<f64> = 4.0 * tmp2.dot(&q_pq.into_shape((n_at,q_pq_dim_1*q_pq_dim_2)).unwrap()).into_shape((q_pq_dim_1,q_pq_dim_2)).unwrap();
+    return hplus_pq;
+}
+
 pub struct Hplus<'a>{
     qtrans_ov:ArrayView3<'a,f64>,
     qtrans_vv:ArrayView3<'a,f64>,
@@ -582,6 +601,208 @@ pub enum HplusType{
     Wij
 }
 
+pub struct Hav<'a>{
+    qtrans_ov:ArrayView3<'a,f64>,
+    qtrans_vv:ArrayView3<'a,f64>,
+    qtrans_oo:ArrayView3<'a,f64>,
+    qtrans_vo:ArrayView3<'a,f64>,
+    n_occ:usize,
+    n_virt:usize,
+    n_at:usize,
+}
+
+impl Hav<'_>{
+    pub fn new<'a>(
+        qtrans_ov:ArrayView3<'a,f64>,
+        qtrans_vv:ArrayView3<'a,f64>,
+        qtrans_oo:ArrayView3<'a,f64>,
+        qtrans_vo:ArrayView3<'a,f64>,
+    )->Hav<'a>{
+        let n_at:usize = qtrans_ov.dim().0;
+        let n_occ:usize = qtrans_ov.dim().1;
+        let n_virt:usize = qtrans_ov.dim().2;
+
+        Hav{
+            qtrans_ov:qtrans_ov,
+            qtrans_vv:qtrans_vv,
+            qtrans_oo:qtrans_oo,
+            qtrans_vo:qtrans_vo,
+            n_occ:n_occ,
+            n_virt:n_virt,
+            n_at:n_at
+        }
+    }
+
+    pub fn compute(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+        hplus_type:HplusType,
+    )->Array2<f64>{
+        let result:Array2<f64> = match hplus_type{
+            HplusType::Tab => 2.0*self.hav_tab(g0,g0_lr,v),
+            HplusType::Tij => 2.0*self.hav_tij(g0,g0_lr,v),
+            HplusType::Qia_Xpy => 2.0*self.hav_qia_x(g0,g0_lr,v),
+            HplusType::Qia_Tab => 2.0*self.hav_qia_tab(g0,g0_lr,v),
+            HplusType::Qia_Tij => 2.0*self.hav_qia_tij(g0,g0_lr,v),
+            HplusType::Qai => 2.0*self.hav_qai_or_wij(g0,g0_lr,v),
+            HplusType::Wij => 2.0*self.hav_qai_or_wij(g0,g0_lr,v),
+            _ => (panic!("this type does not exist!")),
+        };
+        return result;
+    }
+
+    fn hav_tab(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+    )->Array2<f64>{
+        let n_occ:usize = self.n_occ;
+        let n_virt:usize = self.n_virt;
+        let n_at:usize = self.n_at;
+
+        // term 1
+        let tmp:Array1<f64> = self.qtrans_vv.into_shape((n_at,n_virt*n_virt)).unwrap().dot(&v.into_shape((n_virt*n_virt)).unwrap());
+        let tmp2: Array1<f64> = g0.dot(&tmp);
+        let mut hplus_pq:Array2<f64> = 2.0 * tmp2.dot(&self.qtrans_oo.into_shape((n_at,n_occ*n_occ)).unwrap()).into_shape((n_occ,n_occ)).unwrap();
+
+        // term 2
+        let tmp:Array3<f64> = self.qtrans_ov.into_shape((n_at*n_occ,n_virt)).unwrap().dot(&v.t()).into_shape((n_at,n_occ,n_virt)).unwrap();
+        let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,n_occ*n_virt)).unwrap()).into_shape((n_at,n_occ,n_virt)).unwrap();
+        let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*n_virt,n_occ)).unwrap().to_owned();
+        let q_swapped = self.qtrans_ov.permuted_axes([1,0,2]).as_standard_layout().into_shape((n_occ,n_at*n_virt)).unwrap().to_owned();
+        hplus_pq = hplus_pq - q_swapped.dot(&tmp2_swapped);
+
+        return hplus_pq;
+    }
+
+    fn hav_tij(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+    )->Array2<f64>{
+        let n_occ:usize = self.n_occ;
+        let n_at:usize = self.n_at;
+
+        // term 1
+        let tmp:Array1<f64> = self.qtrans_oo.into_shape((n_at,n_occ*n_occ)).unwrap().dot(&v.into_shape(n_occ*n_occ).unwrap());
+        let tmp2: Array1<f64> = g0.dot(&tmp);
+        let mut hplus_pq:Array2<f64> = 2.0 * tmp2.dot(&self.qtrans_oo.into_shape((n_at,n_occ*n_occ)).unwrap()).into_shape((n_occ,n_occ)).unwrap();
+
+        // term 2
+        let tmp:Array3<f64> = self.qtrans_oo.into_shape((n_at*n_occ,n_occ)).unwrap().dot(&v.t()).into_shape((n_at,n_occ,n_occ)).unwrap();
+        let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,n_occ*n_occ)).unwrap()).into_shape((n_at,n_occ,n_occ)).unwrap();
+        let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*n_occ,n_occ)).unwrap().to_owned();
+        let q_swapped = self.qtrans_oo.permuted_axes([1,0,2]).as_standard_layout().into_shape((n_occ,n_at*n_occ)).unwrap().to_owned();
+        hplus_pq = hplus_pq - q_swapped.dot(&tmp2_swapped);
+
+        return hplus_pq;
+    }
+
+    fn hav_qia_x(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+    )->Array2<f64>{
+        let n_occ:usize = self.n_occ;
+        let n_virt:usize = self.n_virt;
+        let n_at:usize = self.n_at;
+
+        // term 1
+        let tmp:Array1<f64> = self.qtrans_ov.into_shape((n_at,n_occ*n_virt)).unwrap().dot(&v.into_shape(n_occ*n_virt).unwrap());
+        let tmp2: Array1<f64> = g0.dot(&tmp);
+        let mut hplus_pq:Array2<f64> = 2.0 * tmp2.dot(&self.qtrans_vv.into_shape((n_at,n_virt*n_virt)).unwrap()).into_shape((n_virt,n_virt)).unwrap();
+
+        // term 2
+        let tmp:Array3<f64> = self.qtrans_vv.into_shape((n_at*n_virt,n_virt)).unwrap().dot(&v.t()).into_shape((n_at,n_virt,n_occ)).unwrap();
+        let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,n_virt*n_occ)).unwrap()).into_shape((n_at,n_virt,n_occ)).unwrap();
+        let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*n_occ,n_virt)).unwrap().to_owned();
+        let q_swapped = self.qtrans_vo.permuted_axes([1,0,2]).as_standard_layout().into_shape((n_virt,n_at*n_occ)).unwrap().to_owned();
+        hplus_pq = hplus_pq - q_swapped.dot(&tmp2_swapped);
+
+        return hplus_pq;
+    }
+
+    fn hav_qia_tab(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+    )->Array2<f64>{
+        let n_occ:usize = self.n_occ;
+        let n_virt:usize = self.n_virt;
+        let n_at:usize = self.n_at;
+
+        // term 1
+        let tmp:Array1<f64> = self.qtrans_vv.into_shape((n_at,n_virt*n_virt)).unwrap().dot(&v.into_shape(n_virt*n_virt).unwrap());
+        let tmp2: Array1<f64> = g0.dot(&tmp);
+        let mut hplus_pq:Array2<f64> = 2.0 * tmp2.dot(&self.qtrans_ov.into_shape((n_at,n_occ*n_virt)).unwrap()).into_shape((n_occ,n_virt)).unwrap();
+
+        // term 2
+        let tmp:Array3<f64> = self.qtrans_vv.into_shape((n_at*n_virt,n_virt)).unwrap().dot(&v.t()).into_shape((n_at,n_virt,n_virt)).unwrap();
+        let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,n_virt*n_virt)).unwrap()).into_shape((n_at,n_virt,n_virt)).unwrap();
+        let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*n_virt,n_virt)).unwrap().to_owned();
+        let q_swapped = self.qtrans_ov.permuted_axes([1,0,2]).as_standard_layout().into_shape((n_occ,n_at*n_virt)).unwrap().to_owned();
+        hplus_pq = hplus_pq - q_swapped.dot(&tmp2_swapped);
+
+        return hplus_pq;
+    }
+
+    fn hav_qia_tij(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+    )->Array2<f64>{
+        let n_occ:usize = self.n_occ;
+        let n_virt:usize = self.n_virt;
+        let n_at:usize = self.n_at;
+
+        // term 1
+        let tmp:Array1<f64> = self.qtrans_oo.into_shape((n_at,n_occ*n_occ)).unwrap().dot(&v.into_shape(n_occ*n_occ).unwrap());
+        let tmp2: Array1<f64> = g0.dot(&tmp);
+        let mut hplus_pq:Array2<f64> = 2.0 * tmp2.dot(&self.qtrans_ov.into_shape((n_at,n_occ*n_virt)).unwrap()).into_shape((n_occ,n_virt)).unwrap();
+
+        // term 2
+        let tmp:Array3<f64> = self.qtrans_vo.into_shape((n_at*n_virt,n_occ)).unwrap().dot(&v.t()).into_shape((n_at,n_virt,n_occ)).unwrap();
+        let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,n_virt*n_occ)).unwrap()).into_shape((n_at,n_virt,n_occ)).unwrap();
+        let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*n_occ,n_virt)).unwrap().to_owned();
+        let q_swapped = self.qtrans_oo.permuted_axes([1,0,2]).as_standard_layout().into_shape((n_occ,n_at*n_occ)).unwrap().to_owned();
+        hplus_pq = hplus_pq - q_swapped.dot(&tmp2_swapped);
+
+        return hplus_pq;
+    }
+
+    fn hav_qai_or_wij(
+        &self,
+        g0:ArrayView2<f64>,
+        g0_lr:ArrayView2<f64>,
+        v:ArrayView2<f64>,
+    )->Array2<f64>{
+        let n_occ:usize = self.n_occ;
+        let n_virt:usize = self.n_virt;
+        let n_at:usize = self.n_at;
+
+        // term 1
+        let tmp:Array1<f64> = self.qtrans_ov.into_shape((n_at,n_occ*n_virt)).unwrap().dot(&v.into_shape(n_occ*n_virt).unwrap());
+        let tmp2: Array1<f64> = g0.dot(&tmp);
+        let mut hplus_pq:Array2<f64> = 2.0 * tmp2.dot(&self.qtrans_oo.into_shape((n_at,n_occ*n_occ)).unwrap()).into_shape((n_occ,n_occ)).unwrap();
+
+        // term 2
+        let tmp:Array3<f64> = self.qtrans_ov.into_shape((n_at*n_occ,n_virt)).unwrap().dot(&v.t()).into_shape((n_at,n_occ,n_occ)).unwrap();
+        let tmp2:Array3<f64> = g0_lr.dot(&tmp.into_shape((n_at,n_occ*n_occ)).unwrap()).into_shape((n_at,n_occ,n_occ)).unwrap();
+        let tmp2_swapped = tmp2.permuted_axes([0,2,1]).as_standard_layout().into_shape((n_at*n_occ,n_occ)).unwrap().to_owned();
+        let q_swapped = self.qtrans_oo.permuted_axes([1,0,2]).as_standard_layout().into_shape((n_occ,n_at*n_occ)).unwrap().to_owned();
+        hplus_pq = hplus_pq - q_swapped.dot(&tmp2_swapped);
+
+        return hplus_pq;
+    }
+}
+
 //  Compute the gradient of the repulsive potential
 //  Parameters:
 //  ===========
@@ -802,6 +1023,178 @@ pub fn zvector_no_lc(
     return out;
 }
 
+pub fn tda_zvector_no_lc(
+    a_diag: ArrayView2<f64>,
+    r_matrix: ArrayView2<f64>,
+    g0: ArrayView2<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array2<f64>) {
+    // Parameters:
+    // ===========
+    // A: linear operator, such that A(X) = A.X
+    // Adiag: diagonal elements of A-matrix, with dimension (nocc,nvirt)
+    // B: right hand side of equation, (nocc,nvirt, k)
+    let maxiter: usize = 10000;
+    let conv:f64 = 1.0e-19;
+
+    let n_occ: usize = r_matrix.dim().0;
+    let n_virt: usize = r_matrix.dim().1;
+    let kmax: usize = n_occ * n_virt;
+    let n_at:usize = qtrans_ov.dim().0;
+
+    // bs are expansion vectors
+    let a_inv: Array2<f64> = 1.0 / &a_diag.to_owned();
+    let mut bs: Array2<f64> = &a_inv * &r_matrix;
+
+    let mut rhs_2: Array1<f64> = Array::zeros((kmax));
+    let mut rkm1: Array1<f64> = Array::zeros((kmax));
+    let mut pkm1: Array1<f64> = Array::zeros((kmax));
+    let rhs:Array1<f64> = r_matrix.into_shape(kmax).unwrap().to_owned();
+
+    let apbv:Array2<f64> = mult_av_nolc(
+        g0,
+        qtrans_ov,
+        a_diag,
+        bs.view(),
+        n_occ,
+        n_virt,
+        multiplicity,
+        spin_couplings,
+    );
+
+    rkm1 = apbv.into_shape(kmax).unwrap();
+    rhs_2 = bs.into_shape(kmax).unwrap();
+    rkm1 = rhs - rkm1;
+    pkm1 = rkm1.clone();
+
+    for it in 0..maxiter {
+        let apbv:Array2<f64> = mult_av_nolc(
+            g0,
+            qtrans_ov,
+            a_diag,
+            pkm1.view().into_shape((n_occ,n_virt)).unwrap(),
+            n_occ,
+            n_virt,
+            multiplicity,
+            spin_couplings,
+        );
+        let apk:Array1<f64> = apbv.into_shape((kmax)).unwrap();
+
+        let tmp1:f64 = rkm1.dot(&rkm1);
+        let tmp2:f64 = pkm1.dot(&apk);
+
+        rhs_2 = rhs_2 + (tmp1/tmp2) * &pkm1;
+        rkm1 = rkm1 - (tmp1/tmp2) * &apk;
+
+        let tmp2:f64 = rkm1.dot(&rkm1);
+
+        if tmp2 <= conv{
+            break;
+        }
+        pkm1 = (tmp2/tmp1) * &pkm1 + &rkm1;
+    }
+
+    let out:Array2<f64> = rhs_2.into_shape((n_occ,n_virt)).unwrap();
+    return out;
+}
+
+pub fn tda_zvector_lc(
+    a_diag: ArrayView2<f64>,
+    r_matrix: ArrayView2<f64>,
+    g0: ArrayView2<f64>,
+    g0_lr: ArrayView2<f64>,
+    qtrans_oo: ArrayView3<f64>,
+    qtrans_vv: ArrayView3<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array2<f64>) {
+    // Parameters:
+    // ===========
+    // A: linear operator, such that A(X) = A.X
+    // Adiag: diagonal elements of A-matrix, with dimension (nocc,nvirt)
+    // B: right hand side of equation, (nocc,nvirt, k)
+    let maxiter: usize = 10000;
+    let conv:f64 = 1.0e-19;
+
+    let n_occ: usize = r_matrix.dim().0;
+    let n_virt: usize = r_matrix.dim().1;
+    let kmax: usize = n_occ * n_virt;
+    let n_at:usize = qtrans_ov.dim().0;
+
+    // bs are expansion vectors
+    let a_inv: Array2<f64> = 1.0 / &a_diag.to_owned();
+    let mut bs: Array2<f64> = &a_inv * &r_matrix;
+
+    let mut rhs_2: Array1<f64> = Array::zeros((kmax));
+    let mut rkm1: Array1<f64> = Array::zeros((kmax));
+    let mut pkm1: Array1<f64> = Array::zeros((kmax));
+    let rhs:Array1<f64> = r_matrix.into_shape(kmax).unwrap().to_owned();
+
+    // create new arrays for transition charges of specific shapes,
+    // which are required by the mult_apb_v_routine
+    let tmp_q_vv: ArrayView2<f64> = qtrans_vv
+        .into_shape((n_virt * n_at, n_virt))
+        .unwrap();
+    let tmp_q_oo: ArrayView2<f64> = qtrans_oo
+        .into_shape((n_at * n_occ, n_occ))
+        .unwrap();
+
+    let apbv:Array2<f64> = mult_av_lc(
+        g0,
+        g0_lr,
+        qtrans_ov,
+        tmp_q_oo,
+        tmp_q_vv,
+        a_diag,
+        bs.view(),
+        n_occ,
+        n_virt,
+        multiplicity,
+        spin_couplings,
+    );
+
+    rkm1 = apbv.into_shape(kmax).unwrap();
+    rhs_2 = bs.into_shape(kmax).unwrap();
+    rkm1 = rhs - rkm1;
+    pkm1 = rkm1.clone();
+
+    for it in 0..maxiter {
+        let apbv:Array2<f64> = mult_av_lc(
+            g0,
+            g0_lr,
+            qtrans_ov,
+            tmp_q_oo,
+            tmp_q_vv,
+            a_diag,
+            pkm1.view().into_shape((n_occ,n_virt)).unwrap(),
+            n_occ,
+            n_virt,
+            multiplicity,
+            spin_couplings,
+        );
+        let apk:Array1<f64> = apbv.into_shape((kmax)).unwrap();
+
+        let tmp1:f64 = rkm1.dot(&rkm1);
+        let tmp2:f64 = pkm1.dot(&apk);
+
+        rhs_2 = rhs_2 + (tmp1/tmp2) * &pkm1;
+        rkm1 = rkm1 - (tmp1/tmp2) * &apk;
+
+        let tmp2:f64 = rkm1.dot(&rkm1);
+
+        if tmp2 <= conv{
+            break;
+        }
+        pkm1 = (tmp2/tmp1) * &pkm1 + &rkm1;
+    }
+
+    let out:Array2<f64> = rhs_2.into_shape((n_occ,n_virt)).unwrap();
+    return out;
+}
+
 fn mult_apb_v(
     gamma: ArrayView2<f64>,
     gamma_lr: ArrayView2<f64>,
@@ -924,6 +1317,95 @@ fn mult_apb_v_no_lc(
     // for at in (0..n_at).into_iter() {
     //     u_l = u_l + &qtrans_ov.slice(s![at, .., ..]) * tmp22[at];
     // }
+
+    return u_l;
+}
+
+fn mult_av_nolc(
+    gamma: ArrayView2<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    omega: ArrayView2<f64>,
+    vs: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array2<f64>) {
+    let n_at:usize = qtrans_ov.dim().0;
+    let gamma_equiv: Array2<f64> = if multiplicity == 1 {
+        gamma.to_owned()
+    } else if multiplicity == 3 {
+        Array2::from_diag(&spin_couplings)
+    } else {
+        panic!(
+            "Currently only singlets and triplets are supported, you wished a multiplicity of {}!",
+            multiplicity
+        );
+    };
+
+    // 1st term - KS orbital energy differences
+    let mut u_l: Array2<f64> = &omega * &vs;
+
+    // 2nd term - Coulomb
+    u_l = u_l + 4.0 * gamma_equiv.dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()
+        .dot(&vs.into_shape(n_occ*n_virt).unwrap()))
+        .dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()).into_shape([n_occ,n_virt]).unwrap();
+
+    return u_l;
+}
+
+fn mult_av_lc(
+    gamma: ArrayView2<f64>,
+    gamma_lr: ArrayView2<f64>,
+    qtrans_ov: ArrayView3<f64>,
+    qtrans_oo_reshaped:ArrayView2<f64>,
+    qtrans_vv_reshaped:ArrayView2<f64>,
+    omega: ArrayView2<f64>,
+    vs: ArrayView2<f64>,
+    n_occ: usize,
+    n_virt: usize,
+    multiplicity: u8,
+    spin_couplings: ArrayView1<f64>,
+) -> (Array2<f64>) {
+    let n_at:usize = qtrans_ov.dim().0;
+
+    let gamma_equiv: Array2<f64> = if multiplicity == 1 {
+        gamma.to_owned()
+    } else if multiplicity == 3 {
+        Array2::from_diag(&spin_couplings)
+    } else {
+        panic!(
+            "Currently only singlets and triplets are supported, you wished a multiplicity of {}!",
+            multiplicity
+        );
+    };
+
+    // 1st term - KS orbital energy differences
+    let mut u_l: Array2<f64> = &omega * &vs;
+
+    // 2nd term - Coulomb
+    u_l = u_l + 2.0 * gamma_equiv.dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()
+        .dot(&vs.into_shape(n_occ*n_virt).unwrap()))
+        .dot(&qtrans_ov.into_shape([n_at,n_occ*n_virt]).unwrap()).into_shape([n_occ,n_virt]).unwrap();
+
+    // 3rd term - Exchange
+    let tmp31: Array3<f64> = qtrans_vv_reshaped
+        .dot(&vs.t())
+        .into_shape((n_at, n_virt, n_occ))
+        .unwrap();
+
+    let tmp31_reshaped: Array2<f64> = tmp31.into_shape((n_at, n_virt * n_occ)).unwrap();
+    let mut tmp32: Array3<f64> = gamma_lr
+        .dot(&tmp31_reshaped)
+        .into_shape((n_at, n_virt, n_occ))
+        .unwrap();
+    tmp32.swap_axes(1, 2);
+    let tmp32 = tmp32.as_standard_layout();
+
+    let tmp33: Array2<f64> = qtrans_oo_reshaped
+        .t()
+        .dot(&tmp32.into_shape((n_at * n_occ, n_virt)).unwrap());
+    u_l = u_l - tmp33;
 
     return u_l;
 }

@@ -2,6 +2,8 @@ use ndarray::prelude::*;
 use enum_as_inner::EnumAsInner;
 use crate::scc::mixer::BroydenMixer;
 use crate::excited_states::ProductCache;
+use hashbrown::HashMap;
+use crate::fmo::PairType;
 
 /// A `Property` is a piece of data that can be associated with an `Molecule` or
 /// `ElectronicData`. The idea of this enum is taken from Guillaume Fraux's (@Luthaf) Chemfiles
@@ -30,10 +32,16 @@ use crate::excited_states::ProductCache;
 pub enum Property {
     /// Boolean property
     Bool(bool),
+    /// Integer property
+    Usize(usize),
     /// Floating point property
     Double(f64),
     /// String property
     String(String),
+    /// HashMap for types of pairs.
+    PairMap(HashMap<(usize, usize), PairType>),
+    /// HashMap for indices of pairs.
+    PairIndexMap(HashMap<(usize, usize), usize>),
     /// Vector property of u8 type
     VecU8(Vec<u8>),
     /// Vector property of usize type
@@ -66,6 +74,12 @@ impl From<bool> for Property {
     }
 }
 
+impl From<usize> for Property {
+    fn from(value: usize) -> Self {
+        Property::Usize(value)
+    }
+}
+
 impl From<f64> for Property {
     fn from(value: f64) -> Self {
         Property::Double(value)
@@ -75,6 +89,12 @@ impl From<f64> for Property {
 impl From<String> for Property {
     fn from(value: String) -> Self {
         Property::String(value)
+    }
+}
+
+impl From<HashMap<(usize, usize), PairType>> for Property {
+    fn from(value: HashMap<(usize, usize), PairType>) -> Self {
+        Property::PairMap(value)
     }
 }
 

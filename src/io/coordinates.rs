@@ -51,8 +51,6 @@ pub fn frame_to_atoms(frame: Frame) -> (Vec<Atom>, Vec<Atom>) {
     (atoms, unique_atoms)
 }
 
-
-
 /// Read a xyz-geometry file like .xyz or .pdb and returns a [Frame](chemfiles::Frame)
 pub fn read_file_to_frame(filename: &str) -> Frame{
     // read the geometry file

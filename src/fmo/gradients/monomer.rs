@@ -48,8 +48,6 @@ impl GroundStateGradient for Monomer {
         let s: ArrayView2<f64> = self.properties.s().unwrap();
         let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
 
-        drop(s);
-
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
         // into one dimension to be able to just matrix-matrix products for the computation of the gradient
         let grad_s: Array2<f64> = grad_s
@@ -110,10 +108,14 @@ impl GroundStateGradient for Monomer {
             .unwrap();
 
         // compute the energy weighted density matrix: W = 1/2 * D . (H + H_Coul) . D
+        // let w: Array1<f64> = 0.5
+        //     * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
+        //         .into_shape([self.n_orbs * self.n_orbs])
+        //         .unwrap();
         let w: Array1<f64> = 0.5
-            * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
-                .into_shape([self.n_orbs * self.n_orbs])
-                .unwrap();
+            * (p.dot(&self.properties.h_coul_x().unwrap()).dot(&p))
+            .into_shape([self.n_orbs * self.n_orbs])
+            .unwrap();
 
         // calculation of the gradient
         // 1st part:  dH0 / dR . P

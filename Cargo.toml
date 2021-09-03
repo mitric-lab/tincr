@@ -12,8 +12,9 @@ edition = "2018"
 [dependencies]
 chemfiles = "0.10"
 ndarray = {version = "0.15.3", features = ["serde-1", "approx", "rayon"]}
+ndarray-npy = "0.8"
 approx = "0.3.2"
-ndarray-linalg = { version = "0.14", features = ["netlib-system"]}
+ndarray-linalg = { version = "0.14", features = ["intel-mkl"]}
 ndarray-stats = "0.5"
 phf = { version = "0.8.0", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -28,8 +29,8 @@ bspline = "0.2.3"
 rusty-fitpack = { git = "https://github.com/mitric-lab/Rusty-FITPACK.git"}
 ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
-nalgebra = "0.26.1"
-nshare = {version = "0.4", features = ["ndarray", "nalgebra"]}
+nalgebra = "0.27.1"
+nshare = {version = "0.7", features = ["ndarray", "nalgebra"]}
 clap = "3.0.0-beta.2"
 toml = "0.5"
 rand = "0.8.3"
@@ -40,3 +41,6 @@ enum-as-inner = "0.3.3"
 soa_derive = "0.10.0"
 data_reader = "0.3.0"
 hashbrown = "0.11.2"
+derive_builder = "0.10.2"
+chrono = "0.4"
+num-traits = "0.2.14"

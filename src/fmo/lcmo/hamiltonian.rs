@@ -105,12 +105,11 @@ impl SuperSystem {
         // The Fock matrix needs to be transformed by the Löwdin orthogonalization. Computation of
         // the matrix inverse of the total overlap is computationally demanding. Since the
         // total overlap matrix is almost diagonal, it can be approximated in first order by:
-        // S^-1/2 = I - 1/2 Delta
-        println!("{:5.3e}", s_total);
+        // S^-1/2 = 1.5 * I - 1/2 Delta
         let x: Array2<f64> = 1.5 * Array::eye(dim) - 0.5 * &s_total;
         let x2: Array2<f64> = s_total.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
-        println!("{:5.3e}", &x - &x2);
         // The transformed Fock matrix is returned.
-        (x.t().dot(&fock)).dot(&x)
+        //(x.t().dot(&fock)).dot(&x)
+        fock
     }
 }

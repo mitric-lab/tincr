@@ -1,6 +1,16 @@
 use crate::{defaults};
 use ndarray::prelude::*;
 use ndarray_linalg::Norm;
+use crate::initialization::Atom;
+use nshare::RefNdarray1;
+
+pub fn get_xyz_2d(atoms: &[Atom]) -> Array2<f64> {
+    let mut xyz: Array2<f64> = Array2::zeros([0, 3]);
+    atoms.iter().for_each(|atom| {
+        xyz.push(Axis(0), atom.xyz.ref_ndarray1()).unwrap()
+    });
+    xyz
+}
 
 /// Type that holds the atomic numbers and positions of a molecule.
 /// The distance, directions and proximity matrices are optional informations that are stored

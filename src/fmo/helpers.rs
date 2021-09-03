@@ -1,7 +1,7 @@
 use crate::fmo::SuperSystem;
 use crate::initialization::Atom;
 use ndarray::Slice;
-use std::ops::Range;
+use std::ops::{Range, AddAssign};
 
 
 /// The atoms in the pair are two blocks in the Vec<Atom>, but these two blocks are in general not
@@ -15,6 +15,40 @@ pub fn get_pair_slice(atoms: &[Atom], mi_range: Range<usize>, mj_range: Range<us
         .collect()
 }
 
+#[derive(Copy, Clone)]
+pub struct MolIndices{
+    pub atom: usize,
+    pub orbs: usize,
+    pub occs: usize,
+    pub virts: usize,
+}
+
+impl MolIndices {
+    pub fn new() -> Self {
+        Self {
+            atom: 0,
+            orbs: 0,
+            occs: 0,
+            virts: 0
+        }
+    }
+
+    pub fn add(&mut self, incr: MolIncrements)  {
+        self.atom += incr.atom;
+        self.orbs += incr.orbs;
+        self.occs += incr.occs;
+        self.virts += incr.virts;
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct MolIncrements {
+    pub atom: usize,
+    pub orbs: usize,
+    pub occs: usize,
+    pub virts: usize,
+}
+
 /// Type that holds different Slices that are frequently used for indexing of molecular subunits
 pub struct MolecularSlice {
     /// [Slice](ndarray::prelude::Slice) for the atoms corresponding to the molecular unit
@@ -26,15 +60,21 @@ pub struct MolecularSlice {
     pub grad: Slice,
     /// [Slice](ndarray::prelude::Slice) for the orbitals corresponding to this molecular unit
     pub orb: Slice,
+    /// [Slice](ndarray::prelude::Slice) for occupied orbitals corresponding to this molecular unit
+    pub occ_orb: Slice,
+    /// [Slice](ndarray::prelude::Slice) for virtual orbitals corresponding to this molecular unit
+    pub virt_orb: Slice,
 }
 
 impl MolecularSlice {
-    pub fn new(at_index: usize, n_atoms: usize, orb_index: usize, n_orbs: usize) -> Self {
+    pub fn new(indices: MolIndices, incr: MolIncrements) -> Self {
         MolecularSlice {
-            atom: Slice::from(at_index..(at_index + n_atoms)),
-            atom_range: at_index..(at_index + n_atoms),
-            grad: Slice::from((at_index * 3)..(at_index + n_atoms) * 3),
-            orb: Slice::from(orb_index..(orb_index + n_orbs)),
+            atom: Slice::from(indices.atom..(indices.atom + incr.atom)),
+            atom_range: indices.atom..(indices.atom + incr.atom),
+            grad: Slice::from((indices.atom * 3)..(indices.atom + incr.atom) * 3),
+            orb: Slice::from(indices.orbs..(indices.orbs + incr.orbs)),
+            occ_orb: Slice::from(indices.occs..(indices.occs + incr.occs)),
+            virt_orb: Slice::from(indices.virts..(indices.virts + incr.virts)),
         }
     }
 

@@ -1,5 +1,5 @@
-use ndarray::prelude::*;
 use crate::initialization::Atom;
+use ndarray::prelude::*;
 
 /// Computes the Mulliken transition charges between occupied-occupied,
 /// occupied-virtual and virtual-virtual molecular orbitals.
@@ -51,7 +51,8 @@ pub fn trans_charges(
                     .iter()
                     .zip(s_c.slice(s![mu, i_v..f_v]).iter())
                     .enumerate()
-                {   // The index to determine the pair of MOs is computed.
+                {
+                    // The index to determine the pair of MOs is computed.
                     let idx: usize = (i * dim_v) + a;
                     // The occupied - virtual transition charge is computed.
                     q_trans_ov[[n, idx]] += 0.5 * (orb_mu_i * s_c_mu_a + orb_mu_a * s_c_mu_i);
@@ -75,13 +76,15 @@ pub fn trans_charges(
                 .iter()
                 .zip(s_c.slice(s![mu, i_v..f_v]).iter())
                 .enumerate()
-            {   // Iteration over virtual orbital B.
+            {
+                // Iteration over virtual orbital B.
                 for (b, (orb_mu_b, s_c_mu_b)) in orbs
                     .slice(s![mu, i_v..f_v])
                     .iter()
                     .zip(s_c.slice(s![mu, i_v..f_v]).iter())
                     .enumerate()
-                {   // The index is computed.
+                {
+                    // The index is computed.
                     let idx: usize = (a * dim_v) + b;
                     // The virtual - virtual transition charge is computed.
                     q_trans_vv[[n, idx]] += 0.5 * (orb_mu_a * s_c_mu_b + orb_mu_b * s_c_mu_a);
@@ -90,5 +93,6 @@ pub fn trans_charges(
             mu += 1;
         }
     }
+
     (q_trans_ov, q_trans_oo, q_trans_vv)
 }
