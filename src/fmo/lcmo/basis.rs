@@ -126,7 +126,7 @@ impl SuperSystem {
         states
     }
 
-    pub fn create_exciton_hamiltonian(&mut self) -> Array2<f64> {
+    pub fn create_exciton_hamiltonian(&mut self) -> f64 {
         self.properties.set_lcmo_fock(self.build_lcmo_fock_matrix());
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
@@ -147,13 +147,19 @@ impl SuperSystem {
         // Initialize the Exciton-Hamiltonian.
         let mut h: Array2<f64> = Array2::zeros([dim, dim]);
 
-        for (i, state_i) in states.iter().enumerate() {
-            // Only the upper triangle is calculated!
-            for (j, state_j) in states[i..].iter().enumerate() {
-                h[[i, j+i]] = self.exciton_coupling(state_i, state_j);
-            }
-        }
-        return h;
+        // for state in states[2*n_le..].iter(){
+        //     println!("state {}",state);
+        // }
+        let ct_state = &states[2*n_le];
+        let val:f64 = self.exciton_coupling(ct_state,ct_state);
+
+        // for (i, state_i) in states.iter().enumerate() {
+        //     // Only the upper triangle is calculated!
+        //     for (j, state_j) in states[i..].iter().enumerate() {
+        //         h[[i, j+i]] = self.exciton_coupling(state_i, state_j);
+        //     }
+        // }
+        return val;
 
         // The Hamiltonian is returned. Only the upper triangle is filled, so this has to be
         // considered when using eigh.

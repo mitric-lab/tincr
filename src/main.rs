@@ -122,9 +122,17 @@ fn main() {
         //     .build()
         //     .unwrap();
 
+        // println!("norbs occ {:?}",system.monomers[0].properties.occ_indices());
+        // println!("norbs virt {:?}",system.monomers[0].properties.virt_indices());
+        // write_npy("/home/einseler/Downloads/s_matrix.npy", &system.properties.s().unwrap());
+        // write_npy("/home/einseler/Downloads/gamma_matrix.npy", &system.properties.gamma().unwrap());
+        // write_npy("/home/einseler/Downloads/coeff_a.npy", &system.monomers[0].properties.orbs().unwrap());
+        // write_npy("/home/einseler/Downloads/coeff_b.npy", &system.monomers[1].properties.orbs().unwrap());
         system.test_ct_gradient();
+        // system.test_orbital_energy_derivative();
 
         // let hamiltonian = system.create_exciton_hamiltonian();
+        // println!("coulomb integral {}",hamiltonian);
     }
 
     // let path = Path::new("/Users/hochej/Downloads/test.molden");

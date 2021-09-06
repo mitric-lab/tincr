@@ -34,7 +34,9 @@ impl SuperSystem {
         // calculate the gradients of the fock matrix elements
         let mut gradh_i = -1.0*m_i.calculate_ct_fock_gradient(atoms_i, ct_ind_i, true);
         let gradh_j = m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
-        println!("Test1");
+        println!("grad i {}",gradh_i.slice(s![0..4]));
+        println!("grad j {}",gradh_j.slice(s![0..4]));
+
         // append the fock matrix gradients
         gradh_i.append(Axis(0), gradh_j.view()).unwrap();
 
@@ -53,7 +55,7 @@ impl SuperSystem {
             m_i.slice.atom_as_range(),
             m_j.slice.atom_as_range(),
         );
-        println!("Test12");
+
         let (grad_s_pair, grad_h0_pair) =
             h0_and_s_gradients(&pair_atoms, pair_ij.n_orbs, &pair_ij.slako);
         let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
@@ -80,7 +82,6 @@ impl SuperSystem {
 
             pair_ij.properties.set_s(s);
         }
-        println!("Test123");
 
         // get the gamma matrix
         if pair_ij.properties.gamma().is_none() {
@@ -114,8 +115,6 @@ impl SuperSystem {
             pair_ij.properties.set_gamma_lr_ao(gamma_lr_ao);
         }
 
-        println!("Test1234");
-
         // calculate the gamma matrix in AO basis
         let g0_ao: Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
             pair_ij.properties.gamma().unwrap(),
@@ -137,8 +136,6 @@ impl SuperSystem {
             pair_ij.n_orbs,
         );
 
-        println!("Test12345");
-
         let coulomb_gradient: Array1<f64> = f_v_ct(
             c_mo_j,
             m_i.properties.s().unwrap(),
@@ -154,8 +151,6 @@ impl SuperSystem {
         .unwrap()
         .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
-        println!("Test123456");
-
         let exchange_gradient: Array1<f64> = f_lr_ct(
             c_mo_j.t(),
             pair_ij.properties.s().unwrap(),
@@ -170,10 +165,13 @@ impl SuperSystem {
         .unwrap()
         .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
-        println!("Test1234567");
-
         // assemble the gradient
-        let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
+        // println!("gradient of orbital energies {}",gradh_i);
+        // println!("exchange gradient {}",exchange_gradient);
+        // println!("coulomb gradient {}",coulomb_gradient);
+        // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
+        // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
+        let gradient: Array1<f64> = 2.0 * exchange_gradient;
 
         return gradient;
     }

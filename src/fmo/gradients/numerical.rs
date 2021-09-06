@@ -31,7 +31,7 @@ impl SuperSystem {
         let mol = &self.monomers[0];
         let orbe = mol.properties.orbe().unwrap();
         let virtual_indices = mol.properties.virt_indices().unwrap();
-        let orbe_homo:f64 = orbe[virtual_indices[0]-1];
+        let orbe_homo:f64 = orbe[virtual_indices[0]];
         return orbe_homo;
     }
 
@@ -50,7 +50,7 @@ impl SuperSystem {
         let mol = &mut self.monomers[0];
         let atoms = &self.atoms[mol.slice.atom_as_range()];
         mol.prepare_excited_gradient(atoms);
-        let grad = mol.calculate_ct_fock_gradient(atoms,0,true);
+        let grad = mol.calculate_ct_fock_gradient(atoms,0,false);
         mol.properties.reset();
 
         return grad;
@@ -84,11 +84,7 @@ impl SuperSystem {
         self.run_scc();
 
         let hamiltonian = self.create_exciton_hamiltonian();
-        let n_le:usize = self.config.lcmo.n_le * self.monomers.len();
-        let ct_index:usize = n_le +1;
-        // get first ct_ct state from the matrix
-        let ct_energy:f64 = hamiltonian[[ct_index,ct_index]];
-        return ct_energy;
+        return hamiltonian;
     }
 
     pub fn fmo_ct_gradient_wrapper(&mut self)->Array1<f64>{

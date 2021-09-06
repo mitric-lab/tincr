@@ -224,8 +224,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
         properties.set_pair_indices(pair_indices);
         info!("{}", timer);
 
-
-        let (h0, s) = h0_and_s(n_orbs, &atoms, &slako);
+        let (s, h0) = h0_and_s(n_orbs, &atoms, &slako);
         properties.set_s(s);
 
         Self {
