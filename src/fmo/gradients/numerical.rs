@@ -11,6 +11,7 @@ use crate::scc::scc_routine::RestrictedSCC;
 use crate::gradients::assert_deriv;
 use crate::initialization::Atom;
 use crate::constants::BOHR_TO_ANGS;
+use std::net::UdpSocket;
 
 impl SuperSystem {
     pub fn monomer_orbital_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64{
@@ -68,6 +69,58 @@ impl SuperSystem {
         let (_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
 
         assert_deriv(self, SuperSystem::monomer_orbital_energy_wrapper, SuperSystem::test_monomer_orbital_energy_gradient, self.get_xyz(), 0.0001, 1e-6);
+    }
+
+    pub fn fmo_ct_energy_wrapper(&mut self,geometry: Array1<f64>)->f64{
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.update_xyz(geometry);
+        self.prepare_scc();
+        self.run_scc();
+
+        let hamiltonian = self.create_exciton_hamiltonian();
+        let n_le:usize = self.config.lcmo.n_le * self.monomers.len();
+        let ct_index:usize = n_le +1;
+        // get first ct_ct state from the matrix
+        let ct_energy:f64 = hamiltonian[[ct_index,ct_index]];
+        return ct_energy;
+    }
+
+    pub fn fmo_ct_gradient_wrapper(&mut self)->Array1<f64>{
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.prepare_scc();
+        self.run_scc();
+        for mol in self.monomers.iter_mut() {
+            mol.prepare_excited_gradient(&self.atoms[mol.slice.atom_as_range()]);
+        }
+        // calculate the gradient of the charge-transfer energy
+        let grad:Array1<f64> = self.ct_gradient(0,1,0,0);
+        return grad;
+    }
+
+    pub fn test_ct_gradient(&mut self){
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.prepare_scc();
+        self.run_scc();
+
+        assert_deriv(self, SuperSystem::fmo_ct_energy_wrapper, SuperSystem::fmo_ct_gradient_wrapper, self.get_xyz(), 0.0001, 1e-6);
     }
 
     pub fn monomer_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {

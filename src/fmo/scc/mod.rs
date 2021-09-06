@@ -65,23 +65,23 @@ impl RestrictedSCC for SuperSystem {
         // Do the self-consistent monomer calculations
         let (monomer_energies, dq): (f64, Array1<f64>) = self.monomer_scc(max_iter);
 
-        println!("Time monomers {}",timer);
+        // println!("Time monomers {}",timer);
 
         // Do the SCC-calculation for each pair individually
         let mut pair_energies: f64 = self.pair_scc(dq.view());
 
-        println!("time pairs {}",timer);
+        // println!("time pairs {}",timer);
 
         // Compute the embedding energy from all pairs
         let mut embedding: f64 = self.embedding_energy();
 
-        println!("time embedding {}",timer);
+        // println!("time embedding {}",timer);
 
         // Compute the energy from pairs that are far apart. The electrostatic dimer approximation
         // is used in this case.
         let mut esd_pair_energies: f64 = self.esd_pair_energy();
 
-        println!("time esd {}",timer);
+        // println!("time esd {}",timer);
 
         // Sum up all the individual energies
         let total_energy: f64 = monomer_energies + pair_energies + embedding + esd_pair_energies;

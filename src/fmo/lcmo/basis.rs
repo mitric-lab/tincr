@@ -126,7 +126,7 @@ impl SuperSystem {
         states
     }
 
-    pub fn create_exciton_hamiltonian(&mut self) -> () {
+    pub fn create_exciton_hamiltonian(&mut self) -> Array2<f64> {
         self.properties.set_lcmo_fock(self.build_lcmo_fock_matrix());
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
@@ -153,11 +153,12 @@ impl SuperSystem {
                 h[[i, j+i]] = self.exciton_coupling(state_i, state_j);
             }
         }
+        return h;
 
         // The Hamiltonian is returned. Only the upper triangle is filled, so this has to be
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
-        let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+        // let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
         // let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
         // let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();
         // let n_orbs: usize = n_occ + n_virt;

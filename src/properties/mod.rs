@@ -46,6 +46,16 @@ impl Properties {
             "q_vv",
             "xmy",
             "xpy",
+            "omega",
+            "homo",
+            "lumo",
+            "cache",
+            "ci_eigenvalues",
+            "ci_coefficients",
+            "q_trans",
+            "tr_dipoles",
+            "oscillator_strengths",
+            "lcmo_fock",
         ];
         for data_name in multi_dim_data.iter() {
             self.map.remove(*data_name);

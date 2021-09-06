@@ -34,6 +34,7 @@ impl SuperSystem {
         // calculate the gradients of the fock matrix elements
         let mut gradh_i = -1.0*m_i.calculate_ct_fock_gradient(atoms_i, ct_ind_i, true);
         let gradh_j = m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
+        println!("Test1");
         // append the fock matrix gradients
         gradh_i.append(Axis(0), gradh_j.view()).unwrap();
 
@@ -52,6 +53,7 @@ impl SuperSystem {
             m_i.slice.atom_as_range(),
             m_j.slice.atom_as_range(),
         );
+        println!("Test12");
         let (grad_s_pair, grad_h0_pair) =
             h0_and_s_gradients(&pair_atoms, pair_ij.n_orbs, &pair_ij.slako);
         let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
@@ -78,6 +80,7 @@ impl SuperSystem {
 
             pair_ij.properties.set_s(s);
         }
+        println!("Test123");
 
         // get the gamma matrix
         if pair_ij.properties.gamma().is_none() {
@@ -110,6 +113,9 @@ impl SuperSystem {
             pair_ij.properties.set_gamma_lr(gamma_lr);
             pair_ij.properties.set_gamma_lr_ao(gamma_lr_ao);
         }
+
+        println!("Test1234");
+
         // calculate the gamma matrix in AO basis
         let g0_ao: Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
             pair_ij.properties.gamma().unwrap(),
@@ -131,6 +137,8 @@ impl SuperSystem {
             pair_ij.n_orbs,
         );
 
+        println!("Test12345");
+
         let coulomb_gradient: Array1<f64> = f_v_ct(
             c_mo_j,
             m_i.properties.s().unwrap(),
@@ -146,6 +154,8 @@ impl SuperSystem {
         .unwrap()
         .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
+        println!("Test123456");
+
         let exchange_gradient: Array1<f64> = f_lr_ct(
             c_mo_j.t(),
             pair_ij.properties.s().unwrap(),
@@ -159,6 +169,8 @@ impl SuperSystem {
         .into_shape([3 * pair_ij.n_atoms, n_orbs_i * n_orbs_i])
         .unwrap()
         .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
+
+        println!("Test1234567");
 
         // assemble the gradient
         let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
@@ -457,7 +469,7 @@ fn f_v_ct(
 ) -> Array3<f64> {
     let vp: Array2<f64> = &v + &(v.t());
     let s_j_v: Array1<f64> = (&s_j * &vp).sum_axis(Axis(0));
-    let gsv: Array1<f64> = g0_pair_ao.dot(&s_j_v);
+    let gsv: Array1<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]).dot(&s_j_v);
 
     let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_i));
 
@@ -466,8 +478,8 @@ fn f_v_ct(
         let ds_j: ArrayView2<f64> = grad_s_j.slice(s![nc, .., ..]);
         let dg: ArrayView2<f64> = g1_pair_ao.slice(s![nc, .., ..]);
 
-        let gdsv: Array1<f64> = g0_pair_ao.dot(&(&ds_j * &vp).sum_axis(Axis(0)));
-        let dgsv: Array1<f64> = dg.dot(&s_j_v);
+        let gdsv: Array1<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]).dot(&(&ds_j * &vp).sum_axis(Axis(0)));
+        let dgsv: Array1<f64> = dg.slice(s![..n_orb_i,n_orb_i..]).dot(&s_j_v);
         let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_i));
 
         for b in 0..n_orb_i {
@@ -496,16 +508,17 @@ fn f_lr_ct(
     let g0_lr_ao_i: ArrayView2<f64> = g0_pair_lr_a0.slice(s![..n_orb_i, ..n_orb_i]);
     let g0_lr_ao_j: ArrayView2<f64> = g0_pair_lr_a0.slice(s![n_orb_i.., n_orb_i..]);
     let g0_lr_ao_ij: ArrayView2<f64> = g0_pair_lr_a0.slice(s![..n_orb_i, n_orb_i..]);
+    let s_ij_outer:ArrayView2<f64> = s_ij.slice(s![..n_orb_i,n_orb_i..]);
     let n_atoms: usize = n_atoms_i + n_atoms_j;
 
-    let sv: Array2<f64> = s_ij.dot(&v);
+    let sv: Array2<f64> = s_ij_outer.dot(&v);
     let v_t: ArrayView2<f64> = v.t();
-    let sv_t: Array2<f64> = s_ij.dot(&v_t);
+    let sv_t: Array2<f64> = s_ij_outer.dot(&v_t);
     let gv: Array2<f64> = &g0_lr_ao_j * &v;
 
     let t_sv: ArrayView2<f64> = sv.t();
     let svg_t: Array2<f64> = (&sv * &g0_lr_ao_ij).reversed_axes();
-    let sgv_t: Array2<f64> = s_ij.dot(&gv).reversed_axes();
+    let sgv_t: Array2<f64> = s_ij_outer.dot(&gv).reversed_axes();
 
     let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_i));
 
@@ -523,27 +536,27 @@ fn f_lr_ct(
         // 1st term
         d_f = d_f + &g0_lr_ao_i * &(d_s.dot(&t_sv));
         // 2nd term
-        d_f = d_f + (&d_sv_t * &g0_lr_ao_ij).dot(&s_ij);
+        d_f = d_f + (&d_sv_t * &g0_lr_ao_ij).dot(&s_ij_outer);
         // 3rd term
         d_f = d_f + d_s.dot(&svg_t);
         // 4th term
         d_f = d_f + d_s.dot(&sgv_t);
         // 5th term
-        d_f = d_f + &g0_lr_ao_i * &(s_ij.dot(&d_sv.t()));
+        d_f = d_f + &g0_lr_ao_i * &(s_ij_outer.dot(&d_sv.t()));
         // 6th term
         d_f = d_f + (&sv_t * &g0_lr_ao_ij).dot(&d_s.t());
         // 7th term
-        d_f = d_f + s_ij.dot(&(&d_sv * &g0_lr_ao_ij).t());
+        d_f = d_f + s_ij_outer.dot(&(&d_sv * &g0_lr_ao_ij).t());
         // 8th term
-        d_f = d_f + s_ij.dot(&(d_s.dot(&gv)).t());
+        d_f = d_f + s_ij_outer.dot(&(d_s.dot(&gv)).t());
         // 9th term
-        d_f = d_f + &d_g_i * &(s_ij.dot(&t_sv));
+        d_f = d_f + &d_g_i * &(s_ij_outer.dot(&t_sv));
         // 10th term
-        d_f = d_f + (&sv_t * &d_g_ij).dot(&s_ij);
+        d_f = d_f + (&sv_t * &d_g_ij).dot(&s_ij_outer);
         // 11th term
-        d_f = d_f + s_ij.dot(&(&sv * &d_g_ij).t());
+        d_f = d_f + s_ij_outer.dot(&(&sv * &d_g_ij).t());
         // 12th term
-        d_f = d_f + s_ij.dot(&(s_ij.dot(&d_gv)).t());
+        d_f = d_f + s_ij_outer.dot(&(s_ij_outer.dot(&d_gv)).t());
         d_f = d_f * 0.25;
 
         f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
