@@ -151,6 +151,7 @@ impl SuperSystem {
         //     println!("state {}",state);
         // }
         let ct_state = &states[2*n_le];
+        // println!("state {}",ct_state);
         let val:f64 = self.exciton_coupling(ct_state,ct_state);
 
         // for (i, state_i) in states.iter().enumerate() {

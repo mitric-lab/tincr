@@ -42,7 +42,7 @@ impl RestrictedSCC for SuperSystem {
     fn prepare_scc(&mut self) {
         // prepare all individual monomers
         let n_orbs: usize = self.monomers.iter().map(|mol| mol.n_orbs).sum();
-        let (h0, s) = h0_and_s(n_orbs, &self.atoms, &self.monomers[0].slako);
+        let (s, h0) = h0_and_s(n_orbs, &self.atoms, &self.monomers[0].slako);
         self.properties.set_s(s);
         self.properties.set_gamma(gamma_atomwise(&self.gammafunction, &self.atoms, self.atoms.len()));
         if self.gammafunction_lc.is_some(){
@@ -50,7 +50,7 @@ impl RestrictedSCC for SuperSystem {
         }
 
         let atoms: &[Atom] = &self.atoms;
-        self.properties.set_gamma(gamma_atomwise(&self.gammafunction, &atoms, self.atoms.len()));
+        // self.properties.set_gamma(gamma_atomwise(&self.gammafunction, &atoms, self.atoms.len()));
         self.monomers
             .par_iter_mut()
             .for_each(|mol: &mut Monomer| {

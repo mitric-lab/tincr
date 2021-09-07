@@ -11,6 +11,7 @@ use crate::scc::h0_and_s::{h0_and_s_ab, h0_and_s_gradients};
 use ndarray::prelude::*;
 use ndarray_linalg::trace::Trace;
 use std::ops::AddAssign;
+use ndarray_linalg::{into_row, into_col};
 
 impl SuperSystem {
     pub fn ct_gradient(
@@ -36,6 +37,7 @@ impl SuperSystem {
         let gradh_j = m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
         println!("grad i {}",gradh_i.slice(s![0..4]));
         println!("grad j {}",gradh_j.slice(s![0..4]));
+        // assert!(1==2);
 
         // append the fock matrix gradients
         gradh_i.append(Axis(0), gradh_j.view()).unwrap();
@@ -44,6 +46,15 @@ impl SuperSystem {
         let c_mo_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
         // reference to the mo coefficients of fragment J
         let c_mo_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
+
+        let occ_indices_i: &[usize] = m_i.properties.virt_indices().unwrap();
+        let virt_indices_j: &[usize] = m_j.properties.virt_indices().unwrap();
+        let orb_ind_i:usize = occ_indices_i[ct_ind_i];
+        let orb_ind_j:usize = virt_indices_j[ct_ind_j];
+        let c_mat_j:Array2<f64> = into_col(c_mo_j.slice(s![..,orb_ind_j]).to_owned()).dot(&into_row(c_mo_j.slice(s![..,orb_ind_j]).to_owned()));
+        let c_mat_i:Array2<f64> = into_col(c_mo_i.slice(s![..,orb_ind_i]).to_owned()).dot(&into_row(c_mo_i.slice(s![..,orb_ind_i]).to_owned()));
+
+        // assert_eq!(c_mat_j,c_mo_j);
 
         // get pair index
         let pair_index:usize = self.properties.index_of_pair(index_i,index_j);
@@ -137,7 +148,8 @@ impl SuperSystem {
         );
 
         let coulomb_gradient: Array1<f64> = f_v_ct(
-            c_mo_j,
+            // c_mo_j,
+            c_mat_j.view(),
             m_i.properties.s().unwrap(),
             m_j.properties.s().unwrap(),
             grad_s_i,
@@ -149,10 +161,12 @@ impl SuperSystem {
         )
         .into_shape([3 * pair_ij.n_atoms, n_orbs_i * n_orbs_i])
         .unwrap()
-        .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
+        .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
+        // .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
         let exchange_gradient: Array1<f64> = f_lr_ct(
-            c_mo_j.t(),
+            // c_mo_j,
+            c_mat_j.t(),
             pair_ij.properties.s().unwrap(),
             grad_s_pair.view(),
             pair_ij.properties.gamma_lr_ao().unwrap(),
@@ -163,15 +177,16 @@ impl SuperSystem {
         )
         .into_shape([3 * pair_ij.n_atoms, n_orbs_i * n_orbs_i])
         .unwrap()
-        .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
+        .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
+        // .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
         // assemble the gradient
         // println!("gradient of orbital energies {}",gradh_i);
-        // println!("exchange gradient {}",exchange_gradient);
-        // println!("coulomb gradient {}",coulomb_gradient);
+        println!("exchange gradient {}",exchange_gradient.slice(s![0..5]));
+        println!("coulomb gradient {}",coulomb_gradient.slice(s![0..5]));
         // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
         // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
-        let gradient: Array1<f64> = 2.0 * exchange_gradient;
+        let gradient: Array1<f64> = - 1.0 * coulomb_gradient;
 
         return gradient;
     }
