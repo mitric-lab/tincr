@@ -1,7 +1,7 @@
 use crate::excited_states::trans_charges;
 use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::lcmo::helpers::*;
-use crate::fmo::{Monomer, Pair, SuperSystem, GroundStateGradient};
+use crate::fmo::{Monomer, Pair, SuperSystem, GroundStateGradient, PairType, ESDPair};
 use crate::gradients::helpers::{f_lr, f_v};
 use crate::initialization::Atom;
 use crate::scc::gamma_approximation::{
@@ -55,140 +55,242 @@ impl SuperSystem {
         let c_mat_i:Array2<f64> = into_col(c_mo_i.slice(s![..,orb_ind_i]).to_owned()).dot(&into_row(c_mo_i.slice(s![..,orb_ind_i]).to_owned()));
 
         // assert_eq!(c_mat_j,c_mo_j);
+        let pair_type:PairType = self.properties.type_of_pair(index_i, index_j);
 
-        // get pair index
-        let pair_index:usize = self.properties.index_of_pair(index_i,index_j);
-        // get correct pair from pairs vector
-        let pair_ij: &mut Pair = &mut self.pairs[pair_index];
-        // get pair atoms
-        let pair_atoms: Vec<Atom> = get_pair_slice(
-            &self.atoms,
-            m_i.slice.atom_as_range(),
-            m_j.slice.atom_as_range(),
-        );
-
-        let (grad_s_pair, grad_h0_pair) =
-            h0_and_s_gradients(&pair_atoms, pair_ij.n_orbs, &pair_ij.slako);
-        let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
-        let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
-
-        // calculate the overlap matrix
-        if pair_ij.properties.s().is_none() {
-            let mut s: Array2<f64> = Array2::zeros([pair_ij.n_orbs, pair_ij.n_orbs]);
-            let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) = h0_and_s_ab(
-                m_i.n_orbs,
-                m_j.n_orbs,
-                &pair_atoms[0..m_i.n_atoms],
-                &pair_atoms[m_i.n_atoms..],
-                &m_i.slako,
+        // differentiate between pair types
+        let return_gradient:Array1<f64> = if pair_type == PairType::Pair{
+            // get pair index
+            let pair_index:usize = self.properties.index_of_pair(index_i,index_j);
+            // get correct pair from pairs vector
+            let pair_ij: &mut Pair = &mut self.pairs[pair_index];
+            // get pair atoms
+            let pair_atoms: Vec<Atom> = get_pair_slice(
+                &self.atoms,
+                m_i.slice.atom_as_range(),
+                m_j.slice.atom_as_range(),
             );
 
-            let mu: usize = m_i.n_orbs;
-            s.slice_mut(s![0..mu, 0..mu])
-                .assign(&m_i.properties.s().unwrap());
-            s.slice_mut(s![mu.., mu..])
-                .assign(&m_j.properties.s().unwrap());
-            s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
-            s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
+            let (grad_s_pair, grad_h0_pair) =
+                h0_and_s_gradients(&pair_atoms, pair_ij.n_orbs, &pair_ij.slako);
+            let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
+            let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
 
-            pair_ij.properties.set_s(s);
-        }
+            // calculate the overlap matrix
+            if pair_ij.properties.s().is_none() {
+                let mut s: Array2<f64> = Array2::zeros([pair_ij.n_orbs, pair_ij.n_orbs]);
+                let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) = h0_and_s_ab(
+                    m_i.n_orbs,
+                    m_j.n_orbs,
+                    &pair_atoms[0..m_i.n_atoms],
+                    &pair_atoms[m_i.n_atoms..],
+                    &m_i.slako,
+                );
 
-        // get the gamma matrix
-        if pair_ij.properties.gamma().is_none() {
-            let a: usize = m_i.n_atoms;
-            let mut gamma_pair: Array2<f64> = Array2::zeros([pair_ij.n_atoms, pair_ij.n_atoms]);
-            let gamma_ab: Array2<f64> = gamma_atomwise_ab(
+                let mu: usize = m_i.n_orbs;
+                s.slice_mut(s![0..mu, 0..mu])
+                    .assign(&m_i.properties.s().unwrap());
+                s.slice_mut(s![mu.., mu..])
+                    .assign(&m_j.properties.s().unwrap());
+                s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
+                s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
+
+                pair_ij.properties.set_s(s);
+            }
+
+            // get the gamma matrix
+            if pair_ij.properties.gamma().is_none() {
+                let a: usize = m_i.n_atoms;
+                let mut gamma_pair: Array2<f64> = Array2::zeros([pair_ij.n_atoms, pair_ij.n_atoms]);
+                let gamma_ab: Array2<f64> = gamma_atomwise_ab(
+                    &pair_ij.gammafunction,
+                    &pair_atoms[0..m_i.n_atoms],
+                    &pair_atoms[m_j.n_atoms..],
+                    m_i.n_atoms,
+                    m_j.n_atoms,
+                );
+                gamma_pair
+                    .slice_mut(s![0..a, 0..a])
+                    .assign(&m_i.properties.gamma().unwrap());
+                gamma_pair
+                    .slice_mut(s![a.., a..])
+                    .assign(&m_j.properties.gamma().unwrap());
+                gamma_pair.slice_mut(s![0..a, a..]).assign(&gamma_ab);
+                gamma_pair.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
+
+                pair_ij.properties.set_gamma(gamma_pair);
+
+                let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+                    self.gammafunction_lc.as_ref().unwrap(),
+                    &pair_atoms,
+                    pair_ij.n_atoms,
+                    pair_ij.n_orbs,
+                );
+                pair_ij.properties.set_gamma_lr(gamma_lr);
+                pair_ij.properties.set_gamma_lr_ao(gamma_lr_ao);
+            }
+
+            // calculate the gamma matrix in AO basis
+            let g0_ao: Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+                pair_ij.properties.gamma().unwrap(),
+                &pair_atoms,
+                pair_ij.n_orbs,
+            );
+            // calculate the gamma gradient matrix
+            let (g1, g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
                 &pair_ij.gammafunction,
-                &pair_atoms[0..m_i.n_atoms],
-                &pair_atoms[m_j.n_atoms..],
-                m_i.n_atoms,
-                m_j.n_atoms,
-            );
-            gamma_pair
-                .slice_mut(s![0..a, 0..a])
-                .assign(&m_i.properties.gamma().unwrap());
-            gamma_pair
-                .slice_mut(s![a.., a..])
-                .assign(&m_j.properties.gamma().unwrap());
-            gamma_pair.slice_mut(s![0..a, a..]).assign(&gamma_ab);
-            gamma_pair.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
-
-            pair_ij.properties.set_gamma(gamma_pair);
-
-            let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
-                self.gammafunction_lc.as_ref().unwrap(),
                 &pair_atoms,
                 pair_ij.n_atoms,
                 pair_ij.n_orbs,
             );
-            pair_ij.properties.set_gamma_lr(gamma_lr);
-            pair_ij.properties.set_gamma_lr_ao(gamma_lr_ao);
-        }
+            // gamma gradient matrix for the long range correction
+            let (g1_lr, g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                pair_ij.gammafunction_lc.as_ref().unwrap(),
+                &pair_atoms,
+                pair_ij.n_atoms,
+                pair_ij.n_orbs,
+            );
 
-        // calculate the gamma matrix in AO basis
-        let g0_ao: Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
-            pair_ij.properties.gamma().unwrap(),
-            &pair_atoms,
-            pair_ij.n_orbs,
-        );
-        // calculate the gamma gradient matrix
-        let (g1, g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-            &pair_ij.gammafunction,
-            &pair_atoms,
-            pair_ij.n_atoms,
-            pair_ij.n_orbs,
-        );
-        // gamma gradient matrix for the long range correction
-        let (g1_lr, g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-            pair_ij.gammafunction_lc.as_ref().unwrap(),
-            &pair_atoms,
-            pair_ij.n_atoms,
-            pair_ij.n_orbs,
-        );
+            let coulomb_gradient: Array1<f64> = f_v_ct(
+                // c_mo_j,
+                c_mat_j.view(),
+                m_i.properties.s().unwrap(),
+                m_j.properties.s().unwrap(),
+                grad_s_i,
+                grad_s_j,
+                g0_ao.view(),
+                g1_ao.view(),
+                pair_ij.n_atoms,
+                n_orbs_i,
+            )
+                .into_shape([3 * pair_ij.n_atoms, n_orbs_i * n_orbs_i])
+                .unwrap()
+                .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
+            // .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
-        let coulomb_gradient: Array1<f64> = f_v_ct(
-            // c_mo_j,
-            c_mat_j.view(),
-            m_i.properties.s().unwrap(),
-            m_j.properties.s().unwrap(),
-            grad_s_i,
-            grad_s_j,
-            g0_ao.view(),
-            g1_ao.view(),
-            pair_ij.n_atoms,
-            n_orbs_i,
-        )
-        .into_shape([3 * pair_ij.n_atoms, n_orbs_i * n_orbs_i])
-        .unwrap()
-        .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
-        // .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
+            let exchange_gradient: Array1<f64> = f_lr_ct(
+                // c_mo_j,
+                c_mat_j.t(),
+                pair_ij.properties.s().unwrap(),
+                grad_s_pair.view(),
+                pair_ij.properties.gamma_lr_ao().unwrap(),
+                g1_lr_ao.view(),
+                m_i.n_atoms,
+                m_j.n_atoms,
+                n_orbs_i,
+            )
+                .into_shape([3 * pair_ij.n_atoms, n_orbs_i * n_orbs_i])
+                .unwrap()
+                .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
+            // .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
-        let exchange_gradient: Array1<f64> = f_lr_ct(
-            // c_mo_j,
-            c_mat_j.t(),
-            pair_ij.properties.s().unwrap(),
-            grad_s_pair.view(),
-            pair_ij.properties.gamma_lr_ao().unwrap(),
-            g1_lr_ao.view(),
-            m_i.n_atoms,
-            m_j.n_atoms,
-            n_orbs_i,
-        )
-        .into_shape([3 * pair_ij.n_atoms, n_orbs_i * n_orbs_i])
-        .unwrap()
-        .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
-        // .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
+            // assemble the gradient
+            // println!("gradient of orbital energies {}",gradh_i);
+            println!("exchange gradient {}",exchange_gradient.slice(s![0..5]));
+            println!("coulomb gradient {}",coulomb_gradient.slice(s![0..5]));
+            // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
+            // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
+            let gradient: Array1<f64> = 2.0 * exchange_gradient;
 
-        // assemble the gradient
-        // println!("gradient of orbital energies {}",gradh_i);
-        println!("exchange gradient {}",exchange_gradient.slice(s![0..5]));
-        println!("coulomb gradient {}",coulomb_gradient.slice(s![0..5]));
-        // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
-        // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
-        let gradient: Array1<f64> = - 1.0 * coulomb_gradient;
+            gradient
+        } else {
+            // get pair index
+            let pair_index:usize = self.properties.index_of_esd_pair(index_i,index_j);
+            // get correct pair from pairs vector
+            let pair_ij: &mut ESDPair = &mut self.esd_pairs[pair_index];
+            // get pair atoms
+            let pair_atoms: Vec<Atom> = get_pair_slice(
+                &self.atoms,
+                m_i.slice.atom_as_range(),
+                m_j.slice.atom_as_range(),
+            );
 
-        return gradient;
+            let (grad_s_pair, grad_h0_pair) =
+                h0_and_s_gradients(&pair_atoms, pair_ij.n_orbs, &self.pairs[0].slako);
+            let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
+            let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
+
+            // calculate the overlap matrix
+            if pair_ij.properties.s().is_none() {
+                let mut s: Array2<f64> = Array2::zeros([pair_ij.n_orbs, pair_ij.n_orbs]);
+                let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) = h0_and_s_ab(
+                    m_i.n_orbs,
+                    m_j.n_orbs,
+                    &pair_atoms[0..m_i.n_atoms],
+                    &pair_atoms[m_i.n_atoms..],
+                    &m_i.slako,
+                );
+
+                let mu: usize = m_i.n_orbs;
+                s.slice_mut(s![0..mu, 0..mu])
+                    .assign(&m_i.properties.s().unwrap());
+                s.slice_mut(s![mu.., mu..])
+                    .assign(&m_j.properties.s().unwrap());
+                s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
+                s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
+
+                pair_ij.properties.set_s(s);
+            }
+
+            // get the gamma matrix
+            if pair_ij.properties.gamma().is_none() {
+                let a: usize = m_i.n_atoms;
+                let mut gamma_pair: Array2<f64> = Array2::zeros([pair_ij.n_atoms, pair_ij.n_atoms]);
+                let gamma_ab: Array2<f64> = gamma_atomwise_ab(
+                    &self.pairs[0].gammafunction,
+                    &pair_atoms[0..m_i.n_atoms],
+                    &pair_atoms[m_j.n_atoms..],
+                    m_i.n_atoms,
+                    m_j.n_atoms,
+                );
+                gamma_pair
+                    .slice_mut(s![0..a, 0..a])
+                    .assign(&m_i.properties.gamma().unwrap());
+                gamma_pair
+                    .slice_mut(s![a.., a..])
+                    .assign(&m_j.properties.gamma().unwrap());
+                gamma_pair.slice_mut(s![0..a, a..]).assign(&gamma_ab);
+                gamma_pair.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
+
+                pair_ij.properties.set_gamma(gamma_pair);
+            }
+
+            // calculate the gamma matrix in AO basis
+            let g0_ao: Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+                pair_ij.properties.gamma().unwrap(),
+                &pair_atoms,
+                pair_ij.n_orbs,
+            );
+            // calculate the gamma gradient matrix
+            let (g1, g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                &self.pairs[0].gammafunction,
+                &pair_atoms,
+                pair_ij.n_atoms,
+                pair_ij.n_orbs,
+            );
+
+            let coulomb_gradient: Array1<f64> = f_v_ct(
+                // c_mo_j,
+                c_mat_j.view(),
+                m_i.properties.s().unwrap(),
+                m_j.properties.s().unwrap(),
+                grad_s_i,
+                grad_s_j,
+                g0_ao.view(),
+                g1_ao.view(),
+                pair_ij.n_atoms,
+                n_orbs_i,
+            )
+                .into_shape([3 * pair_ij.n_atoms, n_orbs_i * n_orbs_i])
+                .unwrap()
+                .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
+
+            // assemble the gradient
+            let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
+
+            gradient
+        };
+
+        return return_gradient;
     }
 }
 
