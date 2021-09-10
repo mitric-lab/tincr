@@ -495,6 +495,20 @@ fn f_v_ct(
         let dgsv: Array1<f64> = dg.slice(s![..n_orb_i,n_orb_i..]).dot(&s_j_v);
         let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_i));
 
+        if nc == 0 || nc ==2 {
+            println!("Test prints");
+            println!("ds_i {}",ds_i);
+            println!(" ");
+            println!("gsv {}",gsv);
+            println!(" ");
+            println!("s_i {}",s_i);
+            println!(" ");
+            println!("dgsv {}",dgsv);
+            println!(" ");
+            println!("gdsv {}",gdsv);
+            println!(" ");
+        }
+
         for b in 0..n_orb_i {
             for a in 0..n_orb_i {
                 d_f[[a, b]] = ds_i[[a, b]] * (gsv[a] + gsv[b])
@@ -549,7 +563,7 @@ fn f_lr_ct(
         // 1st term
         d_f = d_f + &g0_lr_ao_i * &(d_s.dot(&t_sv));
         // 2nd term
-        d_f = d_f + (&d_sv_t * &g0_lr_ao_ij).dot(&s_ij_outer);
+        d_f = d_f + (&d_sv_t * &g0_lr_ao_ij).dot(&s_ij_outer.t());
         // 3rd term
         d_f = d_f + d_s.dot(&svg_t);
         // 4th term
@@ -565,7 +579,7 @@ fn f_lr_ct(
         // 9th term
         d_f = d_f + &d_g_i * &(s_ij_outer.dot(&t_sv));
         // 10th term
-        d_f = d_f + (&sv_t * &d_g_ij).dot(&s_ij_outer);
+        d_f = d_f + (&sv_t * &d_g_ij).dot(&s_ij_outer.t());
         // 11th term
         d_f = d_f + s_ij_outer.dot(&(&sv * &d_g_ij).t());
         // 12th term

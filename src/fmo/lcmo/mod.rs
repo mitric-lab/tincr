@@ -108,7 +108,7 @@ impl<'a> ExcitonStates<'a> {
         let mut transition_dipoles: Vec<Vector3<f64>> = Vec::with_capacity(eig.0.len());
 
         // Iterate over all exciton states.
-        for (mut fi, (e, vs)) in f.iter_mut().zip(eig.0.iter().zip(eig.1.axis_iter(Axis(0)))) {
+        for (mut fi, (e, vs)) in f.iter_mut().zip(eig.0.iter().zip(eig.1.axis_iter(Axis(1)))) {
 
             // Initialize the transition dipole moment for the current state.
             let mut tr_dip: Vector3<f64> = Vector3::zero();
