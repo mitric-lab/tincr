@@ -95,8 +95,6 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
             unique_atoms = tmp.0;
             num_to_atom = tmp.1;
         }
-        // // get the unique [Atom]s and the HashMap with the mapping from the numbers to the [Atom]s
-        // let (unique_atoms, num_to_atom): (Vec<Atom>, HashMap<u8, Atom>) = get_unique_atoms(&molecule.0);
 
         // get all the Atom's from the HashMap
         let mut atoms: Vec<Atom> = Vec::with_capacity(molecule.0.len());
