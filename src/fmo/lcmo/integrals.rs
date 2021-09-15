@@ -335,8 +335,8 @@ impl SuperSystem {
         };
 
         // 2.0 * ia_jb - ij_ab
-        2.0 * ia_jb
-        // - ij_ab
+        // 2.0 * ia_jb
+        - ij_ab
     }
 
     pub fn le_ct<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {

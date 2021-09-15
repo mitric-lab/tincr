@@ -116,7 +116,7 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        assert_deriv(self, SuperSystem::fmo_ct_energy_wrapper, SuperSystem::fmo_ct_gradient_wrapper, self.get_xyz(), 0.0001, 1e-6);
+        assert_deriv(self, SuperSystem::fmo_ct_energy_wrapper, SuperSystem::fmo_ct_gradient_wrapper, self.get_xyz(), 0.00001, 1e-6);
     }
 
     pub fn monomer_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {

@@ -150,6 +150,21 @@ impl SuperSystem {
                 pair_ij.n_orbs,
             );
 
+            let coulomb_integral:Array5<f64> = f_v_ct_2(
+                m_i.properties.s().unwrap(),
+                m_j.properties.s().unwrap(),
+                grad_s_i,
+                grad_s_j,
+                g0_ao.view(),
+                g1_ao.view(),
+                pair_ij.n_atoms,
+                n_orbs_i,
+                n_orbs_j
+            );
+            let coulomb_grad:Array1<f64> = coulomb_integral.into_shape([3*pair_ij.n_atoms*n_orbs_i*n_orbs_i,n_orbs_j*n_orbs_j]).unwrap()
+                .dot(&c_mat_j.view().into_shape([n_orbs_j * n_orbs_j]).unwrap()).into_shape([3*pair_ij.n_atoms,n_orbs_i*n_orbs_i]).unwrap()
+                .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
+
             let coulomb_gradient: Array1<f64> = f_v_ct(
                 // c_mo_j,
                 c_mat_j.view(),
@@ -187,9 +202,10 @@ impl SuperSystem {
             // println!("gradient of orbital energies {}",gradh_i);
             println!("exchange gradient {}",exchange_gradient.slice(s![0..5]));
             println!("coulomb gradient {}",coulomb_gradient.slice(s![0..5]));
+            println!("coulomb grad v2 {}",coulomb_grad.slice(s![0..5]));
             // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
             // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
-            let gradient: Array1<f64> = 2.0 * exchange_gradient;
+            let gradient: Array1<f64> = - 1.0 * coulomb_gradient;
 
             gradient
         } else {
@@ -571,6 +587,40 @@ impl Monomer {
     }
 }
 
+fn f_v_ct_2(
+    s_i: ArrayView2<f64>,
+    s_j: ArrayView2<f64>,
+    grad_s_i: ArrayView3<f64>,
+    grad_s_j: ArrayView3<f64>,
+    g0_pair_ao: ArrayView2<f64>,
+    g1_pair_ao: ArrayView3<f64>,
+    n_atoms: usize,
+    n_orb_i: usize,
+    n_orb_j:usize,
+)->Array5<f64>{
+    let mut integral:Array5<f64> = Array5::zeros([3*n_atoms,n_orb_i,n_orb_i,n_orb_j,n_orb_j]);
+    let g0_ij:ArrayView2<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]);
+
+    for nc in 0..3 * n_atoms {
+        let ds_i: ArrayView2<f64> = grad_s_i.slice(s![nc, .., ..]);
+        let ds_j: ArrayView2<f64> = grad_s_j.slice(s![nc, .., ..]);
+        let dg_ij: ArrayView2<f64> = g1_pair_ao.slice(s![nc, ..n_orb_i,n_orb_i..]);
+
+        for mu in 0..n_orb_i{
+            for la in 0..n_orb_i{
+                for nu in 0..n_orb_j{
+                    for sig in 0..n_orb_j{
+                        integral[[nc,mu,la,nu,sig]] = 0.25 * ((ds_i[[mu,la]]*s_j[[nu,sig]] + s_i[[mu,la]] * ds_j[[nu,sig]]) *
+                            (g0_ij[[mu,nu]] + g0_ij[[mu,sig]] + g0_ij[[la,nu]] + g0_ij[[la,sig]]) +
+                            s_i[[mu,la]] * s_j[[nu,sig]] * (dg_ij[[mu,nu]] + dg_ij[[mu,sig]] + dg_ij[[la,nu]] + dg_ij[[la,sig]]));
+                    }
+                }
+            }
+        }
+    }
+    return integral;
+}
+
 fn f_v_ct(
     v: ArrayView2<f64>,
     s_i: ArrayView2<f64>,
@@ -597,20 +647,6 @@ fn f_v_ct(
         let dgsv: Array1<f64> = dg.slice(s![..n_orb_i,n_orb_i..]).dot(&s_j_v);
         let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_i));
 
-        if nc == 0 || nc ==2 {
-            println!("Test prints");
-            println!("ds_i {}",ds_i);
-            println!(" ");
-            println!("gsv {}",gsv);
-            println!(" ");
-            println!("s_i {}",s_i);
-            println!(" ");
-            println!("dgsv {}",dgsv);
-            println!(" ");
-            println!("gdsv {}",gdsv);
-            println!(" ");
-        }
-
         for b in 0..n_orb_i {
             for a in 0..n_orb_i {
                 d_f[[a, b]] = ds_i[[a, b]] * (gsv[a] + gsv[b])
@@ -618,6 +654,21 @@ fn f_v_ct(
             }
         }
         d_f = d_f * 0.25;
+
+        if nc == 0 || nc ==2 {
+            println!("Test prints");
+            println!("ds_i {}",ds_i);
+            println!(" ");
+            println!("gsv {}",gsv);
+            println!(" ");
+            println!("dgsv {}",dgsv);
+            println!(" ");
+            println!("gdsv {}",gdsv);
+            println!(" ");
+            println!("df {}",d_f.view());
+            println!(" ");
+        }
+
         f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
     }
 
