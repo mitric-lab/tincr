@@ -205,7 +205,7 @@ impl SuperSystem {
             println!("coulomb grad v2 {}",coulomb_grad.slice(s![0..5]));
             // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
             // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
-            let gradient: Array1<f64> = - 1.0 * coulomb_gradient;
+            let gradient: Array1<f64> = - 1.0 * coulomb_grad;
 
             gradient
         } else {
@@ -360,10 +360,10 @@ impl Monomer {
             grad_h = grad_h - 0.5 * &flr_dmd0;
         }
 
-        // // esp atomwise
-        // let esp_atomwise:Array1<f64> = 0.5*g0.dot(&self.properties.dq().unwrap());
-        // // get Omega_AB
-        // let omega_ab:Array2<f64> = atomwise_to_aowise(esp_atomwise.view(),self.n_orbs,atoms);
+        // esp atomwise
+        let esp_atomwise:Array1<f64> = 0.5*g0.dot(&self.properties.dq().unwrap());
+        // get Omega_AB
+        let omega_ab:Array2<f64> = atomwise_to_aowise(esp_atomwise.view(),self.n_orbs,atoms);
 
         // get MO coefficient for the occupied or virtual orbital
         let mut c_mo: Array1<f64> = Array1::zeros(self.n_orbs);
@@ -448,7 +448,7 @@ impl Monomer {
 
         // transform grad_h into MO basis
         let grad_h_mo: Array1<f64> = c_mo.dot(
-            &(grad_h
+            &(grad_h.view()
                 .into_shape([3 * self.n_atoms * self.n_orbs, self.n_orbs])
                 .unwrap()
                 .dot(&c_mo)
@@ -467,6 +467,42 @@ impl Monomer {
                 .t()),
         );
         let grad = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term;
+
+        let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+        // calculate B matrix B_ij with i = nvirt, j = nocc
+        // for the CPHF iterations
+        let mut b_matrix:Array3<f64> = Array3::zeros([3*self.n_atoms,nvirt,nocc]);
+
+        for nc in 0..3*self.n_atoms{
+            let ds_mo:Array1<f64> = orbs_occ.t().dot(&grad_s.slice(s![nc,..,..])
+                .dot(&orbs_occ)).into_shape([nocc*nocc]).unwrap();
+            let integral_term:Array2<f64> = (2.0 * qvo.t().dot(&g0.dot(&qoo)) - qvo.t().dot(&g0_lr.dot(&qoo)))
+                .dot(&ds_mo).into_shape([nvirt,nocc]).unwrap();
+            let gradh_mo:Array2<f64> = orbs.t().dot(&grad_h.slice(s![nc,..,..]).dot(&orbs));
+            let grads_mo:Array2<f64> = orbs.t().dot(&grad_s.slice(s![nc,..,..]).dot(&orbs));
+
+            for i in 0..nvirt{
+                for j in 0..nocc{
+                    b_matrix[[nc,i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_term[[i,j]];
+                }
+            }
+        }
+
+        // calculate A_matrix ij,kl i = nvirt, j = nocc, k = nvirt, l = nocc
+        // for the CPHF iterations
+        let mut a_mat:Array2<f64> = Array2::zeros([nvirt*nocc,nvirt*nocc]);
+        // integral (ij|kl)
+        a_mat = 4.0 * qvo.t().dot(&g0.dot(&qvo));
+        // integral (ik|jl)
+        a_mat = a_mat - qvv.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nvirt,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nvirt*nocc]).unwrap();
+        // integral (il|jk)
+        a_mat = a_mat - qvo.t().dot(&g0_lr.dot(&qov)).into_shape([nvirt,nocc,nocc,nvirt]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nvirt*nocc]).unwrap();
+
+        let u_mat = solve_cphf_new(a_mat.view(),b_matrix.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        // println!("umat {}",u_mat);
+        //
         // let (u_mat,grad_omega):(Array3<f64>,Array3<f64>) = solve_cphf(
         //     grad_s.view(),
         //     grad_h0.view(),
@@ -483,27 +519,29 @@ impl Monomer {
         //     g0,
         //     self.properties.dq().unwrap()
         // );
-        // // println!("umat {}",u_mat);
-        // // calculate a matrix A_ii,kl = 4 * (ii|kl) - (ik|il) - (il|ik)
-        // // k = virt, l = occ
-        // // let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
-        // let a_mat:Array2<f64> = 4.0* qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap()
-        //     .slice(s![..,ind,ind]).dot(&g0.dot(&qvo)).into_shape([nvirt,nocc]).unwrap();
-        //     // - qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]).t()
-        //     // .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])))
-        //     // - qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
-        //     // .dot(&g0_lr.dot(&qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]))).t();
-        //
-        // // calculate gradient term of the umatrix: sum_k sum_l U^a_kl A_ii,kl
-        // let mut u_term:Array1<f64> = Array1::zeros(3*self.n_atoms);
-        // for nat in 0..3*self.n_atoms{
-        //     for (virt_ind,virt) in virt_indices.iter().enumerate(){
-        //         for (occ_ind,occ) in occ_indices.iter().enumerate(){
-        //             u_term[nat] += u_mat[[nat,*virt,*occ]] * a_mat[[virt_ind,occ_ind]];
-        //         }
-        //     }
-        // }
-        // let grad = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term + 1.37*&u_term;
+        // println!("umat {}",u_mat.slice(s![0,nocc..,..nocc]));
+        // calculate a matrix A_ii,kl = 4 * (ii|kl) - (ik|il) - (il|ik)
+        // k = virt, l = occ
+        // let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+        let a_mat:Array2<f64> = 4.0* qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap()
+            .slice(s![..,ind,ind]).dot(&g0.dot(&qvo)).into_shape([nvirt,nocc]).unwrap()
+            - qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]).t()
+            .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])))
+            - qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
+            .dot(&g0_lr.dot(&qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]))).t();
+
+
+        // calculate gradient term of the umatrix: sum_k sum_l U^a_kl A_ii,kl
+        let mut u_term:Array1<f64> = Array1::zeros(3*self.n_atoms);
+        for nat in 0..3*self.n_atoms{
+            u_term[nat] = u_mat.slice(s![nat,..,..]).into_shape([nvirt*nocc]).unwrap().dot(&a_mat.view().into_shape([nvirt*nocc]).unwrap());
+            // for (virt_ind,virt) in virt_indices.iter().enumerate(){
+            //     for (occ_ind,occ) in occ_indices.iter().enumerate(){
+            //         u_term[nat] += u_mat[[nat,*virt,*occ]] * a_mat[[virt_ind,occ_ind]];
+            //     }
+            // }
+        }
+        let grad = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term + &u_term;
         // let grad_u = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term;// + 1.4*&u_term;
         //
         // // second try for gradient calculation
@@ -904,4 +942,42 @@ fn charges_derivatives_contribution(
         }
     }
     return matrix;
+}
+
+fn solve_cphf_new(
+    a_mat:ArrayView2<f64>,
+    b_mat:ArrayView3<f64>,
+    orbe:ArrayView1<f64>,
+    nocc:usize,
+    nvirt:usize,
+    nat:usize
+)->Array3<f64>{
+    let mut u_mat:Array3<f64> = Array3::zeros([3*nat,nvirt,nocc]);
+
+    'cphf_loop: for it in 0..1000{
+        let u_prev:Array2<f64> = u_mat.clone().into_shape([3*nat,nvirt*nocc]).unwrap();
+
+        // calculate U matrix
+        for nc in 0..3*nat{
+            // calculate sum_kl Aij,kl U^a_kl
+            let a_term:Array2<f64> = a_mat.dot(&u_prev.slice(s![nc,..])).into_shape([nvirt,nocc]).unwrap();
+
+            for virt in 0..nvirt{
+                for occ in 0..nocc{
+                    u_mat[[nc,virt,occ]] = (1.0/(orbe[occ] - orbe[nocc+virt])) * (a_term[[virt,occ]] + b_mat[[nc,virt,occ]]);
+                }
+            }
+        }
+
+        // check convergence
+        let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
+        let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-16 {Some(item)} else {None}).collect();
+
+        if not_converged.len() == 0{
+            println!("CPHF converged in {} Iterations.",it);
+            break 'cphf_loop;
+        }
+    }
+
+    return u_mat;
 }
