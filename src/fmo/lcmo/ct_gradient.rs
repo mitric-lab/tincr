@@ -471,36 +471,107 @@ impl Monomer {
         let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
         // calculate B matrix B_ij with i = nvirt, j = nocc
         // for the CPHF iterations
-        let mut b_matrix:Array3<f64> = Array3::zeros([3*self.n_atoms,nvirt,nocc]);
+        let mut b_mat:Array3<f64> = Array3::zeros([3*self.n_atoms,self.n_orbs,self.n_orbs]);
+        // let mut b_matrix:Array3<f64> = Array3::zeros([3*self.n_atoms,nvirt,nocc]);
 
         for nc in 0..3*self.n_atoms{
             let ds_mo:Array1<f64> = orbs_occ.t().dot(&grad_s.slice(s![nc,..,..])
                 .dot(&orbs_occ)).into_shape([nocc*nocc]).unwrap();
-            let integral_term:Array2<f64> = (2.0 * qvo.t().dot(&g0.dot(&qoo)) - qvo.t().dot(&g0_lr.dot(&qoo)))
+            // integral (ij|kl) - (ik|jl), i = nvirt, j = nocc
+            let integral_vo:Array2<f64> = (2.0 * qvo.t().dot(&g0.dot(&qoo)) - qvo.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nocc,nocc,nocc]).unwrap()
+                .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nocc*nocc]).unwrap())
                 .dot(&ds_mo).into_shape([nvirt,nocc]).unwrap();
+            // integral (ij|kl) - (ik|jl), i = nocc, j = nocc
+            let integral_oo:Array2<f64> = (2.0 * qoo.t().dot(&g0.dot(&qoo)) -qoo.t().dot(&g0_lr.dot(&qoo)).into_shape([nocc,nocc,nocc,nocc]).unwrap()
+                .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nocc,nocc*nocc]).unwrap())
+                .dot(&ds_mo).into_shape([nocc,nocc]).unwrap();
+            // integral (ij|kl) - (ik|jl), i = nvirt, j = nvirt
+            let integral_vv:Array2<f64> = (2.0 * qvv.t().dot(&g0.dot(&qoo)) -qvo.t().dot(&g0_lr.dot(&qvo)).into_shape([nvirt,nocc,nvirt,nocc]).unwrap()
+                .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nocc*nocc]).unwrap())
+                .dot(&ds_mo).into_shape([nvirt,nvirt]).unwrap();
+            // integral (ij|kl) - (ik|jl), i = nocc, j = nvirt
+            let integral_ov:Array2<f64> = (2.0 * qov.t().dot(&g0.dot(&qoo)) -qoo.t().dot(&g0_lr.dot(&qvo)).into_shape([nocc,nocc,nvirt,nocc]).unwrap()
+                .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nocc*nocc]).unwrap())
+                .dot(&ds_mo).into_shape([nocc,nvirt]).unwrap();
+
             let gradh_mo:Array2<f64> = orbs.t().dot(&grad_h.slice(s![nc,..,..]).dot(&orbs));
             let grads_mo:Array2<f64> = orbs.t().dot(&grad_s.slice(s![nc,..,..]).dot(&orbs));
 
             for i in 0..nvirt{
                 for j in 0..nocc{
-                    b_matrix[[nc,i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_term[[i,j]];
+                    // b_matrix[[nc,i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_vo[[i,j]];
+                    b_mat[[nc,nocc+i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_vo[[i,j]];
+                }
+                for j in 0..nvirt{
+                    b_mat[[nc,nocc+i,nocc+j]] = gradh_mo[[nocc+i,nocc+j]] - grads_mo[[nocc+i,nocc+j]] * orbe[nocc+j] - integral_vv[[i,j]];
+                }
+            }
+            for i in 0..nocc{
+                for j in 0..nocc{
+                    b_mat[[nc,i,j]] = gradh_mo[[i,j]] - grads_mo[[i,j]] * orbe[j] - integral_oo[[i,j]];
+                }
+                for j in 0..nvirt{
+                    b_mat[[nc,i,nocc+j]] = gradh_mo[[i,nocc+j]] - grads_mo[[i,nocc+j]] * orbe[nocc+j] - integral_ov[[i,j]];
                 }
             }
         }
 
         // calculate A_matrix ij,kl i = nvirt, j = nocc, k = nvirt, l = nocc
         // for the CPHF iterations
-        let mut a_mat:Array2<f64> = Array2::zeros([nvirt*nocc,nvirt*nocc]);
+        let mut a_mat_vo:Array2<f64> = Array2::zeros([nvirt*nocc,nvirt*nocc]);
         // integral (ij|kl)
-        a_mat = 4.0 * qvo.t().dot(&g0.dot(&qvo));
+        a_mat_vo = 4.0 * qvo.t().dot(&g0.dot(&qvo));
         // integral (ik|jl)
-        a_mat = a_mat - qvv.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nvirt,nocc,nocc]).unwrap()
+        a_mat_vo = a_mat_vo - qvv.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nvirt,nocc,nocc]).unwrap()
             .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nvirt*nocc]).unwrap();
         // integral (il|jk)
-        a_mat = a_mat - qvo.t().dot(&g0_lr.dot(&qov)).into_shape([nvirt,nocc,nocc,nvirt]).unwrap()
+        a_mat_vo = a_mat_vo - qvo.t().dot(&g0_lr.dot(&qov)).into_shape([nvirt,nocc,nocc,nvirt]).unwrap()
             .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nvirt*nocc]).unwrap();
 
-        let u_mat = solve_cphf_new(a_mat.view(),b_matrix.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        // calculate A_matrix ij,kl i = nocc, j = nocc, k = nvirt, l = nocc
+        // for the CPHF iterations
+        let mut a_mat_oo:Array2<f64> = Array2::zeros([nocc*nocc,nvirt*nocc]);
+        // integral (ij|kl)
+        a_mat_oo = 4.0 * qoo.t().dot(&g0.dot(&qvo));
+        // integral (ik|jl)
+        a_mat_oo = a_mat_oo - qov.t().dot(&g0_lr.dot(&qoo)).into_shape([nocc,nvirt,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nocc,nvirt*nocc]).unwrap();
+        // integral (il|jk)
+        a_mat_oo = a_mat_oo - qoo.t().dot(&g0_lr.dot(&qov)).into_shape([nocc,nocc,nocc,nvirt]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nocc*nocc,nvirt*nocc]).unwrap();
+
+        // calculate A_matrix ij,kl i = nocc, j = nvirt, k = nvirt, l = nocc
+        // for the CPHF iterations
+        let mut a_mat_ov:Array2<f64> = Array2::zeros([nocc*nvirt,nvirt*nocc]);
+        // integral (ij|kl)
+        a_mat_ov = 4.0 * qov.t().dot(&g0.dot(&qvo));
+        // integral (ik|jl)
+        a_mat_ov = a_mat_ov - qov.t().dot(&g0_lr.dot(&qvo)).into_shape([nocc,nvirt,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nvirt*nocc]).unwrap();
+        // integral (il|jk)
+        a_mat_ov = a_mat_ov - qoo.t().dot(&g0_lr.dot(&qvv)).into_shape([nocc,nocc,nvirt,nvirt]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nvirt*nocc]).unwrap();
+
+        // calculate A_matrix ij,kl i = nvirt, j = nvirt, k = nvirt, l = nocc
+        // for the CPHF iterations
+        let mut a_mat_vv:Array2<f64> = Array2::zeros([nvirt*nvirt,nvirt*nocc]);
+        // integral (ij|kl)
+        a_mat_vv = 4.0 * qvv.t().dot(&g0.dot(&qvo));
+        // integral (ik|jl)
+        a_mat_vv = a_mat_vv - qvv.t().dot(&g0_lr.dot(&qvo)).into_shape([nvirt,nvirt,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nvirt*nocc]).unwrap();
+        // integral (il|jk)
+        a_mat_vv = a_mat_vv - qvo.t().dot(&g0_lr.dot(&qvv)).into_shape([nvirt,nocc,nvirt,nvirt]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nvirt*nocc]).unwrap();
+
+        let mut a_matrix:Array3<f64> = Array3::zeros([self.n_orbs,self.n_orbs,nvirt*nocc]);
+        a_matrix.slice_mut(s![..nocc,..nocc,..]).assign(&a_mat_oo.into_shape([nocc,nocc,nvirt*nocc]).unwrap());
+        a_matrix.slice_mut(s![..nocc,nocc..,..]).assign(&a_mat_ov.into_shape([nocc,nvirt,nvirt*nocc]).unwrap());
+        a_matrix.slice_mut(s![nocc..,..nocc,..]).assign(&a_mat_vo.into_shape([nvirt,nocc,nvirt*nocc]).unwrap());
+        a_matrix.slice_mut(s![nocc..,nocc..,..]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nvirt*nocc]).unwrap());
+        let a_mat:Array2<f64> = a_matrix.into_shape([self.n_orbs*self.n_orbs,nvirt*nocc]).unwrap();
+
+        let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
         // println!("umat {}",u_mat);
         //
         // let (u_mat,grad_omega):(Array3<f64>,Array3<f64>) = solve_cphf(
@@ -530,11 +601,11 @@ impl Monomer {
             - qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
             .dot(&g0_lr.dot(&qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]))).t();
 
-
         // calculate gradient term of the umatrix: sum_k sum_l U^a_kl A_ii,kl
         let mut u_term:Array1<f64> = Array1::zeros(3*self.n_atoms);
         for nat in 0..3*self.n_atoms{
-            u_term[nat] = u_mat.slice(s![nat,..,..]).into_shape([nvirt*nocc]).unwrap().dot(&a_mat.view().into_shape([nvirt*nocc]).unwrap());
+            u_term[nat] = u_mat.slice(s![nat,nocc..,..nocc]).to_owned().into_shape([nvirt*nocc])
+                .unwrap().dot(&a_mat.view().into_shape([nvirt*nocc]).unwrap());
             // for (virt_ind,virt) in virt_indices.iter().enumerate(){
             //     for (occ_ind,occ) in occ_indices.iter().enumerate(){
             //         u_term[nat] += u_mat[[nat,*virt,*occ]] * a_mat[[virt_ind,occ_ind]];
@@ -542,7 +613,6 @@ impl Monomer {
             // }
         }
         let grad = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term + &u_term;
-        // let grad_u = &grad_h_mo - orbe[ind] * &grad_s_mo - &gradient_term;// + 1.4*&u_term;
         //
         // // second try for gradient calculation
         // let mut grad_2:Array1<f64> = Array1::zeros(3*self.n_atoms);
@@ -952,25 +1022,39 @@ fn solve_cphf_new(
     nvirt:usize,
     nat:usize
 )->Array3<f64>{
-    let mut u_mat:Array3<f64> = Array3::zeros([3*nat,nvirt,nocc]);
+    // let mut u_mat:Array3<f64> = Array3::zeros([3*nat,nvirt,nocc]);
+    let n_orbs:usize = nocc + nvirt;
+    let mut u_mat:Array3<f64> = Array3::zeros([3*nat,n_orbs,n_orbs]);
 
     'cphf_loop: for it in 0..1000{
-        let u_prev:Array2<f64> = u_mat.clone().into_shape([3*nat,nvirt*nocc]).unwrap();
+        // let u_prev:Array2<f64> = u_mat.clone().into_shape([3*nat,nvirt*nocc]).unwrap();
+        let u_prev:Array3<f64> = u_mat.clone();
 
         // calculate U matrix
         for nc in 0..3*nat{
             // calculate sum_kl Aij,kl U^a_kl
-            let a_term:Array2<f64> = a_mat.dot(&u_prev.slice(s![nc,..])).into_shape([nvirt,nocc]).unwrap();
+            // let a_term:Array2<f64> = a_mat.dot(&u_prev.slice(s![nc,..])).into_shape([nvirt,nocc]).unwrap();
 
-            for virt in 0..nvirt{
-                for occ in 0..nocc{
-                    u_mat[[nc,virt,occ]] = (1.0/(orbe[occ] - orbe[nocc+virt])) * (a_term[[virt,occ]] + b_mat[[nc,virt,occ]]);
+            let a_term:Array2<f64> = a_mat.dot(&u_prev.slice(s![nc,nocc..,..nocc]).to_owned()
+                .into_shape(nvirt*nocc).unwrap()).into_shape([n_orbs,n_orbs]).unwrap();
+
+            // for virt in 0..nvirt{
+            //     for occ in 0..nocc{
+            //         u_mat[[nc,virt,occ]] = (1.0/(orbe[occ] - orbe[nocc+virt])) * (a_term[[virt,occ]] + b_mat[[nc,virt,occ]]);
+            //     }
+            // }
+            for orb_i in 0..n_orbs{
+                for orb_j in 0..n_orbs{
+                    if orb_i != orb_j{
+                        u_mat[[nc,orb_i,orb_j]] = (1.0/(orbe[orb_j] - orbe[orb_i])) * (a_term[[orb_i,orb_j]] + b_mat[[nc,orb_i,orb_j]]);
+                    }
                 }
             }
         }
 
         // check convergence
-        let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
+        // let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
+        let diff:Array3<f64> = (&u_prev - &u_mat.view()).map(|val| val.abs());
         let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-16 {Some(item)} else {None}).collect();
 
         if not_converged.len() == 0{
