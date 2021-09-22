@@ -33,8 +33,14 @@ impl SuperSystem {
         let n_orbs_j: usize = m_j.n_orbs;
 
         // calculate the gradients of the fock matrix elements
-        let mut gradh_i = -1.0*m_i.calculate_ct_fock_gradient(atoms_i, ct_ind_i, true);
-        let gradh_j = m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
+        // and the U matrix of the CPHF equations
+        let tmp = m_i.calculate_ct_fock_gradient(atoms_i, ct_ind_i, true);
+        let mut gradh_i = -1.0* tmp.0;
+        let u_mat_i:Array3<f64> = tmp.1;
+
+        let tmp = m_j.calculate_ct_fock_gradient(atoms_j, ct_ind_j, false);
+        let gradh_j = tmp.0;
+        let u_mat_j:Array3<f64> = tmp.1;
         println!("grad i {}",gradh_i.slice(s![0..4]));
         println!("grad j {}",gradh_j.slice(s![0..4]));
         // assert!(1==2);
@@ -150,20 +156,20 @@ impl SuperSystem {
                 pair_ij.n_orbs,
             );
 
-            let coulomb_integral:Array5<f64> = f_v_ct_2(
-                m_i.properties.s().unwrap(),
-                m_j.properties.s().unwrap(),
-                grad_s_i,
-                grad_s_j,
-                g0_ao.view(),
-                g1_ao.view(),
-                pair_ij.n_atoms,
-                n_orbs_i,
-                n_orbs_j
-            );
-            let coulomb_grad:Array1<f64> = coulomb_integral.into_shape([3*pair_ij.n_atoms*n_orbs_i*n_orbs_i,n_orbs_j*n_orbs_j]).unwrap()
-                .dot(&c_mat_j.view().into_shape([n_orbs_j * n_orbs_j]).unwrap()).into_shape([3*pair_ij.n_atoms,n_orbs_i*n_orbs_i]).unwrap()
-                .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
+            // let coulomb_integral:Array5<f64> = f_v_ct_2(
+            //     m_i.properties.s().unwrap(),
+            //     m_j.properties.s().unwrap(),
+            //     grad_s_i,
+            //     grad_s_j,
+            //     g0_ao.view(),
+            //     g1_ao.view(),
+            //     pair_ij.n_atoms,
+            //     n_orbs_i,
+            //     n_orbs_j
+            // );
+            // let coulomb_grad:Array1<f64> = coulomb_integral.into_shape([3*pair_ij.n_atoms*n_orbs_i*n_orbs_i,n_orbs_j*n_orbs_j]).unwrap()
+            //     .dot(&c_mat_j.view().into_shape([n_orbs_j * n_orbs_j]).unwrap()).into_shape([3*pair_ij.n_atoms,n_orbs_i*n_orbs_i]).unwrap()
+            //     .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
             let coulomb_gradient: Array1<f64> = f_v_ct(
                 // c_mo_j,
@@ -198,14 +204,60 @@ impl SuperSystem {
                 .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
             // .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
+            // calculate gradients of the MO coefficients
+            // dc_mu,i/dR = sum_m^all U^R_mi, C_mu,m
+            let mut dc_mo_i:Array2<f64> = Array2::zeros([3*pair_ij.n_atoms,m_i.n_orbs]);
+            let mut dc_mo_j:Array2<f64> = Array2::zeros([3*pair_ij.n_atoms,m_j.n_orbs]);
+
+            // iterate over gradient dimensions of both monomers
+            for nat in 0..3*m_i.n_atoms{
+                dc_mo_i.slice_mut(s![nat,..]).assign(&u_mat_i.slice(s![nat,..,orb_ind_i]).dot(&c_mo_i.t()));
+            }
+            for nat in 0..3*m_j.n_atoms{
+                dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&u_mat_j.slice(s![nat,..,orb_ind_j]).dot(&c_mo_j.t()));
+            }
+
+            // calculate coulomb and exchange integrals in AO basis
+            let coulomb_arr:Array2<f64> = f_v_coulomb_loop(
+                m_i.properties.s().unwrap(),
+                m_j.properties.s().unwrap(),
+                g0_ao.view(),
+                m_i.n_orbs,
+                m_j.n_orbs
+            ).into_shape([m_i.n_orbs*m_i.n_orbs,m_j.n_orbs*m_j.n_orbs]).unwrap();
+
+            let mut coulomb_grad:Array1<f64> = Array1::zeros(3*pair_ij.n_atoms);
+            // iterate over the gradient
+            for nat in 0..3*pair_ij.n_atoms{
+                // dot product of dc_mu,i/dr c_lambda,i to c_mu,lambda of Fragment I
+                let c_i:Array2<f64> = into_col(dc_mo_i.slice(s![nat,..]).to_owned())
+                    .dot(&into_row(c_mo_i.slice(s![..,orb_ind_i]).to_owned()));
+                // dot product of dc_nu,a/dr c_sig,a to c_nu,sig of Fragment J
+                let c_j:Array2<f64> = into_col(dc_mo_j.slice(s![nat,..]).to_owned())
+                    .dot(&into_row(c_mo_j.slice(s![..,orb_ind_j]).to_owned()));
+
+                // calculate dot product of coulom integral with previously calculated coefficients
+                // in AO basis
+                let term_1 = 2.0 * c_i.into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+                    .dot(&coulomb_arr.dot(&c_mat_j.view().into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+                let term_2 = 2.0 * c_mat_i.view().into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+                    .dot(&coulomb_arr.dot(&c_j.into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+
+                coulomb_grad[nat] = term_1 + term_2;
+            }
+            println!("cphf coulomb grad {}",coulomb_grad.slice(s![0..5]));
+
+            // calculate the exchange and coumlob integral and multiply those by the
+            // MO coefficient derivatives
+
             // assemble the gradient
             // println!("gradient of orbital energies {}",gradh_i);
             println!("exchange gradient {}",exchange_gradient.slice(s![0..5]));
             println!("coulomb gradient {}",coulomb_gradient.slice(s![0..5]));
-            println!("coulomb grad v2 {}",coulomb_grad.slice(s![0..5]));
+            // println!("coulomb grad v2 {}",coulomb_grad.slice(s![0..5]));
             // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
             // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
-            let gradient: Array1<f64> = - 1.0 * coulomb_grad;
+            let gradient: Array1<f64> = - 1.0 * (coulomb_gradient + coulomb_grad);
 
             gradient
         } else {
@@ -316,7 +368,7 @@ impl Monomer {
         atoms: &[Atom],
         ct_index: usize,
         hole: bool,
-    ) -> Array1<f64> {
+    ) -> (Array1<f64>,Array3<f64>) {
         // derivative of H0 and S
         let (grad_s, grad_h0) = h0_and_s_gradients(&atoms, self.n_orbs, &self.slako);
 
@@ -570,7 +622,6 @@ impl Monomer {
         a_matrix.slice_mut(s![nocc..,..nocc,..]).assign(&a_mat_vo.into_shape([nvirt,nocc,nvirt*nocc]).unwrap());
         a_matrix.slice_mut(s![nocc..,nocc..,..]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nvirt*nocc]).unwrap());
         let a_mat:Array2<f64> = a_matrix.into_shape([self.n_orbs*self.n_orbs,nvirt*nocc]).unwrap();
-
         let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
         // println!("umat {}",u_mat);
         //
@@ -591,15 +642,43 @@ impl Monomer {
         //     self.properties.dq().unwrap()
         // );
         // println!("umat {}",u_mat.slice(s![0,nocc..,..nocc]));
-        // calculate a matrix A_ii,kl = 4 * (ii|kl) - (ik|il) - (il|ik)
-        // k = virt, l = occ
         // let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
-        let a_mat:Array2<f64> = 4.0* qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap()
-            .slice(s![..,ind,ind]).dot(&g0.dot(&qvo)).into_shape([nvirt,nocc]).unwrap()
-            - qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]).t()
-            .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])))
-            - qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
-            .dot(&g0_lr.dot(&qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]))).t();
+
+        let a_mat:Array2<f64> = if hole {
+            // calculate a matrix A_ii,kl = 4 * (ii|kl) - (ik|il) - (il|ik)
+            // k = virt, l = occ, i = occupied orbital index of ct state
+            // integral (ii|kl)
+            let term_1 = 4.0* qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap()
+                .slice(s![..,ind,ind]).dot(&g0.dot(&qvo)).into_shape([nvirt,nocc]).unwrap();
+
+            // integral (ik|il)
+            let term_2 = - qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]).t()
+                .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])));
+
+            // integral (il|ik)
+            let term_3 = -1.0* &(qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
+                .dot(&g0_lr.dot(&qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]))).t());
+
+            term_1 + term_2 + term_3
+        }
+        else{
+            let slice_ind:usize = ind - virt_indices[0];
+            // calculate a matrix A_ii,kl = 4 * (ii|kl) - (ik|il) - (il|ik)
+            // k = virt, l = occ, i = virtual orbital index of ct state
+            // integral (ii|kl)
+            let term_1 = 4.0* qvv.view().into_shape([self.n_atoms,nvirt,nvirt]).unwrap()
+                .slice(s![..,slice_ind,slice_ind]).dot(&g0.dot(&qvo)).into_shape([nvirt,nocc]).unwrap();
+
+            // integral (ik|il)
+            let term_2 = - qvv.view().into_shape([self.n_atoms,nvirt,nvirt]).unwrap().slice(s![..,slice_ind,..]).t()
+                .dot(&g0_lr.dot(&qvo.view().into_shape([self.n_atoms,nvirt,nocc]).unwrap().slice(s![..,slice_ind,..])));
+
+            // integral (il|ik)
+            let term_3 = -1.0* &(qvo.view().into_shape([self.n_atoms,nvirt,nocc]).unwrap().slice(s![..,slice_ind,..]).t()
+                .dot(&g0_lr.dot(&qvv.view().into_shape([self.n_atoms,nvirt,nvirt]).unwrap().slice(s![..,slice_ind,..]))).t());
+
+            term_1 + term_2 + term_3
+        };
 
         // calculate gradient term of the umatrix: sum_k sum_l U^a_kl A_ii,kl
         let mut u_term:Array1<f64> = Array1::zeros(3*self.n_atoms);
@@ -691,7 +770,7 @@ impl Monomer {
         // println!("grad 4 {}",grad_4);
         // println!("grad u {}",grad_u);
 
-        return grad;
+        return (grad,u_mat);
     }
 }
 
@@ -726,6 +805,55 @@ fn f_v_ct_2(
             }
         }
     }
+    return integral;
+}
+
+fn f_v_coulomb(
+    v: ArrayView2<f64>,
+    s_i: ArrayView2<f64>,
+    s_j: ArrayView2<f64>,
+    g0_pair_ao: ArrayView2<f64>,
+    n_orb_i: usize,
+) -> Array2<f64> {
+    // Calculate the coumlom integral in AO basis
+    // between two different monomers
+
+    let vp: Array2<f64> = &v + &(v.t());
+    let s_j_v: Array1<f64> = (&s_j * &vp).sum_axis(Axis(0));
+    let gsv: Array1<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]).dot(&s_j_v);
+
+    let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_i));
+    for b in 0..n_orb_i {
+        for a in 0..n_orb_i {
+            d_f[[a, b]] = s_i[[a, b]] * (gsv[a] + gsv[b])
+        }
+    }
+    d_f = d_f * 0.25;
+
+    return d_f;
+}
+
+fn f_v_coulomb_loop(
+    s_i: ArrayView2<f64>,
+    s_j: ArrayView2<f64>,
+    g0_pair_ao: ArrayView2<f64>,
+    n_orb_i: usize,
+    n_orb_j:usize,
+)->Array4<f64>{
+    let mut integral:Array4<f64> = Array4::zeros([n_orb_i,n_orb_i,n_orb_j,n_orb_j]);
+    let g0_ij:ArrayView2<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]);
+
+    for mu in 0..n_orb_i{
+        for la in 0..n_orb_i{
+            for nu in 0..n_orb_j{
+                for sig in 0..n_orb_j{
+                    integral[[mu,la,nu,sig]] = 0.25 * s_j[[nu,sig]] * s_i[[mu,la]] *
+                        (g0_ij[[mu,nu]] + g0_ij[[mu,sig]] + g0_ij[[la,nu]] + g0_ij[[la,sig]]);
+                }
+            }
+        }
+    }
+
     return integral;
 }
 

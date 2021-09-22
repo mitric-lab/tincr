@@ -114,7 +114,8 @@ fn main() {
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
         system.prepare_scc();
         system.run_scc();
-        system.test_orbital_energy_derivative();
+        system.test_ct_gradient();
+        // system.test_orbital_energy_derivative();
         // let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
         //     .atoms(&system.atoms)
         //     .orbs(system.properties.orbs().unwrap())

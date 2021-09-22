@@ -53,7 +53,7 @@ impl SuperSystem {
         let grad = mol.calculate_ct_fock_gradient(atoms,0,true);
         mol.properties.reset();
 
-        return grad;
+        return grad.0;
     }
 
     pub fn test_orbital_energy_derivative(&mut self){
