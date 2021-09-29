@@ -172,14 +172,14 @@ impl SuperSystem {
         }
 
         let orbs: Array2<f64> = concatenate![Axis(1), occ_orbs, virt_orbs];
-        write_npy("/Users/hochej/Downloads/lcmo_energies.npy", &energies.view());
+        write_npy("lcmo_energies.npy", &energies.view());
         let exciton = ExcitonStates::new(self.properties.last_energy().unwrap(),
                                          (energies, eigvectors), states.clone(),
                                          (n_occ, n_virt), orbs);
 
-        exciton.spectrum_to_npy("/Users/hochej/Downloads/lcmo_spec.npy");
-        exciton.spectrum_to_txt("/Users/hochej/Downloads/lcmo_spec.txt");
-        exciton.ntos_to_molden(&self.atoms, 1, "/Users/hochej/Downloads/ntos_fmo.molden");
+        exciton.spectrum_to_npy("lcmo_spec.npy");
+        exciton.spectrum_to_txt("lcmo_spec.txt");
+
         println!("{}", exciton);
 
     }

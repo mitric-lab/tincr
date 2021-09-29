@@ -416,7 +416,7 @@ impl SuperSystem {
                 // Overlap integral of monomer I.
                 let s_ii: ArrayView2<f64> = i.monomer.properties.s().unwrap();
 
-                // Transition charges betwenn all orbitals on I and the electron on I.
+                // Transition charges between all orbitals on I and the electron on I.
                 let q_ab: Array2<f64> = q_le_p(&i, &j.electron, s_ii, ElecHole::Electron);
 
                 // The two electron integral b_ia (ij|ab) is computed.

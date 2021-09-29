@@ -219,7 +219,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
         info!("{}", timer);
 
 
-        let (h0, s) = h0_and_s(n_orbs, &atoms, &slako);
+        let (s, h0) = h0_and_s(n_orbs, &atoms, &slako);
         properties.set_s(s);
 
         Self {

@@ -14,7 +14,7 @@ use std::ops::{AddAssign, SubAssign};
 impl SuperSystem {
     /// Compute the Lagrangian of the response contribution to the FMO gradient.
     ///
-    /// The lagrangian is calculated following Eq. 5 and 7 of Ref. [1]. In general a double loop
+    /// The Lagrangian is calculated following Eq. 5 and 7 of Ref. [1]. In general a double loop
     /// through the monomers and the real pairs is necessary. This would lead to a O(N_M x N_P) scaling,
     /// where N_M/N_P is the number of monomers/pairs, respectively. Instead, first the product of
     /// difference charge differences and the gamma matrix is calculated for all pairs. Afterwards,
