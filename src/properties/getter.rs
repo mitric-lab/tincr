@@ -612,4 +612,21 @@ impl Properties {
             _ => None,
         }
     }
+
+
+    /// Returns a reference to the overlap between orbitals of monomer I and dimer IJ.
+    pub fn s_i_ij(&self)->Option<ArrayView2<f64>>{
+        match self.get("s_i_ij"){
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the overlap between orbitals of monomer J and dimer IJ.
+    pub fn s_j_ij(&self)->Option<ArrayView2<f64>>{
+        match self.get("s_j_ij"){
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
 }

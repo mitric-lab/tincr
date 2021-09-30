@@ -321,4 +321,20 @@ impl Properties {
             Property::from(f_lr_dmd0),
         )
     }
+
+    /// Overlap between orbitals of monomer I and dimer IJ.
+    pub fn set_overlap_i_ij(&mut self, s_i_ij:Array2<f64>){
+        self.set(
+            "s_i_ij",
+            Property::from(s_i_ij),
+        )
+    }
+
+    /// Overlap between orbitals of monomer J and dimer IJ.
+    pub fn set_overlap_j_ij(&mut self, s_j_ij:Array2<f64>){
+        self.set(
+            "s_j_ij",
+            Property::from(s_j_ij),
+        )
+    }
 }

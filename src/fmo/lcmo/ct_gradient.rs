@@ -234,20 +234,20 @@ impl SuperSystem {
                 pair_ij.n_orbs,
             );
 
-            // let coulomb_integral:Array5<f64> = f_v_ct_2(
-            //     m_i.properties.s().unwrap(),
-            //     m_j.properties.s().unwrap(),
-            //     grad_s_i,
-            //     grad_s_j,
-            //     g0_ao.view(),
-            //     g1_ao.view(),
-            //     pair_ij.n_atoms,
-            //     n_orbs_i,
-            //     n_orbs_j
-            // );
-            // let coulomb_grad:Array1<f64> = coulomb_integral.into_shape([3*pair_ij.n_atoms*n_orbs_i*n_orbs_i,n_orbs_j*n_orbs_j]).unwrap()
-            //     .dot(&c_mat_j.view().into_shape([n_orbs_j * n_orbs_j]).unwrap()).into_shape([3*pair_ij.n_atoms,n_orbs_i*n_orbs_i]).unwrap()
-            //     .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
+            let coulomb_integral:Array5<f64> = f_v_ct_2(
+                m_i.properties.s().unwrap(),
+                m_j.properties.s().unwrap(),
+                grad_s_i,
+                grad_s_j,
+                g0_ao.view(),
+                g1_ao.view(),
+                pair_ij.n_atoms,
+                n_orbs_i,
+                n_orbs_j
+            );
+            let coulomb_grad:Array1<f64> = coulomb_integral.into_shape([3*pair_ij.n_atoms*n_orbs_i*n_orbs_i,n_orbs_j*n_orbs_j]).unwrap()
+                .dot(&c_mat_j.view().into_shape([n_orbs_j * n_orbs_j]).unwrap()).into_shape([3*pair_ij.n_atoms,n_orbs_i*n_orbs_i]).unwrap()
+                .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
             let coulomb_gradient: Array1<f64> = f_v_ct(
                 c_mat_j.view(),
@@ -264,6 +264,8 @@ impl SuperSystem {
                 .unwrap()
                 .dot(&c_mat_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
             // .dot(&c_mo_i.into_shape([n_orbs_i * n_orbs_i]).unwrap());
+
+            assert!(coulomb_grad.abs_diff_eq(&coulomb_gradient,1.0e-12));
 
             let exchange_gradient: Array1<f64> = f_lr_ct(
                 c_mat_j.t(),

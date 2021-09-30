@@ -127,7 +127,8 @@ impl SuperSystem {
     }
 
     pub fn create_exciton_hamiltonian(&mut self) -> f64 {
-        self.properties.set_lcmo_fock(self.build_lcmo_fock_matrix());
+        let hamiltonian = self.build_lcmo_fock_matrix();
+        self.properties.set_lcmo_fock(hamiltonian);
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
         let max_iter: usize = 50;

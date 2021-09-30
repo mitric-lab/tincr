@@ -8,7 +8,7 @@ use ndarray_linalg::{Eigh, Inverse, SymmetricSqrt, UPLO};
 use std::ops::AddAssign;
 
 impl SuperSystem {
-    pub fn build_lcmo_fock_matrix(&self) -> Array2<f64> {
+    pub fn build_lcmo_fock_matrix(&mut self) -> Array2<f64> {
         // TODO: READ THIS FROM THE INPUT FILE
         // Number of active orbitals per monomer
         let n_occ_m: usize = 1;
@@ -36,7 +36,7 @@ impl SuperSystem {
         }
 
         // The off-diagonal elements are set.
-        for pair in self.pairs.iter() {
+        for pair in self.pairs.iter_mut() {
             // Reference to monomer I.
             let m_i: &Monomer = &self.monomers[pair.i];
             // Reference to monomer J.
@@ -83,6 +83,10 @@ impl SuperSystem {
             let f_bb: Array2<f64> = (&s_qr * &orbe_ij).dot(&s_qr.t());
             let f_ab: Array2<f64> = (&s_pr * &orbe_ij).dot(&s_qr.t());
             let f_ba: Array2<f64> = (&s_qr * &orbe_ij).dot(&s_pr.t());
+
+            // Save overlap between the monomers and the dimer
+            pair.properties.set_overlap_i_ij(s_pr);
+            pair.properties.set_overlap_j_ij(s_qr);
 
             // The diagonal Fock matrix of monomer I.
             let f_i: Array2<f64> = Array2::from_diag(&m_i.properties.orbe().unwrap());
