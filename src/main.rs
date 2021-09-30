@@ -107,8 +107,9 @@ fn main() {
         let mut system = System::from((frame, config.clone()));
         system.prepare_scc();
         system.run_scc();
-        system.prepare_tda();
-        system.run_tda(config.excited.nstates, 150, 1e-4);
+        system.test_tda_lc_gradient();
+        // system.prepare_tda();
+        // system.run_tda(config.excited.nstates, 150, 1e-4);
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
