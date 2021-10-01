@@ -17,6 +17,8 @@ mod solvers;
 pub(crate) mod tda;
 mod transition_charges;
 mod utils;
+mod gradients;
+
 use crate::MoldenExporterBuilder;
 use ndarray::Data;
 use ndarray_linalg::{Scalar, Lapack};
