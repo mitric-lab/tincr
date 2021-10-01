@@ -25,10 +25,6 @@ impl System{
         self.prepare_tda();
         self.run_tda(self.config.excited.nstates, 50, 1e-4);
 
-        // println!("davidson value {}",self.properties.ci_eigenvalue(0).unwrap());
-        // println!("davidson eigenvectors {:?}",self.properties.ci_coefficients().unwrap());
-        // assert!(1==2);
-
         self.ground_state_gradient(true);
         self.prepare_excited_grad();
         let grad_exc:Array1<f64> = self.tda_gradient_nolc(0);

@@ -35,9 +35,9 @@ impl SuperSystem {
                     a.electron.mo.e - a.hole.mo.e
                     // - a.hole.mo.e
                 } else {0.0};
-                // one_elec + self.ct_ct(a, b)
+                one_elec + self.ct_ct(a, b)
                 // one_elec
-                self.ct_ct(a, b)
+                // self.ct_ct(a, b)
             },
         }
     }
@@ -334,9 +334,9 @@ impl SuperSystem {
             _ => 0.0,
         };
 
-        // 2.0 * ia_jb - ij_ab
+        2.0 * ia_jb - ij_ab
         // 2.0 * ia_jb
-        - ij_ab
+        // - ij_ab
     }
 
     pub fn le_ct<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {

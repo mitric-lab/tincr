@@ -1053,6 +1053,7 @@ impl Pair{
         ct_ind_i: usize,
         ct_ind_j: usize,
         ct_energy:f64,
+        hole_i:bool,
     ){
         // check if occ and virt indices exist
         let mut occ_indices: Vec<usize> = Vec::new();
@@ -1078,8 +1079,9 @@ impl Pair{
         }
         let nocc:usize = occ_indices.len();
         let nvirt:usize = virt_indices.len();
-        let homo_index:usize = occ_indices[nocc-1-ct_ind_i];
         let nocc_i:usize = m_i.properties.occ_indices().unwrap().len();
+        let nocc_j:usize = m_j.properties.occ_indices().unwrap().len();
+        let nvirt_i:usize = m_i.properties.virt_indices().unwrap().len();
         let nvirt_j:usize = m_j.properties.virt_indices().unwrap().len();
 
         // set ct_energy
@@ -1087,39 +1089,52 @@ impl Pair{
         // save in properties
         self.properties.set_ci_eigenvalues(cis_energy);
 
+        // get the overlap matrices between the monomers and the dimer
         let s_i_ij:ArrayView2<f64> = self.properties.s_i_ij().unwrap();
         let s_j_ij:ArrayView2<f64> = self.properties.s_j_ij().unwrap();
-        // reduce overlap matrices to occupied and virtual blocks
-        let s_i_ij_occ:ArrayView2<f64> = s_i_ij.slice(s![..nocc_i,..nocc]);
-        let s_j_ij_virt:ArrayView2<f64> = s_j_ij.slice(s![nocc_i..,nocc..]);
 
-        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
-        // transfer is set to the value 1.0. Everything else is set to null.
-        let mut ct_coefficients:Array2<f64> = Array2::zeros([nocc_i,nvirt_j]);
-        ct_coefficients[[nocc_i-1-ct_ind_i,ct_ind_j]] = 1.0;
+        // if the hole is on fragment I
+        if hole_i == true{
+            // reduce overlap matrices to occupied and virtual blocks
+            let s_i_ij_occ:ArrayView2<f64> = s_i_ij.slice(s![..nocc_i,..nocc]);
+            let s_j_ij_virt:ArrayView2<f64> = s_j_ij.slice(s![nocc_j..,nocc..]);
 
-        // transform the CT matrix using the reduced overlap matrices between the monomers
-        // and the dimer
-        let transformed_ct_coeff:Array2<f64> = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+            // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+            // transfer is set to the value 1.0. Everything else is set to null.
+            let mut ct_coefficients:Array2<f64> = Array2::zeros([nocc_i,nvirt_j]);
+            ct_coefficients[[nocc_i-1-ct_ind_i,ct_ind_j]] = 1.0;
 
-        // set cis coefficient for the CT transition
-        let mut cis_coeff:Array3<f64> = Array3::zeros([1,nocc,nvirt]);
-        // cis_coeff[[0,homo_index,ct_ind_j]] = 1.0;
-        cis_coeff.slice_mut(s![0,..,..]).assign(&transformed_ct_coeff);
-        // save in properties
-        self.properties.set_ci_coefficients(cis_coeff.into_shape([1,nocc*nvirt]).unwrap());
+            // transform the CT matrix using the reduced overlap matrices between the monomers
+            // and the dimer
+            let transformed_ct_coeff:Array2<f64> = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
 
-        // // get MO coefficients of the Monomers
-        // let c_mo_i:ArrayView2<f64> = m_i.properties.orbs().unwrap();
-        // let c_mo_j:ArrayView2<f64> = m_j.properties.orbs().unwrap();
-        //
-        // // Replace the pair MO coefficients with the values of the Monomers
-        // let mut pair_orbs:Array2<f64> = Array2::zeros([self.n_orbs,self.n_orbs]);
-        // pair_orbs.slice_mut(s![..m_i.n_orbs,..m_i.n_orbs]).assign(&c_mo_i);
-        // pair_orbs.slice_mut(s![m_i.n_orbs..,m_i.n_orbs..]).assign(&c_mo_j);
-        //
-        // // save new MO coefficients in properties
-        // self.properties.set_orbs(pair_orbs);
+            // set cis coefficient for the CT transition
+            let mut cis_coeff:Array3<f64> = Array3::zeros([1,nocc,nvirt]);
+            cis_coeff.slice_mut(s![0,..,..]).assign(&transformed_ct_coeff);
+            // save in properties
+            self.properties.set_ci_coefficients(cis_coeff.into_shape([1,nocc*nvirt]).unwrap());
+        }
+        // if the hole is on fragment J
+        else{
+            // reduce overlap matrices to occupied and virtual blocks
+            let s_i_ij_virt:ArrayView2<f64> = s_i_ij.slice(s![nocc_i..,nocc..]);
+            let s_j_ij_occ:ArrayView2<f64> = s_j_ij.slice(s![..nocc_j,..nocc]);
+
+            // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+            // transfer is set to the value 1.0. Everything else is set to null.
+            let mut ct_coefficients:Array2<f64> = Array2::zeros([nocc_j,nvirt_i]);
+            ct_coefficients[[nocc_j-1-ct_ind_j,ct_ind_i]] = 1.0;
+
+            // transform the CT matrix using the reduced overlap matrices between the monomers
+            // and the dimer
+            let transformed_ct_coeff:Array2<f64> = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+
+            // set cis coefficient for the CT transition
+            let mut cis_coeff:Array3<f64> = Array3::zeros([1,nocc,nvirt]);
+            cis_coeff.slice_mut(s![0,..,..]).assign(&transformed_ct_coeff);
+            // save in properties
+            self.properties.set_ci_coefficients(cis_coeff.into_shape([1,nocc*nvirt]).unwrap());
+        }
 
         // calculate transition charges
         let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
