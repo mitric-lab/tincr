@@ -132,7 +132,6 @@ fn main() {
         // write_npy("/home/einseler/Downloads/gamma_lr_matrix.npy", &system.properties.gamma_lr().unwrap());
         // write_npy("/home/einseler/Downloads/coeff_a.npy", &system.monomers[0].properties.orbs().unwrap());
         // write_npy("/home/einseler/Downloads/coeff_b.npy", &system.monomers[1].properties.orbs().unwrap());
-        system.test_ct_gradient();
         // system.test_orbital_energy_derivative();
 
         // let hamiltonian = system.create_exciton_hamiltonian();

@@ -33,7 +33,21 @@ impl SuperSystem {
             (BasisState::CT(ref a), BasisState::CT(ref b)) => {
                 let one_elec: f64 = if a == b {
                     a.electron.mo.e - a.hole.mo.e
-                    // - a.hole.mo.e
+                    // // from fock matrix
+                    // let mut index_e:usize;
+                    // let mut index_h:usize;
+                    // if a.electron.idx < a.hole.idx{
+                    //     index_e= a.electron.mo.idx;
+                    //     index_h= a.hole.monomer.n_orbs+a.hole.mo.idx;
+                    // }
+                    // else{
+                    //     index_e= a.electron.monomer.n_orbs+a.electron.mo.idx;
+                    //     index_h= a.hole.mo.idx;
+                    // }
+                    // let hamiltonian = self.properties.lcmo_fock().unwrap();
+                    // let energy_e:f64 = hamiltonian[[index_e,index_e]];
+                    // let energy_h:f64 = hamiltonian[[index_h,index_h]];
+                    // energy_e-energy_h
                 } else {0.0};
                 one_elec + self.ct_ct(a, b)
                 // one_elec

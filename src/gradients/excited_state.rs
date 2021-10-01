@@ -335,13 +335,11 @@ impl System {
         let omega_input: Array2<f64> = into_col(Array::ones(orbe_occ.len()))
             .dot(&into_row(orbe_virt.clone()))
             - into_col(orbe_occ.clone()).dot(&into_row(Array::ones(orbe_virt.len())));
-        let r_ia_flat: Array1<f64> = r_ia.t().to_owned_f().into_shape((n_occ * n_virt)).unwrap();
-        let r_matrix: Array2<f64> = r_ia_flat.into_shape((n_occ, n_virt)).unwrap();
 
         // calculate the z-vector
         let z_ia: Array2<f64> = tda_zvector_lc(
             omega_input.view(),
-            r_matrix.view(),
+            r_ia.view(),
             g0,
             g0_lr,
             qtrans_oo,
