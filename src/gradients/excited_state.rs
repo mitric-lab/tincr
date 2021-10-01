@@ -73,7 +73,6 @@ impl System {
         let x_state:ArrayView2<f64> = self.properties.ci_coefficients().unwrap();
         let x_state:Array3<f64> = x_state.t().as_standard_layout().to_owned().into_shape([n_states,n_occ,n_virt]).unwrap();
         let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
-        println!("x_state {}",x_state);
 
         // calculate the vectors u, v and t
         // vectors U, V and T

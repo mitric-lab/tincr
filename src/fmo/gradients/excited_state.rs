@@ -103,8 +103,8 @@ impl ExcitedStateMonomerGradient for Monomer{
         let n_states:usize = omega_state.len();
         let omega_state:f64 = omega_state[state];
         // take state specific values from the excitation vectors
-        let x_state:ArrayView3<f64> = self.properties.ci_coefficients().unwrap()
-            .into_shape([n_states,n_occ,n_virt]).unwrap();
+        let x_state:ArrayView2<f64> = self.properties.ci_coefficients().unwrap();
+        let x_state:Array3<f64> = x_state.t().as_standard_layout().to_owned().into_shape([n_states,n_occ,n_virt]).unwrap();
         let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
 
 
@@ -312,8 +312,8 @@ impl ExcitedStateMonomerGradient for Monomer{
         let n_states:usize = omega_state.len();
         let omega_state:f64 = omega_state[state];
         // take state specific values from the excitation vectors
-        let x_state:ArrayView3<f64> = self.properties.ci_coefficients().unwrap()
-            .into_shape([n_states,n_occ,n_virt]).unwrap();
+        let x_state:ArrayView2<f64> = self.properties.ci_coefficients().unwrap();
+        let x_state:Array3<f64> = x_state.t().as_standard_layout().to_owned().into_shape([n_states,n_occ,n_virt]).unwrap();
         let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
 
         // calculate the vectors u, v and t
@@ -1130,10 +1130,10 @@ impl Pair{
             let transformed_ct_coeff:Array2<f64> = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
 
             // set cis coefficient for the CT transition
-            let mut cis_coeff:Array3<f64> = Array3::zeros([1,nocc,nvirt]);
-            cis_coeff.slice_mut(s![0,..,..]).assign(&transformed_ct_coeff);
+            let mut cis_coeff:Array3<f64> = Array3::zeros([nocc,nvirt,1]);
+            cis_coeff.slice_mut(s![..,..,0]).assign(&transformed_ct_coeff);
             // save in properties
-            self.properties.set_ci_coefficients(cis_coeff.into_shape([1,nocc*nvirt]).unwrap());
+            self.properties.set_ci_coefficients(cis_coeff.into_shape([nocc*nvirt,1]).unwrap());
         }
 
         // calculate transition charges

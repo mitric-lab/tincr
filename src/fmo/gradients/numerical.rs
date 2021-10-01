@@ -102,7 +102,7 @@ impl SuperSystem {
         }
         // calculate the gradient of the charge-transfer energy
         let ct_energy = self.create_exciton_hamiltonian();
-        let grad:Array1<f64> = self.ct_gradient_new(0,1,0,0,ct_energy);
+        let grad:Array1<f64> = self.ct_gradient_new(0,1,0,0,ct_energy,true);
         // let grad:Array1<f64> = self.ct_gradient(0,1,0,0);
         return grad;
     }
