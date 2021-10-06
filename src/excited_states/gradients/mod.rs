@@ -1,4 +1,6 @@
 mod h_operators;
+mod zvector;
+mod vector_products;
 
 use ndarray::prelude::*;
 use ndarray::Data;

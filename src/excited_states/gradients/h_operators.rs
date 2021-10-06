@@ -163,39 +163,17 @@ impl<'a> HPlusMinus<'a>
     /// sum_{rsAB} cx x q_ps x gamma_lr_AB x q_rq x V_rs
     /// where p,q,r,s are MO indices and A,B are atom indices.
     fn term_two(&mut self, v: ArrayView2<f64>, pq: Hpq, rs: Vrs) -> Array1<f64> {
-        let gamma_lr: &ArrayView2<f64> = self.gamma_lr.as_ref().unwrap();
-        match (pq, rs) {
-            (Hpq::OO, Vrs::OO) => self.q_oo.dot(&flatten(v)).dot(&gamma_lr.dot(&self.q_oo)),
-            (Hpq::VV, Vrs::VV) => self.q_vv.dot(&flatten(v)).dot(&gamma_lr.dot(&self.q_vv)),
-            (Hpq::OV, Vrs::OV) => self.q_ov.dot(&flatten(v)).dot(&gamma_lr.dot(&self.q_ov)),
-            _ => self.term_two_general(v.view(), pq, rs),
-        }
-    }
-
-    /// The third term is computed (also only if the LC correction is used, cx = 1).
-    /// sum_{rsAB} cx x q_pr x gamma_lr_AB x q_sq x V_rs
-    fn term_three(&mut self, v: ArrayView2<f64>, pq: Hpq, rs: Vrs) -> Array1<f64> {
-        let gamma_lr: &ArrayView2<f64> = self.gamma_lr.as_ref().unwrap();
-        match (pq, rs) {
-            (Hpq::OO, Vrs::OO) => self.q_oo.dot(&flatten(v)).dot(&gamma_lr.dot(&self.q_oo)),
-            (Hpq::VV, Vrs::VV) => self.q_vv.dot(&flatten(v)).dot(&gamma_lr.dot(&self.q_vv)),
-            _ => self.term_three_general(v.view(), pq, rs),
-        }
-    }
-
-    /// In the case of all other combinations of occupied and virtual spaces the permutation
-    /// of the axes are necessary. This is done in this extra function, since it results in
-    /// ugly code, that is hard to read.
-    fn term_two_general(&mut self, v: ArrayView2<f64>, pq: Hpq, rs: Vrs) -> Array1<f64> {
         // The necessary transition charges are defined based upon the indices of H and V.
         let (q_ps, q_rq): (ArrayView2<f64>, ArrayView2<f64>) = match (pq, rs) {
+            (Hpq::OO, Vrs::OO) => (self.q_oo.view(), self.q_oo.view()),
             (Hpq::OO, Vrs::OV) => (self.q_ov.view(), self.q_oo.view()),
             (Hpq::OO, Vrs::VV) => (self.q_ov.view(), self.q_vo.view()),
             (Hpq::OV, Vrs::OO) => (self.q_oo.view(), self.q_ov.view()),
+            (Hpq::OV, Vrs::OV) => (self.q_ov.view(), self.q_ov.view()),
             (Hpq::OV, Vrs::VV) => (self.q_ov.view(), self.q_vv.view()),
             (Hpq::VV, Vrs::OO) => (self.q_vo.view(), self.q_ov.view()),
             (Hpq::VV, Vrs::OV) => (self.q_vv.view(), self.q_ov.view()),
-            _ => panic!("This combination is not possible"),
+            (Hpq::VV, Vrs::VV) => (self.q_vv.view(), self.q_vv.view()),
         };
         // Reference to the long-range corrected gamma matrix.
         let gamma_lr: &ArrayView2<f64> = self.gamma_lr.as_ref().unwrap();
@@ -239,17 +217,20 @@ impl<'a> HPlusMinus<'a>
         Array::from_iter(gamma_ab_q_ps.t().dot(&v_q_rq).into_iter())
     }
 
-    /// See comment of the `term_two_general` function.
-    fn term_three_general(&mut self, v: ArrayView2<f64>, pq: Hpq, rs: Vrs) -> Array1<f64> {
+    /// The third term is computed (also only if the LC correction is used, cx = 1).
+    /// sum_{rsAB} cx x q_pr x gamma_lr_AB x q_sq x V_rs
+    fn term_three(&mut self, v: ArrayView2<f64>, pq: Hpq, rs: Vrs) -> Array1<f64> {
         // The necessary transition charges are defined based upon the indices of H and V.
         let (q_pr, q_sq): (ArrayView2<f64>, ArrayView2<f64>) = match (pq, rs) {
+            (Hpq::OO, Vrs::OO) => (self.q_oo.view(), self.q_oo.view()),
             (Hpq::OO, Vrs::OV) => (self.q_oo.view(), self.q_vo.view()),
             (Hpq::OO, Vrs::VV) => (self.q_ov.view(), self.q_vo.view()),
             (Hpq::OV, Vrs::OO) => (self.q_oo.view(), self.q_ov.view()),
+            (Hpq::OV, Vrs::OV) => (self.q_oo.view(), self.q_vv.view()),
             (Hpq::OV, Vrs::VV) => (self.q_ov.view(), self.q_vv.view()),
             (Hpq::VV, Vrs::OO) => (self.q_vo.view(), self.q_ov.view()),
             (Hpq::VV, Vrs::OV) => (self.q_vo.view(), self.q_vv.view()),
-            _ => panic!("This combination is not possible"),
+            (Hpq::VV, Vrs::VV) => (self.q_vv.view(), self.q_vv.view()),
         };
         // Reference to the long-range corrected gamma matrix.
         let gamma_lr: &ArrayView2<f64> = self.gamma_lr.as_ref().unwrap();
