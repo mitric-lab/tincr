@@ -29,23 +29,23 @@ impl ExcitedStateMonomerGradient for Monomer{
             self.properties.set_virt_indices(virt_indices.clone());
         }
         else{
-            occ_indices = self.properties.occ_indices().unwrap().to_vec();
-            virt_indices = self.properties.virt_indices().unwrap().to_vec();
+            occ_indices = self.data.occ_indices().to_vec();
+            virt_indices = self.data.virt_indices().to_vec();
         }
         // calculate transition charges if they don't exist
         if self.properties.contains_key("q_ov") == false{
             let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
                 self.n_atoms,
                 atoms,
-                self.properties.orbs().unwrap(),
-                self.properties.s().unwrap(),
+                self.data.orbs(),
+                self.data.s(),
                 &occ_indices,
                 &virt_indices,
             );
 
-            self.properties.set_q_ov(tmp.0);
-            self.properties.set_q_oo(tmp.1);
-            self.properties.set_q_vv(tmp.2);
+            self.data.set_q_ov(tmp.0);
+            self.data.set_q_oo(tmp.1);
+            self.data.set_q_vv(tmp.2);
         }
 
         // prepare the grad gamma_lr ao matrix
@@ -57,11 +57,11 @@ impl ExcitedStateMonomerGradient for Monomer{
                 self.n_atoms,
                 self.n_orbs,
             );
-            self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
+            self.data.set_grad_gamma_lr_ao(g1_lr_ao);
         }
         // prepare gamma and grad gamma AO matrix
         let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
-            self.properties.gamma().unwrap(),
+            self.data.gamma(),
             atoms,
             self.n_orbs
         );
@@ -71,23 +71,23 @@ impl ExcitedStateMonomerGradient for Monomer{
             self.n_atoms,
             self.n_orbs,
         );
-        self.properties.set_grad_gamma(g1);
-        self.properties.set_gamma_ao(g0_ao);
-        self.properties.set_grad_gamma_ao(g1_ao);
+        self.data.set_grad_gamma(g1);
+        self.data.set_gamma_ao(g0_ao);
+        self.data.set_grad_gamma_ao(g1_ao);
 
         // derivative of H0 and S
         let (grad_s, grad_h0) = h0_and_s_gradients(&atoms, self.n_orbs, &self.slako);
-        self.properties.set_grad_s(grad_s);
-        self.properties.set_grad_h0(grad_h0);
+        self.data.set_grad_s(grad_s);
+        self.data.set_grad_h0(grad_h0);
     }
 
     fn tda_gradient_nolc(&mut self, state: usize)->Array1<f64>{
         // get occ and virt indices from properties
-        let occ_indices:&[usize] = self.properties.occ_indices().unwrap();
-        let virt_indices:&[usize] = self.properties.virt_indices().unwrap();
+        let occ_indices:&[usize] = self.data.occ_indices();
+        let virt_indices:&[usize] = self.data.virt_indices();
 
         // set the occupied and virtual orbital energies
-        let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
+        let orbe: ArrayView1<f64> = self.data.orbe();
         let orbe_occ: Array1<f64> = occ_indices.iter().map(|&occ| orbe[occ]).collect();
         let orbe_virt: Array1<f64> = virt_indices.iter().map(|&virt| orbe[virt]).collect();
 
@@ -99,11 +99,11 @@ impl ExcitedStateMonomerGradient for Monomer{
         let n_virt: usize = orbe_virt.len();
 
         // excitation energy of the state
-        let omega_state: ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
+        let omega_state: ArrayView1<f64> = self.data.cis_eigenvalues();
         let n_states:usize = omega_state.len();
         let omega_state:f64 = omega_state[state];
         // take state specific values from the excitation vectors
-        let x_state:ArrayView3<f64> = self.properties.ci_coefficients().unwrap()
+        let x_state:ArrayView3<f64> = self.data.cis_coefficients()
             .into_shape([n_states,n_occ,n_virt]).unwrap();
         let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
 
@@ -118,12 +118,12 @@ impl ExcitedStateMonomerGradient for Monomer{
         let t_ij: Array2<f64> = x_state.dot(&x_state.t());
 
         // get the transition charges
-        let qtrans_ov: ArrayView3<f64> = self.properties.q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: ArrayView3<f64> = self.properties.q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: ArrayView3<f64> = self.properties.q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
 
         // set gamma matrix
-        let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let g0: ArrayView2<f64> = self.data.gamma();
 
         // compute hplus of tab and tij
         let hplus_tab: Array2<f64> =
@@ -211,12 +211,12 @@ impl ExcitedStateMonomerGradient for Monomer{
         }
 
         // get arrays from properties
-        let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
-        let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
-        let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
-        let grad_h: ArrayView3<f64> = self.properties.grad_h0().unwrap();
-        let grad_s: ArrayView3<f64> = self.properties.grad_s().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let diff_p: Array2<f64> = &self.data.p() - &self.data.p_ref();
+        let g0_ao: ArrayView2<f64> = self.data.gamma_ao();
+        let g1_ao: ArrayView3<f64> = self.data.grad_gamma_ao();
+        let grad_h: ArrayView3<f64> = self.data.grad_h0();
+        let grad_s: ArrayView3<f64> = self.data.grad_s();
+        let s: ArrayView2<f64> = self.data.s();
 
         // calculate gradH: gradH0 + gradHexc
         let f_dmd0: Array3<f64> = f_v(
@@ -231,7 +231,7 @@ impl ExcitedStateMonomerGradient for Monomer{
         let grad_h: Array3<f64> = &grad_h + &f_dmd0;
 
         // set the occupied and virtuals orbital coefficients
-        let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
+        let orbs: ArrayView2<f64> = self.data.orbs();
         let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, n_occ));
         let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs, n_virt));
         for (i, index) in occ_indices.iter().enumerate() {
@@ -292,11 +292,11 @@ impl ExcitedStateMonomerGradient for Monomer{
 
     fn tda_gradient_lc(&mut self, state: usize)->Array1<f64>{
         // get occ and virt indices from properties
-        let occ_indices:&[usize] = self.properties.occ_indices().unwrap();
-        let virt_indices:&[usize] = self.properties.virt_indices().unwrap();
+        let occ_indices:&[usize] = self.data.occ_indices();
+        let virt_indices:&[usize] = self.data.virt_indices();
 
         // set the occupied and virtual orbital energies
-        let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
+        let orbe: ArrayView1<f64> = self.data.orbe();
         let orbe_occ: Array1<f64> = occ_indices.iter().map(|&occ| orbe[occ]).collect();
         let orbe_virt: Array1<f64> = virt_indices.iter().map(|&virt| orbe[virt]).collect();
 
@@ -308,11 +308,11 @@ impl ExcitedStateMonomerGradient for Monomer{
         let n_virt: usize = orbe_virt.len();
 
         // excitation energy of the state
-        let omega_state: ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
+        let omega_state: ArrayView1<f64> = self.data.cis_eigenvalues();
         let n_states:usize = omega_state.len();
         let omega_state:f64 = omega_state[state];
         // take state specific values from the excitation vectors
-        let x_state:ArrayView3<f64> = self.properties.ci_coefficients().unwrap()
+        let x_state:ArrayView3<f64> = self.data.cis_coefficients()
             .into_shape([n_states,n_occ,n_virt]).unwrap();
         let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
 
@@ -326,9 +326,9 @@ impl ExcitedStateMonomerGradient for Monomer{
         let t_ij: Array2<f64> = x_state.dot(&x_state.t());
 
         // get the transition charges
-        let qtrans_ov: ArrayView3<f64> = self.properties.q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: ArrayView3<f64> = self.properties.q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: ArrayView3<f64> = self.properties.q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
         let qtrans_vo: Array3<f64> = qtrans_ov
             .permuted_axes([0, 2, 1])
             .as_standard_layout()
@@ -338,8 +338,8 @@ impl ExcitedStateMonomerGradient for Monomer{
         let hav: Hav = Hav::new(qtrans_ov, qtrans_vv, qtrans_oo, qtrans_vo.view());
 
         // set gamma matrix
-        let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
-        let g0_lr: ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+        let g0: ArrayView2<f64> = self.data.gamma();
+        let g0_lr: ArrayView2<f64> = self.data.gamma_lr();
 
         // compute hplus of tab and tij
         let hplus_tab: Array2<f64> = hav.compute(g0, g0_lr, t_ab.view(), HplusType::Tab);
@@ -429,14 +429,14 @@ impl ExcitedStateMonomerGradient for Monomer{
         }
 
         // get arrays from properties
-        let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
-        let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
-        let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
-        let g1lr_ao: ArrayView3<f64> = self.properties.grad_gamma_lr_ao().unwrap();
-        let g0lr_ao: ArrayView2<f64> = self.properties.gamma_lr_ao().unwrap();
-        let grad_h: ArrayView3<f64> = self.properties.grad_h0().unwrap();
-        let grad_s: ArrayView3<f64> = self.properties.grad_s().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let diff_p: Array2<f64> = &self.data.p() - &self.data.p_ref();
+        let g0_ao: ArrayView2<f64> = self.data.gamma_ao();
+        let g1_ao: ArrayView3<f64> = self.data.grad_gamma_ao();
+        let g1lr_ao: ArrayView3<f64> = self.data.grad_gamma_lr_ao();
+        let g0lr_ao: ArrayView2<f64> = self.data.gamma_lr_ao();
+        let grad_h: ArrayView3<f64> = self.data.grad_h0();
+        let grad_s: ArrayView3<f64> = self.data.grad_s();
+        let s: ArrayView2<f64> = self.data.s();
 
         // calculate gradH: gradH0 + gradHexc
         let f_dmd0: Array3<f64> = f_v(
@@ -461,7 +461,7 @@ impl ExcitedStateMonomerGradient for Monomer{
         let grad_h: Array3<f64> = &grad_h + &f_dmd0- 0.5 * &flr_dmd0;
 
         // set the occupied and virtuals orbital coefficients
-        let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
+        let orbs: ArrayView2<f64> = self.data.orbs();
         let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, n_occ));
         let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs, n_virt));
         for (i, index) in occ_indices.iter().enumerate() {
@@ -536,11 +536,11 @@ impl ExcitedStateMonomerGradient for Monomer{
 
     fn excited_gradient_lc(&mut self, state:usize)->Array1<f64>{
         // get occ and virt indices from properties
-        let occ_indices:&[usize] = self.properties.occ_indices().unwrap();
-        let virt_indices:&[usize] = self.properties.virt_indices().unwrap();
+        let occ_indices:&[usize] = self.data.occ_indices();
+        let virt_indices:&[usize] = self.data.virt_indices();
 
         // set the occupied and virtual orbital energies
-        let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
+        let orbe: ArrayView1<f64> = self.data.orbe();
         let orbe_occ: Array1<f64> = occ_indices.iter().map(|&occ| orbe[occ]).collect();
         let orbe_virt: Array1<f64> = virt_indices.iter().map(|&virt| orbe[virt]).collect();
 
@@ -563,7 +563,7 @@ impl ExcitedStateMonomerGradient for Monomer{
             .unwrap();
         let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
         // excitation energy of the state
-        let omega_state: f64 = self.properties.tddft_eigenvalues().unwrap()[state];
+        let omega_state: f64 = self.data.tddft_eigenvalues()[state];
 
         // calculate the vectors u, v and t
         let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);
@@ -580,9 +580,9 @@ impl ExcitedStateMonomerGradient for Monomer{
             0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov: ArrayView3<f64> = self.properties.q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: ArrayView3<f64> = self.properties.q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: ArrayView3<f64> = self.properties.q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
         let qtrans_vo: Array3<f64> = qtrans_ov
             .permuted_axes([0, 2, 1])
             .as_standard_layout()
@@ -591,8 +591,8 @@ impl ExcitedStateMonomerGradient for Monomer{
         // create struct hplus
         let hplus: Hplus = Hplus::new(qtrans_ov, qtrans_vv, qtrans_oo, qtrans_vo.view());
         // set gamma matrices
-        let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
-        let g0_lr: ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+        let g0: ArrayView2<f64> = self.data.gamma();
+        let g0_lr: ArrayView2<f64> = self.data.gamma_lr();
 
         // compute hplus of tab and tij
         let hplus_tab: Array2<f64> = hplus.compute(g0, g0_lr, t_ab.view(), HplusType::Tab);
@@ -702,14 +702,14 @@ impl ExcitedStateMonomerGradient for Monomer{
         }
 
         // get arrays from properties
-        let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
-        let grad_s: ArrayView3<f64> = self.properties.grad_s().unwrap();
-        let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
-        let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
-        let grad_h: ArrayView3<f64> = self.properties.grad_h0().unwrap();
-        let g1lr_ao: ArrayView3<f64> = self.properties.grad_gamma_lr_ao().unwrap();
-        let g0lr_ao: ArrayView2<f64> = self.properties.gamma_lr_ao().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let diff_p: Array2<f64> = &self.data.p() - &self.data.p_ref();
+        let grad_s: ArrayView3<f64> = self.data.grad_s();
+        let g0_ao: ArrayView2<f64> = self.data.gamma_ao();
+        let g1_ao: ArrayView3<f64> = self.data.grad_gamma_ao();
+        let grad_h: ArrayView3<f64> = self.data.grad_h0();
+        let g1lr_ao: ArrayView3<f64> = self.data.grad_gamma_lr_ao();
+        let g0lr_ao: ArrayView2<f64> = self.data.gamma_lr_ao();
+        let s: ArrayView2<f64> = self.data.s();
 
         // calculate F[diff_p] and F_lr[diff_p] matrix
         let f_dmd0: Array3<f64> = f_v(
@@ -725,7 +725,7 @@ impl ExcitedStateMonomerGradient for Monomer{
             diff_p.view(),
             s,
             grad_s,
-            self.properties.gamma_lr_ao().unwrap(),
+            self.data.gamma_lr_ao(),
             g1lr_ao,
             self.n_atoms,
             self.n_orbs,
@@ -734,7 +734,7 @@ impl ExcitedStateMonomerGradient for Monomer{
         let grad_h: Array3<f64> = &grad_h + &(f_dmd0 - 0.5 * flr_dmd0);
 
         // set the occupied and virtuals orbital coefficients
-        let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
+        let orbs: ArrayView2<f64> = self.data.orbs();
         let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, n_occ));
         let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs, n_virt));
         for (i, index) in occ_indices.iter().enumerate() {
@@ -827,11 +827,11 @@ impl ExcitedStateMonomerGradient for Monomer{
     }
     fn excited_gradient_no_lc(&mut self, state: usize)->Array1<f64> {
         // get occ and virt indices from properties
-        let occ_indices:&[usize] = self.properties.occ_indices().unwrap();
-        let virt_indices:&[usize] = self.properties.virt_indices().unwrap();
+        let occ_indices:&[usize] = self.data.occ_indices();
+        let virt_indices:&[usize] = self.data.virt_indices();
 
         // set the occupied and virtual orbital energies
-        let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
+        let orbe: ArrayView1<f64> = self.data.orbe();
         let orbe_occ: Array1<f64> = occ_indices.iter().map(|&occ| orbe[occ]).collect();
         let orbe_virt: Array1<f64> = virt_indices.iter().map(|&virt| orbe[virt]).collect();
 
@@ -854,7 +854,7 @@ impl ExcitedStateMonomerGradient for Monomer{
             .unwrap();
         let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
         // excitation energy of the state
-        let omega_state: f64 = self.properties.tddft_eigenvalues().unwrap()[state];
+        let omega_state: f64 = self.data.tddft_eigenvalues()[state];
 
         // calculate the vectors u, v and t
         let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);
@@ -871,12 +871,12 @@ impl ExcitedStateMonomerGradient for Monomer{
             0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov: ArrayView3<f64> = self.properties.q_ov().unwrap().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: ArrayView3<f64> = self.properties.q_oo().unwrap().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: ArrayView3<f64> = self.properties.q_vv().unwrap().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
 
         // set gamma matrix
-        let g0: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let g0: ArrayView2<f64> = self.data.gamma();
 
         // compute hplus of tab and tij
         let hplus_tab: Array2<f64> =
@@ -964,12 +964,12 @@ impl ExcitedStateMonomerGradient for Monomer{
         }
 
         // get arrays from properties
-        let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
-        let grad_s: ArrayView3<f64> = self.properties.grad_s().unwrap();
-        let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
-        let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
-        let grad_h: ArrayView3<f64> = self.properties.grad_h0().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let diff_p: Array2<f64> = &self.data.p() - &self.data.p_ref();
+        let grad_s: ArrayView3<f64> = self.data.grad_s();
+        let g0_ao: ArrayView2<f64> = self.data.gamma_ao();
+        let g1_ao: ArrayView3<f64> = self.data.grad_gamma_ao();
+        let grad_h: ArrayView3<f64> = self.data.grad_h0();
+        let s: ArrayView2<f64> = self.data.s();
 
         // calculate gradH: gradH0 + gradHexc
         let f_dmd0: Array3<f64> = f_v(
@@ -984,7 +984,7 @@ impl ExcitedStateMonomerGradient for Monomer{
         let grad_h: Array3<f64> = &grad_h + &f_dmd0;
 
         // set the occupied and virtuals orbital coefficients
-        let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
+        let orbs: ArrayView2<f64> = self.data.orbs();
         let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, n_occ));
         let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs, n_virt));
         for (i, index) in occ_indices.iter().enumerate() {

@@ -74,11 +74,11 @@ impl<'a> RestrictedSCC for System {
         let (s, h0): (Array2<f64>, Array2<f64>) =
             h0_and_s(self.n_orbs, &self.atoms,  &self.slako);
         // and save it in the molecule properties
-        self.properties.set_h0(h0);
-        self.properties.set_s(s);
+        self.data.set_h0(h0);
+        self.data.set_s(s);
         // save the atomic numbers since we need them multiple times
         let atomic_numbers: Vec<u8> = self.atoms.iter().map(|atom| atom.number).collect();
-        self.properties.set_atomic_numbers(atomic_numbers);
+        self.data.set_atomic_numbers(atomic_numbers);
         // get the gamma matrix
         let gamma: Array2<f64> = gamma_atomwise(
             &self.gammafunction,
@@ -86,7 +86,7 @@ impl<'a> RestrictedSCC for System {
             self.n_atoms,
         );
         // and save it as a `Property`
-        self.properties.set_gamma(gamma);
+        self.data.set_gamma(gamma);
 
         // if the system contains a long-range corrected Gammafunction the gamma matrix will be computed
         if self.gammafunction_lc.is_some() {
@@ -96,23 +96,23 @@ impl<'a> RestrictedSCC for System {
                 self.n_atoms,
                 self.n_orbs,
             );
-            self.properties.set_gamma_lr(gamma_lr);
-            self.properties.set_gamma_lr_ao(gamma_lr_ao);
+            self.data.set_gamma_lr(gamma_lr);
+            self.data.set_gamma_lr_ao(gamma_lr_ao);
         }
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
         if !self.properties.contains_key("dq") {
-            self.properties.set_dq(Array1::zeros(self.n_atoms));
+            self.data.set_dq(Array1::zeros(self.n_atoms));
         }
 
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
-            self.properties.set_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
+            self.data.set_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
         }
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
         if !self.properties.contains_key("P") {
-            self.properties.set_p(self.properties.p_ref().unwrap().to_owned());
+            self.data.set_p(self.data.p_ref().to_owned());
         }
     }
 
@@ -128,16 +128,16 @@ impl<'a> RestrictedSCC for System {
 
         // the properties that are changed during the SCC routine are taken
         // and will be inserted at the end of the SCC routine
-        let mut p: Array2<f64> = self.properties.take_p().unwrap();
-        let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
+        let mut p: Array2<f64> = self.data.take_p();
+        let mut dq: Array1<f64> = self.data.take_dq();
         let mut q: Array1<f64>;
         let mut q_ao: Array1<f64> = Array1::zeros([self.n_orbs]);
 
         // molecular properties, we take all properties that are needed from the Properties type
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
-        let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
+        let s: ArrayView2<f64> = self.data.s();
+        let h0: ArrayView2<f64> = self.data.h0();
+        let gamma: ArrayView2<f64> = self.data.gamma();
+        let p0: ArrayView2<f64> = self.data.p_ref();
         let mut dp: Array2<f64> = &p - &p0;
 
         // the orbital energies and coefficients can be safely reset, since the
@@ -174,7 +174,7 @@ impl<'a> RestrictedSCC for System {
 
             if self.gammafunction_lc.is_some() {
                 let h_x: Array2<f64> =
-                    lc_exact_exchange(s.view(), self.properties.gamma_lr_ao().unwrap(), dp.view());
+                    lc_exact_exchange(s.view(), self.data.gamma_lr_ao(), dp.view());
                 h = h + h_x;
             }
             let mut h_save:Array2<f64> = h.clone();
@@ -260,7 +260,7 @@ impl<'a> RestrictedSCC for System {
                 h0.view(),
                 dq.view(),
                 gamma.view(),
-                self.properties.gamma_lr_ao(),
+                self.data.gamma_lr_ao(),
             );
 
             if log_enabled!(Level::Info) {
@@ -269,7 +269,7 @@ impl<'a> RestrictedSCC for System {
 
             if converged {
                 total_energy = Ok(scf_energy + rep_energy);
-                self.properties.set_h_coul_x(h_save);
+                self.properties.set_fock(h_save);
                 break 'scf_loop;
             }
             total_energy = Err(SCCError::new(i,last_energy - scf_energy,diff_dq_max));
@@ -280,11 +280,11 @@ impl<'a> RestrictedSCC for System {
             print_scc_end(timer, self.config.jobtype.as_str(), scf_energy, rep_energy, orbe.view(), &f);
         }
 
-        self.properties.set_orbs(orbs);
-        self.properties.set_orbe(orbe);
-        self.properties.set_occupation(f);
-        self.properties.set_p(p);
-        self.properties.set_dq(dq);
+        self.data.set_orbs(orbs);
+        self.data.set_orbe(orbe);
+        self.data.set_occupation(f);
+        self.data.set_p(p);
+        self.data.set_dq(dq);
         return total_energy;
     }
 }

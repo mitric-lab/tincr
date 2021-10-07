@@ -75,11 +75,11 @@ impl<'a> UnrestrictedSCC for System{
         let (s, h0): (Array2<f64>, Array2<f64>) =
             h0_and_s(self.n_orbs, &self.atoms,  &self.slako);
         // and save it in the molecule properties
-        self.properties.set_h0(h0);
-        self.properties.set_s(s);
+        self.data.set_h0(h0);
+        self.data.set_s(s);
         // save the atomic numbers since we need them multiple times
         let atomic_numbers: Vec<u8> = self.atoms.iter().map(|atom| atom.number).collect();
-        self.properties.set_atomic_numbers(atomic_numbers);
+        self.data.set_atomic_numbers(atomic_numbers);
         // get the gamma matrix
         let gamma: Array2<f64> = gamma_atomwise(
             &self.gammafunction,
@@ -87,7 +87,7 @@ impl<'a> UnrestrictedSCC for System{
             self.n_atoms,
         );
         // and save it as a `Property`
-        self.properties.set_gamma(gamma);
+        self.data.set_gamma(gamma);
 
         // if the system contains a long-range corrected Gammafunction the gamma matrix will be computed
         if self.gammafunction_lc.is_some() {
@@ -97,29 +97,29 @@ impl<'a> UnrestrictedSCC for System{
                 self.n_atoms,
                 self.n_orbs,
             );
-            self.properties.set_gamma_lr(gamma_lr);
-            self.properties.set_gamma_lr_ao(gamma_lr_ao);
+            self.data.set_gamma_lr(gamma_lr);
+            self.data.set_gamma_lr_ao(gamma_lr_ao);
         }
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
         if !self.properties.contains_key("dq_alpha") {
-            self.properties.set_dq_alpha(Array1::zeros(self.n_atoms));
+            self.data.set_dq_alpha(Array1::zeros(self.n_atoms));
         }
         if !self.properties.contains_key("dq_beta") {
-            self.properties.set_dq_beta(Array1::zeros(self.n_atoms));
+            self.data.set_dq_beta(Array1::zeros(self.n_atoms));
         }
 
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
-            self.properties.set_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
+            self.data.set_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
         }
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
         if !self.properties.contains_key("P_alpha") {
-            self.properties.set_p_alpha(self.properties.p_ref().unwrap().to_owned());
+            self.data.set_p_alpha(self.data.p_ref().to_owned());
         }
         if !self.properties.contains_key("P_beta") {
-            self.properties.set_p_beta(self.properties.p_ref().unwrap().to_owned());
+            self.data.set_p_beta(self.data.p_ref().to_owned());
         }
     }
 
@@ -135,18 +135,18 @@ impl<'a> UnrestrictedSCC for System{
 
         // the properties that are changed during the SCC routine are taken
         // and will be inserted at the end of the SCC routine
-        let mut p_alpha: Array2<f64> = self.properties.take_p_alpha().unwrap();
-        let mut p_beta: Array2<f64> = self.properties.take_p_beta().unwrap();
-        let mut dq_alpha: Array1<f64> = self.properties.take_dq_alpha().unwrap();
-        let mut dq_beta: Array1<f64> = self.properties.take_dq_beta().unwrap();
+        let mut p_alpha: Array2<f64> = self.data.take_p_alpha();
+        let mut p_beta: Array2<f64> = self.data.take_p_beta();
+        let mut dq_alpha: Array1<f64> = self.data.take_dq_alpha();
+        let mut dq_beta: Array1<f64> = self.data.take_dq_beta();
         let mut q_alpha: Array1<f64>;
         let mut q_beta: Array1<f64>;
 
         // molecular properties, we take all properties that are needed from the Properties type
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
-        let p0: Array2<f64> = 0.5 * &self.properties.p_ref().unwrap();
+        let s: ArrayView2<f64> = self.data.s();
+        let h0: ArrayView2<f64> = self.data.h0();
+        let gamma: ArrayView2<f64> = self.data.gamma();
+        let p0: Array2<f64> = 0.5 * &self.data.p_ref();
 
         // the orbital energies and coefficients can be safely reset, since the
         // Hamiltonian does not depends on the charge differences and not on the orbital coefficients

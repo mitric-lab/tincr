@@ -2,7 +2,6 @@ use crate::fmo::fragmentation::{build_graph, fragmentation, Graph};
 use crate::fmo::helpers::{MolecularSlice, MolIndices, MolIncrements};
 use crate::fmo::{get_pair_type, ESDPair, Monomer, Pair, PairType};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster, SkfHandler, RepulsivePotentialTable, SlaterKosterTable};
-use crate::properties::Properties;
 use crate::initialization::{get_unique_atoms, initialize_gamma_function, Atom, Geometry, get_unique_atoms_mio};
 use crate::io::{frame_to_atoms, frame_to_coordinates, read_file_to_frame, Configuration};
 use crate::param::elements::Element;
@@ -19,6 +18,7 @@ use std::result::IntoIter;
 use std::vec;
 use ndarray::Slice;
 use crate::scc::h0_and_s::h0_and_s;
+use crate::data::Storage;
 
 pub struct SuperSystem {
     /// Type that holds all the input settings from the user.
@@ -37,7 +37,7 @@ pub struct SuperSystem {
     /// Only a small and minimal amount of information is stored in this [ESDPair] type.
     pub esd_pairs: Vec<ESDPair>,
     /// Type that can hold calculated properties e.g. gamma matrix for the whole FMO system
-    pub properties: Properties,
+    pub data: Storage<'static>,
     /// Type of Gamma function. This can be either `Gaussian` or `Slater` type.
     pub gammafunction: GammaFunction,
     /// Gamma function for the long-range correction. Only used if long-range correction is requested
@@ -97,7 +97,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
         };
 
         // Create a new Properties type, which is empty
-        let mut properties: Properties = Properties::new();
+        let mut data: Storage = Storage::new();
 
         // and initialize the SlaterKoster and RepulsivePotential Tables
         let mut slako: SlaterKoster = SlaterKoster::new();
@@ -185,9 +185,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
             // Number of virtual orbitals.
             let n_virt: usize = m_n_orbs - n_occ;
 
-            let mut props: Properties = Properties::new();
-            props.set_n_occ(n_occ);
-            props.set_n_virt(n_virt);
+            let mut data: Storage = Storage::new();
 
             let increments: MolIncrements = MolIncrements {
                 atom: monomer_atoms.len(),
@@ -206,7 +204,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
                 n_orbs: m_n_orbs,
                 index: idx,
                 slice: m_slice,
-                properties: props,
+                data: Storage::new(),
                 vrep: vrep.clone(),
                 slako: slako.clone(),
                 gammafunction: gf.clone(),
@@ -231,15 +229,12 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // Calculate the number of atomic orbitals for the whole system as the sum of the monomer
         // number of orbitals
         let n_orbs: usize = mol_indices.orbs;
-        // Set the number of occupied and virtual orbitals.
-        properties.set_n_occ(mol_indices.occs);
-        properties.set_n_virt(mol_indices.virts);
 
         // Compute the Gamma function between all atoms if it is requested in the user input
         // TODO: Insert a input option for this choice
         if true {
-            properties.set_gamma(gamma_atomwise(&gf, &atoms, atoms.len()));
-            properties.set_gamma_lr(gamma_atomwise(&initialize_gamma_function(
+            data.set_gamma(gamma_atomwise(&gf, &atoms, atoms.len()));
+            data.set_gamma_lr(gamma_atomwise(&initialize_gamma_function(
                 &unique_atoms,
                 input.1.lc.long_range_radius,
             ), &atoms, atoms.len()));
@@ -281,20 +276,20 @@ impl From<(Frame, Configuration)> for SuperSystem {
                 pair_iter += 1;
             }
         }
-        properties.set_pair_types(pair_types);
-        properties.set_pair_indices(pair_indices);
+        data.set_pair_types(pair_types);
+        data.set_pair_indices(pair_indices);
         info!("{}", timer);
 
 
         let (h0, s) = h0_and_s(n_orbs, &atoms, &slako);
-        properties.set_s(s);
+       data.set_s(s);
 
         Self {
             config: input.1,
             atoms: atoms,
             n_mol: monomers.len(),
             monomers: monomers,
-            properties: properties,
+            data: Storage::new(),
             gammafunction: gf,
             gammafunction_lc: gf_lc,
             pairs,
@@ -344,8 +339,8 @@ impl SuperSystem {
         let atoms_a: Slice = self.monomers[a].slice.atom.clone();
         let atoms_b: Slice = self.monomers[b].slice.atom.clone();
         match lrc {
-            LRC::ON => self.properties.gamma_lr_slice(atoms_a, atoms_b).unwrap(),
-            LRC::OFF => self.properties.gamma_slice(atoms_a, atoms_b).unwrap(),
+            LRC::ON => self.data.gamma_lr_slice(atoms_a, atoms_b).unwrap(),
+            LRC::OFF => self.data.gamma_slice(atoms_a, atoms_b).unwrap(),
         }
     }
 

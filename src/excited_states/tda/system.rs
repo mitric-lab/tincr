@@ -12,27 +12,27 @@ impl System {
             let (qov, qoo, qvv): (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
                 self.n_atoms,
                 &self.atoms,
-                self.properties.orbs().unwrap(),
-                self.properties.s().unwrap(),
+                self.data.orbs(),
+                self.data.s(),
                 &self.occ_indices,
                 &self.virt_indices,
             );
             // And stored in the properties HashMap.
-            self.properties.set_q_oo(qoo);
-            self.properties.set_q_ov(qov);
-            self.properties.set_q_vv(qvv);
+            self.data.set_q_oo(qoo);
+            self.data.set_q_ov(qov);
+            self.data.set_q_vv(qvv);
         }
 
         if self.properties.omega().is_none() {
             // Reference to the orbital energies.
             // Check if the orbital energy differences were already computed.
-            let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
+            let orbe: ArrayView1<f64> = self.data.orbe();
 
             // The index of the HOMO (zero based).
-            let homo: usize = self.occ_indices[self.occ_indices.len() - 1];
+            let homo: usize = self.data.homo();
 
             // The index of the LUMO (zero based).
-            let lumo: usize = self.virt_indices[0];
+            let lumo: usize = self.data.lumo();
 
             // Energies of the occupied orbitals.
             let orbe_occ: ArrayView1<f64> = orbe.slice(s![0..homo + 1]);
@@ -44,10 +44,7 @@ impl System {
             let omega: Array1<f64> = orbe_differences(orbe_occ, orbe_virt);
 
             // Energy differences are stored in the molecule.
-            self.properties.set_omega(omega);
-
-            self.properties.set_homo(homo);
-            self.properties.set_lumo(lumo);
+            self.data.set_omega(omega);
         }
     }
 }
@@ -71,11 +68,11 @@ mod tests {
         // Number of virtual orbitals.
         let n_virt: usize = molecule.virt_indices.len();
         // Reference to the o-o transition charges.
-        let qoo: ArrayView2<f64> = molecule.properties.q_oo().unwrap();
+        let qoo: ArrayView2<f64> = molecule.data.q_oo();
         // Reference to the v-v transition charges.
-        let qvv: ArrayView2<f64> = molecule.properties.q_vv().unwrap();
+        let qvv: ArrayView2<f64> = molecule.data.q_vv();
         // Reference to the screened Gamma matrix.
-        let gamma_lr: ArrayView2<f64> = molecule.properties.gamma_lr().unwrap();
+        let gamma_lr: ArrayView2<f64> = molecule.data.gamma_lr();
         // The exchange part to the CIS Hamiltonian is computed.
         let result = qoo
             .t()
@@ -93,11 +90,11 @@ mod tests {
     // The one-electron and Coulomb contribution to the CIS Hamiltonian is computed.
     fn fock_and_coulomb(molecule: &System) -> Array2<f64> {
         // Reference to the o-v transition charges.
-        let qov: ArrayView2<f64> = molecule.properties.q_ov().unwrap();
+        let qov: ArrayView2<f64> = molecule.data.q_ov();
         // Reference to the unscreened Gamma matrix.
-        let gamma: ArrayView2<f64> = molecule.properties.gamma().unwrap();
+        let gamma: ArrayView2<f64> = molecule.data.gamma();
         // Reference to the energy differences of the orbital energies.
-        let omega: ArrayView1<f64> = molecule.properties.omega().unwrap();
+        let omega: ArrayView1<f64> = molecule.data.omega();
         // The sum of one-electron part and Coulomb part is computed and retzurned.
         Array2::from_diag(&omega) + 2.0 * qov.t().dot(&gamma.dot(&qov))
     }
@@ -109,7 +106,7 @@ mod tests {
         molecule.gammafunction_lc = None;
         molecule.prepare_scc();
         molecule.run_scc();
-        println!("ORBES {}", molecule.properties.orbe().unwrap());
+        println!("ORBES {}", molecule.data.orbe());
         let (u, v) = molecule.run_tda();
         let h: Array2<f64> = fock_and_coulomb(&molecule);
         let (u_ref, v_ref) = h.eigh(UPLO::Upper).unwrap();

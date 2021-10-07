@@ -1,9 +1,7 @@
 use ndarray::prelude::*;
-use crate::properties::property::Property;
 use hashbrown::HashMap;
 use crate::fmo::PairType;
 use crate::scc::mixer::BroydenMixer;
-use crate::properties::Properties;
 use crate::excited_states::ProductCache;
 use crate::initialization::MO;
 

@@ -18,7 +18,7 @@ impl SuperSystem {
             // Coupling between two LE states.
             (BasisState::LE(ref a), BasisState::LE(ref b)) => {
                 if a == b {
-                    a.monomer.properties.ci_eigenvalue(a.n).unwrap()
+                    a.monomer.data.ci_eigenvalue(a.n).unwrap()
                 } else if a.monomer == b.monomer {
                     0.0
                 } else {
@@ -41,15 +41,13 @@ impl SuperSystem {
 
     pub fn le_le<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a LocallyExcited<'a>) -> f64 {
         // Check if the ESD approximation is used or not.
-        let type_pair: PairType = self
-            .properties
-            .type_of_pair(i.monomer.index, j.monomer.index);
+        let type_pair: PairType = self.data.type_of_pair(i.monomer.index, j.monomer.index);
 
         // Slices of atoms of I and J.
         let (atoms_i, atoms_j): (Slice, Slice) = (i.monomer.slice.atom, j.monomer.slice.atom);
 
         // Get the gamma matrix between both sets of atoms.
-        let gamma_ab: ArrayView2<f64> = self.properties.gamma_slice(atoms_i, atoms_j).unwrap();
+        let gamma_ab: ArrayView2<f64> = self.data.gamma_slice(atoms_i, atoms_j);
 
         // Compute the Coulomb interaction between both LE states.
         let coulomb: f64 = i.q_trans.dot(&gamma_ab.dot(&j.q_trans));
@@ -61,11 +59,7 @@ impl SuperSystem {
             PairType::ESD => 0.0,
             PairType::Pair => {
                 // Reference to the overlap matrix between both sets of orbitals.
-                let s_ab: ArrayView2<f64> = self
-                    .properties
-                    .s()
-                    .unwrap()
-                    .slice_move(s![i.monomer.slice.orb, j.monomer.slice.orb]);
+                let s_ab: ArrayView2<f64> = self.data.s().slice_move(s![i.monomer.slice.orb, j.monomer.slice.orb]);
 
                 // The transition charges between both sets of occupied orbitals are computed. .
                 let q_ij: Array3<f64> = q_lele(&i, &j, ElecHole::Hole, ElecHole::Hole, s_ab.view());
@@ -75,10 +69,10 @@ impl SuperSystem {
                     q_lele(&i, &j, ElecHole::Electron, ElecHole::Electron, s_ab.view());
 
                 // Reference to the transition density matrix of I in MO basis.
-                let b_ia: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+                let b_ia: ArrayView2<f64> = i.monomer.data.tdm(i.n);
 
                 // Reference to the transition density matrix of J in MO basis.
-                let b_jb: ArrayView2<f64> = j.monomer.properties.tdm(j.n).unwrap();
+                let b_jb: ArrayView2<f64> = j.monomer.data.tdm(j.n);
 
                 // Some properties that are used specify the shapes.
                 let n_atoms: usize = i.monomer.n_atoms + j.monomer.n_atoms;
@@ -136,17 +130,17 @@ impl SuperSystem {
         let (k, l): (&Particle, &Particle) = (&state_2.electron, &state_2.hole);
 
         // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
-        let type_ij: PairType = self.properties.type_of_pair(i.idx, j.idx);
+        let type_ij: PairType = self.data.type_of_pair(i.idx, j.idx);
         // I and K
-        let type_ik: PairType = self.properties.type_of_pair(i.idx, k.idx);
+        let type_ik: PairType = self.data.type_of_pair(i.idx, k.idx);
         // I and L
-        let type_il: PairType = self.properties.type_of_pair(i.idx, l.idx);
+        let type_il: PairType = self.data.type_of_pair(i.idx, l.idx);
         // J and K
-        let type_jk: PairType = self.properties.type_of_pair(j.idx, k.idx);
+        let type_jk: PairType = self.data.type_of_pair(j.idx, k.idx);
         // J and L
-        let type_jl: PairType = self.properties.type_of_pair(j.idx, l.idx);
+        let type_jl: PairType = self.data.type_of_pair(j.idx, l.idx);
         // K and L
-        let type_kl: PairType = self.properties.type_of_pair(k.idx, l.idx);
+        let type_kl: PairType = self.data.type_of_pair(k.idx, l.idx);
 
         // Check how many monomers are involved in this matrix element.
         let kind: CTCoupling = CTCoupling::from((i, j, k, l));
@@ -224,74 +218,44 @@ impl SuperSystem {
                     CTCoupling::IJIJ => {
                         // SJJ SII
                         (
-                            Some(j.monomer.properties.s().unwrap()),
-                            Some(i.monomer.properties.s().unwrap()),
+                            Some(j.monomer.data.s()),
+                            Some(i.monomer.data.s()),
                         )
                     }
                     CTCoupling::IJJI => {
                         // SJI SIJ
-                        let s_ji: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(j.monomer.slice.orb, i.monomer.slice.orb)
-                            .unwrap();
-                        let s_ij: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(i.monomer.slice.orb, j.monomer.slice.orb)
-                            .unwrap();
+                        let s_ji: ArrayView2<f64> = self.data.s_slice(j.monomer.slice.orb, i.monomer.slice.orb);
+                        let s_ij: ArrayView2<f64> = self.data.s_slice(i.monomer.slice.orb, j.monomer.slice.orb);
                         (Some(s_ji), Some(s_ij))
                     }
                     CTCoupling::IJIK => {
                         // SJK SII
-                        let s_ii: ArrayView2<f64> = i.monomer.properties.s().unwrap();
-                        let s_jk: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(j.monomer.slice.orb, k.monomer.slice.orb)
-                            .unwrap();
+                        let s_ii: ArrayView2<f64> = i.monomer.data.s();
+                        let s_jk: ArrayView2<f64> = self.data.s_slice(j.monomer.slice.orb, k.monomer.slice.orb);
                         (Some(s_jk), Some(s_ii))
                     }
                     CTCoupling::IJJK => {
                         // SJK SIJ
-                        let s_jk: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(j.monomer.slice.orb, k.monomer.slice.orb)
-                            .unwrap();
-                        let s_ij: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(i.monomer.slice.orb, j.monomer.slice.orb)
-                            .unwrap();
+                        let s_jk: ArrayView2<f64> = self.data.s_slice(j.monomer.slice.orb, k.monomer.slice.orb);
+                        let s_ij: ArrayView2<f64> = self.data.s_slice(i.monomer.slice.orb, j.monomer.slice.orb);
                         (Some(s_jk), Some(s_ij))
                     }
                     CTCoupling::IJKI => {
                         // SJI SIK
-                        let s_ji: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(j.monomer.slice.orb, i.monomer.slice.orb)
-                            .unwrap();
-                        let s_ik: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(i.monomer.slice.orb, k.monomer.slice.orb)
-                            .unwrap();
+                        let s_ji: ArrayView2<f64> = self.data.s_slice(j.monomer.slice.orb, i.monomer.slice.orb);
+                        let s_ik: ArrayView2<f64> = self.data.s_slice(i.monomer.slice.orb, k.monomer.slice.orb);
                         (Some(s_ji), Some(s_ik))
                     }
                     CTCoupling::IJKJ => {
                         // SJJ SIK
-                        let s_jj: ArrayView2<f64> = j.monomer.properties.s().unwrap();
-                        let s_ik: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(i.monomer.slice.orb, k.monomer.slice.orb)
-                            .unwrap();
+                        let s_jj: ArrayView2<f64> = j.monomer.data.s();
+                        let s_ik: ArrayView2<f64> = self.data.s_slice(i.monomer.slice.orb, k.monomer.slice.orb);
                         (Some(s_jj), Some(s_ik))
                     }
                     CTCoupling::IJKL => {
                         // SJL SIK
-                        let s_jl: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(j.monomer.slice.orb, l.monomer.slice.orb)
-                            .unwrap();
-                        let s_ik: ArrayView2<f64> = self
-                            .properties
-                            .s_slice(i.monomer.slice.orb, k.monomer.slice.orb)
-                            .unwrap();
+                        let s_jl: ArrayView2<f64> = self.data.s_slice(j.monomer.slice.orb, l.monomer.slice.orb);
+                        let s_ik: ArrayView2<f64> = self.data.s_slice(i.monomer.slice.orb, k.monomer.slice.orb);
                         (Some(s_jl), Some(s_ik))
                     }
                 }
@@ -301,14 +265,8 @@ impl SuperSystem {
 
         let ia_jb: f64 = match (type_ij, type_kl) {
             (PairType::Pair, PairType::Pair) => {
-                let s_ij: ArrayView2<f64> = self
-                    .properties
-                    .s_slice(i.monomer.slice.orb, j.monomer.slice.orb)
-                    .unwrap();
-                let s_kl: ArrayView2<f64> = self
-                    .properties
-                    .s_slice(k.monomer.slice.orb, l.monomer.slice.orb)
-                    .unwrap();
+                let s_ij: ArrayView2<f64> = self.data.s_slice(i.monomer.slice.orb, j.monomer.slice.orb);
+                let s_kl: ArrayView2<f64> = self.data.s_slice(k.monomer.slice.orb, l.monomer.slice.orb);
                 let gamma_ij_kl_lc: Array2<f64> =
                     self.gamma_ab_cd(i.idx, j.idx, k.idx, l.idx, LRC::ON);
                 let q_ia: Array1<f64> = q_pp(i, j, s_ij.view());
@@ -342,15 +300,15 @@ impl SuperSystem {
         // < LE I | H | CT K_j -> I_b >
         if i.monomer.index == j.electron.idx {
             // Index of the HOMO.
-            let homo: usize = i.monomer.properties.homo().unwrap();
+            let homo: usize = i.monomer.data.homo();
 
             // Transition Density Matrix of the LE state in MO basis.
-            let tdm: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+            let tdm: ArrayView2<f64> = i.monomer.data.tdm(i.n);
 
             // 1. LCMO Fock matrix between monomer of the LE state, I, and monomer of the hole, K.
             // 2. Slice corresponding to the coupling between all occupied orbitals on I and
             //    the orbital that corresponds to the hole on K.
-            let f_ij: ArrayView1<f64> = self.properties.lcmo_fock().unwrap()
+            let f_ij: ArrayView1<f64> = self.data.lcmo_fock()
                 .slice_move(s![i.monomer.slice.orb, j.hole.monomer.slice.orb])
                 .slice_move(s![..=homo, j.hole.mo.idx]);
 
@@ -360,15 +318,15 @@ impl SuperSystem {
         // < LE I | H | CT I_j -> J_b >
         } else if i.monomer.index == j.hole.idx {
             // Index of the LUMO.
-            let lumo: usize = i.monomer.properties.lumo().unwrap();
+            let lumo: usize = i.monomer.data.lumo();
 
             // Transition Density Matrix of the LE state in MO basis.
-            let tdm: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+            let tdm: ArrayView2<f64> = i.monomer.data.tdm(i.n);
 
             // 1. LCMO Fock matrix between monomer of the LE state, I, and the monomer of electron, J.
             // 2. Slice corresponding to all virtual orbitals of monomer I and the orbital of the
             //    hole at monomer J.
-            let f_ab: ArrayView1<f64> = self.properties.lcmo_fock().unwrap()
+            let f_ab: ArrayView1<f64> = self.data.lcmo_fock()
                 .slice_move(s![i.monomer.slice.orb, j.electron.monomer.slice.orb])
                 .slice_move(s![lumo.., j.electron.mo.idx]);
 
@@ -385,11 +343,11 @@ impl SuperSystem {
     /// < LE I | H | CT J_j -> K_b >
     pub fn le_ct_2e<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
         // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
-        let type_ij: PairType = self.properties.type_of_pair(i.monomer.index, j.hole.idx);
+        let type_ij: PairType = self.data.type_of_pair(i.monomer.index, j.hole.idx);
         // The same for I and K
-        let type_ik: PairType = self.properties.type_of_pair(i.monomer.index, j.electron.idx);
+        let type_ik: PairType = self.data.type_of_pair(i.monomer.index, j.electron.idx);
         // and J K
-        let type_jk: PairType = self.properties.type_of_pair(j.electron.idx, j.hole.idx);
+        let type_jk: PairType = self.data.type_of_pair(j.electron.idx, j.hole.idx);
 
         // Transition charges of LE state at monomer I.
         let qtrans: ArrayView1<f64> = i.q_trans.view();
@@ -399,7 +357,7 @@ impl SuperSystem {
             // Check if the pair IK is close, so that the overlap is non-zero.
             if type_ik == PairType::Pair {
                 // Overlap matrix between monomer I and J.
-                let s_ij: ArrayView2<f64> = self.properties.s_slice(j.electron.monomer.slice.orb, j.hole.monomer.slice.orb).unwrap();
+                let s_ij: ArrayView2<f64> = selfdata.s_slice(j.electron.monomer.slice.orb, j.hole.monomer.slice.orb);
 
                 // Gamma matrix between pair IJ and monomer I. TODO: Check LC
                 let gamma_ij_i: Array2<f64> = self.gamma_ab_c(i.monomer.index, j.electron.idx, j.hole.idx, LRC::ON);
@@ -414,7 +372,7 @@ impl SuperSystem {
                 let q_ij: Array2<f64> = q_le_p(&i, &j.hole, s_ij, ElecHole::Hole);
 
                 // Overlap integral of monomer I.
-                let s_ii: ArrayView2<f64> = i.monomer.properties.s().unwrap();
+                let s_ii: ArrayView2<f64> = i.monomer.data.s();
 
                 // Transition charges betwenn all orbitals on I and the electron on I.
                 let q_ab: Array2<f64> = q_le_p(&i, &j.electron, s_ii, ElecHole::Electron);
@@ -429,7 +387,7 @@ impl SuperSystem {
             // Check if the pair IJ is close, so that the overlap is non-zero.
             if type_ij == PairType::Pair {
                 // Overlap matrix between monomer I and J.
-                let s_ij: ArrayView2<f64> = self.properties.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb).unwrap();
+                let s_ij: ArrayView2<f64> = self.data.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb);
 
                 // Gamma matrix between pair IJ and monomer I. TODO: Check LC
                 let gamma_ij_i: Array2<f64> = self.gamma_ab_c(i.monomer.index, j.hole.idx, j.electron.idx, LRC::ON);
@@ -441,7 +399,7 @@ impl SuperSystem {
                 let ia_jb: f64 = qtrans.dot(&gamma_ij_i.t()).dot(&q_jb);
 
                 // Overlap integral of monomer I.
-                let s_ii: ArrayView2<f64> = i.monomer.properties.s().unwrap();
+                let s_ii: ArrayView2<f64> = i.monomer.data.s();
 
                 // Transition charges between all orbitals on I and the hole on I.
                 let q_ij: Array2<f64> = q_le_p(&i, &j.hole, s_ii.view(), ElecHole::Hole);
@@ -460,7 +418,7 @@ impl SuperSystem {
             // The integral (ia|jb) requires that the overlap between K and J is non-zero.
             let ia_jb: f64 = if type_jk == PairType::Pair {
                 // Overlap matrix between monomer K and J.
-                let s_kj: ArrayView2<f64> = self.properties.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb).unwrap();
+                let s_kj: ArrayView2<f64> = self.data.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb);
 
                 // Gamma matrix between pair KJ and monomer I. TODO: Check LC
                 let gamma_kj_i: Array2<f64> = self.gamma_ab_c(i.monomer.index, j.hole.idx, j.electron.idx, LRC::ON);

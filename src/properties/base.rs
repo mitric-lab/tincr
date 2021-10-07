@@ -1,4 +1,3 @@
-use crate::properties::property::Property;
 use crate::scc::mixer::BroydenMixer;
 use hashbrown::HashMap;
 use ndarray::prelude::*;

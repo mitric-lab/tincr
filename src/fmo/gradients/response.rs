@@ -30,10 +30,10 @@ impl SuperSystem {
     /// [1]: J. Phys. Chem. Lett. 2015, 6, 5034--5039, DOI: 10.1021/acs.jpclett.5b02490
     fn response_lagrangian(&mut self) -> Vec<Array1<f64>> {
         // Reference to the gamma matrix.
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
 
         // Reference to the charge differences.
-        let dq: ArrayView1<f64> = self.properties.dq().unwrap();
+        let dq: ArrayView1<f64> = self.data.dq();
 
         // HashMap that maps the monomers to the pair in which it is included.
         let mut m_to_p: HashMap<usize, Vec<&Pair>> = HashMap::new();
@@ -64,7 +64,7 @@ impl SuperSystem {
             }
 
             // Reference to the difference of charge differences of the pair.
-            let ddq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
+            let ddq: ArrayView1<f64> = pair.data.delta_dq();
 
             // Vector matrix product for the ddq of I
             ddq_gamma += &ddq
@@ -99,7 +99,7 @@ impl SuperSystem {
                             let m_j: &Monomer = &self.monomers[pair.j];
 
                             // Reference to the difference of charge differences of the pair.
-                            let ddq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
+                            let ddq: ArrayView1<f64> = pair.data.delta_dq();
 
                             // Vector matrix product for the ddq of I
                             ddq_gamma_mol -= &ddq
@@ -117,7 +117,7 @@ impl SuperSystem {
                 }
 
                 // Reference to the transition charges.
-                let q_vo: ArrayView2<f64> = mol.properties.q_vo().unwrap();
+                let q_vo: ArrayView2<f64> = mol.data.q_vo();
 
                 // Vector matrix product of the pre computed term and the transition charges.
                 4.0 * ddq_gamma_mol.dot(&q_vo)
@@ -133,7 +133,7 @@ impl SuperSystem {
         let mut lagrangians: Vec<Array1<f64>> = self.response_lagrangian();
 
         // Reference to the gamma matrix.
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
 
         // The Z-vectors are stored as Vec of Array1's.
         let mut z_vectors: Vec<Array1<f64>> = Vec::with_capacity(self.n_mol);
@@ -146,11 +146,11 @@ impl SuperSystem {
         // 2. Construction of initial Z-vectors.
         for (i, m_i) in self.monomers.iter().enumerate() {
             // Reference to the indices of occupied orbitals
-            let occ_indices: &[usize] = m_i.properties.occ_indices().unwrap();
+            let occ_indices: &[usize] = m_i.data.occ_indices();
             // Reference to the indices of the virtual orbitals
-            let virt_indices: &[usize] = m_i.properties.virt_indices().unwrap();
+            let virt_indices: &[usize] = m_i.data.virt_indices();
             // Reference to the orbital energies.
-            let orbe: ArrayView1<f64> = m_i.properties.orbe().unwrap();
+            let orbe: ArrayView1<f64> = m_i.data.orbe();
 
             let mut omega: Array2<f64> = Array2::zeros([occ_indices.len(), virt_indices.len()]);
 
@@ -166,7 +166,7 @@ impl SuperSystem {
             );
 
             // Reference to the transition charges between occupied and virtual orbitals.
-            let q_vo_i: ArrayView2<f64> = m_i.properties.q_vo().unwrap();
+            let q_vo_i: ArrayView2<f64> = m_i.data.q_vo();
             // The A matrix of monomer I and I.
             let a_ii: Array2<f64> = Array2::from_diag(&omegas[i])
                 - 4.0
@@ -185,7 +185,7 @@ impl SuperSystem {
             // PARALLEL
             for (i, m_i) in self.monomers.iter().enumerate() {
                 // Reference to the transition charges between occupied and virtual orbitals.
-                let q_vo_i: ArrayView2<f64> = m_i.properties.q_vo().unwrap();
+                let q_vo_i: ArrayView2<f64> = m_i.data.q_vo();
 
                 let mut x_i: Array1<f64> = lagrangians[i].clone();
 
@@ -195,7 +195,7 @@ impl SuperSystem {
                         continue;
                     }
                     // Reference to the transition charges of monomer J.
-                    let q_vo_j: ArrayView2<f64> = m_j.properties.q_vo().unwrap();
+                    let q_vo_j: ArrayView2<f64> = m_j.data.q_vo();
                     // The A matrix between monomer J and I.
                     let a_ji: Array2<f64> = -4.0
                         * q_vo_j
@@ -232,11 +232,11 @@ impl SuperSystem {
             .zip(z_vectors.into_iter())
             .for_each(|(mol, z_i)| {
                 // Number of occupied orbitals in Monomer I.
-                let n_occ: usize = mol.properties.occ_indices().unwrap().len();
+                let n_occ: usize = mol.data.n_occ();
                 // Number of virtual orbitals in Monomer I.
-                let n_virt: usize = mol.properties.virt_indices().unwrap().len();
+                let n_virt: usize = mol.data.n_virt();
                 // MO coefficient matrix: rows: AO indices, columns: MO indices.
-                let orbs: ArrayView2<f64> = mol.properties.orbs().unwrap();
+                let orbs: ArrayView2<f64> = mol.data.orbs();
                 // Transform the Z-Vector in the n_virt, n_occ shape.
                 let z: Array2<f64> = (z_i).into_shape([n_virt, n_occ]).unwrap();
                 // Basis transformation from MO basis to AO basis.
@@ -250,7 +250,7 @@ impl SuperSystem {
                     .into_shape([mol.n_orbs.pow(2)])
                     .unwrap();
                 // Save the transformed Z-vectors for each monomer.
-                mol.properties.set_z_vector(z_vector);
+                mol.data.set_z_vector(z_vector);
             });
         println!("Z-vector converged");
     }
@@ -258,7 +258,7 @@ impl SuperSystem {
     /// The third part of the B-matrix times the Z-vector is calculated.
     pub fn response_embedding_gradient(&mut self) -> Array1<f64> {
         // Reference to the gamma matrix.
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
 
         // Initialize the gradient
         let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
@@ -273,15 +273,15 @@ impl SuperSystem {
             // The column slice of the Gamma matrix that corresponds to the Monomer I.
             let gamma_i: ArrayView2<f64> = gamma.slice(s![0.., m_i.slice.atom]);
             // Reference to the overlap matrix of Monomer I, reshaped into a vector.
-            let s_i: ArrayView1<f64> = m_i.properties.s().unwrap().into_shape([m_i.n_orbs.pow(2)]).unwrap();
+            let s_i: ArrayView1<f64> = m_i.data.s().into_shape([m_i.n_orbs.pow(2)]).unwrap();
 
             // Reference to the Z-vector of Monomer I.
-            let z_i: ArrayView1<f64> = m_i.properties.z_vector().unwrap();
+            let z_i: ArrayView1<f64> = m_i.data.z_vector();
 
             // Loop over all Monomers to sum up the matrix product.
             for m_j in self.monomers.iter() {
                 // Reference to the charge derivatives of Monomer J
-                let grad_dq_j: ArrayView2<f64> = m_j.properties.grad_dq().unwrap();
+                let grad_dq_j: ArrayView2<f64> = m_j.data.grad_dq();
                 // Compute the product of the charge derivative and the Gamma matrix.
                 grad_esp.slice_mut(s![m_j.slice.grad, 0..]).add_assign(&grad_dq_j.dot(&gamma_i.slice(s![m_j.slice.atom, 0..])));
             }

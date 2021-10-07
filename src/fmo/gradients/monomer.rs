@@ -44,8 +44,8 @@ impl GroundStateGradient for Monomer {
 
         // the derivatives of the charge (difference)s are computed at this point, since they depend
         // on the derivative of S and this is available here at no additional cost.
-        let p: ArrayView2<f64> = self.properties.p().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let p: ArrayView2<f64> = self.data.p();
+        let s: ArrayView2<f64> = self.data.s();
         let grad_dq: Array2<f64> = self.get_grad_dq(&atoms, s.view(), grad_s.view(), p.view());
 
         // and reshape them into a 2D array. the last two dimension (number of orbitals) are compressed
@@ -64,14 +64,14 @@ impl GroundStateGradient for Monomer {
                 .unwrap();
 
         // take references/views to the necessary properties from the scc calculation
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
-        let p: ArrayView2<f64> = self.properties.p().unwrap();
-        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
-        let dq: ArrayView1<f64> = self.properties.dq().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let esp_q: ArrayView1<f64> = self.properties.esp_q().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
+        let p: ArrayView2<f64> = self.data.p();
+        let h0: ArrayView2<f64> = self.data.h0();
+        let dq: ArrayView1<f64> = self.data.dq();
+        let s: ArrayView2<f64> = self.data.s();
+        let esp_q: ArrayView1<f64> = self.data.esp_q();
         // Response part
-        //let z_vector: ArrayView1<f64> = self.properties.z_vector().unwrap();
+        //let z_vector: ArrayView1<f64> = self.data.z_vector();
 
         //let z_charges: Array1<f64> = z_vector.into_shape([self.n_orbs, self.n_orbs])
 
@@ -113,7 +113,7 @@ impl GroundStateGradient for Monomer {
         //         .into_shape([self.n_orbs * self.n_orbs])
         //         .unwrap();
         let w: Array1<f64> = 0.5
-            * (p.dot(&self.properties.h_coul_x().unwrap()).dot(&p))
+            * (p.dot(&self.data.fock()).dot(&p))
             .into_shape([self.n_orbs * self.n_orbs])
             .unwrap();
 
@@ -147,13 +147,13 @@ impl GroundStateGradient for Monomer {
                 self.n_orbs,
             );
             // calculate the difference density matrix
-            let diff_p: Array2<f64> = &p - &self.properties.p_ref().unwrap();
+            let diff_p: Array2<f64> = &p - &self.data.p_ref();
             // calculate the matrix F_lr[diff_p]
             let flr_dmd0:Array3<f64> = f_lr(
                 diff_p.view(),
-                self.properties.s().unwrap(),
+                self.data.s(),
                 grad_s.view(),
-                self.properties.gamma_lr_ao().unwrap(),
+                self.data.gamma_lr_ao(),
                 g1_lr_ao.view(),
                 self.n_atoms,
                 self.n_orbs,
@@ -191,7 +191,7 @@ impl GroundStateGradient for Monomer {
         // // 4th part
         // response += &grad_gamma_sparse.dot(&(&zs_charges * &dq));
 
-        self.properties.set_grad_dq(grad_dq);
+        self.data.set_grad_dq(grad_dq);
 
 
         return gradient;// + response;

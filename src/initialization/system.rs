@@ -1,7 +1,6 @@
 use crate::initialization::atom::Atom;
 use crate::initialization::geometry::*;
 use crate::initialization::parameters::*;
-use crate::properties::Properties;
 use crate::initialization::{
     get_unique_atoms, get_unique_atoms_mio, initialize_gamma_function, initialize_unrestricted_elec,
 };
@@ -15,6 +14,7 @@ use itertools::Itertools;
 use ndarray::prelude::*;
 use std::borrow::BorrowMut;
 use crate::fmo::Fragment;
+use crate::data::Storage;
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
 /// This type is only used for non-FMO calculations. In the case of FMO based calculation
@@ -56,7 +56,7 @@ pub struct System {
     /// Type that stores the  coordinates and matrices that depend on the position of the atoms
     pub geometry: Geometry,
     /// Type that holds the calculated properties e.g. gamma matrix, overlap matrix and so on.
-    pub properties: Properties,
+    pub data: Storage<'static>,
     /// Repulsive potential type. Type that contains the repulsion energy and its derivative
     /// w.r.t. d/dR for each unique pair of atoms as a spline.
     pub vrep: RepulsivePotential,
@@ -150,9 +150,9 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         let mut geom: Geometry = Geometry::from(molecule.1);
         geom.set_matrices();
         // Create a new and empty Properties type
-        let mut properties: Properties = Properties::new();
-        properties.set_occ_indices(occ_indices.clone());
-        properties.set_virt_indices(virt_indices.clone());
+        let mut data: Storage = Storage::new();
+        data.set_occ_indices(occ_indices.clone());
+        data.set_virt_indices(virt_indices.clone());
         let mut slako: SlaterKoster = SlaterKoster::new();
         let mut vrep: RepulsivePotential = RepulsivePotential::new();
 
@@ -231,7 +231,7 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
             last_active_virt: active_virt,
             atoms: atoms,
             geometry: geom,
-            properties: properties,
+            data: data,
             vrep: vrep,
             slako: slako,
             gammafunction: gf,

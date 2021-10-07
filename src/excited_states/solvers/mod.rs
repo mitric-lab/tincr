@@ -57,13 +57,13 @@ impl DavidsonEngine for Monomer {
     /// The products of the TDA/CIS-Hamiltonian with the subspace vectors is computed.
     fn compute_products<'a>(&mut self, x: ArrayView2<'a, f64>) -> Array2<f64> {
         // Mutable reference to the product cache.
-        let mut cache: ProductCache = self.properties.take_cache().unwrap();
+        let mut cache: ProductCache = self.data.take_cache();
         // Transition charges between occupied-virtual orbitals, of shape: [n_atoms, n_occ * n_virt]
-        let q_ov: ArrayView2<f64> = self.properties.q_ov().unwrap();
+        let q_ov: ArrayView2<f64> = self.data.q_ov();
         // The gamma matrix of the shape: [n_atoms, n_atoms]
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
         // The energy differences between virtual and occupied orbitals, shape: [n_occ * n_virt]
-        let omega: ArrayView1<f64> = self.properties.omega().unwrap();
+        let omega: ArrayView1<f64> = self.data.omega();
         // The number of products that need to be computed in the current iteration.
         let n_prod: usize = x.ncols();
         // The number of products that are already computed.
@@ -91,15 +91,15 @@ impl DavidsonEngine for Monomer {
         // If long-range correction is requested the exchange part needs to be computed.
         if self.gammafunction_lc.is_some() {
             // Reference to the transition charges between occupied-occupied orbitals.
-            let q_oo: ArrayView2<f64> = self.properties.q_oo().unwrap();
+            let q_oo: ArrayView2<f64> = self.data.q_oo();
             // Number of occupied orbitals.
             let n_occ: usize = (q_oo.dim().1 as f64).sqrt() as usize;
             // Reference to the transition charges between virtual-virtual orbitals.
-            let q_vv: ArrayView2<f64> = self.properties.q_vv().unwrap();
+            let q_vv: ArrayView2<f64> = self.data.q_vv();
             // Number of virtual orbitals.
             let n_virt: usize = (q_vv.dim().1 as f64).sqrt() as usize;
             // Reference to the screened Gamma matrix.
-            let gamma_lr: ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+            let gamma_lr: ArrayView2<f64> = self.data.gamma_lr();
             // The contraction with the subpspace vectors is more complex than in the case
             // of the Coulomb part.
             // Contraction of the Gamma matrix with the o-o transition charges.
@@ -141,7 +141,7 @@ impl DavidsonEngine for Monomer {
         //let new: Array2<f64> = fock + two_el;
         // The new products are saved in the cache.
         let ax: Array2<f64> = cache.add("TDA", fock + two_el).to_owned();
-        self.properties.set_cache(cache);
+        self.data.set_cache(cache);
         // // The product of the CIS-Hamiltonian with the subspace vectors is returned.
         ax
     }
@@ -151,14 +151,14 @@ impl DavidsonEngine for Monomer {
     fn precondition(&self, r_k: ArrayView1<f64>, w_k: f64) -> Array1<f64> {
         // The denominator is build from the orbital energy differences and the shift value.
         let mut denom: Array1<f64> =
-            &(Array1::from_elem(self.get_size(), w_k)) - &self.properties.omega().unwrap();
+            &(Array1::from_elem(self.get_size(), w_k)) - &self.data.omega();
         // Values smaller than 0.0001 are replaced by 1.0.
         denom.mapv_inplace(|x| if x.abs() < 0.0001 { 1.0 } else { x });
         &r_k / &denom
     }
 
     fn get_size(&self) -> usize {
-        self.properties.omega().unwrap().len()
+        self.omega().len()
     }
 }
 
@@ -168,13 +168,13 @@ impl DavidsonEngine for System {
     /// The products of the TDA/CIS-Hamiltonian with the subspace vectors is computed.
     fn compute_products<'a>(&mut self, x: ArrayView2<'a, f64>) -> Array2<f64> {
         // Mutable reference to the product cache.
-        let mut cache: ProductCache = self.properties.take_cache().unwrap();
+        let mut cache: ProductCache = self.data.take_cache();
         // Transition charges between occupied-virtual orbitals, of shape: [n_atoms, n_occ * n_virt]
-        let q_ov: ArrayView2<f64> = self.properties.q_ov().unwrap();
+        let q_ov: ArrayView2<f64> = self.data.q_ov();
         // The gamma matrix of the shape: [n_atoms, n_atoms]
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
         // The energy differences between virtual and occupied orbitals, shape: [n_occ * n_virt]
-        let omega: ArrayView1<f64> = self.properties.omega().unwrap();
+        let omega: ArrayView1<f64> = self.data.omega();
         // The number of products that need to be computed in the current iteration.
         let n_prod: usize = x.ncols();
         // The number of products that are already computed.
@@ -202,15 +202,15 @@ impl DavidsonEngine for System {
         // If long-range correction is requested the exchange part needs to be computed.
         if self.gammafunction_lc.is_some() {
             // Reference to the transition charges between occupied-occupied orbitals.
-            let q_oo: ArrayView2<f64> = self.properties.q_oo().unwrap();
+            let q_oo: ArrayView2<f64> = self.data.q_oo();
             // Number of occupied orbitals.
             let n_occ: usize = (q_oo.dim().1 as f64).sqrt() as usize;
             // Reference to the transition charges between virtual-virtual orbitals.
-            let q_vv: ArrayView2<f64> = self.properties.q_vv().unwrap();
+            let q_vv: ArrayView2<f64> = self.data.q_vv();
             // Number of virtual orbitals.
             let n_virt: usize = (q_vv.dim().1 as f64).sqrt() as usize;
             // Reference to the screened Gamma matrix.
-            let gamma_lr: ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+            let gamma_lr: ArrayView2<f64> = self.data.gamma_lr();
             // The contraction with the subpspace vectors is more complex than in the case
             // of the Coulomb part.
             // Contraction of the Gamma matrix with the o-o transition charges.
@@ -252,7 +252,7 @@ impl DavidsonEngine for System {
         //let new: Array2<f64> = fock + two_el;
         // The new products are saved in the cache.
         let ax: Array2<f64> = cache.add("TDA", fock + two_el).to_owned();
-        self.properties.set_cache(cache);
+        self.data.set_cache(cache);
         // // The product of the CIS-Hamiltonian with the subspace vectors is returned.
         ax
     }
@@ -262,13 +262,13 @@ impl DavidsonEngine for System {
     fn precondition(&self, r_k: ArrayView1<f64>, w_k: f64) -> Array1<f64> {
         // The denominator is build from the orbital energy differences and the shift value.
         let mut denom: Array1<f64> =
-            &(Array1::from_elem(self.get_size(), w_k)) - &self.properties.omega().unwrap();
+            &(Array1::from_elem(self.get_size(), w_k)) - &self.data.omega();
         // Values smaller than 0.0001 are replaced by 1.0.
         denom.mapv_inplace(|x| if x.abs() < 0.0001 { 1.0 } else { x });
         &r_k / &denom
     }
 
     fn get_size(&self) -> usize {
-        self.properties.omega().unwrap().len()
+        self.data.omega().len()
     }
 }

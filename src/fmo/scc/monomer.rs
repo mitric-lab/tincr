@@ -22,17 +22,17 @@ impl Monomer {
         // by Loewdin orthogonalization, H' = X^T.H.X, where X = S^(-1/2)
         let x: Array2<f64> = s.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
         // and save it in the self properties
-        self.properties.set_h0(h0);
-        self.properties.set_s(s);
-        self.properties.set_x(x);
+        self.data.set_h0(h0);
+        self.data.set_s(s);
+        self.data.set_x(x);
         // save the atomic numbers since we need them multiple times
         let atomic_numbers: Vec<u8> = atoms.iter().map(|atom| atom.number).collect();
-        self.properties.set_atomic_numbers(atomic_numbers);
+        self.data.set_atomic_numbers(atomic_numbers);
         // get the gamma matrix
 
         let gamma: Array2<f64> = gamma_atomwise(&self.gammafunction, &atoms, self.n_atoms);
         // and save it as a `Property`
-        self.properties.set_gamma(gamma);
+        self.data.set_gamma(gamma);
 
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
@@ -44,7 +44,7 @@ impl Monomer {
         let f: Vec<f64> = (0..self.n_orbs)
             .map(|idx| if idx < n_elec / 2 { 2.0 } else { 0.0 })
             .collect();
-        self.properties.set_occupation(f);
+        self.data.set_occupation(f);
 
         // if the system contains a long-range corrected Gammafunction the gamma matrix will be computed
         if self.gammafunction_lc.is_some() {
@@ -54,45 +54,45 @@ impl Monomer {
                 self.n_atoms,
                 self.n_orbs,
             );
-            self.properties.set_gamma_lr(gamma_lr);
-            self.properties.set_gamma_lr_ao(gamma_lr_ao);
+            self.data.set_gamma_lr(gamma_lr);
+            self.data.set_gamma_lr_ao(gamma_lr_ao);
         }
 
-        self.properties.set_mixer(BroydenMixer::new(self.n_orbs));
+        self.data.set_mixer(BroydenMixer::new(self.n_orbs));
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
         if !self.properties.contains_key("dq") {
-            self.properties.set_dq(Array1::zeros(self.n_atoms));
-            self.properties.set_q_ao(Array1::zeros(self.n_orbs));
+            self.data.set_dq(Array1::zeros(self.n_atoms));
+            self.data.set_q_ao(Array1::zeros(self.n_orbs));
         }
 
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
-            self.properties
+            self.data
                 .set_p_ref(density_matrix_ref(self.n_orbs, &atoms));
         }
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
         if !self.properties.contains_key("P") {
-            self.properties
-                .set_p(self.properties.p_ref().unwrap().to_owned());
+            self.data
+                .set_p(self.data.p_ref().to_owned());
         }
     }
 
     pub fn scc_step(&mut self, atoms: &[Atom], v_esp: Array2<f64>, config: SccConfig) -> bool {
         let scf_charge_conv: f64 = config.scf_charge_conv;
         let scf_energy_conv: f64 = config.scf_energy_conv;
-        let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
-        let mut q_ao: Array1<f64> = self.properties.take_q_ao().unwrap();
-        let mut mixer: BroydenMixer = self.properties.take_mixer().unwrap();
-        let mut p: Array2<f64> = self.properties.take_p().unwrap();
-        let x: ArrayView2<f64> = self.properties.x().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
-        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
-        let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
-        let last_energy: f64 = self.properties.last_energy().unwrap();
-        let f: &[f64] = self.properties.occupation().unwrap();
+        let mut dq: Array1<f64> = self.data.take_dq();
+        let mut q_ao: Array1<f64> = self.data.take_q_ao();
+        let mut mixer: BroydenMixer = self.data.take_mixer();
+        let mut p: Array2<f64> = self.data.take_p();
+        let x: ArrayView2<f64> = self.data.x();
+        let s: ArrayView2<f64> = self.data.s();
+        let gamma: ArrayView2<f64> = self.data.gamma();
+        let h0: ArrayView2<f64> = self.data.h0();
+        let p0: ArrayView2<f64> = self.data.p_ref();
+        let last_energy: f64 = self.data.last_energy();
+        let f: &[f64] = self.data.occupation();
         // electrostatic interaction between the atoms of the same monomer and all the other atoms
         // the coulomb term and the electrostatic potential term are combined into one:
         // H_mu_nu = H0_mu_nu + HCoul_mu_nu + HESP_mu_nu
@@ -102,7 +102,7 @@ impl Monomer {
         if self.gammafunction_lc.is_some() {
             let dp: Array2<f64> = &p - &p0;
             let h_x: Array2<f64> =
-                lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), dp.view());
+                lc_exact_exchange(s, self.data.gamma_lr_ao(), dp.view());
             h = h + h_x;
         }
         let mut h_save:Array2<f64> = h.clone();
@@ -141,7 +141,7 @@ impl Monomer {
             h0.view(),
             dq.view(),
             gamma.view(),
-            self.properties.gamma_lr_ao(),
+            self.data.gamma_lr_ao(),
         );
 
         // check if charge difference to the previous iteration is lower than threshold
@@ -149,14 +149,14 @@ impl Monomer {
         // same check for the electronic energy
         let conv_energy: bool = (last_energy - scf_energy).abs() < scf_energy_conv;
 
-        self.properties.set_orbs(orbs);
-        self.properties.set_orbe(orbe);
-        self.properties.set_p(p);
-        self.properties.set_dq(dq);
-        self.properties.set_mixer(mixer);
-        self.properties.set_last_energy(scf_energy);
-        self.properties.set_q_ao(q_ao);
-        self.properties.set_h_coul_x(h_save);
+        self.data.set_orbs(orbs);
+        self.data.set_orbe(orbe);
+        self.data.set_p(p);
+        self.data.set_dq(dq);
+        self.data.set_mixer(mixer);
+        self.data.set_last_energy(scf_energy);
+        self.data.set_q_ao(q_ao);
+        self.data.set_h_coul_x(h_save);
 
         // scc (for one fragment) is converged if both criteria are passed
         conv_charge && conv_energy

@@ -20,8 +20,8 @@ impl SuperSystem {
             Array2::zeros([3 * self.atoms.len(), self.pairs.len()]);
 
         // A reference to the charge differences and gamma matrix for all atoms is created.
-        let dq: ArrayView1<f64> = self.properties.dq().unwrap();
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let dq: ArrayView1<f64> = self.data.dq();
+        let gamma: ArrayView2<f64> = self.data.gamma();
 
         // The charge differences are broadcast into the shape the gradients.
         let dq_f = dq
@@ -34,7 +34,7 @@ impl SuperSystem {
             .to_owned();
 
         // Reference to the derivative of the charges.
-        let mut grad_dq: ArrayView1<f64> = self.properties.grad_dq_diag().unwrap();
+        let mut grad_dq: ArrayView1<f64> = self.data.grad_dq_diag();
 
         // TODO: it is not neccessary to calculate the derivative of gamma two times. this should be
         // improved! it is already computed in the gradient of the monomer/pair
@@ -56,7 +56,7 @@ impl SuperSystem {
                 // dDeltaE_IJ^V/dR_a x = DDq_a^IJ sum_(K!=I,J)^(N) sum_(C in K) Dq_C^K dgamma_(a C)/dR_(a x)
 
                 // Reference to the DDq_a^IJ (difference of charge difference between pair and monomer)
-                let delta_dq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
+                let delta_dq: ArrayView1<f64> = pair.data.delta_dq();
 
                 // DDq is broadcasted into the shape of the gradients.
                 let delta_dq_f = delta_dq
@@ -102,13 +102,13 @@ impl SuperSystem {
                 // The electrostatic potential (ESP) is collected from the corresponding monomers.
                 let mut esp_ij: Array1<f64> = Array1::zeros([pair.n_atoms]);
                 esp_ij.slice_mut(s![..m_i.n_atoms]).assign(
-                    &(&m_i.properties.esp_q().unwrap()
+                    &(&m_i.data.esp_q()
                         - &gamma
                             .slice(s![m_i.slice.atom, m_j.slice.atom])
                             .dot(&dq.slice(s![m_j.slice.atom]))),
                 );
                 esp_ij.slice_mut(s![m_i.n_atoms..]).assign(
-                    &(&m_j.properties.esp_q().unwrap()
+                    &(&m_j.data.esp_q()
                         - &gamma
                             .slice(s![m_j.slice.atom, m_i.slice.atom])
                             .dot(&dq.slice(s![m_i.slice.atom]))),
@@ -201,9 +201,9 @@ impl SuperSystem {
 
 fn get_grad_delta_dq(pair: &Pair, m_i: &Monomer, m_j: &Monomer) -> Array1<f64> {
     // get the derivatives of the charge differences w.r.t to the each degree of freedom
-    let grad_dq: ArrayView2<f64> = pair.properties.grad_dq().unwrap();
-    let grad_dq_i: ArrayView2<f64> = m_i.properties.grad_dq().unwrap();
-    let grad_dq_j: ArrayView2<f64> = m_j.properties.grad_dq().unwrap();
+    let grad_dq: ArrayView2<f64> = pair.data.grad_dq();
+    let grad_dq_i: ArrayView2<f64> = m_i.data.grad_dq();
+    let grad_dq_j: ArrayView2<f64> = m_j.data.grad_dq();
 
     // compute the difference between dimers and monomers and take the diagonal values
     let mut grad_delta_dq_2d: Array2<f64> = grad_dq.to_owned();

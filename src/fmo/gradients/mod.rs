@@ -39,7 +39,7 @@ impl SuperSystem {
         let atoms: &[Atom] = &self.atoms[..];
         for mol in self.monomers.iter_mut() {
             let q_vo: Array2<f64> = mol.compute_q_vo(&atoms[mol.slice.atom_as_range()], None);
-            mol.properties.set_q_vo(q_vo);
+            mol.data.set_q_vo(q_vo);
         }
         // let timer: Timer = Timer::start();
         // self.self_consistent_z_vector(1e-10);
@@ -85,9 +85,8 @@ impl SuperSystem {
         //
         // for (mol,vector) in self.monomers.iter().zip(gradient_vec.iter()){
         //     let mol_grad_dq: ArrayView3<f64> = mol
-        //         .properties
+        //         .data
         //         .grad_dq()
-        //         .unwrap()
         //         .into_shape([3, mol.n_atoms, mol.n_atoms])
         //         .unwrap();
         //
@@ -108,9 +107,8 @@ impl SuperSystem {
                 .assign(&mol.scc_gradient(&atoms[mol.slice.atom_as_range()]));
 
             let mol_grad_dq: ArrayView3<f64> = mol
-                .properties
+                .data
                 .grad_dq()
-                .unwrap()
                 .into_shape([3, mol.n_atoms, mol.n_atoms])
                 .unwrap();
 
@@ -118,7 +116,7 @@ impl SuperSystem {
                 .slice_mut(s![mol.slice.grad])
                 .assign(&diag_of_last_dimensions(mol_grad_dq));
         }
-        self.properties.set_grad_dq_diag(grad_dq);
+        self.data.set_grad_dq_diag(grad_dq);
 
         return gradient;
     }

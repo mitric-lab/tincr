@@ -16,10 +16,10 @@ impl SuperSystem {
         let mut gradient: Array1<f64> = Array1::zeros([3 * self.atoms.len()]);
 
         // A reference to the charge differences and gamma matrix for all atoms is created.
-        let dq: ArrayView1<f64> = self.properties.dq().unwrap();
-        let grad_dq: ArrayView1<f64> = self.properties.grad_dq_diag().unwrap();
+        let dq: ArrayView1<f64> = self.data.dq();
+        let grad_dq: ArrayView1<f64> = self.data.grad_dq_diag();
 
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
 
         // The charge differences are broadcast into the shape the gradients.
         let dq_f: Array1<f64> = dq

@@ -31,19 +31,19 @@ impl SuperSystem {
         let mut states: Vec<BasisState> = Vec::with_capacity(n_states);
         // Create all LE states.
         for mol in self.monomers.iter() {
-            let homo: usize = mol.properties.homo().unwrap();
-            let q_ov: ArrayView2<f64> = mol.properties.q_ov().unwrap();
+            let homo: usize = mol.data.homo();
+            let q_ov: ArrayView2<f64> = mol.data.q_ov();
             for n in 0..n_le {
-                let tdm: ArrayView1<f64> = mol.properties.ci_coefficient(n).unwrap();
+                let tdm: ArrayView1<f64> = mol.data.ci_coefficient(n);
                 states.push(BasisState::LE(LocallyExcited {
                     monomer: mol,
                     n: n,
                     atoms: &atoms[mol.slice.atom_as_range()],
                     q_trans: q_ov.dot(&tdm),
-                    occs: mol.properties.orbs_slice(0, Some(homo+1)).unwrap(),
-                    virts: mol.properties.orbs_slice(homo + 1, None).unwrap(),
+                    occs: mol.data.orbs_slice(0, Some(homo+1)),
+                    virts: mol.data.orbs_slice(homo + 1, None),
                     tdm: tdm,
-                    tr_dipole: mol.properties.tr_dipole(n).unwrap(),
+                    tr_dipole: mol.data.tr_dipole(n),
                 }))
             }
         }
@@ -51,29 +51,29 @@ impl SuperSystem {
         // Create all CT states.
         for (idx, m_i) in self.monomers.iter().enumerate() {
             // Indices of the occupied orbitals of Monomer I.
-            let occs_i: &[usize] = m_i.properties.occ_indices().unwrap();
+            let occs_i: &[usize] = m_i.data.occ_indices();
 
             // Indices of the virtual orbitals of Monomer I.
-            let virts_i: &[usize] = m_i.properties.virt_indices().unwrap();
+            let virts_i: &[usize] = m_i.data.virt_indices();
 
             for m_j in self.monomers[idx+1..].iter() {
                 // Indices of the occupied orbitals of Monomer J.
-                let occs_j: &[usize] = m_j.properties.occ_indices().unwrap();
+                let occs_j: &[usize] = m_j.data.occ_indices();
 
                 // Indices of the virtual orbitals of Monomer J.
-                let virts_j: &[usize] = m_j.properties.virt_indices().unwrap();
+                let virts_j: &[usize] = m_j.data.virt_indices();
 
                 // First create all CT states from I to J.
                 for occ in occs_i[occs_i.len() - n_occ..].iter().rev() {
                     for virt in virts_j[0..n_virt].iter() {
-                        let mo_hole = MO::new(m_i.properties.mo_coeff(*occ).unwrap(),
-                                              m_i.properties.orbe().unwrap()[*occ],
+                        let mo_hole = MO::new(m_i.data.mo_coeff(*occ),
+                                              m_i.data.orbe()[*occ],
                                              *occ,
-                                              m_i.properties.occupation().unwrap()[*occ]);
-                        let mo_elec = MO::new(m_j.properties.mo_coeff(*virt).unwrap(),
-                                              m_j.properties.orbe().unwrap()[*virt],
+                                              m_i.data.occupation()[*occ]);
+                        let mo_elec = MO::new(m_j.data.mo_coeff(*virt),
+                                              m_j.data.orbe()[*virt],
                                              *virt,
-                                              m_j.properties.occupation().unwrap()[*virt]);
+                                              m_j.data.occupation()[*virt]);
                         states.push(BasisState::CT(ChargeTransfer {
                             system: &self,
                             hole: Particle {
@@ -95,14 +95,14 @@ impl SuperSystem {
                 // And create all CT states from J to I.
                 for occ in occs_j[occs_j.len() - n_occ..].iter().rev() {
                     for virt in virts_i[0..n_virt].iter() {
-                        let mo_hole = MO::new(m_j.properties.mo_coeff(*occ).unwrap(),
-                                              m_j.properties.orbe().unwrap()[*occ],
+                        let mo_hole = MO::new(m_j.data.mo_coeff(*occ),
+                                              m_j.data.orbe()[*occ],
                                               *occ,
-                                              m_j.properties.occupation().unwrap()[*occ]);
-                        let mo_elec = MO::new(m_i.properties.mo_coeff(*virt).unwrap(),
-                                              m_i.properties.orbe().unwrap()[*virt],
+                                              m_j.data.occupation()[*occ]);
+                        let mo_elec = MO::new(m_i.data.mo_coeff(*virt),
+                                              m_i.data.orbe()[*virt],
                                               *virt,
-                                              m_i.properties.occupation().unwrap()[*virt]);
+                                              m_i.data.occupation()[*virt]);
                         states.push(BasisState::CT(ChargeTransfer {
                             system: &self,
                             hole: Particle {
@@ -127,7 +127,7 @@ impl SuperSystem {
     }
 
     pub fn create_exciton_hamiltonian(&mut self) -> () {
-        self.properties.set_lcmo_fock(self.build_lcmo_fock_matrix());
+        self.data.set_lcmo_fock(self.build_lcmo_fock_matrix());
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
         let max_iter: usize = 50;
@@ -158,22 +158,22 @@ impl SuperSystem {
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
         let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
-        // let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
-        // let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();
+        // let n_occ: usize = self.monomers.iter().map(|m| m.data.n_occ()).sum();
+        // let n_virt: usize = self.monomers.iter().map(|m| m.data.n_virt()).sum();
         // let n_orbs: usize = n_occ + n_virt;
         // let mut occ_orbs: Array2<f64> = Array2::zeros([n_orbs, n_occ]);
         // let mut virt_orbs: Array2<f64> = Array2::zeros([n_orbs, n_virt]);
         //
         // for mol in self.monomers.iter() {
-        //     let mol_orbs: ArrayView2<f64> = mol.properties.orbs().unwrap();
-        //     let lumo: usize = mol.properties.lumo().unwrap();
+        //     let mol_orbs: ArrayView2<f64> = mol.data.orbs();
+        //     let lumo: usize = mol.data.lumo();
         //     occ_orbs.slice_mut(s![mol.slice.orb, mol.slice.occ_orb]).assign(&mol_orbs.slice(s![.., ..lumo]));
         //     virt_orbs.slice_mut(s![mol.slice.orb, mol.slice.virt_orb]).assign(&mol_orbs.slice(s![.., lumo..]));
         // }
         //
         // let orbs: Array2<f64> = concatenate![Axis(1), occ_orbs, virt_orbs];
         // write_npy("/Users/hochej/Downloads/lcmo_energies.npy", &energies.view());
-        // let exciton = ExcitonStates::new(self.properties.last_energy().unwrap(),
+        // let exciton = ExcitonStates::new(self.data.last_energy(),
         //                                  (energies, eigvectors), states.clone(),
         //                                  (n_occ, n_virt), orbs);
         //

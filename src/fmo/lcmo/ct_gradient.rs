@@ -38,9 +38,9 @@ impl SuperSystem {
         gradh_i.append(Axis(0), gradh_j.view()).unwrap();
 
         // reference to the mo coefficients of fragment I
-        let c_mo_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+        let c_mo_i: ArrayView2<f64> = m_i.data.orbs();
         // reference to the mo coefficients of fragment J
-        let c_mo_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
+        let c_mo_j: ArrayView2<f64> = m_j.data.orbs();
 
         // get pair index
         let pair_index:usize = self.properties.index_of_pair(index_i,index_j);
@@ -70,13 +70,13 @@ impl SuperSystem {
 
             let mu: usize = m_i.n_orbs;
             s.slice_mut(s![0..mu, 0..mu])
-                .assign(&m_i.properties.s().unwrap());
+                .assign(&m_i.data.s());
             s.slice_mut(s![mu.., mu..])
-                .assign(&m_j.properties.s().unwrap());
+                .assign(&m_j.data.s());
             s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
             s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
 
-            pair_ij.properties.set_s(s);
+            pair_ij.data.set_s(s);
         }
 
         // get the gamma matrix
@@ -92,14 +92,14 @@ impl SuperSystem {
             );
             gamma_pair
                 .slice_mut(s![0..a, 0..a])
-                .assign(&m_i.properties.gamma().unwrap());
+                .assign(&m_i.data.gamma());
             gamma_pair
                 .slice_mut(s![a.., a..])
-                .assign(&m_j.properties.gamma().unwrap());
+                .assign(&m_j.data.gamma());
             gamma_pair.slice_mut(s![0..a, a..]).assign(&gamma_ab);
             gamma_pair.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
 
-            pair_ij.properties.set_gamma(gamma_pair);
+            pair_ij.data.set_gamma(gamma_pair);
 
             let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
                 self.gammafunction_lc.as_ref().unwrap(),
@@ -107,12 +107,12 @@ impl SuperSystem {
                 pair_ij.n_atoms,
                 pair_ij.n_orbs,
             );
-            pair_ij.properties.set_gamma_lr(gamma_lr);
+            pair_ij.data.set_gamma_lr(gamma_lr);
             pair_ij.properties.set_gamma_lr_ao(gamma_lr_ao);
         }
         // calculate the gamma matrix in AO basis
         let g0_ao: Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
-            pair_ij.properties.gamma().unwrap(),
+            pair_ij.data.gamma(),
             &pair_atoms,
             pair_ij.n_orbs,
         );
@@ -133,8 +133,8 @@ impl SuperSystem {
 
         let coulomb_gradient: Array1<f64> = f_v_ct(
             c_mo_j,
-            m_i.properties.s().unwrap(),
-            m_j.properties.s().unwrap(),
+            m_i.data.s(),
+            m_j.data.s(),
             grad_s_i,
             grad_s_j,
             g0_ao.view(),
@@ -148,9 +148,9 @@ impl SuperSystem {
 
         let exchange_gradient: Array1<f64> = f_lr_ct(
             c_mo_j.t(),
-            pair_ij.properties.s().unwrap(),
+            pair_ij.data.s(),
             grad_s_pair.view(),
-            pair_ij.properties.gamma_lr_ao().unwrap(),
+            pair_ij.data.gamma_lr_ao(),
             g1_lr_ao.view(),
             m_i.n_atoms,
             m_j.n_atoms,
@@ -178,14 +178,14 @@ impl Monomer {
         let (grad_s, grad_h0) = h0_and_s_gradients(&atoms, self.n_orbs, &self.slako);
 
         // get necessary arrays from properties
-        let diff_p: Array2<f64> = &self.properties.p().unwrap() - &self.properties.p_ref().unwrap();
-        let g0_ao: ArrayView2<f64> = self.properties.gamma_ao().unwrap();
-        let g0:ArrayView2<f64> = self.properties.gamma().unwrap();
-        let g1:ArrayView3<f64> = self.properties.grad_gamma().unwrap();
-        let g1_ao: ArrayView3<f64> = self.properties.grad_gamma_ao().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
-        let orbe:ArrayView1<f64> = self.properties.orbe().unwrap();
+        let diff_p: Array2<f64> = &self.data.p() - &self.data.p_ref();
+        let g0_ao: ArrayView2<f64> = self.data.gamma_ao();
+        let g0:ArrayView2<f64> = self.data.gamma();
+        let g1:ArrayView3<f64> = self.data.grad_gamma();
+        let g1_ao: ArrayView3<f64> = self.data.grad_gamma_ao();
+        let s: ArrayView2<f64> = self.data.s();
+        let orbs: ArrayView2<f64> = self.data.orbs();
+        let orbe:ArrayView1<f64> = self.data.orbe();
 
         // calculate grad_Hxc
         let f_dmd0: Array3<f64> = f_v(
@@ -202,8 +202,8 @@ impl Monomer {
 
         // add the lc-gradient of the hamiltonian
         if self.gammafunction_lc.is_some(){
-            let g1lr_ao: ArrayView3<f64> = self.properties.grad_gamma_lr_ao().unwrap();
-            let g0lr_ao: ArrayView2<f64> = self.properties.gamma_lr_ao().unwrap();
+            let g1lr_ao: ArrayView3<f64> = self.data.grad_gamma_lr_ao();
+            let g0lr_ao: ArrayView2<f64> = self.data.gamma_lr_ao();
 
             let flr_dmd0: Array3<f64> = f_lr(
                 diff_p.view(),
@@ -218,15 +218,15 @@ impl Monomer {
         }
 
         // // esp atomwise
-        // let esp_atomwise:Array1<f64> = 0.5*g0.dot(&self.properties.dq().unwrap());
+        // let esp_atomwise:Array1<f64> = 0.5*g0.dot(&self.data.dq());
         // // get Omega_AB
         // let omega_ab:Array2<f64> = atomwise_to_aowise(esp_atomwise.view(),self.n_orbs,atoms);
 
         // get MO coefficient for the occupied or virtual orbital
         let mut c_mo: Array1<f64> = Array1::zeros(self.n_orbs);
         let mut ind:usize = 0;
-        let occ_indices: &[usize] = self.properties.occ_indices().unwrap();
-        let virt_indices: &[usize] = self.properties.virt_indices().unwrap();
+        let occ_indices: &[usize] = self.data.occ_indices();
+        let virt_indices: &[usize] = self.data.virt_indices();
         let nocc:usize = occ_indices.len();
         let nvirt:usize = virt_indices.len();
         let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, nocc));
@@ -258,7 +258,7 @@ impl Monomer {
                 .into_shape([nocc,nocc]).unwrap();
 
             if self.gammafunction_lc.is_some(){
-                let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+                let g0_lr:ArrayView2<f64> = self.data.gamma_lr();
                 // integral (ik|il)
                 let term_2:Array2<f64> = qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..]).t()
                     .dot(&g0_lr.dot(&qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap().slice(s![..,ind,..])));
@@ -287,7 +287,7 @@ impl Monomer {
                 .into_shape([nocc,nocc]).unwrap();
 
             if self.gammafunction_lc.is_some(){
-                let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+                let g0_lr:ArrayView2<f64> = self.data.gamma_lr();
                 // integral (ik|il)
                 let term_2:Array2<f64> = qvo.view().into_shape([self.n_atoms,nvirt,nocc]).unwrap().slice(s![..,slice_ind,..]).t()
                     .dot(&g0_lr.dot(&qvo.view().into_shape([self.n_atoms,nvirt,nocc]).unwrap().slice(s![..,slice_ind,..])));
@@ -328,7 +328,7 @@ impl Monomer {
         //     grad_s.view(),
         //     grad_h0.view(),
         //     orbs,
-        //     self.properties.p().unwrap(),
+        //     self.data.p(),
         //     s,
         //     atoms,
         //     occ_indices,
@@ -338,12 +338,12 @@ impl Monomer {
         //     omega_ab.view(),
         //     g1,
         //     g0,
-        //     self.properties.dq().unwrap()
+        //     self.data.dq()
         // );
         // // println!("umat {}",u_mat);
         // // calculate a matrix A_ii,kl = 4 * (ii|kl) - (ik|il) - (il|ik)
         // // k = virt, l = occ
-        // // let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+        // // let g0_lr:ArrayView2<f64> = self.data.gamma_lr();
         // let a_mat:Array2<f64> = 4.0* qoo.view().into_shape([self.n_atoms,nocc,nocc]).unwrap()
         //     .slice(s![..,ind,ind]).dot(&g0.dot(&qvo)).into_shape([nvirt,nocc]).unwrap();
         //     // - qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap().slice(s![..,ind,..]).t()
@@ -381,7 +381,7 @@ impl Monomer {
         //
         // // Third try for the gradient calculation
         // let mut grad_omega_aowise:Array3<f64> = Array3::zeros([3*self.n_atoms,self.n_orbs,self.n_orbs]);
-        // let dq:ArrayView1<f64> = self.properties.dq().unwrap();
+        // let dq:ArrayView1<f64> = self.data.dq();
         // for nat in 0..3*self.n_atoms{
         //     let temp:Array1<f64> = 0.5 * g1.slice(s![nat,..,..]).dot(&dq);
         //     grad_omega_aowise.slice_mut(s![nat,..,..]).assign(&atomwise_to_aowise(temp.view(),self.n_orbs,atoms));
@@ -394,7 +394,7 @@ impl Monomer {
         //     // P_mu,nu * DS_mu,nu
         //     for (index,atom) in atoms.iter().enumerate(){
         //         for _ in 0..atom.n_orbs{
-        //             term_2[index] += self.properties.p().unwrap().slice(s![mu,..]).dot(&grad_s.slice(s![n_at,mu,..]));
+        //             term_2[index] += self.data.p().slice(s![mu,..]).dot(&grad_s.slice(s![n_at,mu,..]));
         //             mu += 1;
         //         }
         //     }
@@ -416,7 +416,7 @@ impl Monomer {
         // let mut grad_4:Array1<f64> = Array1::zeros(3*self.n_atoms);
         //
         // // calculate gradient of charges
-        // let p_mat:ArrayView2<f64> = self.properties.p().unwrap();
+        // let p_mat:ArrayView2<f64> = self.data.p();
         // let grad_dq: Array2<f64> = charges_derivatives_contribution(self.n_atoms,self.n_orbs,atoms,p_mat,s,grad_s.view());
         //
         // for n_at in 0..3*self.n_atoms{

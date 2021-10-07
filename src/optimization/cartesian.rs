@@ -54,7 +54,7 @@ impl System{
             self.prepare_scc();
             self.run_scc().unwrap();
         }
-        self.properties.reset();
+        self.data.clear();
 
         return (energy,gradient);
     }
@@ -73,7 +73,7 @@ impl System{
             self.prepare_scc();
             self.run_scc().unwrap();
         }
-        self.properties.reset();
+        self.data.clear();
 
         return (energy);
     }

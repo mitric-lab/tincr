@@ -24,7 +24,7 @@ impl SuperSystem {
             // the matrix vector product of the gamma matrix for all atoms and the charge differences
             // yields the electrostatic potential for all atoms. this is then converted into ao basis
             // and given to each monomer scc step
-            let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
+            let esp_at: Array1<f64> = self.data.gamma().dot(&dq);
             // for (i, mol) in self.monomers.iter_mut().enumerate() {
             //     let v_esp: Array2<f64> = atomvec_to_aomat(
             //         esp_at.slice(s![mol.slice.atom]),
@@ -40,7 +40,7 @@ impl SuperSystem {
             //     }
             //     // save the dq's from the monomer calculation
             //     dq.slice_mut(s![mol.slice.atom])
-            //         .assign(&mol.properties.dq().unwrap());
+            //         .assign(&mol.data.dq());
             // }
 
             // Parallelization
@@ -59,7 +59,7 @@ impl SuperSystem {
             for mol in self.monomers.iter() {
                 // save the dq's from the monomer calculation
                 dq.slice_mut(s![mol.slice.atom])
-                    .assign(&mol.properties.dq().unwrap());
+                    .assign(&mol.data.dq());
             }
             converged = loop_output;
 
@@ -73,13 +73,13 @@ impl SuperSystem {
 
         let mut monomer_energies: f64 = 0.0;
         for mol in self.monomers.iter_mut() {
-            let scf_energy: f64 = mol.properties.last_energy().unwrap();
+            let scf_energy: f64 = mol.data.last_energy();
             let e_rep: f64 = get_repulsive_energy(
                 &self.atoms[mol.slice.atom_as_range()],
                 mol.n_atoms,
                 &mol.vrep,
             );
-            mol.properties.set_last_energy(scf_energy + e_rep);
+            mol.data.set_last_energy(scf_energy + e_rep);
             monomer_energies += scf_energy + e_rep;
         }
         return (monomer_energies, dq);
@@ -89,25 +89,13 @@ impl SuperSystem {
         // this is the electrostatic potential that acts on the pairs
         // PARALLEL: The dot product could be parallelized and then it is not necessary to convert
         // the ArrayView into an owned ArrayBase
-        //let esp_at: Array1<f64> = self.properties.gamma().unwrap().dot(&dq);
+        //let esp_at: Array1<f64> = self.data.gamma().dot(&dq);
         for mol in self.monomers.iter_mut() {
-            let mut esp_slice: Array1<f64> = self
-                .properties
-                .gamma()
-                .unwrap()
-                .slice(s![mol.slice.atom, 0..])
-                .dot(&dq);
-            esp_slice.sub_assign(
-                &self
-                    .properties
-                    .gamma()
-                    .unwrap()
-                    .slice(s![mol.slice.atom, mol.slice.atom])
-                    .dot(&mol.properties.dq().unwrap()),
-            );
-            // mol.properties
+            let mut esp_slice: Array1<f64> = self.data.gamma().slice(s![mol.slice.atom, 0..]).dot(&dq);
+            esp_slice.sub_assign(&self.data.gamma().slice(s![mol.slice.atom, mol.slice.atom]).dot(&mol.data.dq()));
+            // mol.data
             //     .set_esp_q(esp_at.slice(s![mol.slice.atom]).to_owned());
-            mol.properties.set_esp_q(esp_slice);
+            mol.data.set_esp_q(esp_slice);
         }
         // the final scc energy of all pairs. the energies of the corresponding monomers will be
         // subtracted from this energy
@@ -129,21 +117,21 @@ impl SuperSystem {
             pair.run_scc(&*pair_atoms, self.config.scf);
 
             // and compute the SCC energy
-            pair_energies += pair.properties.last_energy().unwrap()
-                - m_i.properties.last_energy().unwrap()
-                - m_j.properties.last_energy().unwrap();
+            pair_energies += pair.data.last_energy()
+                - m_i.data.last_energy()
+                - m_j.data.last_energy();
 
             // Difference between density matrix of the pair and the density matrix of the
             // corresponding monomers
-            let p: ArrayView2<f64> = pair.properties.p().unwrap();
+            let p: ArrayView2<f64> = pair.data.p();
             let mut delta_p: Array2<f64> = p.to_owned();
             delta_p
                 .slice_mut(s![0..m_i.n_orbs, 0..m_i.n_orbs])
-                .sub_assign(&m_i.properties.p().unwrap());
+                .sub_assign(&m_i.data.p());
             delta_p
                 .slice_mut(s![m_i.n_orbs.., m_i.n_orbs..])
-                .sub_assign(&m_j.properties.p().unwrap());
-            pair.properties.set_delta_p(delta_p);
+                .sub_assign(&m_j.data.p());
+            pair.data.set_delta_p(delta_p);
         }
         return pair_energies;
 
@@ -164,21 +152,21 @@ impl SuperSystem {
         //     pair.run_scc(&*pair_atoms, *scf_config);
         //
         //     // and compute the SCC energy
-        //     let pair_energ:f64 = pair.properties.last_energy().unwrap()
-        //         - m_i.properties.last_energy().unwrap()
-        //         - m_j.properties.last_energy().unwrap();
+        //     let pair_energ:f64 = pair.data.last_energy()
+        //         - m_i.data.last_energy()
+        //         - m_j.data.last_energy();
         //
         //     // Difference between density matrix of the pair and the density matrix of the
         //     // corresponding monomers
-        //     let p: ArrayView2<f64> = pair.properties.p().unwrap();
+        //     let p: ArrayView2<f64> = pair.data.p();
         //     let mut delta_p: Array2<f64> = p.to_owned();
         //     delta_p
         //         .slice_mut(s![0..m_i.n_orbs, 0..m_i.n_orbs])
-        //         .sub_assign(&m_i.properties.p().unwrap());
+        //         .sub_assign(&m_i.data.p());
         //     delta_p
         //         .slice_mut(s![m_i.n_orbs.., m_i.n_orbs..])
-        //         .sub_assign(&m_j.properties.p().unwrap());
-        //     pair.properties.set_delta_p(delta_p);
+        //         .sub_assign(&m_j.data.p());
+        //     pair.data.set_delta_p(delta_p);
         //
         //     pair_energ
         // }).collect();
@@ -189,7 +177,7 @@ impl SuperSystem {
 
     pub fn embedding_energy(&self) -> f64 {
         // Reference to the Gamma matrix of the full system.
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
         // The embedding energy is initialized to zero.
         let mut embedding: f64 = 0.0;
         for pair in self.pairs.iter() {
@@ -198,15 +186,15 @@ impl SuperSystem {
             // Reference to Monomer J.
             let m_j: &Monomer = &self.monomers[pair.j];
             // Reference to the charge differences of Monomer I.
-            let dq_i: ArrayView1<f64> = m_i.properties.dq().unwrap();
+            let dq_i: ArrayView1<f64> = m_i.data.dq();
             // Reference to the charge differences of Monomer J.
-            let dq_j: ArrayView1<f64> = m_j.properties.dq().unwrap();
+            let dq_j: ArrayView1<f64> = m_j.data.dq();
             // Electrostatic potential that acts on I without the self interaction with I.
-            let esp_q_i: ArrayView1<f64> = m_i.properties.esp_q().unwrap();
+            let esp_q_i: ArrayView1<f64> = m_i.data.esp_q();
             // ESP that acts on J without self-interaction.
-            let esp_q_j: ArrayView1<f64> = m_j.properties.esp_q().unwrap();
+            let esp_q_j: ArrayView1<f64> = m_j.data.esp_q();
             // Difference between the charge differences of the pair and the corresp. monomers
-            let ddq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
+            let ddq: ArrayView1<f64> = pair.data.delta_dq();
             // The interaction with the other Monomer in the pair is subtracted.
             let esp_q_i: Array1<f64> =
                 &esp_q_i - &gamma.slice(s![m_i.slice.atom, m_j.slice.atom]).dot(&dq_j);
@@ -227,15 +215,15 @@ impl SuperSystem {
         //     // Reference to Monomer J.
         //     let m_j: &Monomer = &self.monomers[pair.j];
         //     // Reference to the charge differences of Monomer I.
-        //     let dq_i: ArrayView1<f64> = m_i.properties.dq().unwrap();
+        //     let dq_i: ArrayView1<f64> = m_i.data.dq();
         //     // Reference to the charge differences of Monomer J.
-        //     let dq_j: ArrayView1<f64> = m_j.properties.dq().unwrap();
+        //     let dq_j: ArrayView1<f64> = m_j.data.dq();
         //     // Electrostatic potential that acts on I without the self interaction with I.
-        //     let esp_q_i: ArrayView1<f64> = m_i.properties.esp_q().unwrap();
+        //     let esp_q_i: ArrayView1<f64> = m_i.data.esp_q();
         //     // ESP that acts on J without self-interaction.
-        //     let esp_q_j: ArrayView1<f64> = m_j.properties.esp_q().unwrap();
+        //     let esp_q_j: ArrayView1<f64> = m_j.data.esp_q();
         //     // Difference between the charge differences of the pair and the corresp. monomers
-        //     let ddq: ArrayView1<f64> = pair.properties.delta_dq().unwrap();
+        //     let ddq: ArrayView1<f64> = pair.data.delta_dq();
         //     // The interaction with the other Monomer in the pair is subtracted.
         //     let esp_q_i: Array1<f64> =
         //         &esp_q_i - &gamma.slice(s![m_i.slice.atom, m_j.slice.atom]).dot(&dq_j);
@@ -258,17 +246,15 @@ impl SuperSystem {
             let m_i: &Monomer = &self.monomers[esd_pair.i];
             let m_j: &Monomer = &self.monomers[esd_pair.j];
             esd_energy += m_i
-                .properties
+                .data
                 .dq()
-                .unwrap()
                 .dot(
                     &self
-                        .properties
+                        .data
                         .gamma()
-                        .unwrap()
                         .slice(s![m_i.slice.atom, m_j.slice.atom]),
                 )
-                .dot(&m_j.properties.dq().unwrap());
+                .dot(&m_j.data.dq());
         }
         return esd_energy;
 
@@ -277,17 +263,15 @@ impl SuperSystem {
         //     let m_i: &Monomer = &self.monomers[esd_pair.i];
         //     let m_j: &Monomer = &self.monomers[esd_pair.j];
         //     let esd_energy:f64 = m_i
-        //         .properties
+        //         .data
         //         .dq()
-        //         .unwrap()
         //         .dot(
         //             &self
-        //                 .properties
+        //                 .data
         //                 .gamma()
-        //                 .unwrap()
         //                 .slice(s![m_i.slice.atom, m_j.slice.atom]),
         //         )
-        //         .dot(&m_j.properties.dq().unwrap());
+        //         .dot(&m_j.data.dq());
         //     esd_energy
         // }).collect();
         // let esd_energies:Array1<f64> = Array::from(esd_energies);

@@ -2,7 +2,6 @@ use crate::constants::{VDW_SUM, VDW_RADII};
 use crate::fmo::Monomer;
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::initialization::{Atom, Geometry};
-use crate::properties::Properties;
 use crate::io::Configuration;
 use crate::scc::gamma_approximation::GammaFunction;
 use ndarray::prelude::*;
@@ -12,6 +11,7 @@ use log::info;
 use ndarray::stack;
 use std::ops::Add;
 use std::fmt;
+use crate::data::Storage;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PairType {
@@ -65,7 +65,7 @@ pub struct ESDPair {
     /// Number of atomic orbitals
     pub n_orbs: usize,
     /// Type that holds calculated properties e.g. gamma matrix, overlap matrix and so on.
-    pub properties: Properties,
+    pub data: Storage<'static>,
 }
 
 impl ESDPair {
@@ -75,7 +75,7 @@ impl ESDPair {
             j: j,
             n_atoms: monomer1.n_atoms + monomer2.n_atoms,
             n_orbs: monomer1.n_orbs + monomer2.n_orbs,
-            properties: Properties::new(),
+            data: Storage::new(),
         }
     }
 }
@@ -95,7 +95,7 @@ pub struct Pair {
     pub n_orbs: usize,
     /// Number of valence electrons
     /// Type that holds the calculated properties e.g. gamma matrix, overlap matrix and so on.
-    pub properties: Properties,
+    pub data: Storage<'static>,
     /// Repulsive potential type. Type that contains the repulsion energy and its derivative
     /// w.r.t. dR for each unique pair of atoms as a spline.
     pub vrep: RepulsivePotential,
@@ -123,7 +123,7 @@ impl Add for &Monomer {
             j: rhs.index,
             n_atoms: self.n_atoms + rhs.n_atoms,
             n_orbs: self.n_orbs + rhs.n_orbs,
-            properties: Properties::new(),
+            data: Storage::new(),
             vrep: self.vrep.clone(),
             slako: self.slako.clone(),
             gammafunction: self.gammafunction.clone(),

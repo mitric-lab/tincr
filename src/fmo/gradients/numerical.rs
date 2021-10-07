@@ -14,12 +14,12 @@ use crate::constants::BOHR_TO_ANGS;
 
 impl SuperSystem {
     pub fn monomer_orbital_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64{
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.update_xyz(geometry);
         self.prepare_scc();
@@ -28,19 +28,19 @@ impl SuperSystem {
 
         // get homo orbital energy of monomer 0
         let mol = &self.monomers[0];
-        let orbe = mol.properties.orbe().unwrap();
-        let virtual_indices = mol.properties.virt_indices().unwrap();
+        let orbe = mol.data.orbe();
+        let virtual_indices = mol.data.virt_indices();
         let orbe_homo:f64 = orbe[virtual_indices[0]-1];
         return orbe_homo;
     }
 
     pub fn test_monomer_orbital_energy_gradient(&mut self)->Array1<f64>{
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
@@ -50,18 +50,18 @@ impl SuperSystem {
         let atoms = &self.atoms[mol.slice.atom_as_range()];
         mol.prepare_excited_gradient(atoms);
         let grad = mol.calculate_ct_fock_gradient(atoms,0,true);
-        mol.properties.reset();
+        mol.data.clear();
 
         return grad;
     }
 
     pub fn test_orbital_energy_derivative(&mut self){
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
@@ -71,12 +71,12 @@ impl SuperSystem {
     }
 
     pub fn monomer_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.update_xyz(geometry);
         self.prepare_scc();
@@ -86,12 +86,12 @@ impl SuperSystem {
     }
 
     pub fn pair_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.update_xyz(geometry);
         self.prepare_scc();
@@ -102,51 +102,51 @@ impl SuperSystem {
     }
 
     pub fn embedding_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.update_xyz(geometry);
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
         let (_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
         let _energy: f64 = self.pair_scc(dq.view());
-        self.properties.set_dq(dq);
+        self.data.set_dq(dq);
         self.embedding_energy()
     }
 
     pub fn esd_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.update_xyz(geometry);
         self.prepare_scc();
         self.monomer_scc(20);
-        //println!("{}", self.properties.gamma().unwrap());
+        //println!("{}", self.data.gamma());
         self.esd_pair_energy()
     }
 
     pub fn total_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.update_xyz(geometry.clone());
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
         let (monomer_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
         let pair_energy: f64 = self.pair_scc(dq.view());
-        self.properties.set_dq(dq);
+        self.data.set_dq(dq);
         let emb_energy:f64 = self.embedding_energy();
         let esd_energy: f64 = self.esd_pair_energy();
         // println!("LEN {}", geometry.len());
@@ -158,53 +158,53 @@ impl SuperSystem {
     }
 
     pub fn test_monomer_gradient(&mut self) {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         let maxiter: usize = self.config.scf.scf_max_cycles;
         let (_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
         let _energy: f64 = self.pair_scc(dq.view());
 
-        self.properties.set_dq(dq);
+        self.data.set_dq(dq);
 
         assert_deriv(self, SuperSystem::monomer_energy_wrapper, SuperSystem::monomer_gradients, self.get_xyz(), 0.001, 1e-6);
     }
 
     pub fn test_pair_gradient(&mut self) {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         let maxiter: usize = self.config.scf.scf_max_cycles;
         let (_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
         let _energy: f64 = self.pair_scc(dq.view());
 
-        self.properties.set_dq(dq);
+        self.data.set_dq(dq);
 
         assert_deriv(self, SuperSystem::pair_energy_wrapper, SuperSystem::pair_gradients_for_testing, self.get_xyz(), 0.001, 1e-6);
     }
 
     pub fn test_embedding_gradient(&mut self) {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
         let (_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
         let _energy: f64 = self.pair_scc(dq.view());
 
-        self.properties.set_dq(dq);
+        self.data.set_dq(dq);
         let m_gradients: Array1<f64> = self.monomer_gradients();
         self.pair_gradients(m_gradients.view());
 
@@ -212,12 +212,12 @@ impl SuperSystem {
     }
 
     pub  fn test_esd_gradient(&mut self) {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
@@ -226,10 +226,10 @@ impl SuperSystem {
         let atoms: &[Atom] = &self.atoms[..];
         for mol in self.monomers.iter_mut() {
             let q_vo: Array2<f64> = mol.compute_q_vo(&atoms[mol.slice.atom_as_range()], None);
-            mol.properties.set_q_vo(q_vo);
+            mol.data.set_q_vo(q_vo);
         }
         println!("ESD ENERGY {}", self.esd_pair_energy());
-        self.properties.set_dq(dq);
+        self.data.set_dq(dq);
         self.self_consistent_z_vector(1e-10);
         let m_gradients: Array1<f64> = self.monomer_gradients();
 
@@ -237,18 +237,18 @@ impl SuperSystem {
     }
 
     pub  fn test_total_gradient(&mut self) {
-        self.properties.reset();
+        self.data.clear();
         for mol in self.monomers.iter_mut() {
-            mol.properties.reset();
+            mol.data.clear();
         }
         for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
+            pair.data.clear();
         }
         self.prepare_scc();
         let maxiter: usize = self.config.scf.scf_max_cycles;
         let (monomer_energy, dq): (f64, Array1<f64>) = self.monomer_scc(maxiter);
         let pair_energy: f64 = self.pair_scc(dq.view());
-        self.properties.set_dq(dq);
+        self.data.set_dq(dq);
         let emb_energy:f64 = self.embedding_energy();
         let esd_energy: f64 = self.esd_pair_energy();
         println!("FMO MONOMER {}", monomer_energy);

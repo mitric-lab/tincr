@@ -29,7 +29,7 @@ impl SuperSystem {
         // The diagonal elements are set.
         for (i, mol) in self.monomers.iter().enumerate() {
             // The diagonal Fock matrix of the monomer.
-            let f_i: Array2<f64> = Array2::from_diag(&mol.properties.orbe().unwrap());
+            let f_i: Array2<f64> = Array2::from_diag(&mol.data.orbe());
             // Fill the diagonal block of the Fock matrix.
             fock.slice_mut(s![mol.slice.orb, mol.slice.orb])
                 .assign(&f_i);
@@ -51,11 +51,11 @@ impl SuperSystem {
             let (s, h0): (Array2<f64>, Array2<f64>) =
                 h0_and_s(pair.n_orbs, &pair_atoms, &m_i.slako);
             // Reference to the MO coefficients of monomer I.
-            let orbs_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+            let orbs_i: ArrayView2<f64> = m_i.data.orbs();
             // Reference to the MO coefficients of monomer J.
-            let orbs_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
+            let orbs_j: ArrayView2<f64> = m_j.data.orbs();
             // Reference to the MO coefficients of the pair IJ.
-            let orbs_ij: ArrayView2<f64> = pair.properties.orbs().unwrap();
+            let orbs_ij: ArrayView2<f64> = pair.data.orbs();
 
             // Overlap between orbitals of monomer I and dimer IJ.
             let s_pr: Array2<f64> = (orbs_i.t().dot(&s.slice(s![0..m_i.n_orbs, ..]))).dot(&orbs_ij);
@@ -75,7 +75,7 @@ impl SuperSystem {
                 .assign(&s_pq.t());
 
             // Reference to the orbital energies of the pair IJ.
-            let orbe_ij: ArrayView1<f64> = pair.properties.orbe().unwrap();
+            let orbe_ij: ArrayView1<f64> = pair.data.orbe();
 
             // The four blocks of the Fock submatrix are individually computed
             // according to: Sum_r e_r * <phi_p^I | phi_r^IJ > < phi_r^IJ | phi_q^J >
@@ -85,9 +85,9 @@ impl SuperSystem {
             let f_ba: Array2<f64> = (&s_qr * &orbe_ij).dot(&s_pr.t());
 
             // The diagonal Fock matrix of monomer I.
-            let f_i: Array2<f64> = Array2::from_diag(&m_i.properties.orbe().unwrap());
+            let f_i: Array2<f64> = Array2::from_diag(&m_i.data.orbe());
             // The diagonal Fock matrix of monomer I.
-            let f_j: Array2<f64> = Array2::from_diag(&m_j.properties.orbe().unwrap());
+            let f_j: Array2<f64> = Array2::from_diag(&m_j.data.orbe());
 
             // The diagonal block for monomer I is set.
             fock.slice_mut(s![m_i.slice.orb, m_i.slice.orb])

@@ -1,7 +1,5 @@
-use crate::properties::Properties;
 use crate::scc::mixer::BroydenMixer;
 use ndarray::prelude::*;
-use crate::properties::property::Property;
 use crate::excited_states::ProductCache;
 
 impl Properties {

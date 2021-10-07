@@ -24,16 +24,16 @@ impl Pair {
         let a: usize = m1.n_atoms;
 
         s.slice_mut(s![0..mu, 0..mu])
-            .assign(&m1.properties.s().unwrap());
+            .assign(&m1.data.s());
         s.slice_mut(s![mu.., mu..])
-            .assign(&m2.properties.s().unwrap());
+            .assign(&m2.data.s());
         s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
         s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
 
         h0.slice_mut(s![0..mu, 0..mu])
-            .assign(&m1.properties.h0().unwrap());
+            .assign(&m1.data.h0());
         h0.slice_mut(s![mu.., mu..])
-            .assign(&m2.properties.h0().unwrap());
+            .assign(&m2.data.h0());
         h0.slice_mut(s![0..mu, mu..]).assign(&h0_ab);
         h0.slice_mut(s![mu.., 0..mu]).assign(&h0_ab.t());
 
@@ -52,10 +52,10 @@ impl Pair {
 
         gamma
             .slice_mut(s![0..a, 0..a])
-            .assign(&m1.properties.gamma().unwrap());
+            .assign(&m1.data.gamma());
         gamma
             .slice_mut(s![a.., a..])
-            .assign(&m2.properties.gamma().unwrap());
+            .assign(&m2.data.gamma());
         gamma.slice_mut(s![0..a, a..]).assign(&gamma_ab);
         gamma.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
 
@@ -65,24 +65,24 @@ impl Pair {
         // See: https://www.springer.com/gp/book/9789811592348
         let mut esp: Array1<f64> = Array1::zeros([self.n_atoms]);
         esp.slice_mut(s![0..a]).assign(
-            &(&m1.properties.esp_q().unwrap() - &(gamma_ab.dot(&m2.properties.dq().unwrap()))),
+            &(&m1.data.esp_q() - &(gamma_ab.dot(&m2.data.dq()))),
         );
         esp.slice_mut(s![a..]).assign(
-            &(&m2.properties.esp_q().unwrap() - &(gamma_ab.t().dot(&m1.properties.dq().unwrap()))),
+            &(&m2.data.esp_q() - &(gamma_ab.t().dot(&m1.data.dq()))),
         );
         // and convert it into a matrix in AO basis
         let omega: Array2<f64> = atomvec_to_aomat(esp.view(), self.n_orbs, &atoms);
-        self.properties.set_v(omega * &s * 0.5);
+        self.data.set_v(omega * &s * 0.5);
 
         // and save it in the self properties
-        self.properties.set_h0(h0);
-        self.properties.set_s(s);
-        self.properties.set_x(x);
-        self.properties.set_gamma(gamma);
+        self.data.set_h0(h0);
+        self.data.set_s(s);
+        self.data.set_x(x);
+        self.data.set_gamma(gamma);
 
         // save the atomic numbers since we need them multiple times
         let atomic_numbers: Vec<u8> = atoms.iter().map(|atom| atom.number).collect();
-        self.properties.set_atomic_numbers(atomic_numbers);
+        self.data.set_atomic_numbers(atomic_numbers);
 
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
@@ -91,7 +91,7 @@ impl Pair {
         let f: Vec<f64> = (0..self.n_orbs)
             .map(|idx| if idx < n_elec / 2 { 2.0 } else { 0.0 })
             .collect();
-        self.properties.set_occupation(f);
+        self.data.set_occupation(f);
 
         // if the system contains a long-range corrected Gamma function the gamma matrix will be computed
         if self.gammafunction_lc.is_some() {
@@ -101,35 +101,35 @@ impl Pair {
                 self.n_atoms,
                 self.n_orbs,
             );
-            self.properties.set_gamma_lr(gamma_lr);
-            self.properties.set_gamma_lr_ao(gamma_lr_ao);
+            self.data.set_gamma_lr(gamma_lr);
+            self.data.set_gamma_lr_ao(gamma_lr_ao);
         }
 
         // if this is the first SCC calculation the charge will be taken from the corresponding
         // monomers
         if !self.properties.contains_key("dq") {
-            self.properties.set_dq(concatenate![
+            self.data.set_dq(concatenate![
                 Axis(0),
-                m1.properties.dq().unwrap(),
-                m2.properties.dq().unwrap()
+                m1.data.dq(),
+                m2.data.dq()
             ]);
-            self.properties.set_q_ao(concatenate![
+            self.data.set_q_ao(concatenate![
                 Axis(0),
-                m1.properties.q_ao().unwrap(),
-                m2.properties.q_ao().unwrap()
+                m1.data.q_ao(),
+                m2.data.q_ao()
             ]);
         }
 
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
-            self.properties
+            self.data
                 .set_p_ref(density_matrix_ref(self.n_orbs, &atoms));
         }
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
         if !self.properties.contains_key("P") {
-            self.properties
-                .set_p(self.properties.p_ref().unwrap().to_owned());
+            self.data
+                .set_p(self.data.p_ref().to_owned());
         }
     }
 
@@ -137,20 +137,20 @@ impl Pair {
         let scf_charge_conv: f64 = config.scf_charge_conv;
         let scf_energy_conv: f64 = config.scf_energy_conv;
         let max_iter: usize = config.scf_max_cycles;
-        let mut p: Array2<f64> = self.properties.take_p().unwrap();
-        let mut q_ao: Array1<f64> = self.properties.take_q_ao().unwrap();
+        let mut p: Array2<f64> = self.data.take_p();
+        let mut q_ao: Array1<f64> = self.data.take_q_ao();
         // Create a copy of the dq's as they will be used later for the calculation of the
         // Delta dq
-        let mut dq: Array1<f64> = self.properties.dq().unwrap().to_owned();
+        let mut dq: Array1<f64> = self.data.dq().to_owned();
         let mut mixer: BroydenMixer = BroydenMixer::new(self.n_orbs);
-        let x: ArrayView2<f64> = self.properties.x().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
-        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
-        let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
-        let mut last_energy: f64 = self.properties.last_energy().unwrap();
-        let f: &[f64] = self.properties.occupation().unwrap();
-        let v: ArrayView2<f64> = self.properties.v().unwrap();
+        let x: ArrayView2<f64> = self.data.x();
+        let s: ArrayView2<f64> = self.data.s();
+        let gamma: ArrayView2<f64> = self.data.gamma();
+        let h0: ArrayView2<f64> = self.data.h0();
+        let p0: ArrayView2<f64> = self.data.p_ref();
+        let mut last_energy: f64 = self.data.last_energy();
+        let f: &[f64] = self.data.occupation();
+        let v: ArrayView2<f64> = self.data.v();
         let h_esp: Array2<f64> = &h0 + &v;
 
         'scf_loop: for iter in 0..max_iter {
@@ -160,7 +160,7 @@ impl Pair {
             if self.gammafunction_lc.is_some() {
                 let dp: Array2<f64> = &p - &p0;
                 let h_x: Array2<f64> =
-                    lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), dp.view());
+                    lc_exact_exchange(s, self.data.gamma_lr_ao(), dp.view());
                 h = h + h_x;
             }
             let mut h_save:Array2<f64> = h.clone();
@@ -197,7 +197,7 @@ impl Pair {
                 h0.view(),
                 dq.view(),
                 gamma.view(),
-                self.properties.gamma_lr_ao(),
+                self.data.gamma_lr_ao(),
             );
 
             // check if charge difference to the previous iteration is lower than 1e-5
@@ -211,18 +211,17 @@ impl Pair {
             last_energy = scf_energy;
             if converged {
                 let e_rep: f64 = get_repulsive_energy(&atoms, self.n_atoms, &self.vrep);
-                self.properties.set_last_energy(scf_energy + e_rep);
-                self.properties.set_p(p);
-                self.properties.set_orbs(orbs);
-                self.properties.set_orbe(orbe);
-                self.properties.set_h_coul_x(h_save);
+                self.data.set_last_energy(scf_energy + e_rep);
+                self.data.set_p(p);
+                self.data.set_orbs(orbs);
+                self.data.set_orbe(orbe);
+                self.data.set_h_coul_x(h_save);
                 break 'scf_loop;
             }
         }
         // only remove the large arrays not the energy or charges
-        //self.properties.reset();
-        self.properties
-            .set_delta_dq(&dq - &self.properties.dq().unwrap());
-        self.properties.set_dq(dq);
+        //self.data.clear();
+        self.data.set_delta_dq(&dq - &self.data.dq());
+        self.data.set_dq(dq);
     }
 }

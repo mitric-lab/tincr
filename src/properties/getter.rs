@@ -1,4 +1,3 @@
-use crate::properties::Properties;
 use ndarray::prelude::*;
 use std::ops::AddAssign;
 use ndarray::Slice;

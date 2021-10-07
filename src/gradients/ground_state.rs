@@ -37,11 +37,11 @@ impl System {
                 .unwrap();
 
         // take references/views to the necessary properties from the scc calculation
-        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
-        let p: ArrayView2<f64> = self.properties.p().unwrap();
-        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
-        let dq: ArrayView1<f64> = self.properties.dq().unwrap();
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let gamma: ArrayView2<f64> = self.data.gamma();
+        let p: ArrayView2<f64> = self.data.p();
+        let h0: ArrayView2<f64> = self.data.h0();
+        let dq: ArrayView1<f64> = self.data.dq();
+        let s: ArrayView2<f64> = self.data.s();
 
         // transform the expression Sum_c_in_X (gamma_AC + gamma_aC) * dq_C
         // into matrix of the dimension (norb, norb) to do an element wise multiplication with P
@@ -73,7 +73,7 @@ impl System {
         //         .into_shape([self.n_orbs * self.n_orbs])
         //         .unwrap();
         let w: Array1<f64> = 0.5
-            * (p.dot(&self.properties.h_coul_x().unwrap()).dot(&p))
+            * (p.dot(&self.data.h_coul_x()).dot(&p))
             .into_shape([self.n_orbs * self.n_orbs])
             .unwrap();
 
@@ -102,12 +102,12 @@ impl System {
                 self.n_orbs,
             );
 
-            let diff_p: Array2<f64> = &p - &self.properties.p_ref().unwrap();
+            let diff_p: Array2<f64> = &p - &self.data.p_ref();
             let flr_dmd0:Array3<f64> = f_lr(
                 diff_p.view(),
-                self.properties.s().unwrap(),
+                self.data.s(),
                 grad_s.view(),
-                self.properties.gamma_lr_ao().unwrap(),
+                self.data.gamma_lr_ao(),
                 g1_lr_ao.view(),
                 self.n_atoms,
                 self.n_orbs,
@@ -121,16 +121,16 @@ impl System {
 
             // save necessary properties for the excited gradient calculation with lr-correction
             if excited_gradients{
-                self.properties.set_grad_gamma_lr(g1_lr);
-                self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
-                self.properties.set_f_lr_dmd0(flr_dmd0);
+                self.data.set_grad_gamma_lr(g1_lr);
+                self.data.set_grad_gamma_lr_ao(g1_lr_ao);
+                self.data.set_f_lr_dmd0(flr_dmd0);
             }
         }
         // save necessary properties for the excited gradient calculation
         if excited_gradients{
-            self.properties.set_grad_s(grad_s);
-            self.properties.set_grad_h0(grad_h0);
-            self.properties.set_grad_gamma(grad_gamma.into_shape([3 * self.n_atoms, self.n_atoms, self.n_atoms]).unwrap());
+            self.data.set_grad_s(grad_s);
+            self.data.set_grad_h0(grad_h0);
+            self.data.set_grad_gamma(grad_gamma.into_shape([3 * self.n_atoms, self.n_atoms, self.n_atoms]).unwrap());
         }
 
         return gradient;

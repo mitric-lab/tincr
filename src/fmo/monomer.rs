@@ -2,13 +2,13 @@ use ndarray::prelude::*;
 use crate::io::{Configuration, frame_to_coordinates};
 use crate::initialization::{Atom, Geometry};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
-use crate::properties::Properties;
 use crate::scc::gamma_approximation::GammaFunction;
 use chemfiles::Frame;
 use ndarray::{Slice, SliceInfo};
 use hashbrown::HashMap;
 use std::ops::Range;
 use crate::fmo::helpers::MolecularSlice;
+use crate::data::Storage;
 
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
@@ -25,7 +25,7 @@ pub struct Monomer {
     /// Different Slices that correspond to this monomer
     pub slice: MolecularSlice,
     /// Type that holds the calculated properties e.g. gamma matrix, overlap matrix and so on.
-    pub properties: Properties,
+    pub data: Storage<'static>,
     /// Repulsive potential type. Type that contains the repulsion energy and its derivative
     /// w.r.t. d/dR for each unique pair of atoms as a spline.
     pub vrep: RepulsivePotential,
@@ -45,8 +45,8 @@ impl Monomer {
         let mut occ_indices: Vec<usize> = Vec::new();
         let mut virt_indices: Vec<usize> = Vec::new();
         (0..self.n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
-        self.properties.set_occ_indices(occ_indices);
-        self.properties.set_virt_indices(virt_indices);
+        self.data.set_occ_indices(occ_indices);
+        self.data.set_virt_indices(virt_indices);
     }
 }
 

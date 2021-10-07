@@ -8,13 +8,13 @@ use crate::fmo::Monomer;
 impl Monomer {
     pub fn compute_q_ov(&mut self, atoms: &[Atom], s_c: Option<ArrayView2<f64>>) -> Array2<f64>{
         // Reference to the overlap matrix in AO-basis.
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let s: ArrayView2<f64> = self.data.s();
         // Reference to the MO coefficients. row Index: AO, column Index: MO
-        let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
+        let orbs: ArrayView2<f64> = self.data.orbs();
         // Reference to the indices of occupied orbitals
-        let occ_indices: &[usize] = self.properties.occ_indices().unwrap();
+        let occ_indices: &[usize] = self.data.occ_indices();
         // Reference to the indices of the virtual orbitals
-        let virt_indices: &[usize] = self.properties.virt_indices().unwrap();
+        let virt_indices: &[usize] = self.data.virt_indices();
         // Number of occupied orbitals
         let n_occ: usize = occ_indices.len();
         // Number of virtual orbitals
@@ -49,13 +49,13 @@ impl Monomer {
 
     pub fn compute_q_vo(&mut self, atoms: &[Atom], s_c: Option<ArrayView2<f64>>) -> Array2<f64>{
         // Reference to the overlap matrix in AO-basis.
-        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let s: ArrayView2<f64> = self.data.s();
         // Reference to the MO coefficients. row Index: AO, column Index: MO
-        let orbs: ArrayView2<f64> = self.properties.orbs().unwrap();
+        let orbs: ArrayView2<f64> = self.data.orbs();
         // Reference to the indices of occupied orbitals
-        let occ_indices: &[usize] = self.properties.occ_indices().unwrap();
+        let occ_indices: &[usize] = self.data.occ_indices();
         // Reference to the indices of the virtual orbitals
-        let virt_indices: &[usize] = self.properties.virt_indices().unwrap();
+        let virt_indices: &[usize] = self.data.virt_indices();
         // Number of occupied orbitals
         let n_occ: usize = occ_indices.len();
         // Number of virtual orbitals

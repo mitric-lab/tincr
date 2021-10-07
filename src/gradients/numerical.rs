@@ -8,17 +8,17 @@ use crate::excited_states::tda;
 
 impl System{
     pub fn tda_gradient_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
-        self.properties.reset();
+        self.data.clear();
         self.update_xyz(geometry);
         self.prepare_scc();
         self.prepare_tda();
         self.run_tda(self.config.excited.nstates, 50, 1e-4);
 
-        return self.properties.ci_eigenvalue(0).unwrap();
+        return self.data.ci_eigenvalue(0).unwrap();
     }
 
     pub fn tda_nolc_gradients_for_testing(&mut self)->Array1<f64>{
-        self.properties.reset();
+        self.data.clear();
         self.prepare_scc();
         self.run_scc();
         self.prepare_tda();
@@ -32,7 +32,7 @@ impl System{
     }
 
     pub fn tda_lc_gradients_for_testing(&mut self)->Array1<f64>{
-        self.properties.reset();
+        self.data.clear();
         self.prepare_scc();
         self.run_scc();
         self.prepare_tda();
@@ -46,7 +46,7 @@ impl System{
     }
 
     pub fn gs_grad(&mut self)->Array1<f64> {
-        self.properties.reset();
+        self.data.clear();
         self.prepare_scc();
         self.run_scc();
 
@@ -55,7 +55,7 @@ impl System{
     }
 
     pub fn gs_gradient_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
-        self.properties.reset();
+        self.data.clear();
         self.update_xyz(geometry);
         self.prepare_scc();
         let en = self.run_scc().unwrap();

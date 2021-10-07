@@ -17,9 +17,9 @@ use std::io::Write;
 /// ```
 /// MoldenExporterBuilder::default()
 ///       .atoms(&system.atoms)
-///       .orbs(system.properties.orbs().unwrap())
-///       .orbe(system.properties.orbe().unwrap())
-///       .f(system.properties.occupation().unwrap().to_vec())
+///       .orbs(system.data.orbs())
+///       .orbe(system.data.orbe())
+///       .f(system.data.occupation().to_vec())
 ///       .build()
 ///       .unwrap();
 /// ```

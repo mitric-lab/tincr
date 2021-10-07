@@ -71,12 +71,7 @@ impl AplusBBuilder<'_> {
 }
 
 
-impl AplusB {
-    fn glr(&self) -> ArrayView1<f64> {
-        self.gamma_lr.unwrap()
-    }
-
-
+impl AplusB<'_> {
     /// Compute the matrix product for the iterative Z-vector solver.
     /// u_ia = sum_jb (A+B)_{ia,jb} v_{jb}
     fn times(&self, v: ArrayView1<f64>) -> Array1<f64> {
@@ -101,13 +96,13 @@ impl AplusB {
     /// Exchange contribution:
     /// u_ia = sum_{A,B,j,b} q_{A,i,j} γ_{A,B} q_{B,a,b} V_{j,b}
     fn exchange1(&self, v: ArrayView1<f64>) -> Array1<f64> {
-        self.glr() // [natoms, natoms]
+        self.gamma_lr.unwrap() // [natoms, natoms]
             .dot(&self.q_oo) // [natoms, nocc * nocc]
             .into_shape([self.n_atoms * self.n_occ, self.n_occ]) // => [natoms * nocc, nocc]
             .unwrap()
             .t() // T -> [nocc, natoms * nocc]
             .dot(
-                self.q_vv // [natoms, nvirt * nvirt]
+                &self.q_vv // [natoms, nvirt * nvirt]
                     .into_shape([self.n_atoms * self.n_virt, self.n_virt])
                     .unwrap() // => [natoms * nvirt, nvirt]
                     .dot(&v.into_shape([self.n_occ, self.n_virt]).unwrap().t()) // v: [nocc, nvirt]
@@ -131,9 +126,10 @@ impl AplusB {
             .dot(&v.into_shape([self.n_occ, self.n_virt]).unwrap().t()) // v.T : [nvirt, nocc]
             .t() // => [nocc, natoms * nocc]
             .dot(
-                self.glr()// [natoms, natoms]
+                &self.gamma_lr.unwrap()// [natoms, natoms]
                     .dot(&self.q_ov) // => [natoms, nocc * nvirt]
                     .into_shape([self.n_atoms * self.n_occ, self.n_virt]) // [natoms * nocc, nvirt]
+                    .unwrap()
             ) // => [nocc, nvirt]
             .into_shape([self.n_occ * self.n_virt])
             .unwrap()

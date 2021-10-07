@@ -42,7 +42,7 @@ impl RestrictedSCC for SuperSystem {
     fn prepare_scc(&mut self) {
         // prepare all individual monomers
         let atoms: &[Atom] = &self.atoms;
-        self.properties.set_gamma(gamma_atomwise(&self.gammafunction, &atoms, self.atoms.len()));
+        self.data.set_gamma(gamma_atomwise(&self.gammafunction, &atoms, self.atoms.len()));
         self.monomers
             .par_iter_mut()
             .for_each(|mol: &mut Monomer| {
@@ -87,12 +87,12 @@ impl RestrictedSCC for SuperSystem {
         let total_energy: f64 = monomer_energies + pair_energies + embedding + esd_pair_energies;
 
         // Save the charge differences of all monomers in the SuperSystem
-        self.properties.set_dq(dq);
+        self.data.set_dq(dq);
 
         // Print information of the SCC-routine
         logging::fmo_scc_end(timer, monomer_energies, pair_energies, embedding, esd_pair_energies);
 
-        self.properties.set_last_energy(total_energy);
+        self.data.set_last_energy(total_energy);
         // Return the energy
         Ok(total_energy)
     }

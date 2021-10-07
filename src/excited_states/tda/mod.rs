@@ -16,10 +16,10 @@ use ndarray_npy::write_npy;
 impl Monomer {
     pub fn run_tda(&mut self, atoms: &[Atom], n_roots: usize, max_iter: usize, tolerance: f64) {
         // Set an empty product cache.
-        self.properties.set_cache(ProductCache::new());
+        self.data.set_cache(ProductCache::new());
 
         // Reference to the energy differences between virtuals and occupied orbitals.
-        let omega: ArrayView1<f64> = self.properties.omega().unwrap();
+        let omega: ArrayView1<f64> = self.data.omega();
 
         // The initial guess for the subspace is created.
         let guess: Array2<f64> = initial_subspace(omega.view(), n_roots);
@@ -28,7 +28,7 @@ impl Monomer {
         let davidson: Davidson = Davidson::new(self, guess, n_roots, tolerance, max_iter).unwrap();
 
         // Reference to the o-v transition charges.
-        let q_ov: ArrayView2<f64> = self.properties.q_ov().unwrap();
+        let q_ov: ArrayView2<f64> = self.data.q_ov();
 
         // The transition charges for all excited states are computed.
         let q_trans: Array2<f64> = q_ov.dot(&davidson.eigenvectors);
@@ -39,8 +39,8 @@ impl Monomer {
         // The oscillator strengths are computed.
         let f: Array1<f64> = oscillator_strength(davidson.eigenvalues.view(), tr_dipoles.view());
 
-        let n_occ: usize = self.properties.occ_indices().unwrap().len();
-        let n_virt: usize = self.properties.virt_indices().unwrap().len();
+        let n_occ: usize = self.data.n_occ();
+        let n_virt: usize = self.data.n_virt();
         let tdm: Array3<f64> = davidson
             .eigenvectors
             .clone()
@@ -48,20 +48,20 @@ impl Monomer {
             .unwrap();
 
         let states: TdaStates = TdaStates {
-            total_energy: self.properties.last_energy().unwrap(),
+            total_energy: self.data.last_energy(),
             energies: davidson.eigenvalues.clone(),
             tdm: tdm,
             f: f.clone(),
             tr_dip: tr_dipoles.clone(),
-            orbs: self.properties.orbs().unwrap().to_owned(),
+            orbs: self.data.orbs().to_owned(),
         };
 
         // The eigenvalues are the excitation energies and the eigenvectors are the CI coefficients.
-        self.properties.set_ci_eigenvalues(davidson.eigenvalues);
-        self.properties.set_ci_coefficients(davidson.eigenvectors);
-        self.properties.set_q_trans(q_trans);
-        self.properties.set_tr_dipoles(tr_dipoles);
-        self.properties.set_oscillator_strengths(f);
+        self.data.set_cis_eigenvalues(davidson.eigenvalues);
+        self.data.set_cis_coefficients(davidson.eigenvectors);
+        self.data.set_q_trans(q_trans);
+        self.data.set_tr_dipoles(tr_dipoles);
+        self.data.set_oscillator_strengths(f);
 
         println!("{}", states);
         // states.ntos_to_molden(&atoms, 0, "/Users/hochej/Downloads/s1.molden");
@@ -71,10 +71,10 @@ impl Monomer {
 impl System {
     pub fn run_tda(&mut self, n_roots: usize, max_iter: usize, tolerance: f64) {
         // Set an empty product cache.
-        self.properties.set_cache(ProductCache::new());
+        self.data.set_cache(ProductCache::new());
 
         // Reference to the energy differences between virtuals and occupied orbitals.
-        let omega: ArrayView1<f64> = self.properties.omega().unwrap();
+        let omega: ArrayView1<f64> = self.data.omega();
 
         // The initial guess for the subspace is created.
         let guess: Array2<f64> = initial_subspace(omega.view(), n_roots);
@@ -83,7 +83,7 @@ impl System {
         let davidson: Davidson = Davidson::new(self, guess, n_roots, tolerance, max_iter).unwrap();
 
         // Reference to the o-v transition charges.
-        let q_ov: ArrayView2<f64> = self.properties.q_ov().unwrap();
+        let q_ov: ArrayView2<f64> = self.data.q_ov();
 
         // The transition charges for all excited states are computed.
         let q_trans: Array2<f64> = q_ov.dot(&davidson.eigenvectors);
@@ -94,8 +94,8 @@ impl System {
         // The oscillator strengths are computed.
         let f: Array1<f64> = oscillator_strength(davidson.eigenvalues.view(), tr_dipoles.view());
 
-        let n_occ: usize = self.properties.occ_indices().unwrap().len();
-        let n_virt: usize = self.properties.virt_indices().unwrap().len();
+        let n_occ: usize = self.data.n_occ();
+        let n_virt: usize = self.data.n_virt();
         let tdm: Array3<f64> = davidson
             .eigenvectors
             .clone()
@@ -103,23 +103,23 @@ impl System {
             .unwrap();
 
         let states: TdaStates = TdaStates {
-            total_energy: self.properties.last_energy().unwrap(),
+            total_energy: self.data.last_energy(),
             energies: davidson.eigenvalues.clone(),
             tdm: tdm,
             f: f.clone(),
             tr_dip: tr_dipoles.clone(),
-            orbs: self.properties.orbs().unwrap().to_owned(),
+            orbs: self.data.orbs().to_owned(),
         };
 
 
         write_npy("/Users/hochej/Downloads/full_energies.npy", &davidson.eigenvalues.view());
 
         // The eigenvalues are the excitation energies and the eigenvectors are the CI coefficients.
-        self.properties.set_ci_eigenvalues(davidson.eigenvalues);
-        self.properties.set_ci_coefficients(davidson.eigenvectors);
-        self.properties.set_q_trans(q_trans);
-        self.properties.set_tr_dipoles(tr_dipoles);
-        self.properties.set_oscillator_strengths(f);
+        self.data.set_cis_eigenvalues(davidson.eigenvalues);
+        self.data.set_cis_coefficients(davidson.eigenvectors);
+        self.data.set_q_trans(q_trans);
+        self.data.set_tr_dipoles(tr_dipoles);
+        self.data.set_oscillator_strengths(f);
 
         println!("{}", states);
 

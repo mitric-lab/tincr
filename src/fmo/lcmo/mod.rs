@@ -63,14 +63,14 @@ impl ExcitedState for ExcitonStates<'_> {
                         // TDM of monomer * c
                         let occs = state.monomer.slice.occ_orb;
                         let virts = state.monomer.slice.virt_orb;
-                        let n_occ: usize = state.monomer.properties.n_occ().unwrap();
-                        let n_virt: usize = state.monomer.properties.n_virt().unwrap();
+                        let n_occ: usize = state.monomer.data.n_occ();
+                        let n_virt: usize = state.monomer.data.n_virt();
                         tdm.slice_mut(s![occs, virts]).add_assign(&(*c * &state.tdm.into_shape((n_occ, n_virt)).unwrap()));
                     },
                     BasisState::CT(state) => {
                         // Monomer indices
                         let h_mo: usize = state.hole.mo.idx;
-                        let e_mo: usize = state.electron.mo.idx - state.electron.monomer.properties.n_occ().unwrap();
+                        let e_mo: usize = state.electron.mo.idx - state.electron.monomer.data.n_occ();
                         let hole_slice = state.hole.monomer.slice.occ_orb;
                         let particle_slice = state.electron.monomer.slice.virt_orb;
                         tdm.slice_mut(s![hole_slice, particle_slice])[[h_mo, e_mo]] += *c;

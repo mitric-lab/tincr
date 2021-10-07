@@ -17,7 +17,6 @@ pub use supersystem::*;
 pub use fragmentation::*;
 use ndarray::prelude::*;
 use crate::io::Configuration;
-use crate::properties::Properties;
 use crate::initialization::{Atom, Geometry};
 use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use std::collections::HashMap;
