@@ -51,7 +51,7 @@ impl System{
     ) -> Array1<f64> {
         // set defaults
         let mut a: f64 = 1.0;
-        let rho: f64 = 0.3;
+        let rho: f64 = 0.8;
         let c: f64 = 0.0001;
         let lmax: usize = 100;
 

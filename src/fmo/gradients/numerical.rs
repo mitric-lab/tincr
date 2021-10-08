@@ -83,7 +83,7 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let hamiltonian = self.create_exciton_hamiltonian();
+        let hamiltonian = self.create_exciton_hamiltonian_ct_test();
         return hamiltonian;
     }
 
@@ -101,7 +101,7 @@ impl SuperSystem {
             mol.prepare_excited_gradient(&self.atoms[mol.slice.atom_as_range()]);
         }
         // calculate the gradient of the charge-transfer energy
-        let ct_energy = self.create_exciton_hamiltonian();
+        let ct_energy = self.create_exciton_hamiltonian_ct_test();
         let grad:Array1<f64> = self.ct_gradient_new(0,1,0,0,ct_energy,true);
         // let grad:Array1<f64> = self.ct_gradient(0,1,0,0);
         return grad;

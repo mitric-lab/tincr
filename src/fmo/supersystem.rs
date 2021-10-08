@@ -22,6 +22,7 @@ use std::vec;
 use ndarray::Slice;
 use crate::scc::h0_and_s::h0_and_s;
 
+#[derive(Debug)]
 pub struct SuperSystem {
     /// Type that holds all the input settings from the user.
     pub config: Configuration,

@@ -7,7 +7,7 @@ mod taker;
 pub mod base;
 mod getter;
 
-
+#[derive(Debug)]
 pub struct Properties {
     map: HashMap<&'static str, Property>,
 }

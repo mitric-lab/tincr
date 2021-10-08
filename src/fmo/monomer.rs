@@ -15,6 +15,7 @@ use crate::fmo::helpers::MolecularSlice;
 ///
 /// This type is only used for FMO calculations. This type is a similar to the [System] type that
 /// is used in non-FMO calculations
+#[derive(Debug)]
 pub struct Monomer {
     /// Number of atoms
     pub n_atoms: usize,

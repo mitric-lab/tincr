@@ -33,7 +33,7 @@ pub fn gaussian_decay(unique_atoms: &[Atom]) -> HashMap<u8, f64> {
 
 /// ## Gamma Function
 /// gamma_AB = int F_A(r-RA) * 1/|RA-RB| * F_B(r-RB) d^3r
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum GammaFunction {
     Slater {
         tau: HashMap<u8, f64>,

@@ -124,7 +124,7 @@ fn default_lcmo_config()-> LcmoConfig{
     return config;
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct Configuration {
     #[serde(default = "default_jobtype")]
     pub jobtype: String,
@@ -175,7 +175,7 @@ impl Configuration {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy,Debug)]
 pub struct MoleculeConfig {
     #[serde(default = "default_charge")]
     pub charge: i8,
@@ -183,7 +183,7 @@ pub struct MoleculeConfig {
     pub multiplicity: u8,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy,Debug)]
 pub struct SccConfig {
     #[serde(default = "default_scf_max_cycles")]
     pub scf_max_cycles: usize,
@@ -195,7 +195,7 @@ pub struct SccConfig {
     pub electronic_temperature: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy,Debug)]
 pub struct OptConfig {
     #[serde(default = "default_geom_opt_max_cycles")]
     pub geom_opt_max_cycles: usize,
@@ -207,7 +207,7 @@ pub struct OptConfig {
     pub geom_opt_tol_energy: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy,Debug)]
 pub struct LCConfig {
     #[serde(default = "default_long_range_correction")]
     pub long_range_correction: bool,
@@ -215,7 +215,7 @@ pub struct LCConfig {
     pub long_range_radius: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy,Debug)]
 pub struct ExcitedStatesConfig {
     #[serde(default = "default_nstates")]
     pub nstates: usize,
@@ -229,7 +229,7 @@ pub struct ExcitedStatesConfig {
     pub nr_active_virt: usize,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct SlaterKosterConfig{
     #[serde(default = "default_use_mio")]
     pub use_mio:bool,
@@ -237,7 +237,7 @@ pub struct SlaterKosterConfig{
     pub mio_directory:String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct LcmoConfig{
     #[serde(default = "default_n_le")]
     pub n_le: usize,
@@ -247,7 +247,7 @@ pub struct LcmoConfig{
     pub n_particles: usize,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct ParallelizationConfig{
     #[serde(default = "default_number_of_cores")]
     pub number_of_cores:usize,

@@ -52,12 +52,12 @@ impl System{
             // excited state calculation
             let excited_state:usize = state -1;
             self.prepare_scc();
-            self.run_scc().unwrap();
+            energy = self.run_scc().unwrap();
 
             // calculate excited states
             self.prepare_tda();
             self.run_tda(self.config.excited.nstates, 100, 1e-4);
-            energy = self.properties.ci_eigenvalue(excited_state).unwrap();
+            energy += self.properties.ci_eigenvalue(excited_state).unwrap();
 
             gradient = self.ground_state_gradient(true);
             self.prepare_excited_grad();
@@ -86,12 +86,12 @@ impl System{
             // excited state calculation
             let excited_state:usize = state -1;
             self.prepare_scc();
-            self.run_scc().unwrap();
+            energy = self.run_scc().unwrap();
 
             // calculate excited states
             self.prepare_tda();
             self.run_tda(self.config.excited.nstates, 100, 1e-4);
-            energy = self.properties.ci_eigenvalue(excited_state).unwrap();
+            energy += self.properties.ci_eigenvalue(excited_state).unwrap();
         }
         self.properties.reset();
 
@@ -107,7 +107,7 @@ impl System{
         let gtol: f64 = 1.0e-6;
         let ftol: f64 = 1.0e-8;
         let method: String = String::from("BFGS");
-        let line_search: String = String::from("largest");
+        let line_search: String = String::from("Armijo");
 
         let n: usize = coords.len();
         let mut x_old: Array1<f64> = coords.clone();

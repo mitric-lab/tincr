@@ -107,7 +107,8 @@ fn main() {
         let mut system = System::from((frame, config.clone()));
         system.prepare_scc();
         system.run_scc();
-        system.test_tda_lc_gradient();
+        system.optimize_cartesian(Some(1));
+        // system.test_tda_lc_gradient();
         // system.prepare_tda();
         // system.run_tda(config.excited.nstates, 150, 1e-4);
     } else if config.jobtype == "fmo" {

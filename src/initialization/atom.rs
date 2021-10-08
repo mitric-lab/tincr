@@ -30,7 +30,7 @@ use crate::utils::array_helper::argsort_usize;
 /// It will also generate the same functions that a `Vec<Atom>` would have, and a few helper structs:
 /// `AtomSlice`, `AtomSliceMut`, `AtomRef` and `AtomRefMut` corresponding respectively
 /// to `&[Atom]`, `&mut [Atom]`, `&Atom` and `&mut Atom`.
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct Atom {
     /// Name of the chemical element
     pub name: &'static str,
@@ -206,7 +206,7 @@ impl PartialOrd for Atom {
 
 
 /// Type that specifies an atomic orbital by its three quantum numbers and holds its energy
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone,Debug)]
 pub struct AtomicOrbital {
     pub n: i8,
     pub l: i8,

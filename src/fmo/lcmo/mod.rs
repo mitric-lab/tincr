@@ -6,6 +6,7 @@ mod basis;
 mod integrals;
 mod lcmo_trans_charges;
 mod utils;
+mod cis_gradient;
 
 pub use basis::*;
 use ndarray::prelude::*;
