@@ -1,13 +1,13 @@
 mod zbrent;
 pub(crate) mod array_helper;
-mod tests;
+//mod tests;
 
 pub use array_helper::ToOwnedF;
 pub use zbrent::zbrent;
 use std::time::Instant;
 use std::{fmt, env};
 
-pub use tests::*;
+//pub use tests::*;
 use crate::defaults;
 
 pub enum Calculation {

@@ -72,10 +72,7 @@ impl System {
         //     * (p.dot(&(&h0 + &(&coulomb_mat * &s))).dot(&p))
         //         .into_shape([self.n_orbs * self.n_orbs])
         //         .unwrap();
-        let w: Array1<f64> = 0.5
-            * (p.dot(&self.data.h_coul_x()).dot(&p))
-            .into_shape([self.n_orbs * self.n_orbs])
-            .unwrap();
+        let w: Array1<f64> = 0.5 * (p.dot(&self.data.fock()).dot(&p)).into_shape([self.n_orbs * self.n_orbs]).unwrap();
 
         // calculation of the gradient
         // 1st part:  dH0 / dR . P
@@ -123,7 +120,7 @@ impl System {
             if excited_gradients{
                 self.data.set_grad_gamma_lr(g1_lr);
                 self.data.set_grad_gamma_lr_ao(g1_lr_ao);
-                self.data.set_f_lr_dmd0(flr_dmd0);
+                self.data.set_flr_dmd0(flr_dmd0);
             }
         }
         // save necessary properties for the excited gradient calculation

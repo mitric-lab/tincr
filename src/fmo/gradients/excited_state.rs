@@ -11,29 +11,12 @@ use crate::scc::h0_and_s::h0_and_s_gradients;
 impl ExcitedStateMonomerGradient for Monomer{
     fn prepare_excited_gradient(&mut self,atoms:&[Atom]){
         // check if occ and virt indices exist
-        let mut occ_indices: Vec<usize> = Vec::new();
-        let mut virt_indices: Vec<usize> = Vec::new();
-        if (self.properties.contains_key("occ_indices") == false) || (self.properties.contains_key("virt_indices") == true) {
-            // calculate the number of electrons
-            let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
-            // get the indices of the occupied and virtual orbitals
-            (0..self.n_orbs).for_each(|index| {
-                if index < (n_elec / 2) {
-                    occ_indices.push(index)
-                } else {
-                    virt_indices.push(index)
-                }
-            });
 
-            self.properties.set_occ_indices(occ_indices.clone());
-            self.properties.set_virt_indices(virt_indices.clone());
-        }
-        else{
-            occ_indices = self.data.occ_indices().to_vec();
-            virt_indices = self.data.virt_indices().to_vec();
-        }
+        let occ_indices = self.data.occ_indices();
+        let virt_indices = self.data.virt_indices();
+
         // calculate transition charges if they don't exist
-        if self.properties.contains_key("q_ov") == false{
+        if !self.data.q_ov_is_set() {
             let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
                 self.n_atoms,
                 atoms,
@@ -552,18 +535,10 @@ impl ExcitedStateMonomerGradient for Monomer{
         let n_virt: usize = orbe_virt.len();
 
         // take state specific values from the excitation vectors
-        let xmy_state: ArrayView3<f64> = self
-            .properties
-            .xmy()
-            .unwrap();
-        let xmy_state: ArrayView2<f64> = xmy_state.slice(s![state,..,..]);
-        let xpy_state: ArrayView3<f64> = self
-            .properties
-            .xpy()
-            .unwrap();
-        let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
+        let xmy_state: ArrayView2<f64> = self.data.x_minus_y_matrix(state);
+        let xpy_state: ArrayView2<f64> = self.data.x_minus_y_matrix(state);
         // excitation energy of the state
-        let omega_state: f64 = self.data.tddft_eigenvalues()[state];
+        let omega_state: f64 = self.data.cis_eigenvalue(state);
 
         // calculate the vectors u, v and t
         let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);
@@ -843,18 +818,10 @@ impl ExcitedStateMonomerGradient for Monomer{
         let n_virt: usize = orbe_virt.len();
 
         // take state specific values from the excitation vectors
-        let xmy_state: ArrayView3<f64> = self
-            .properties
-            .xmy()
-            .unwrap();
-        let xmy_state: ArrayView2<f64> = xmy_state.slice(s![state,..,..]);
-        let xpy_state: ArrayView3<f64> = self
-            .properties
-            .xpy()
-            .unwrap();
-        let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
+        let xmy_state: ArrayView2<f64> = self.data.x_minus_y_matrix(state);
+        let xpy_state: ArrayView2<f64> = self.data.x_plus_y_matrix(state);
         // excitation energy of the state
-        let omega_state: f64 = self.data.tddft_eigenvalues()[state];
+        let omega_state: f64 = self.data.cis_eigenvalue(state);
 
         // calculate the vectors u, v and t
         let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);

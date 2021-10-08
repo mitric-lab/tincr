@@ -10,7 +10,7 @@ use crate::scc::gamma_approximation::{gamma_gradients_ao_wise, gamma_ao_wise_fro
 impl System {
     pub fn prepare_excited_grad(&mut self) {
         // calculate transition charges if they don't exist
-        if self.properties.contains_key("q_ov") == false{
+        if !self.data.q_ov_is_set() {
             let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
                 self.n_atoms,
                 &self.atoms,
@@ -32,7 +32,7 @@ impl System {
         );
         self.data.set_gamma_ao(g0_ao);
 
-        if self.properties.contains_key("grad_gamma") == false{
+        if !self.data.grad_gamma_is_set() {
             let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
                 &self.gammafunction,
                 &self.atoms,
@@ -68,7 +68,7 @@ impl System {
 
         // excitation energy of the state
         let n_states:usize = self.config.excited.nstates;
-        let omega_state:f64 = self.data.ci_eigenvalues()[state];
+        let omega_state:f64 = self.data.cis_eigenvalue(state);
         // take state specific values from the excitation vectors
         let x_state:ArrayView3<f64> = self.data.cis_coefficients()
             .into_shape([n_states,n_occ,n_virt]).unwrap();
@@ -271,11 +271,9 @@ impl System {
 
         // excitation energy of the state
         let n_states:usize = self.config.excited.nstates;
-        let omega_state:f64 = self.data.ci_eigenvalues()[state];
+        let omega_state:f64 = self.data.cis_eigenvalue(state);
         // take state specific values from the excitation vectors
-        let x_state:ArrayView3<f64> = self.data.ci_coefficients()
-            .into_shape([n_states,n_occ,n_virt]).unwrap();
-        let x_state:ArrayView2<f64> = x_state.slice(s![state,..,..]);
+        let x_state:ArrayView2<f64> = self.data.tdm(state);
 
         // calculate the vectors u, v and t
         // vectors U, V and T
@@ -393,7 +391,7 @@ impl System {
         let diff_p: Array2<f64> = &self.data.p() - &self.data.p_ref();
         let g0_ao: ArrayView2<f64> = self.data.gamma_ao();
         let g1_ao: ArrayView3<f64> = self.data.grad_gamma_ao();
-        let flr_dmd0: ArrayView3<f64> = self.data.f_lr_dmd0();
+        let flr_dmd0: ArrayView3<f64> = self.data.flr_dmd0();
         let grad_h: ArrayView3<f64> = self.data.grad_h0();
         let grad_s: ArrayView3<f64> = self.data.grad_s();
         let s: ArrayView2<f64> = self.data.s();
@@ -502,12 +500,10 @@ impl System {
         let n_virt: usize = orbe_virt.len();
 
         // take state specific values from the excitation vectors
-        let xmy_state: ArrayView3<f64> = self.data.xmy();
-        let xpy_state: ArrayView3<f64> = self.properties.xpy();
-        let xmy_state: ArrayView2<f64> = xmy_state.slice(s![state,..,..]);
-        let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
+        let xmy_state: ArrayView2<f64> = self.data.x_minus_y_matrix(state);
+        let xpy_state: ArrayView2<f64> = self.data.x_plus_y_matrix(state);
         // excitation energy of the state
-        let omega_state: f64 = self.data.tddft_eigenvalues()[state];
+        let omega_state: f64 = self.data.cis_eigenvalue(state);
 
         // calculate the vectors u, v and t
         let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);
@@ -650,7 +646,7 @@ impl System {
         let diff_p: Array2<f64> = &self.data.p() - &self.data.p_ref();
         let g0_ao: ArrayView2<f64> = self.data.gamma_ao();
         let g1_ao: ArrayView3<f64> = self.data.grad_gamma_ao();
-        let flr_dmd0: ArrayView3<f64> = self.data.f_lr_dmd0();
+        let flr_dmd0: ArrayView3<f64> = self.data.flr_dmd0();
         let grad_h: ArrayView3<f64> = self.data.grad_h0();
         let grad_s: ArrayView3<f64> = self.data.grad_s();
         let s: ArrayView2<f64> = self.data.s();
@@ -778,12 +774,10 @@ impl System {
         let n_virt: usize = orbe_virt.len();
 
         // take state specific values from the excitation vectors
-        let xmy_state: ArrayView3<f64> = self.data.xmy();
-        let xpy_state: ArrayView3<f64> = self.data.xpy();
-        let xmy_state: ArrayView2<f64> = xmy_state.slice(s![state,..,..]);
-        let xpy_state: ArrayView2<f64> = xpy_state.slice(s![state,..,..]);
+        let xmy_state: ArrayView2<f64> = self.data.x_minus_y_matrix(state);
+        let xpy_state: ArrayView2<f64> = self.data.x_plus_y_matrix(state);
         // excitation energy of the state
-        let omega_state: f64 = self.data.tddft_eigenvalues()[state];
+        let omega_state: f64 = self.data.cis_eigenvalue(state);
 
         // calculate the vectors u, v and t
         let u_ab: Array2<f64> = xpy_state.t().dot(&xmy_state) + xmy_state.t().dot(&xpy_state);

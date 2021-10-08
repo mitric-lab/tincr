@@ -7,9 +7,23 @@ impl<'a> Storage<'a> {
         self.charges.dq = Some(dq);
     }
 
+    pub fn set_if_unset_dq(&mut self, dq: Array1<f64>) {
+        self.charges.dq.get_or_insert(dq);
+    }
+
     /// Set charge differences between charges of a molecular dimer and the corresponding monomers.
     pub fn set_delta_dq(&mut self, delta_dq: Array1<f64>) {
         self.charges.delta_dq = Some(delta_dq);
+    }
+
+    /// Set the partial in the basis of the AOs.
+    pub fn set_q_ao(&mut self, q_ao: Array1<f64>) {
+        self.charges.q_ao = Some(q_ao);
+    }
+
+    /// Set the partial charges in the basis of the AOs if they were not set yet.
+    pub fn set_if_unset_q_ao(&mut self, q_ao: Array1<f64>) {
+        self.charges.q_ao.get_or_insert(q_ao);
     }
 
     /// Set transition charges between occupied and virtual orbitals.
@@ -47,9 +61,19 @@ impl<'a> Storage<'a> {
         self.charges.dq_alpha = Some(dq_alpha);
     }
 
+    /// Set partial charges corresponding to alpha electrons if they were not set before.
+    pub fn set_if_unset_dq_alpha(&mut self, dq_alpha: Array1<f64>) {
+        self.charges.dq_alpha.get_or_insert(dq_alpha);
+    }
+
     /// Set partial charges corresponding to beta electrons.
     pub fn set_dq_beta(&mut self, dq_beta: Array1<f64>) {
         self.charges.dq_beta = Some(dq_beta);
+    }
+
+    /// Set partial charges corresponding to beta electrons if they were not set before.
+    pub fn set_if_unset_dq_beta(&mut self, dq_beta: Array1<f64>) {
+        self.charges.dq_beta.get_or_insert(dq_beta);
     }
 
 }

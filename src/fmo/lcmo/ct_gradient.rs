@@ -43,7 +43,7 @@ impl SuperSystem {
         let c_mo_j: ArrayView2<f64> = m_j.data.orbs();
 
         // get pair index
-        let pair_index:usize = self.properties.index_of_pair(index_i,index_j);
+        let pair_index:usize = self.data.index_of_pair(index_i,index_j);
         // get correct pair from pairs vector
         let pair_ij: &mut Pair = &mut self.pairs[pair_index];
         // get pair atoms
@@ -58,7 +58,7 @@ impl SuperSystem {
         let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
 
         // calculate the overlap matrix
-        if pair_ij.properties.s().is_none() {
+        if !pair_ij.data.s_is_set() {
             let mut s: Array2<f64> = Array2::zeros([pair_ij.n_orbs, pair_ij.n_orbs]);
             let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) = h0_and_s_ab(
                 m_i.n_orbs,
@@ -80,7 +80,7 @@ impl SuperSystem {
         }
 
         // get the gamma matrix
-        if pair_ij.properties.gamma().is_none() {
+        if !pair_ij.data.gamma_is_set() {
             let a: usize = m_i.n_atoms;
             let mut gamma_pair: Array2<f64> = Array2::zeros([pair_ij.n_atoms, pair_ij.n_atoms]);
             let gamma_ab: Array2<f64> = gamma_atomwise_ab(
@@ -108,7 +108,7 @@ impl SuperSystem {
                 pair_ij.n_orbs,
             );
             pair_ij.data.set_gamma_lr(gamma_lr);
-            pair_ij.properties.set_gamma_lr_ao(gamma_lr_ao);
+            pair_ij.data.set_gamma_lr_ao(gamma_lr_ao);
         }
         // calculate the gamma matrix in AO basis
         let g0_ao: Array2<f64> = gamma_ao_wise_from_gamma_atomwise(

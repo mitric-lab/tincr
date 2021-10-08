@@ -23,3 +23,9 @@ impl ExcitedStateData {
     }
 }
 
+impl<'a> Storage<'a> {
+    /// Check if the orbital energy differences are set.
+    pub fn omega_is_set(&self) -> bool {
+        self.excited_states.omega.is_some()
+    }
+}

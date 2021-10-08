@@ -61,7 +61,7 @@ impl Monomer {
         self.data.set_cis_coefficients(davidson.eigenvectors);
         self.data.set_q_trans(q_trans);
         self.data.set_tr_dipoles(tr_dipoles);
-        self.data.set_oscillator_strengths(f);
+        self.data.set_osc_strengths(f);
 
         println!("{}", states);
         // states.ntos_to_molden(&atoms, 0, "/Users/hochej/Downloads/s1.molden");
@@ -119,7 +119,7 @@ impl System {
         self.data.set_cis_coefficients(davidson.eigenvectors);
         self.data.set_q_trans(q_trans);
         self.data.set_tr_dipoles(tr_dipoles);
-        self.data.set_oscillator_strengths(f);
+        self.data.set_osc_strengths(f);
 
         println!("{}", states);
 

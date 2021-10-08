@@ -17,6 +17,13 @@ impl<'a> Storage<'a> {
         }
     }
 
+    pub fn q_ao(&self) -> ArrayView1<f64> {
+        match &self.charges.q_ao {
+            Some(value) => value.view(),
+            None => panic!("ChargeData::q_ao; The partial charges are not set!"),
+        }
+    }
+
     pub fn q_ov(&self) -> ArrayView2<f64> {
         match &self.charges.q_ov {
             Some(value) => value.view(),

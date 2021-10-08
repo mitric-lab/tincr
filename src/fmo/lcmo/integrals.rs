@@ -18,7 +18,7 @@ impl SuperSystem {
             // Coupling between two LE states.
             (BasisState::LE(ref a), BasisState::LE(ref b)) => {
                 if a == b {
-                    a.monomer.data.ci_eigenvalue(a.n).unwrap()
+                    a.monomer.data.cis_eigenvalue(a.n)
                 } else if a.monomer == b.monomer {
                     0.0
                 } else {
@@ -357,7 +357,7 @@ impl SuperSystem {
             // Check if the pair IK is close, so that the overlap is non-zero.
             if type_ik == PairType::Pair {
                 // Overlap matrix between monomer I and J.
-                let s_ij: ArrayView2<f64> = selfdata.s_slice(j.electron.monomer.slice.orb, j.hole.monomer.slice.orb);
+                let s_ij: ArrayView2<f64> = self.data.s_slice(j.electron.monomer.slice.orb, j.hole.monomer.slice.orb);
 
                 // Gamma matrix between pair IJ and monomer I. TODO: Check LC
                 let gamma_ij_i: Array2<f64> = self.gamma_ab_c(i.monomer.index, j.electron.idx, j.hole.idx, LRC::ON);
@@ -431,10 +431,10 @@ impl SuperSystem {
             } else {0.0}; // If overlap JK is zero, the integral is zero.
             let ij_ab: f64 = if type_ik == PairType::Pair && type_ij == PairType::Pair {
                 // Overlap matrix between monomer I and K.
-                let s_ik: ArrayView2<f64> = self.properties.s_slice(i.monomer.slice.orb, j.hole.monomer.slice.orb).unwrap();
+                let s_ik: ArrayView2<f64> = self.data.s_slice(i.monomer.slice.orb, j.hole.monomer.slice.orb);
 
                 // Overlap matrix between monomer I and J.
-                let s_ij: ArrayView2<f64> = self.properties.s_slice(i.monomer.slice.orb, j.electron.monomer.slice.orb).unwrap();
+                let s_ij: ArrayView2<f64> = self.data.s_slice(i.monomer.slice.orb, j.electron.monomer.slice.orb);
 
                 // Gamma matrix between pair IK and pair IJ. TODO: Check LC
                 let gamma_ik_ij: Array2<f64> = self.gamma_ab_cd(i.monomer.index, j.hole.idx, i.monomer.index, j.electron.idx, LRC::ON);

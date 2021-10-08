@@ -4,9 +4,6 @@ pub use helpers::*;
 pub use system::*;
 pub use molecular_orbital::*;
 
-pub use crate::properties::base::*;
-pub use crate::properties::property::*;
-
 pub mod parameters;
 pub mod system;
 mod geometry;

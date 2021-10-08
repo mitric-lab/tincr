@@ -24,6 +24,21 @@ impl<'a> Storage<'a> {
         self.orbitals.n_virt()
     }
 
+    pub fn orbs_slice(&self, start: usize, end: Option<usize>) -> ArrayView2<f64> {
+        let slice = if matches!(end, None) {s![.., start..]} else {s![.., start..end.unwrap()]};
+        match &self.orbitals.orbs {
+            Some(value) => value.slice(slice),
+            None => panic!("OrbitalData::orbs; The MO coefficients are not set!"),
+        }
+    }
+
+    pub fn mo_coeff(&self, mo_idx: usize) -> ArrayView1<f64> {
+        match &self.orbitals.orbs {
+            Some(value) => value.column(mo_idx),
+            None => panic!("OrbitalData::orbs; The MO coefficients are not set!"),
+        }
+    }
+
     pub fn orbs(&self) -> ArrayView2<f64> {
         match &self.orbitals.orbs {
             Some(value) => value.view(),
@@ -38,23 +53,23 @@ impl<'a> Storage<'a> {
         }
     }
 
-    pub fn occupation(&self) -> Vec<f64> {
+    pub fn occupation(&self) -> &[f64] {
         match &self.orbitals.occupation {
-            Some(value) => value.clone(),
+            Some(value) => value,
             None => panic!("OrbitalData::occupation; The MO occupation numbers are not set!"),
         }
     }
 
-    pub fn occ_indices(&self) -> Vec<usize> {
+    pub fn occ_indices(&self) -> &[usize] {
         match &self.orbitals.occ_indices {
-            Some(value) => value.clone(),
+            Some(value) => value,
             None => panic!("OrbitalData::occ_indices; The MO occupation numbers are not set!"),
         }
     }
 
-    pub fn virt_indices(&self) -> Vec<usize> {
+    pub fn virt_indices(&self) -> &[usize] {
         match &self.orbitals.virt_indices {
-            Some(value) => value.clone(),
+            Some(value) => value,
             None => panic!("OrbitalData::virt_indices; The MO occupation numbers are not set!"),
         }
     }

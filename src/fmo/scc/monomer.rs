@@ -25,6 +25,7 @@ impl Monomer {
         self.data.set_h0(h0);
         self.data.set_s(s);
         self.data.set_x(x);
+        self.data.set_last_energy(0.0);
         // save the atomic numbers since we need them multiple times
         let atomic_numbers: Vec<u8> = atoms.iter().map(|atom| atom.number).collect();
         self.data.set_atomic_numbers(atomic_numbers);
@@ -58,25 +59,18 @@ impl Monomer {
             self.data.set_gamma_lr_ao(gamma_lr_ao);
         }
 
-        self.data.set_mixer(BroydenMixer::new(self.n_orbs));
+        self.data.set_broyden_mixer(BroydenMixer::new(self.n_orbs));
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
-        if !self.properties.contains_key("dq") {
-            self.data.set_dq(Array1::zeros(self.n_atoms));
-            self.data.set_q_ao(Array1::zeros(self.n_orbs));
-        }
+        self.data.set_if_unset_dq(Array1::zeros(self.n_atoms));
+        self.data.set_if_unset_q_ao(Array1::zeros(self.n_orbs));
 
         // this is also only needed in the first SCC calculation
-        if !self.properties.contains_key("ref_density_matrix") {
-            self.data
-                .set_p_ref(density_matrix_ref(self.n_orbs, &atoms));
-        }
+        self.data.set_if_unset_p_ref(density_matrix_ref(self.n_orbs, &atoms));
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
-        if !self.properties.contains_key("P") {
-            self.data
-                .set_p(self.data.p_ref().to_owned());
-        }
+        self.data.set_if_unset_p(self.data.p_ref().to_owned());
+
     }
 
     pub fn scc_step(&mut self, atoms: &[Atom], v_esp: Array2<f64>, config: SccConfig) -> bool {
@@ -84,7 +78,7 @@ impl Monomer {
         let scf_energy_conv: f64 = config.scf_energy_conv;
         let mut dq: Array1<f64> = self.data.take_dq();
         let mut q_ao: Array1<f64> = self.data.take_q_ao();
-        let mut mixer: BroydenMixer = self.data.take_mixer();
+        let mut mixer: BroydenMixer = self.data.take_broyden_mixer();
         let mut p: Array2<f64> = self.data.take_p();
         let x: ArrayView2<f64> = self.data.x();
         let s: ArrayView2<f64> = self.data.s();
@@ -141,7 +135,7 @@ impl Monomer {
             h0.view(),
             dq.view(),
             gamma.view(),
-            self.data.gamma_lr_ao(),
+            Some(self.data.gamma_lr_ao()),
         );
 
         // check if charge difference to the previous iteration is lower than threshold
@@ -153,10 +147,10 @@ impl Monomer {
         self.data.set_orbe(orbe);
         self.data.set_p(p);
         self.data.set_dq(dq);
-        self.data.set_mixer(mixer);
+        self.data.set_broyden_mixer(mixer);
         self.data.set_last_energy(scf_energy);
         self.data.set_q_ao(q_ao);
-        self.data.set_h_coul_x(h_save);
+        self.data.set_fock(h_save);
 
         // scc (for one fragment) is converged if both criteria are passed
         conv_charge && conv_energy

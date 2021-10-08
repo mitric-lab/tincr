@@ -10,12 +10,13 @@ mod orbitals;
 mod gradients;
 mod energies;
 mod parametrization;
-use crate::fmo::BasisState;
+use crate::fmo::{BasisState, PairType};
 use ndarray::prelude::*;
 use crate::scc::mixer::BroydenMixer;
 use crate::excited_states::ProductCache;
 use crate::scc::gamma_approximation::GammaFunction;
 use crate::initialization::parameters::{SlaterKoster, RepulsivePotential};
+use hashbrown::HashMap;
 
 pub struct Storage<'a> {
     charges: ChargeData,
@@ -88,6 +89,8 @@ pub struct ChargeData {
     pub dq: Option<Array1<f64>>,
     /// Charge differences between charges of a molecular dimer and the corresponding monomers.
     pub delta_dq: Option<Array1<f64>>,
+    /// Partial charges in the basis of the AOs.
+    pub q_ao: Option<Array1<f64>>,
     /// Transition charges between occupied and virtual orbitals.
     pub q_ov: Option<Array2<f64>>,
     /// Transition charges between occupied and occupied orbitals.
@@ -142,7 +145,7 @@ pub struct GradData {
     /// Gradient of the unscreened gamma matrix in AO basis.
     pub gamma_ao: Option<Array3<f64>>,
     /// Gradient of the screened gamma matrix in AO basis.
-    pub gamma_lr_ao: Option<Array2<f64>>
+    pub gamma_lr_ao: Option<Array3<f64>>
 }
 
 
@@ -163,4 +166,12 @@ pub struct OtherData<'a> {
     pub fock: Option<Array2<f64>>,
     /// The diabatic basis states that are used in an LCMO-FMO excited state calculations.
     pub diabatic_basis_states: Option<Vec<BasisState<'a>>>,
+    /// HashMap that maps two monomers to a type of a pair.
+    pub pair_types: Option<HashMap<(usize, usize), PairType>>,
+    /// HashMap that maps two monomers to the index of the pair.
+    pub pair_indices: Option<HashMap<(usize, usize), usize>>,
+    /// LCMO-FMO Fock matrix
+    pub lcmo_fock: Option<Array2<f64>>,
+    /// The gradient of the long-range corrected two electron integrals
+    pub flr_dmd0: Option<Array3<f64>>,
 }

@@ -102,25 +102,15 @@ impl<'a> UnrestrictedSCC for System{
         }
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
-        if !self.properties.contains_key("dq_alpha") {
-            self.data.set_dq_alpha(Array1::zeros(self.n_atoms));
-        }
-        if !self.properties.contains_key("dq_beta") {
-            self.data.set_dq_beta(Array1::zeros(self.n_atoms));
-        }
+        self.data.set_if_unset_dq_alpha(Array1::zeros(self.n_atoms));
+        self.data.set_if_unset_dq_beta(Array1::zeros(self.n_atoms));
 
         // this is also only needed in the first SCC calculation
-        if !self.properties.contains_key("ref_density_matrix") {
-            self.data.set_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
-        }
+        self.data.set_if_unset_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
-        if !self.properties.contains_key("P_alpha") {
-            self.data.set_p_alpha(self.data.p_ref().to_owned());
-        }
-        if !self.properties.contains_key("P_beta") {
-            self.data.set_p_beta(self.data.p_ref().to_owned());
-        }
+        self.data.set_if_unset_p_alpha(self.data.p_ref().to_owned());
+        self.data.set_if_unset_p_beta(self.data.p_ref().to_owned());
     }
 
     // SCC Routine for a single molecule and for spin-unpolarized systems

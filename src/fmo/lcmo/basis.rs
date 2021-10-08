@@ -34,7 +34,7 @@ impl SuperSystem {
             let homo: usize = mol.data.homo();
             let q_ov: ArrayView2<f64> = mol.data.q_ov();
             for n in 0..n_le {
-                let tdm: ArrayView1<f64> = mol.data.ci_coefficient(n);
+                let tdm: ArrayView1<f64> = mol.data.cis_coefficient(n);
                 states.push(BasisState::LE(LocallyExcited {
                     monomer: mol,
                     n: n,
@@ -75,7 +75,6 @@ impl SuperSystem {
                                              *virt,
                                               m_j.data.occupation()[*virt]);
                         states.push(BasisState::CT(ChargeTransfer {
-                            system: &self,
                             hole: Particle {
                                 idx: m_i.index,
                                 atoms: &atoms[m_i.slice.atom_as_range()],
@@ -104,7 +103,6 @@ impl SuperSystem {
                                               *virt,
                                               m_i.data.occupation()[*virt]);
                         states.push(BasisState::CT(ChargeTransfer {
-                            system: &self,
                             hole: Particle {
                                 idx: m_j.index,
                                 atoms: &atoms[m_j.slice.atom_as_range()],
@@ -241,8 +239,6 @@ impl PartialEq for LocallyExcited<'_> {
 /// Type that holds all the relevant data that characterize a charge-transfer diabatic basis state.
 #[derive(Copy, Clone)]
 pub struct ChargeTransfer<'a> {
-    // Reference to the total system. This is needed to access the complete Gamma matrix.
-    pub system: &'a SuperSystem,
     // The hole of the CT state.
     pub hole: Particle<'a>,
     // The electron of the CT state.

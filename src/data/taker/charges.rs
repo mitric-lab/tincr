@@ -14,6 +14,12 @@ impl<'a> Storage<'a> {
             .expect("ChargeData:delta_dq; Charge differences were not set.")
     }
 
+    /// Take the partial charges in AO basisand return them.
+    pub fn take_q_ao(&mut self) -> Array1<f64> {
+        self.charges.q_ao.take().expect("ChargeData:q_ao; Partial charges in AO basis were not set.")
+    }
+
+
     /// Take the transition charges between occupied and virtual orbitals and return them.
     pub fn take_q_ov(&mut self) -> Array2<f64> {
         self.charges.q_ov

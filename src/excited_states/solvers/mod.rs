@@ -158,7 +158,7 @@ impl DavidsonEngine for Monomer {
     }
 
     fn get_size(&self) -> usize {
-        self.omega().len()
+        self.data.omega().len()
     }
 }
 

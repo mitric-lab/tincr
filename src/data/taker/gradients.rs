@@ -30,7 +30,7 @@ impl<'a> Storage<'a> {
         self.gradients.gamma_ao.take().expect("take_grad_gamma_ao: GradData.gamma_ao has not been set")
     }
 
-    pub fn take_grad_gamma_lr_ao(&mut self) -> Array2<f64> {
+    pub fn take_grad_gamma_lr_ao(&mut self) -> Array3<f64> {
         self.gradients.gamma_lr_ao.take().expect("take_grad_gamma_lr_ao: GradData.gamma_lr_ao has not been set")
     }
 }

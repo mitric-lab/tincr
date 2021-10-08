@@ -21,3 +21,9 @@ impl GradData {
     }
 }
 
+impl<'a> Storage<'a> {
+    /// Check if the gradients of the gamma matrix is set.
+    pub fn grad_gamma_is_set(&self) -> bool {
+        self.gradients.gamma.is_some()
+    }
+}

@@ -14,7 +14,7 @@ impl System{
         self.prepare_tda();
         self.run_tda(self.config.excited.nstates, 50, 1e-4);
 
-        return self.data.ci_eigenvalue(0).unwrap();
+        return self.data.cis_eigenvalue(0);
     }
 
     pub fn tda_nolc_gradients_for_testing(&mut self)->Array1<f64>{

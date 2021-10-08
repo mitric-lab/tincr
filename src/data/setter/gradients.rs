@@ -39,7 +39,7 @@ impl<'a> Storage<'a> {
     }
 
     /// Set the gradient of the screened gamma matrix in AO basis.
-    pub fn set_grad_gamma_lr_ao(&mut self, gamma_lr_ao: Array2<f64>) {
+    pub fn set_grad_gamma_lr_ao(&mut self, gamma_lr_ao: Array3<f64>) {
         self.gradients.gamma_lr_ao = Some(gamma_lr_ao);
     }
 }

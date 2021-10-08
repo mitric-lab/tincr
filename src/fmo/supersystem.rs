@@ -289,7 +289,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
             atoms: atoms,
             n_mol: monomers.len(),
             monomers: monomers,
-            data: Storage::new(),
+            data: data,
             gammafunction: gf,
             gammafunction_lc: gf_lc,
             pairs,
@@ -339,8 +339,8 @@ impl SuperSystem {
         let atoms_a: Slice = self.monomers[a].slice.atom.clone();
         let atoms_b: Slice = self.monomers[b].slice.atom.clone();
         match lrc {
-            LRC::ON => self.data.gamma_lr_slice(atoms_a, atoms_b).unwrap(),
-            LRC::OFF => self.data.gamma_slice(atoms_a, atoms_b).unwrap(),
+            LRC::ON => self.data.gamma_lr_slice(atoms_a, atoms_b),
+            LRC::OFF => self.data.gamma_slice(atoms_a, atoms_b),
         }
     }
 

@@ -101,19 +101,14 @@ impl<'a> RestrictedSCC for System {
         }
 
         // if this is the first SCC calculation the charge differences will be initialized to zeros
-        if !self.properties.contains_key("dq") {
-            self.data.set_dq(Array1::zeros(self.n_atoms));
-        }
+        self.data.set_if_unset_dq(Array1::zeros(self.n_atoms));
 
         // this is also only needed in the first SCC calculation
-        if !self.properties.contains_key("ref_density_matrix") {
-            self.data.set_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
-        }
+        self.data.set_if_unset_p_ref(density_matrix_ref(self.n_orbs, &self.atoms));
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
-        if !self.properties.contains_key("P") {
-            self.data.set_p(self.data.p_ref().to_owned());
-        }
+        self.data.set_if_unset_p(self.data.p_ref().to_owned());
+
     }
 
     // SCC Routine for a single molecule and for spin-unpolarized systems
@@ -260,7 +255,7 @@ impl<'a> RestrictedSCC for System {
                 h0.view(),
                 dq.view(),
                 gamma.view(),
-                self.data.gamma_lr_ao(),
+                Some(self.data.gamma_lr_ao()),
             );
 
             if log_enabled!(Level::Info) {
@@ -269,7 +264,7 @@ impl<'a> RestrictedSCC for System {
 
             if converged {
                 total_energy = Ok(scf_energy + rep_energy);
-                self.properties.set_fock(h_save);
+                self.data.set_fock(h_save);
                 break 'scf_loop;
             }
             total_energy = Err(SCCError::new(i,last_energy - scf_energy,diff_dq_max));

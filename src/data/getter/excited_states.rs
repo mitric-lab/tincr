@@ -35,7 +35,7 @@ impl<'a> Storage<'a> {
 
     /// Returns the excitation energy of an excited state.
     /// The first excited state has the index 0.
-    pub fn ci_eigenvalue(&self, idx:usize) -> f64 {
+    pub fn cis_eigenvalue(&self, idx:usize) -> f64 {
         match &self.excited_states.cis_eigenvalues {
             Some(value) => value[idx],
             None => panic!("ExcitedStatesData::cis_eigenvalues; The cis_eigenvalues vector is not set!"),

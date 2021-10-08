@@ -79,6 +79,7 @@ impl Pair {
         self.data.set_s(s);
         self.data.set_x(x);
         self.data.set_gamma(gamma);
+        self.data.set_last_energy(0.0);
 
         // save the atomic numbers since we need them multiple times
         let atomic_numbers: Vec<u8> = atoms.iter().map(|atom| atom.number).collect();
@@ -107,30 +108,14 @@ impl Pair {
 
         // if this is the first SCC calculation the charge will be taken from the corresponding
         // monomers
-        if !self.properties.contains_key("dq") {
-            self.data.set_dq(concatenate![
-                Axis(0),
-                m1.data.dq(),
-                m2.data.dq()
-            ]);
-            self.data.set_q_ao(concatenate![
-                Axis(0),
-                m1.data.q_ao(),
-                m2.data.q_ao()
-            ]);
-        }
+        self.data.set_if_unset_dq(concatenate![Axis(0), m1.data.dq(), m2.data.dq()]);
+        self.data.set_if_unset_q_ao(concatenate![Axis(0),m1.data.q_ao(),m2.data.q_ao()]);
 
         // this is also only needed in the first SCC calculation
-        if !self.properties.contains_key("ref_density_matrix") {
-            self.data
-                .set_p_ref(density_matrix_ref(self.n_orbs, &atoms));
-        }
+        self.data.set_if_unset_p_ref(density_matrix_ref(self.n_orbs, &atoms));
 
         // in the first SCC calculation the density matrix is set to the reference density matrix
-        if !self.properties.contains_key("P") {
-            self.data
-                .set_p(self.data.p_ref().to_owned());
-        }
+        self.data.set_if_unset_p(self.data.p_ref().to_owned());
     }
 
     pub fn run_scc(&mut self, atoms: &[Atom], config: SccConfig) {
@@ -197,7 +182,7 @@ impl Pair {
                 h0.view(),
                 dq.view(),
                 gamma.view(),
-                self.data.gamma_lr_ao(),
+                Some(self.data.gamma_lr_ao()),
             );
 
             // check if charge difference to the previous iteration is lower than 1e-5
@@ -215,7 +200,7 @@ impl Pair {
                 self.data.set_p(p);
                 self.data.set_orbs(orbs);
                 self.data.set_orbe(orbe);
-                self.data.set_h_coul_x(h_save);
+                self.data.set_fock(h_save);
                 break 'scf_loop;
             }
         }

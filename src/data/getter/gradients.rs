@@ -53,7 +53,7 @@ impl<'a> Storage<'a> {
         }
     }
 
-    pub fn grad_gamma_lr_ao(&self) -> ArrayView2<f64> {
+    pub fn grad_gamma_lr_ao(&self) -> ArrayView3<f64> {
         match &self.gradients.gamma_lr_ao {
             Some(ref value) => value.view(),
             None => panic!("GradData::gamma_lr_ao; The screened gamma matrix in AO basis is not set!"),

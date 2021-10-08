@@ -8,7 +8,7 @@ use ndarray_linalg::{Eigh, UPLO};
 
 impl System {
     pub fn prepare_tda(&mut self) {
-        if self.properties.q_ov().is_none() {
+        if !self.data.q_ov_is_set() {
             let (qov, qoo, qvv): (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
                 self.n_atoms,
                 &self.atoms,
@@ -23,7 +23,7 @@ impl System {
             self.data.set_q_vv(qvv);
         }
 
-        if self.properties.omega().is_none() {
+        if !self.data.omega_is_set() {
             // Reference to the orbital energies.
             // Check if the orbital energy differences were already computed.
             let orbe: ArrayView1<f64> = self.data.orbe();

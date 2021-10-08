@@ -1,5 +1,4 @@
 use crate::initialization::system::System;
-use crate::properties::{Properties, Property};
 use crate::io::settings::*;
 use crate::utils::get_path_prefix;
 use data_reader::reader::{load_txt_f64, Delimiter, ReaderParams};
