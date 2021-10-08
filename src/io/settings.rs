@@ -87,8 +87,8 @@ fn default_n_holes() -> usize {
 fn default_n_particles() -> usize {
     NUM_PARTICLES
 }
-fn default_use_mio() -> bool { USE_MIO }
-fn default_mio_directory() ->String { String::from( MIO_DIR ) }
+fn default_params() -> bool { USE_MIO }
+fn default_skf_directory() ->String { String::from( MIO_DIR ) }
 fn default_number_of_cores()->usize{1}
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
@@ -231,10 +231,10 @@ pub struct ExcitedStatesConfig {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SlaterKosterConfig{
-    #[serde(default = "default_use_mio")]
-    pub use_mio:bool,
-    #[serde(default = "default_mio_directory")]
-    pub mio_directory:String,
+    #[serde(default = "default_params")]
+    pub use_skf_files: bool,
+    #[serde(default = "default_skf_directory")]
+    pub path_to_skf: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

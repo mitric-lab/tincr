@@ -1,11 +1,11 @@
 use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, ArrayView3, Axis, Ix2, Ix3, Ix4,s};
 use rayon::iter::*;
 use std::collections::HashMap;
-use crate::initialization::parameters::{RepulsivePotentialTable, RepulsivePotential};
 use ndarray_einsum_beta::tensordot;
 use crate::initialization::Atom;
 use nalgebra::Vector3;
 use ndarray_linalg::krylov::qr;
+use crate::param::reppot::RepulsivePotential;
 
 pub fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>) {
     let mut matrix: Array2<f64> = Array::zeros((v1.len(), v2.len()));

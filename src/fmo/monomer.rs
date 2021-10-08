@@ -1,7 +1,6 @@
 use ndarray::prelude::*;
 use crate::io::{Configuration, frame_to_coordinates};
 use crate::initialization::{Atom, Geometry};
-use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::scc::gamma_approximation::GammaFunction;
 use chemfiles::Frame;
 use ndarray::{Slice, SliceInfo};
@@ -9,6 +8,8 @@ use hashbrown::HashMap;
 use std::ops::Range;
 use crate::fmo::helpers::MolecularSlice;
 use crate::data::Storage;
+use crate::param::reppot::RepulsivePotential;
+use crate::param::slako::SlaterKoster;
 
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
@@ -56,6 +57,4 @@ impl PartialEq for Monomer {
     }
 }
 
-impl Eq for Monomer {
-
-}
+impl Eq for Monomer {}

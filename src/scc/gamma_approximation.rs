@@ -6,6 +6,7 @@ use std::f64::consts::PI;
 use nalgebra::Vector3;
 use std::iter::FromIterator;
 use ndarray::AssignElem;
+use ndarray::parallel::prelude::{IntoParallelRefMutIterator, IntoParallelIterator};
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -172,21 +173,22 @@ impl GammaFunction {
 pub fn gamma_atomwise(
     gamma_func: &GammaFunction,
     atoms: &[Atom],
-    n_atoms: usize,
 ) -> Array2<f64> {
-    let mut g0 = Array2::zeros((n_atoms, n_atoms));
-    for (i, atomi) in atoms.iter().enumerate() {
-        for (j, atomj) in atoms.iter().enumerate() {
+    let mut gamma = Array2::zeros((atoms.len(), atoms.len()));
+    /// The Gamma matrix is computed in parallel.
+    gamma.axis_iter_mut(Axis(0)).into_par_iter().zip(atoms.iter()).enumerate().for_each(|(i, (row, atom_i))| {
+        row.assign(Array::from_iter(
+            atoms.iter().enumerate().map(|(j, atom_j)|{
             if i == j {
-                g0[[i, j]] = gamma_func.eval_limit0(atomi.number);
+                gamma_func.eval_limit0(atom_i.number);
             } else if i < j {
-                g0[[i, j]] = gamma_func.eval((atomi-atomj).norm(), atomi.number, atomj.number);
+                gamma_func.eval((atom_i-atom_j).norm(), atom_i.number, atom_j.number);
             } else {
-                g0[[i, j]] = g0[[j, i]];
-            }
-        }
-    }
-    return g0;
+                0.0
+            }})))
+        });
+    gamma = &gamma + &gamma.t() - &Array::from_diag(&gamma.diag());
+    return gamma;
 }
 
 /// Compute the atomwise Coulomb interaction between two sets of atoms.

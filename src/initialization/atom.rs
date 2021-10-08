@@ -1,6 +1,3 @@
-use crate::initialization::parameters::{
-    PseudoAtom,SkfHandler,PseudoAtomMio
-};
 use crate::param::elements::Element;
 use std::ops::{Neg, Sub};
 use soa_derive::StructOfArray;
@@ -9,6 +6,8 @@ use nalgebra::Vector3;
 use ndarray::prelude::*;
 use crate::constants;
 use crate::utils::array_helper::argsort_usize;
+use crate::param::pseudo_atom::{PseudoAtom, PseudoAtomMio};
+use crate::param::skf_handler::SkfHandler;
 
 /// `Atom` type that contains basic information about the chemical element as well as the
 /// data used for the semi-empirical parameters that are used in the DFTB calculations.

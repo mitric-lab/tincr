@@ -1,6 +1,5 @@
 use crate::initialization::atom::Atom;
 use crate::initialization::geometry::*;
-use crate::initialization::parameters::*;
 use crate::initialization::{
     get_unique_atoms, get_unique_atoms_mio, initialize_gamma_function, initialize_unrestricted_elec,
 };
@@ -15,6 +14,9 @@ use ndarray::prelude::*;
 use std::borrow::BorrowMut;
 use crate::fmo::Fragment;
 use crate::data::Storage;
+use crate::param::reppot::{RepulsivePotential, RepulsivePotentialTable};
+use crate::param::slako::{SlaterKoster, SlaterKosterTable};
+use crate::param::skf_handler::SkfHandler;
 
 /// Type that holds a molecular system that contains all data for the quantum chemical routines.
 /// This type is only used for non-FMO calculations. In the case of FMO based calculation
@@ -75,41 +77,6 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
     /// Creates a new [System] from a [Vec](alloc::vec) of atomic numbers, the coordinates as an [Array2](ndarray::Array2) and
     /// the global configuration as [Configuration](crate::io::settings::Configuration).
     fn from(molecule: (Vec<u8>, Array2<f64>, Configuration)) -> Self {
-        // create mutable Vectors
-        let mut unique_atoms: Vec<Atom> = Vec::new();
-        let mut num_to_atom: HashMap<u8, Atom> = HashMap::new();
-        let mut skf_handlers: Vec<SkfHandler> = Vec::new();
-
-        if molecule.2.slater_koster.use_mio == true {
-            // get the unique [Atom]s and the HashMap with the mapping from the numbers to the [Atom]s
-            // if use_mio is true, create a vector of homonuclear SkfHandlers and a vector
-            // of heteronuclear SkfHandlers
-            let tmp: (Vec<Atom>, HashMap<u8, Atom>, Vec<SkfHandler>) =
-                get_unique_atoms_mio(&molecule.0, &molecule.2);
-            unique_atoms = tmp.0;
-            num_to_atom = tmp.1;
-            skf_handlers = tmp.2;
-        } else {
-            // get the unique [Atom]s and the HashMap with the mapping from the numbers to the [Atom]s
-            let tmp: (Vec<Atom>, HashMap<u8, Atom>) = get_unique_atoms(&molecule.0);
-            unique_atoms = tmp.0;
-            num_to_atom = tmp.1;
-        }
-
-        // get all the Atom's from the HashMap
-        let mut atoms: Vec<Atom> = Vec::with_capacity(molecule.0.len());
-        molecule
-            .0
-            .iter()
-            .for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
-        // set the positions for each atom
-        molecule
-            .1
-            .outer_iter()
-            .enumerate()
-            .for_each(|(idx, position)| {
-                atoms[idx].position_from_slice(position.as_slice().unwrap())
-            });
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
         // get the number of unpaired electrons from the input option
@@ -125,9 +92,7 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         let (alpha_elec, beta_elec): (f64, f64) =
             initialize_unrestricted_elec(charge, n_elec, molecule.2.mol.multiplicity);
 
-        // calculate the number of atomic orbitals for the whole system as the sum of the atomic
-        // orbitals per atom
-        let n_orbs: usize = atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
+
         // get the indices of the occupied and virtual orbitals
         let mut occ_indices: Vec<usize> = Vec::new();
         let mut virt_indices: Vec<usize> = Vec::new();
@@ -153,68 +118,9 @@ impl From<(Vec<u8>, Array2<f64>, Configuration)> for System {
         let mut data: Storage = Storage::new();
         data.set_occ_indices(occ_indices.clone());
         data.set_virt_indices(virt_indices.clone());
-        let mut slako: SlaterKoster = SlaterKoster::new();
-        let mut vrep: RepulsivePotential = RepulsivePotential::new();
 
-        // add all unique element pairs
-        if molecule.2.slater_koster.use_mio == true {
-            for handler in skf_handlers.iter() {
-                // in the heteronuclear case, the slako tables of the element combinations "AB"
-                // and "BA" must be combined
-                // if handler.element_a == handler.element_b {
-                //     let repot_table: RepulsivePotentialTable =
-                //         RepulsivePotentialTable::from(handler);
-                //     let slako_table: SlaterKosterTable =
-                //         SlaterKosterTable::from((handler, None, "ab"));
-                //
-                //     // insert the tables into the hashmaps
-                //     slako
-                //         .map
-                //         .insert((handler.element_a, handler.element_b), slako_table);
-                //     // slako
-                //     //     .add_from_handler(handler.element_a, handler.element_b, handler.clone(),None,"ab");
-                //     vrep.map
-                //         .insert((handler.element_a, handler.element_b), repot_table);
-                // } else {
-                let repot_table: RepulsivePotentialTable =
-                    RepulsivePotentialTable::from(handler);
-                let slako_table_ab: SlaterKosterTable =
-                    SlaterKosterTable::from((handler, None, "ab"));
-                let slako_handler_ba: SkfHandler = SkfHandler::new(
-                    handler.element_b,
-                    handler.element_a,
-                    molecule.2.slater_koster.mio_directory.clone(),
-                );
-                let slako_table: SlaterKosterTable =
-                    SlaterKosterTable::from((&slako_handler_ba, Some(slako_table_ab), "ba"));
 
-                // insert the tables into the hashmaps
-                slako
-                    .map
-                    .insert((handler.element_a, handler.element_b), slako_table);
-                // slako
-                //     .add_from_handler(handler.element_a, handler.element_b, slako_handler_ba,Some(slako_table_ab),"ba");
-                vrep.map
-                    .insert((handler.element_a, handler.element_b), repot_table);
-            }
-        } else {
-            let element_iter = unique_atoms.iter().map(|atom| Element::from(atom.number));
-            for (kind1, kind2) in element_iter.clone().cartesian_product(element_iter) {
-                slako.add(kind1, kind2);
-                vrep.add(kind1, kind2);
-            }
-        }
-        // initialize the gamma function
-        let gf: GammaFunction = initialize_gamma_function(&unique_atoms, 0.0);
-        // initialize the gamma function for long-range correction if it is requested
-        let gf_lc: Option<GammaFunction> = if molecule.2.lc.long_range_correction {
-            Some(initialize_gamma_function(
-                &unique_atoms,
-                molecule.2.lc.long_range_radius,
-            ))
-        } else {
-            None
-        };
+
 
         Self {
             config: molecule.2,

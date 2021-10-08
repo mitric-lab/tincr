@@ -1,10 +1,10 @@
 use crate::defaults;
-use crate::initialization::parameters::{RepulsivePotential};
 use crate::initialization::Atom;
 use itertools::Itertools;
 use log::{debug};
 use ndarray::prelude::*;
 use ndarray_linalg::Norm;
+use crate::param::reppot::RepulsivePotential;
 
 // find indices of HOMO and LUMO orbitals (starting from 0)
 pub fn get_frontier_orbitals(n_elec: usize) -> (usize, usize) {

@@ -13,12 +13,12 @@ use log::{info};
 use log::LevelFilter;
 use petgraph::stable_graph::*;
 use toml;
-use crate::io::MoldenExporterBuilder;
+use crate::io::{MoldenExporterBuilder, frame_to_coordinates};
 use ndarray::prelude::*;
 use crate::defaults::CONFIG_FILE_NAME;
 use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter};
 use chemfiles::Frame;
-use crate::initialization::System;
+use crate::initialization::{System, create_atoms, Atom, get_parametrization, initialize_gamma_function};
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::scc::gamma_approximation::gamma_atomwise;
 use crate::excited_states::ExcitedState;
@@ -36,6 +36,7 @@ use crate::fmo::gradients::GroundStateGradient;
 use crate::fmo::SuperSystem;
 use std::fs::File;
 use ndarray_npy::write_npy;
+use crate::param::slako::ParamFiles;
 
 
 mod constants;
@@ -103,6 +104,32 @@ fn main() {
 
     // Computations.
     // ................................................................
+
+    // Check if SKF files should be used as for the parametrization or own files.
+    let params: ParamFiles = if config.slater_koster.use_skf_files {
+        ParamFiles::SKF(&config.slater_koster.path_to_skf)
+    } else {
+        ParamFiles::OWN
+    };
+
+    let (at_numbers, coords): (Vec<u8>, Array2<f64>) = frame_to_coordinates(frame.clone());
+
+    let (u_atoms, atoms): (Vec<Atom>, Vec<Atom>) = create_atoms(&at_numbers, coords.view());
+    let (slako, vrep) = get_parametrization(&u_atoms, params);
+    // Count the number of orbitals
+    let n_orbs: usize = atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
+    let gf = initialize_gamma_function(&u_atoms, 0.0);
+    let gf_lr = initialize_gamma_function(&u_atoms, config.lc.long_range_radius);
+    let gamma: Array2<f64> = gamma_atomwise(&gf, &atoms);
+    let gamma_lr: Option<Array2<f64>> = if config.lc.long_range_correction {
+        Some(gamma_atomwise(&gf_lr, &atoms))
+    } else {
+        None
+    };
+    let (s, h0): (Array2<f64>, Array2<f64>) = slako.h0_and_s(n_orbs, &atoms);
+
+
+
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
         system.prepare_scc();

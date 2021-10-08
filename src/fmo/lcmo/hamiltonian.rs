@@ -107,7 +107,7 @@ impl SuperSystem {
         // total overlap matrix is almost diagonal, it can be approximated in first order by:
         // S^-1/2 = 1.5 * I - 1/2 Delta
         let x: Array2<f64> = 1.5 * Array::eye(dim) - 0.5 * &s_total;
-        let x2: Array2<f64> = s_total.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
+        //let x2: Array2<f64> = s_total.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
         // The transformed Fock matrix is returned.
         //(x.t().dot(&fock)).dot(&x)
         fock

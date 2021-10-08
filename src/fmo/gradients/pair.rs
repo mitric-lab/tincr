@@ -1,7 +1,6 @@
 use crate::fmo::gradients::*;
 use crate::fmo::scc::helpers::*;
 use crate::fmo::{Monomer, Pair, SuperSystem};
-use crate::initialization::parameters::RepulsivePotential;
 use crate::initialization::Atom;
 use crate::scc::gamma_approximation::{gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise, gamma_gradients_ao_wise};
 use crate::scc::h0_and_s::{h0_and_s, h0_and_s_ab, h0_and_s_gradients};

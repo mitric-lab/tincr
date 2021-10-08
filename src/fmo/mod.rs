@@ -18,7 +18,6 @@ pub use fragmentation::*;
 use ndarray::prelude::*;
 use crate::io::Configuration;
 use crate::initialization::{Atom, Geometry};
-use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use std::collections::HashMap;
 pub use scc::*;
 use crate::scc::gamma_approximation::GammaFunction;

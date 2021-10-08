@@ -15,8 +15,9 @@ use ndarray::prelude::*;
 use crate::scc::mixer::BroydenMixer;
 use crate::excited_states::ProductCache;
 use crate::scc::gamma_approximation::GammaFunction;
-use crate::initialization::parameters::{SlaterKoster, RepulsivePotential};
 use hashbrown::HashMap;
+use crate::param::slako::SlaterKoster;
+use crate::param::reppot::RepulsivePotential;
 
 pub struct Storage<'a> {
     charges: ChargeData,
@@ -74,9 +75,9 @@ pub struct GammaData<'a> {
     /// Gamma function for the long-range correction. Only used if LR-correction is requested.
     pub gamma_function_lc: Option<&'a GammaFunction>,
     /// The unscreened Gamma matrix in atom basis.
-    pub gamma: Option<Array2<f64>>,
+    pub gamma: Option<ArrayView2<'a, f64>>,
     /// Screened Gamma matrix in atom basis.
-    pub gamma_lr: Option<Array2<f64>>,
+    pub gamma_lr: Option<ArrayView2<'a, f64>>,
     /// Unscreened Gamma matrix in AO basis.
     pub gamma_ao: Option<Array2<f64>>,
     /// Screened Gamma matrix in AO basis.
@@ -151,9 +152,9 @@ pub struct GradData {
 
 pub struct OtherData<'a> {
     /// Fock matrix that contains only the one-electron integrals in AO basis.
-    pub h0: Option<Array2<f64>>,
+    pub h0: Option<ArrayView2<'a, f64>>,
     /// Overlap integral matrix in AO basis.
-    pub s: Option<Array2<f64>>,
+    pub s: Option<ArrayView2<'a, f64>>,
     /// The S^{-1/2} that is needed to transform the general eigenvalue problem to a specific one.
     pub x: Option<Array2<f64>>,
     /// The Broyden mixer, that is needed for the SCF/SCC iterations.
@@ -164,8 +165,6 @@ pub struct OtherData<'a> {
     pub v: Option<Array2<f64>>,
     /// The Fock matrix.
     pub fock: Option<Array2<f64>>,
-    /// The diabatic basis states that are used in an LCMO-FMO excited state calculations.
-    pub diabatic_basis_states: Option<Vec<BasisState<'a>>>,
     /// HashMap that maps two monomers to a type of a pair.
     pub pair_types: Option<HashMap<(usize, usize), PairType>>,
     /// HashMap that maps two monomers to the index of the pair.

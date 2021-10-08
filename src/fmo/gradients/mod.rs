@@ -21,6 +21,7 @@ pub use pair::*;
 use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::gradients::embedding::diag_of_last_dimensions;
 use rayon::prelude::*;
+use crate::param::reppot::RepulsivePotential;
 
 pub trait GroundStateGradient {
     fn get_grad_dq(&self, atoms: &[Atom], s: ArrayView2<f64>, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;

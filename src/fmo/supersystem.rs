@@ -1,7 +1,6 @@
 use crate::fmo::fragmentation::{build_graph, fragmentation, Graph};
 use crate::fmo::helpers::{MolecularSlice, MolIndices, MolIncrements};
 use crate::fmo::{get_pair_type, ESDPair, Monomer, Pair, PairType};
-use crate::initialization::parameters::{RepulsivePotential, SlaterKoster, SkfHandler, RepulsivePotentialTable, SlaterKosterTable};
 use crate::initialization::{get_unique_atoms, initialize_gamma_function, Atom, Geometry, get_unique_atoms_mio};
 use crate::io::{frame_to_atoms, frame_to_coordinates, read_file_to_frame, Configuration};
 use crate::param::elements::Element;
@@ -19,6 +18,9 @@ use std::vec;
 use ndarray::Slice;
 use crate::scc::h0_and_s::h0_and_s;
 use crate::data::Storage;
+use crate::param::skf_handler::SkfHandler;
+use crate::param::slako::{SlaterKoster, SlaterKosterTable};
+use crate::param::reppot::{RepulsivePotential, RepulsivePotentialTable};
 
 pub struct SuperSystem {
     /// Type that holds all the input settings from the user.
@@ -117,8 +119,8 @@ impl From<(Frame, Configuration)> for SuperSystem {
                 let slako_table_ab: SlaterKosterTable =
                     SlaterKosterTable::from((handler, None, "ab"));
                 let slako_handler_ba: SkfHandler = SkfHandler::new(
-                    handler.element_b,
-                    handler.element_a,
+                    handler.el_b,
+                    handler.el_a,
                     input.1.slater_koster.mio_directory.clone(),
                 );
                 let slako_table: SlaterKosterTable =
@@ -127,9 +129,9 @@ impl From<(Frame, Configuration)> for SuperSystem {
                 // insert the tables into the hashmaps
                 slako
                     .map
-                    .insert((handler.element_a, handler.element_b), slako_table);
+                    .insert((handler.el_a, handler.el_b), slako_table);
                 vrep.map
-                    .insert((handler.element_a, handler.element_b), repot_table);
+                    .insert((handler.el_a, handler.el_b), repot_table);
             }
         } else {
             let element_iter = unique_atoms.iter().map(|atom| Element::from(atom.number));

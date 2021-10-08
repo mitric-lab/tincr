@@ -62,13 +62,6 @@ impl<'a> Storage<'a> {
         }
     }
 
-    pub fn basis_states(&self) -> &'a Vec<BasisState> {
-        match &self.other.diabatic_basis_states {
-            Some(value) => value,
-            None => panic!("OtherData::fock; The Fock matrix is not set!"),
-        }
-    }
-
     /// Get the type of a pair formed by two monomers.
     pub fn type_of_pair(&self, i: usize, j: usize) -> PairType {
         if i == j {

@@ -4,7 +4,6 @@ pub use helpers::*;
 pub use system::*;
 pub use molecular_orbital::*;
 
-pub mod parameters;
 pub mod system;
 mod geometry;
 mod atom;

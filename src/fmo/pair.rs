@@ -1,6 +1,5 @@
 use crate::constants::{VDW_SUM, VDW_RADII};
 use crate::fmo::Monomer;
-use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
 use crate::initialization::{Atom, Geometry};
 use crate::io::Configuration;
 use crate::scc::gamma_approximation::GammaFunction;
@@ -12,6 +11,8 @@ use ndarray::stack;
 use std::ops::Add;
 use std::fmt;
 use crate::data::Storage;
+use crate::param::reppot::RepulsivePotential;
+use crate::param::slako::SlaterKoster;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PairType {
