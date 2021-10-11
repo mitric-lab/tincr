@@ -107,8 +107,8 @@ impl System{
         let maxiter: usize = 100000;
         let gtol: f64 = 1.0e-6;
         let ftol: f64 = 1.0e-8;
-        let method: String = String::from("BFGS");
-        let line_search: String = String::from("Armijo");
+        let method: String = String::from("Steepest Descent");
+        let line_search: String = String::from("largest");
 
         let n: usize = coords.len();
         let mut x_old: Array1<f64> = coords.clone();
@@ -161,7 +161,7 @@ impl System{
                 x_kp1 = self.armijo_line_search(
                     x_old.view(), fk, grad_fk.view(), pk.view(),state);
             } else if line_search == "largest" {
-                let amax = 1.0;
+                let amax = 5.0e-1;
                 x_kp1 = &x_old + &(amax * &pk);
             }
             let mut f_kp1: f64 = 0.0;
@@ -261,7 +261,6 @@ impl SuperSystem{
             // calculate excited states
             self.create_exciton_hamiltonian();
             energy += self.properties.ci_eigenvalue(excited_state).unwrap();
-
             gradient = gradient + self.fmo_cis_gradient(excited_state);
 
         }
@@ -314,8 +313,8 @@ impl SuperSystem{
         let maxiter: usize = 100000;
         let gtol: f64 = 1.0e-6;
         let ftol: f64 = 1.0e-8;
-        let method: String = String::from("BFGS");
-        let line_search: String = String::from("Armijo");
+        let method: String = String::from("Steepest Descent");
+        let line_search: String = String::from("largest");
 
         let n: usize = coords.len();
         let mut x_old: Array1<f64> = coords.clone();
@@ -368,7 +367,7 @@ impl SuperSystem{
                 x_kp1 = self.armijo_line_search(
                     x_old.view(), fk, grad_fk.view(), pk.view(),state);
             } else if line_search == "largest" {
-                let amax = 1.0;
+                let amax = 5.0e-1;
                 x_kp1 = &x_old + &(amax * &pk);
             }
             let mut f_kp1: f64 = 0.0;

@@ -57,7 +57,7 @@ impl SuperSystem {
                         drop(mol_j);
 
                         // get ct indices of the MOs
-                        let mo_i:usize = (a.hole.mo.idx as i32 - nocc_i as i32).abs() as usize;
+                        let mo_i:usize = (a.hole.mo.idx as i32 - (nocc_i-1) as i32).abs() as usize;
                         let mo_j:usize = a.electron.mo.idx - nocc_j;
 
                         (vec![mo_i,mo_j],vec![index_i,index_j])
@@ -88,7 +88,7 @@ impl SuperSystem {
                     mol.prepare_excited_gradient(monomer_atoms);
                     let grad = mol.tda_gradient_lc(le_state) * state.coefficient;
 
-                    gradient.slice_mut(s![mol.slice.atom_as_range()]).add_assign(&grad);
+                    gradient.slice_mut(s![mol.slice.grad]).add_assign(&grad);
                     // grad
                 }
                 BasisStateType::CT =>{
@@ -99,20 +99,18 @@ impl SuperSystem {
 
                     // get Atom vector and nocc of the monomer I
                     let mol_i:&Monomer = &self.monomers[index_i];
-                    let nocc_i:usize = mol_i.properties.occ_indices().unwrap().len();
                     let n_atoms_i:usize = mol_i.n_atoms;
-                    let atoms_slice_i = mol_i.slice.atom_as_range();
+                    let atoms_slice_i = mol_i.slice.grad;
                     drop(mol_i);
 
                     // get Atom vector and nocc of the monomer J
                     let mol_j:&Monomer = &self.monomers[index_j];
-                    let nocc_j:usize = mol_j.properties.occ_indices().unwrap().len();
-                    let atoms_slice_j = mol_j.slice.atom_as_range();
+                    let atoms_slice_j = mol_j.slice.grad;
                     drop(mol_j);
 
                     // get ct indices of the MOs
-                    let mo_i:usize = (state.state_indices[0] as i32 - nocc_i as i32).abs() as usize;
-                    let mo_j:usize = state.state_indices[1] - nocc_j;
+                    let mo_i:usize = state.state_indices[0];
+                    let mo_j:usize = state.state_indices[1];
 
                     let grad = self.ct_gradient_new(
                         index_i,

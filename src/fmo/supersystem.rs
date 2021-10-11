@@ -192,6 +192,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // Create a HashMap that maps the Monomers to the type of Pair. To identify if a pair of
         // monomers are considered a real pair or should be treated with the ESD approx.
         let mut pair_iter:usize = 0;
+        let mut esd_iter:usize = 0;
         let mut pair_indices: HashMap<(usize, usize),usize> = HashMap::new();
         let mut esd_pair_indices:HashMap<(usize, usize),usize> = HashMap::new();
         let mut pair_types: HashMap<(usize, usize), PairType> = HashMap::new();
@@ -211,19 +212,21 @@ impl From<(Frame, Configuration)> for SuperSystem {
                         pairs.push(m_i + m_j);
                         pair_types.insert((m_i.index, m_j.index), PairType::Pair);
                         pair_indices.insert((m_i.index, m_j.index),pair_iter);
+                        pair_iter += 1;
                     },
                     PairType::ESD => {
                         esd_pairs.push(ESDPair::new(i, (i + j + 1), m_i, m_j));
                         pair_types.insert((m_i.index, m_j.index), PairType::ESD);
-                        esd_pair_indices.insert((m_i.index, m_j.index),pair_iter);
+                        esd_pair_indices.insert((m_i.index, m_j.index),esd_iter);
+                        esd_iter += 1;
                     },
                     _ => {}
                 }
-                pair_iter += 1;
             }
         }
         properties.set_pair_types(pair_types);
         properties.set_pair_indices(pair_indices);
+        properties.set_esd_pair_indices(esd_pair_indices);
 
         info!("{}", timer);
 

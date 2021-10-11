@@ -105,8 +105,8 @@ fn main() {
     // ................................................................
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
-        system.prepare_scc();
-        system.run_scc();
+        // system.prepare_scc();
+        // system.run_scc();
         system.optimize_cartesian(Some(1));
         // system.test_tda_lc_gradient();
         // system.prepare_tda();
@@ -114,9 +114,10 @@ fn main() {
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
-        system.prepare_scc();
-        system.run_scc();
-        system.test_ct_gradient();
+        // system.prepare_scc();
+        // system.run_scc();
+        system.optimize_cartesian(Some(1));
+        // system.test_ct_gradient();
         // system.test_orbital_energy_derivative();
         // let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
         //     .atoms(&system.atoms)
