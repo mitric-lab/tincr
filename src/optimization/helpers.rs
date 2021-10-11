@@ -7,6 +7,7 @@ use std::io::{BufWriter, Write};
 use std::fs;
 use crate::constants;
 use serde::{Deserialize, Serialize};
+use crate::fmo::SuperSystem;
 
 // References
 // ----------
@@ -66,7 +67,47 @@ impl System{
 
             // update coordinates
             self.update_xyz(x_interp.clone());
-            // calculate energy and gradient
+            // calculate energy
+            let energy:f64 = self.calculate_energy_line_search(state);
+
+            if energy <= (fk + c * a * df) {
+                break;
+            } else {
+                a = a * rho;
+            }
+        }
+        return x_interp;
+    }
+}
+
+impl SuperSystem{
+    pub fn armijo_line_search(
+        &mut self,
+        xk: ArrayView1<f64>,
+        fk: f64,
+        grad_fk: ArrayView1<f64>,
+        pk: ArrayView1<f64>,
+        state: usize,
+    ) -> Array1<f64> {
+        // set defaults
+        let mut a: f64 = 1.0;
+        let rho: f64 = 0.8;
+        let c: f64 = 0.0001;
+        let lmax: usize = 100;
+
+        // directional derivative
+        let df: f64 = grad_fk.dot(&pk);
+
+        assert!(df <= 0.0, "pk = {} not a descent direction", &pk);
+        let mut x_interp: Array1<f64> = Array::zeros(xk.len());
+
+        for i in 0..lmax {
+            x_interp = &xk + &(a * &pk);
+
+            // update coordinates and overlap matrix
+            self.update_xyz(x_interp.clone());
+            self.update_s();
+            // calculate energy
             let energy:f64 = self.calculate_energy_line_search(state);
 
             if energy <= (fk + c * a * df) {

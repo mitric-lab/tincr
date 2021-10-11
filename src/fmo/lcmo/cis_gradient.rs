@@ -3,9 +3,10 @@ use crate::initialization::{Atom, MO};
 use ndarray::prelude::*;
 use crate::utils::array_helper::argsort_abs;
 use crate::gradients::helpers::gradient_v_rep;
+use std::ops::AddAssign;
 
 impl SuperSystem {
-    pub fn fmo_cis_gradient(&mut self,state:usize){
+    pub fn fmo_cis_gradient(&mut self,state:usize)->Array1<f64>{
         // get the coefficient of the state
         let coeff:ArrayView1<f64> = self.properties.ci_coefficient(state).unwrap();
 
@@ -63,15 +64,19 @@ impl SuperSystem {
                     }
                 };
                 let reduced_state:ReducedBasisState =
-                    ReducedBasisState::new(energy_state,m_index,state_ind);
+                    ReducedBasisState::new(energy_state,m_index,state_ind,c.powi(2));
                 contributions.push(reduced_state);
             }
         }
 
         // iterate over the basis states and calculate their gradient
         let mut gradients:Vec<Array1<f64>> = Vec::new();
+        let n_atoms:usize = self.atoms.len();
+        let mut gradient:Array1<f64> = Array1::zeros(3*n_atoms);
+
         for state in contributions.iter(){
-            let (gradient):(Array1<f64>) = match state.type_of_state{
+            // let (gradient):(Array1<f64>) = match state.type_of_state{
+            match state.type_of_state{
                 BasisStateType::LE =>{
                     // get index and the Atom vector of the monomer
                     let le_state:usize = state.state_indices[0];
@@ -81,9 +86,10 @@ impl SuperSystem {
 
                     // calculate the gradient
                     mol.prepare_excited_gradient(monomer_atoms);
-                    let grad = mol.tda_gradient_lc(le_state);
+                    let grad = mol.tda_gradient_lc(le_state) * state.coefficient;
 
-                    grad
+                    gradient.slice_mut(s![mol.slice.atom_as_range()]).add_assign(&grad);
+                    // grad
                 }
                 BasisStateType::CT =>{
                     let energy_state:f64 = state.energy;
@@ -94,11 +100,14 @@ impl SuperSystem {
                     // get Atom vector and nocc of the monomer I
                     let mol_i:&Monomer = &self.monomers[index_i];
                     let nocc_i:usize = mol_i.properties.occ_indices().unwrap().len();
+                    let n_atoms_i:usize = mol_i.n_atoms;
+                    let atoms_slice_i = mol_i.slice.atom_as_range();
                     drop(mol_i);
 
                     // get Atom vector and nocc of the monomer J
                     let mol_j:&Monomer = &self.monomers[index_j];
                     let nocc_j:usize = mol_j.properties.occ_indices().unwrap().len();
+                    let atoms_slice_j = mol_j.slice.atom_as_range();
                     drop(mol_j);
 
                     // get ct indices of the MOs
@@ -112,14 +121,18 @@ impl SuperSystem {
                         mo_j,
                         energy_state,
                         true
-                    );
-
-                    grad
+                    ) *state.coefficient;
+                    let grad_i:Array1<f64> = grad.slice(s![0..3*n_atoms_i]).to_owned();
+                    let grad_j:Array1<f64> = grad.slice(s![3*n_atoms_i..]).to_owned();
+                    gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
+                    gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
+                    // grad
                 }
-            };
-            gradients.push(gradient);
+            }
+            // gradients.push(gradient);
         }
         // Reorder the calculated gradient using the monomer indices of the specific states
+        return gradient;
     }
 }
 
@@ -128,6 +141,7 @@ struct ReducedBasisState{
     pub monomer_indices:Vec<usize>,
     pub state_indices:Vec<usize>,
     pub type_of_state:BasisStateType,
+    pub coefficient:f64,
 }
 
 impl ReducedBasisState{
@@ -135,13 +149,15 @@ impl ReducedBasisState{
         energy:f64,
         monomer_indices:Vec<usize>,
         state_indices:Vec<usize>,
+        coefficient:f64,
     )->ReducedBasisState{
         if monomer_indices.len() > 1{
             ReducedBasisState{
                 energy:energy,
                 monomer_indices:monomer_indices,
                 state_indices:state_indices,
-                type_of_state:BasisStateType::CT
+                type_of_state:BasisStateType::CT,
+                coefficient:coefficient,
             }
         }
         else{
@@ -149,7 +165,8 @@ impl ReducedBasisState{
                 energy:energy,
                 monomer_indices:monomer_indices,
                 state_indices:state_indices,
-                type_of_state:BasisStateType::LE
+                type_of_state:BasisStateType::LE,
+                coefficient:coefficient,
             }
         }
     }

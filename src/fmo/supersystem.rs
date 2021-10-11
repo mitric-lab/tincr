@@ -308,6 +308,13 @@ impl SuperSystem {
         gamma.slice_mut(s![n_atoms_a.., n_atoms_c..]).assign(&self.gamma_a_b(b, d, lrc));
         gamma
     }
+
+    pub fn update_s(&mut self){
+        let n_orbs:usize = self.properties.n_occ().unwrap() + self.properties.n_virt().unwrap();
+        let slako = &self.monomers[0].slako;
+        let (s, h0) = h0_and_s(n_orbs, &self.atoms, slako);
+        self.properties.set_s(s);
+    }
 }
 
 #[derive(Copy, Clone)]
