@@ -61,6 +61,7 @@ impl SuperSystem {
         let esd_gradient: Array1<f64> = self.es_dimer_gradient();
         info!("ESD : {}", timer);
 
+        drop(timer);
         // let timer: Timer = Timer::start();
         // let response_gradient: Array1<f64> = self.response_embedding_gradient();
         // info!("Response : {}", timer);

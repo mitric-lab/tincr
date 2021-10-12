@@ -74,6 +74,8 @@ impl SuperSystem {
         let n_atoms:usize = self.atoms.len();
         let mut gradient:Array1<f64> = Array1::zeros(3*n_atoms);
 
+        println!("Number of contributions {}",contributions.len());
+
         for state in contributions.iter(){
             // let (gradient):(Array1<f64>) = match state.type_of_state{
             match state.type_of_state{
@@ -83,14 +85,16 @@ impl SuperSystem {
                     let monomer_ind:usize = state.monomer_indices[0];
                     let mol:&mut Monomer = &mut self.monomers[monomer_ind];
                     let monomer_atoms:&[Atom] = &self.atoms[mol.slice.atom_as_range()];
-                    let monomer_atom_ind:usize = monomer_ind * 3;
 
                     // calculate the gradient
                     mol.prepare_excited_gradient(monomer_atoms);
                     let grad = mol.tda_gradient_lc(le_state) * state.coefficient;
 
-                    // gradient.slice_mut(s![mol.slice.grad]).add_assign(&grad);
-                    gradient.slice_mut(s![3*monomer_atom_ind..3*monomer_atom_ind+9]).add_assign(&grad);
+                    println!("Monomer_ind {}",monomer_ind);
+                    println!("slice {:?}",mol.slice.grad);
+                    gradient.slice_mut(s![mol.slice.grad]).add_assign(&grad);
+                    // let monomer_atom_ind:usize = monomer_ind * 3;
+                    // gradient.slice_mut(s![3*monomer_atom_ind..3*monomer_atom_ind+9]).add_assign(&grad);
                     // grad
                 }
                 BasisStateType::CT =>{
@@ -133,13 +137,13 @@ impl SuperSystem {
                         ) *state.coefficient;
                         let grad_i:Array1<f64> = grad.slice(s![0..3*n_atoms_i]).to_owned();
                         let grad_j:Array1<f64> = grad.slice(s![3*n_atoms_i..]).to_owned();
-                        let monomer_atom_ind_i:usize = index_i * 3;
-                        let monomer_atom_ind_j:usize = index_j * 3;
-                        gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
-                        gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
+                        // let monomer_atom_ind_i:usize = index_i * 3;
+                        // let monomer_atom_ind_j:usize = index_j * 3;
+                        // gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
+                        // gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
 
-                        // gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
-                        // gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
+                        gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
+                        gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
                     }
                     else{
                         let grad = self.ct_gradient_new(
@@ -153,10 +157,13 @@ impl SuperSystem {
                         let grad_j:Array1<f64> = grad.slice(s![0..3*n_atoms_j]).to_owned();
                         let grad_i:Array1<f64> = grad.slice(s![3*n_atoms_j..]).to_owned();
 
-                        let monomer_atom_ind_i:usize = index_i * 3;
-                        let monomer_atom_ind_j:usize = index_j * 3;
-                        gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
-                        gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
+                        gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
+                        gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
+
+                        //let monomer_atom_ind_i:usize = index_i * 3;
+                        //let monomer_atom_ind_j:usize = index_j * 3;
+                        //gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
+                        //gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
                     }
 
                     // grad
