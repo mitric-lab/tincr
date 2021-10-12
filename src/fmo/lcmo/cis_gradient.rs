@@ -17,7 +17,7 @@ impl SuperSystem {
         let basis: Vec<BasisState> = self.create_diab_basis();
 
         // Get the contribution of the basis states to the state
-        let threshold = 0.001;
+        let threshold = 0.05;
         let mut contributions:Vec<ReducedBasisState> = Vec::new();
         // Reverse the Iterator to write the largest amplitude first.
         for i in sorted_indices.into_iter().rev() {
@@ -83,12 +83,14 @@ impl SuperSystem {
                     let monomer_ind:usize = state.monomer_indices[0];
                     let mol:&mut Monomer = &mut self.monomers[monomer_ind];
                     let monomer_atoms:&[Atom] = &self.atoms[mol.slice.atom_as_range()];
+                    let monomer_atom_ind:usize = monomer_ind * 3;
 
                     // calculate the gradient
                     mol.prepare_excited_gradient(monomer_atoms);
                     let grad = mol.tda_gradient_lc(le_state) * state.coefficient;
 
-                    gradient.slice_mut(s![mol.slice.grad]).add_assign(&grad);
+                    // gradient.slice_mut(s![mol.slice.grad]).add_assign(&grad);
+                    gradient.slice_mut(s![3*monomer_atom_ind..3*monomer_atom_ind+9]).add_assign(&grad);
                     // grad
                 }
                 BasisStateType::CT =>{
@@ -96,6 +98,13 @@ impl SuperSystem {
                     // get indices
                     let index_i:usize = state.monomer_indices[0];
                     let index_j:usize = state.monomer_indices[1];
+                    let pair_type:PairType = self.properties.type_of_pair(index_i, index_j);
+                    if pair_type == PairType::Pair{
+                        println!("Real pair");
+                    }
+                    else{
+                        println!("ESD pair");
+                    }
 
                     // get Atom vector and nocc of the monomer I
                     let mol_i:&Monomer = &self.monomers[index_i];
@@ -124,8 +133,13 @@ impl SuperSystem {
                         ) *state.coefficient;
                         let grad_i:Array1<f64> = grad.slice(s![0..3*n_atoms_i]).to_owned();
                         let grad_j:Array1<f64> = grad.slice(s![3*n_atoms_i..]).to_owned();
-                        gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
-                        gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
+                        let monomer_atom_ind_i:usize = index_i * 3;
+                        let monomer_atom_ind_j:usize = index_j * 3;
+                        gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
+                        gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
+
+                        // gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
+                        // gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
                     }
                     else{
                         let grad = self.ct_gradient_new(
@@ -138,8 +152,11 @@ impl SuperSystem {
                         ) *state.coefficient;
                         let grad_j:Array1<f64> = grad.slice(s![0..3*n_atoms_j]).to_owned();
                         let grad_i:Array1<f64> = grad.slice(s![3*n_atoms_j..]).to_owned();
-                        gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
-                        gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
+
+                        let monomer_atom_ind_i:usize = index_i * 3;
+                        let monomer_atom_ind_j:usize = index_j * 3;
+                        gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
+                        gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
                     }
 
                     // grad

@@ -143,6 +143,8 @@ impl SuperSystem {
                 gamma_pair.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
 
                 pair_ij.properties.set_gamma(gamma_pair);
+                // pair_ij.prepare_ct_state(&pair_atoms,m_i,m_j,ct_ind_i,ct_ind_j,ct_energy,hole_i);
+                // ct_gradient = pair_ij.tda_gradient_lc(0);
             }
         }
 

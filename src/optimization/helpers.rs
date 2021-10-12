@@ -165,3 +165,38 @@ pub fn write_xyz_custom(xyz: &XYZ_Output) {
         fs::write(file_path, string).expect("Unable to write to dynamics.xyz file");
     }
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Opt_Energy_Output {
+    pub step: usize,
+    pub energy: f64,
+}
+
+impl Opt_Energy_Output{
+    pub fn new(
+        step:usize,
+        energy:f64
+    )->Opt_Energy_Output{
+        Opt_Energy_Output{
+            step:step,
+            energy:energy,
+        }
+    }
+}
+
+pub fn write_opt_energy(energy_out:&Opt_Energy_Output){
+    let file_path: &Path = Path::new("opt_energies.txt");
+    let mut string: String = energy_out.step.to_string();
+    string.push_str("\t");
+    string.push_str(&energy_out.energy.to_string());
+    string.push_str("\n");
+
+    if file_path.exists() {
+        let mut file = OpenOptions::new().append(true).open(file_path).unwrap();
+        let mut stream = BufWriter::new(file);
+        stream.write_fmt(format_args!("{}", string)).unwrap();
+        stream.flush().unwrap();
+    } else {
+        fs::write(file_path, string).expect("Unable to write to dynamics.xyz file");
+    }
+}

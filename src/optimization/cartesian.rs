@@ -202,6 +202,8 @@ impl System{
                     atom_names.clone(),
                     new_coords.clone().into_shape([self.n_atoms,3]).unwrap());
             write_xyz_custom(&xyz_out);
+            let opt_energy:Opt_Energy_Output = Opt_Energy_Output::new(k,fk);
+            write_opt_energy(&opt_energy);
         }
         return (x_old,grad_fk);
     }
@@ -409,6 +411,9 @@ impl SuperSystem{
                     atom_names.clone(),
                     new_coords.clone().into_shape([n_atoms,3]).unwrap());
             write_xyz_custom(&xyz_out);
+
+            let opt_energy:Opt_Energy_Output = Opt_Energy_Output::new(k,fk);
+            write_opt_energy(&opt_energy);
         }
         return (x_old,grad_fk);
     }
