@@ -1,4 +1,4 @@
-use crate::fmo::{SuperSystem, ExcitonStates, BasisState, Monomer, ExcitedStateMonomerGradient};
+use crate::fmo::{SuperSystem, ExcitonStates, BasisState, Monomer, ExcitedStateMonomerGradient, PairType};
 use crate::initialization::{Atom, MO};
 use ndarray::prelude::*;
 use crate::utils::array_helper::argsort_abs;
@@ -17,7 +17,7 @@ impl SuperSystem {
         let basis: Vec<BasisState> = self.create_diab_basis();
 
         // Get the contribution of the basis states to the state
-        let threshold = 0.1;
+        let threshold = 0.001;
         let mut contributions:Vec<ReducedBasisState> = Vec::new();
         // Reverse the Iterator to write the largest amplitude first.
         for i in sorted_indices.into_iter().rev() {
@@ -105,6 +105,7 @@ impl SuperSystem {
 
                     // get Atom vector and nocc of the monomer J
                     let mol_j:&Monomer = &self.monomers[index_j];
+                    let n_atoms_j:usize = mol_j.n_atoms;
                     let atoms_slice_j = mol_j.slice.grad;
                     drop(mol_j);
 
@@ -112,18 +113,35 @@ impl SuperSystem {
                     let mo_i:usize = state.state_indices[0];
                     let mo_j:usize = state.state_indices[1];
 
-                    let grad = self.ct_gradient_new(
-                        index_i,
-                        index_j,
-                        mo_i,
-                        mo_j,
-                        energy_state,
-                        true
-                    ) *state.coefficient;
-                    let grad_i:Array1<f64> = grad.slice(s![0..3*n_atoms_i]).to_owned();
-                    let grad_j:Array1<f64> = grad.slice(s![3*n_atoms_i..]).to_owned();
-                    gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
-                    gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
+                    if index_i < index_j{
+                        let grad = self.ct_gradient_new(
+                            index_i,
+                            index_j,
+                            mo_i,
+                            mo_j,
+                            energy_state,
+                            true,
+                        ) *state.coefficient;
+                        let grad_i:Array1<f64> = grad.slice(s![0..3*n_atoms_i]).to_owned();
+                        let grad_j:Array1<f64> = grad.slice(s![3*n_atoms_i..]).to_owned();
+                        gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
+                        gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
+                    }
+                    else{
+                        let grad = self.ct_gradient_new(
+                            index_j,
+                            index_i,
+                            mo_j,
+                            mo_i,
+                            energy_state,
+                            false,
+                        ) *state.coefficient;
+                        let grad_j:Array1<f64> = grad.slice(s![0..3*n_atoms_j]).to_owned();
+                        let grad_i:Array1<f64> = grad.slice(s![3*n_atoms_j..]).to_owned();
+                        gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
+                        gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
+                    }
+
                     // grad
                 }
             }

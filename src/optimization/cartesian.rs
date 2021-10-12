@@ -104,7 +104,7 @@ impl System{
         let coords:Array1<f64> = self.get_xyz();
 
         // set defaults
-        let maxiter: usize = 100000;
+        let maxiter: usize = 3000;
         let gtol: f64 = 1.0e-6;
         let ftol: f64 = 1.0e-8;
         let method: String = String::from("Steepest Descent");
@@ -161,7 +161,7 @@ impl System{
                 x_kp1 = self.armijo_line_search(
                     x_old.view(), fk, grad_fk.view(), pk.view(),state);
             } else if line_search == "largest" {
-                let amax = 5.0e-1;
+                let amax = 1.0;
                 x_kp1 = &x_old + &(amax * &pk);
             }
             let mut f_kp1: f64 = 0.0;
@@ -310,7 +310,7 @@ impl SuperSystem{
         let n_atoms:usize = self.atoms.len();
 
         // set defaults
-        let maxiter: usize = 100000;
+        let maxiter: usize = 3000;
         let gtol: f64 = 1.0e-6;
         let ftol: f64 = 1.0e-8;
         let method: String = String::from("Steepest Descent");
@@ -367,7 +367,7 @@ impl SuperSystem{
                 x_kp1 = self.armijo_line_search(
                     x_old.view(), fk, grad_fk.view(), pk.view(),state);
             } else if line_search == "largest" {
-                let amax = 5.0e-1;
+                let amax = 1.0;
                 x_kp1 = &x_old + &(amax * &pk);
             }
             let mut f_kp1: f64 = 0.0;

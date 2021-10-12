@@ -1130,10 +1130,10 @@ impl Pair{
             let transformed_ct_coeff:Array2<f64> = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
 
             // set cis coefficient for the CT transition
-            let mut cis_coeff:Array3<f64> = Array3::zeros([nocc,nvirt,1]);
-            cis_coeff.slice_mut(s![..,..,0]).assign(&transformed_ct_coeff);
+            let mut cis_coeff:Array3<f64> = Array3::zeros([1,nocc,nvirt]);
+            cis_coeff.slice_mut(s![0,..,..]).assign(&transformed_ct_coeff);
             // save in properties
-            self.properties.set_ci_coefficients(cis_coeff.into_shape([nocc*nvirt,1]).unwrap());
+            self.properties.set_ci_coefficients(cis_coeff.into_shape([1,nocc*nvirt]).unwrap());
         }
 
         // calculate transition charges
