@@ -67,6 +67,14 @@ pub struct ESDPair {
     pub n_orbs: usize,
     /// Type that holds calculated properties e.g. gamma matrix, overlap matrix and so on.
     pub properties: Properties,
+    /// Repulsive potential type. Type that contains the repulsion energy and its derivative
+    /// w.r.t. dR for each unique pair of atoms as a spline.
+    pub vrep: RepulsivePotential,
+    /// Slater-Koster parameters for the H0 and overlap matrix elements. For each unique atom pair
+    /// the matrix elements and their derivatives can be splined.
+    pub slako: SlaterKoster,
+    /// Type of Gamma function. This can be either `Gaussian` or `Slater` type.
+    pub gammafunction: GammaFunction,
 }
 
 impl ESDPair {
@@ -77,6 +85,9 @@ impl ESDPair {
             n_atoms: monomer1.n_atoms + monomer2.n_atoms,
             n_orbs: monomer1.n_orbs + monomer2.n_orbs,
             properties: Properties::new(),
+            vrep: monomer1.vrep.clone(),
+            slako: monomer1.slako.clone(),
+            gammafunction: monomer1.gammafunction.clone(),
         }
     }
 }

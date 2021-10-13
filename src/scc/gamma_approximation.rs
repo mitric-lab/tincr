@@ -6,6 +6,9 @@ use std::f64::consts::PI;
 use nalgebra::Vector3;
 use std::iter::FromIterator;
 use ndarray::AssignElem;
+use ndarray::parallel::prelude::{IntoParallelRefMutIterator, IntoParallelIterator, IntoParallelRefIterator};
+use rayon::iter::IndexedParallelIterator;
+use rayon::iter::ParallelIterator;
 
 const PI_SQRT: f64 = 1.7724538509055159;
 
@@ -187,6 +190,49 @@ pub fn gamma_atomwise(
         }
     }
     return g0;
+}
+
+pub fn gamma_atomwise_unsafe(
+    gamma_func: &GammaFunction,
+    atoms: &[Atom],
+    n_atoms: usize,
+) -> Array2<f64> {
+    let mut g0:Array2<f64> = Array2::zeros((n_atoms, n_atoms));
+    unsafe {
+        for (i, atomi) in atoms.iter().enumerate() {
+            for (j, atomj) in atoms.iter().enumerate() {
+                if i == j {
+                    *g0.uget_mut([i, j]) = gamma_func.eval_limit0(atomi.number);
+                } else if i < j {
+                    *g0.uget_mut([i, j]) = gamma_func.eval((atomi-atomj).norm(), atomi.number, atomj.number);
+                } else {
+                    *g0.uget_mut([i, j]) = *g0.uget([j, i]);
+                }
+            }
+        }
+    }
+    return g0;
+}
+
+pub fn gamma_atomwise_par(
+    gamma_func: &GammaFunction,
+    atoms: &[Atom],
+) -> Array2<f64> {
+    let mut gamma = Array2::zeros((atoms.len(), atoms.len()));
+    /// The Gamma matrix is computed in parallel.
+    gamma.axis_iter_mut(Axis(0)).into_par_iter().zip(atoms.par_iter()).enumerate().for_each(|(i, (mut row, atom_i))| {
+        row.assign(&Array::from_iter(
+            atoms.iter().enumerate().map(|(j, atom_j)|{
+                if i == j {
+                    gamma_func.eval_limit0(atom_i.number)
+                } else if i < j {
+                    gamma_func.eval((atom_i-atom_j).norm(), atom_i.number, atom_j.number)
+                } else {
+                    0.0
+                }})))
+    });
+    gamma = &gamma + &gamma.t() - &Array::from_diag(&gamma.diag());
+    return gamma;
 }
 
 /// Compute the atomwise Coulomb interaction between two sets of atoms.

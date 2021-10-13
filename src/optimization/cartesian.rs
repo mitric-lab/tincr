@@ -104,7 +104,7 @@ impl System{
         let coords:Array1<f64> = self.get_xyz();
 
         // set defaults
-        let maxiter: usize = 3000;
+        let maxiter: usize = 5000;
         let gtol: f64 = 1.0e-6;
         let ftol: f64 = 1.0e-8;
         let method: String = String::from("Steepest Descent");
@@ -312,7 +312,7 @@ impl SuperSystem{
         let n_atoms:usize = self.atoms.len();
 
         // set defaults
-        let maxiter: usize = 3000;
+        let maxiter: usize = 5000;
         let gtol: f64 = 1.0e-6;
         let ftol: f64 = 1.0e-8;
         let method: String = String::from("Steepest Descent");
