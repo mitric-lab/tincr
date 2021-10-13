@@ -222,7 +222,8 @@ impl SuperSystem {
             // Indices of the virtual orbitals of Monomer J.
             virts = m_j.properties.virt_indices().unwrap();
             // set ct indices
-            let occ:usize = occs[ct_ind_i];
+            let nocc:usize = occs.len();
+            let occ:usize = occs[nocc-1-ct_ind_i];
             let virt:usize = virts[ct_ind_j];
 
             // create hole and electron
@@ -256,7 +257,8 @@ impl SuperSystem {
             // Indices of the virtual orbitals of Monomer J.
             virts = m_i.properties.virt_indices().unwrap();
             // set ct indices
-            let occ:usize = occs[ct_ind_j];
+            let nocc:usize = occs.len();
+            let occ:usize = occs[nocc-1-ct_ind_j];
             let virt:usize = virts[ct_ind_i];
 
             // create hole and electron
@@ -290,29 +292,29 @@ impl SuperSystem {
         return val;
     }
 
-    // pub fn create_exciton_hamiltonian_ct_test(&mut self) -> f64 {
-    //     let hamiltonian = self.build_lcmo_fock_matrix();
-    //     self.properties.set_lcmo_fock(hamiltonian);
-    //     // Reference to the atoms of the total system.
-    //     let atoms: &[Atom] = &self.atoms[..];
-    //     let max_iter: usize = 50;
-    //     let tolerance: f64 = 1e-4;
-    //     // Number of LE states per monomer.
-    //     let n_le: usize = self.config.lcmo.n_le;
-    //     // Compute the n_le excited states for each monomer.
-    //     for mol in self.monomers.iter_mut() {
-    //         mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
-    //         mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le,  max_iter, tolerance);
-    //     }
-    //
-    //     // Construct the diabatic basis states.
-    //     let states: Vec<BasisState> = self.create_diab_basis();
-    //
-    //     let ct_state = &states[2*n_le];
-    //     let val:f64 = self.exciton_coupling(ct_state,ct_state);
-    //
-    //     return val;
-    // }
+    pub fn exciton_hamiltonian_ct_test(&mut self) -> f64 {
+        let hamiltonian = self.build_lcmo_fock_matrix();
+        self.properties.set_lcmo_fock(hamiltonian);
+        // Reference to the atoms of the total system.
+        let atoms: &[Atom] = &self.atoms[..];
+        let max_iter: usize = 50;
+        let tolerance: f64 = 1e-4;
+        // Number of LE states per monomer.
+        let n_le: usize = self.config.lcmo.n_le;
+        // Compute the n_le excited states for each monomer.
+        for mol in self.monomers.iter_mut() {
+            mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
+            mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le,  max_iter, tolerance);
+        }
+
+        // Construct the diabatic basis states.
+        let states: Vec<BasisState> = self.create_diab_basis();
+
+        let ct_state = &states[2*n_le];
+        let val:f64 = self.exciton_coupling(ct_state,ct_state);
+
+        return val;
+    }
 }
 
 /// Different types of diabatic basis states that are used for the FMO-exciton model.

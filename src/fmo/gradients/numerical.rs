@@ -84,6 +84,7 @@ impl SuperSystem {
         self.run_scc();
 
         let val:f64 = self.exciton_ct_energy(0,1,0,0,true);
+        // let val = self.exciton_hamiltonian_ct_test();
         return val;
     }
 
@@ -102,6 +103,7 @@ impl SuperSystem {
         }
         // calculate the gradient of the charge-transfer energy
         let ct_energy = self.exciton_ct_energy(0,1,0,0,true);
+        // let ct_energy = self.exciton_hamiltonian_ct_test();
         let grad:Array1<f64> = self.ct_gradient_new(0,1,0,0,ct_energy,true);
         // let grad:Array1<f64> = self.ct_gradient(0,1,0,0);
         return grad;
