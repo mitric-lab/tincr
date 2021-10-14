@@ -132,6 +132,63 @@ impl SuperSystem {
         assert_deriv(self, SuperSystem::fmo_ct_energy_wrapper, SuperSystem::fmo_ct_gradient_wrapper, self.get_xyz(), 0.01, 1e-6);
     }
 
+    pub fn fmo_le_energy_wrapper(&mut self,geometry: Array1<f64>)->f64{
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.update_xyz(geometry);
+        self.prepare_scc();
+        self.run_scc();
+
+        let monomer_index:usize = 0;
+        let le_state:usize = 0;
+        let val:f64 = self.exciton_le_energy(monomer_index,le_state);
+
+        return val;
+    }
+
+    pub fn fmo_le_gradient_wrapper(&mut self)->Array1<f64>{
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.prepare_scc();
+        self.run_scc();
+
+        let monomer_index:usize = 0;
+        let le_state:usize = 0;
+        // calculate the gradient of the le_energy
+        let grad:Array1<f64> = self.singular_le_gradient(monomer_index,le_state);
+
+        let mut full_gradient:Array1<f64> = Array1::zeros(self.atoms.len()*3);
+        let mol = &self.monomers[monomer_index];
+        full_gradient.slice_mut(s![mol.slice.grad]).assign(&grad);
+
+        return full_gradient;
+    }
+
+    pub fn test_le_gradient(&mut self){
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.prepare_scc();
+        self.run_scc();
+
+        assert_deriv(self, SuperSystem::fmo_le_energy_wrapper, SuperSystem::fmo_le_gradient_wrapper, self.get_xyz(), 0.01, 1e-6);
+    }
+
+
     pub fn monomer_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
         self.properties.reset();
         for mol in self.monomers.iter_mut() {

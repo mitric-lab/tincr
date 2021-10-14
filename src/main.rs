@@ -116,7 +116,8 @@ fn main() {
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
         // system.prepare_scc();
         // system.run_scc();
-        system.test_ct_gradient();
+        system.test_le_gradient();
+        // system.test_ct_gradient();
         // system.optimize_cartesian(Some(1));
         // system.test_ct_gradient();
         // system.test_orbital_energy_derivative();

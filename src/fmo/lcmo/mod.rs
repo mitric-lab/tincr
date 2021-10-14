@@ -7,6 +7,7 @@ mod lcmo_trans_charges;
 mod utils;
 mod cis_gradient;
 mod ct_gradient_old;
+mod le_gradient;
 
 pub use basis::*;
 use ndarray::prelude::*;
