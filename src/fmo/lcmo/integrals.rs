@@ -32,22 +32,25 @@ impl SuperSystem {
             // Coupling between CT and CT
             (BasisState::CT(ref a), BasisState::CT(ref b)) => {
                 let one_elec: f64 = if a == b {
-                    a.electron.mo.e - a.hole.mo.e
-                    // // from fock matrix
-                    // let mut index_e:usize;
-                    // let mut index_h:usize;
-                    // if a.electron.idx < a.hole.idx{
-                    //     index_e= a.electron.mo.idx;
-                    //     index_h= a.hole.monomer.n_orbs+a.hole.mo.idx;
-                    // }
-                    // else{
-                    //     index_e= a.electron.monomer.n_orbs+a.electron.mo.idx;
-                    //     index_h= a.hole.mo.idx;
-                    // }
-                    // let hamiltonian = self.properties.lcmo_fock().unwrap();
-                    // let energy_e:f64 = hamiltonian[[index_e,index_e]];
-                    // let energy_h:f64 = hamiltonian[[index_h,index_h]];
-                    // energy_e-energy_h
+                    // // orbital energy difference
+                    // a.electron.mo.e - a.hole.mo.e
+
+                    // get lcmo_fock matrix
+                    let hamiltonian = self.properties.lcmo_fock().unwrap();
+                    // get orbital slice for both monomers
+                    let indices_elec = a.electron.monomer.slice.orb;
+                    let indices_hole = a.hole.monomer.slice.orb;
+                    // get views of the lcmo fock matrix for the orbital slices of the monomers
+                    let hamiltonian_elec:ArrayView2<f64> = hamiltonian.slice(s![indices_elec,indices_elec]);
+                    let hamiltonian_hole:ArrayView2<f64> = hamiltonian.slice(s![indices_hole,indices_hole]);
+
+                    // get the energy values for the MO indices of the hole and the electron
+                    let elec_ind:usize = a.electron.mo.idx;
+                    let energy_e:f64 = hamiltonian_elec[[elec_ind,elec_ind]];
+                    let hole_ind:usize = a.hole.mo.idx;
+                    let energy_h:f64 = hamiltonian_hole[[hole_ind,hole_ind]];
+
+                    energy_e-energy_h
                 } else {0.0};
                 one_elec + self.ct_ct(a, b)
                 // one_elec
