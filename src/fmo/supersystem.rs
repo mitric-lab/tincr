@@ -1,11 +1,9 @@
 use crate::fmo::fragmentation::{build_graph, fragmentation, Graph};
 use crate::fmo::helpers::{MolecularSlice, MolIndices, MolIncrements};
 use crate::fmo::{get_pair_type, ESDPair, Monomer, Pair, PairType};
-use crate::initialization::parameters::{RepulsivePotential, SlaterKoster};
+use crate::initialization::parameters::{RepulsivePotential, SlaterKoster, RepulsivePotentialTable, SlaterKosterTable, SkfHandler};
 use crate::properties::Properties;
-use crate::initialization::{
-    get_unique_atoms, initialize_gamma_function, Atom, Geometry
-};
+use crate::initialization::{get_unique_atoms, initialize_gamma_function, Atom, Geometry, get_unique_atoms_mio};
 use crate::io::{frame_to_atoms, frame_to_coordinates, read_file_to_frame, Configuration};
 use crate::param::elements::Element;
 use crate::scc::gamma_approximation;
@@ -54,8 +52,42 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // Measure the time for the building of the struct
         let timer: Timer = Timer::start();
 
-        // Get all [Atom]s from the Frame and also a HashMap with the unique atoms
-        let (atoms, unique_atoms): (Vec<Atom>, Vec<Atom>) = frame_to_atoms(input.0);
+        // create mutable Vectors
+        let mut unique_atoms: Vec<Atom> = Vec::new();
+        let mut atoms: Vec<Atom> = Vec::new();
+        let mut skf_handlers: Vec<SkfHandler> = Vec::new();
+
+        if input.1.slater_koster.use_mio == true {
+            // get the unique [Atom]s and the HashMap with the mapping from the numbers to the [Atom]s
+            // if use_mio is true, create a vector of homonuclear SkfHandlers and a vector
+            // of heteronuclear SkfHandlers
+
+            let mut num_to_atom: HashMap<u8, Atom> = HashMap::new();
+            let (numbers, coords) = frame_to_coordinates(input.0);
+
+            let tmp: (Vec<Atom>, HashMap<u8, Atom>, Vec<SkfHandler>) =
+                get_unique_atoms_mio(&numbers, &input.1);
+            unique_atoms = tmp.0;
+            num_to_atom = tmp.1;
+            skf_handlers = tmp.2;
+
+            // get all the Atom's from the HashMap
+            numbers
+                .iter()
+                .for_each(|num| atoms.push((*num_to_atom.get(num).unwrap()).clone()));
+            // set the positions for each atom
+            coords
+                .outer_iter()
+                .enumerate()
+                .for_each(|(idx, position)| {
+                    atoms[idx].position_from_slice(position.as_slice().unwrap())
+                });
+        } else {
+            // get the unique [Atom]s and the HashMap with the mapping from the numbers to the [Atom]s
+            let tmp: (Vec<Atom>, Vec<Atom>) = frame_to_atoms(input.0);
+            atoms = tmp.0;
+            unique_atoms = tmp.1;
+        }
 
         // Get the number of unpaired electrons from the input option
         let n_unpaired: usize = match input.1.mol.multiplicity {
@@ -72,11 +104,33 @@ impl From<(Frame, Configuration)> for SuperSystem {
         let mut slako: SlaterKoster = SlaterKoster::new();
         let mut vrep: RepulsivePotential = RepulsivePotential::new();
 
-        // Find all unique pairs of atom and fill in the SK and V-Rep tables
-        let element_iter = unique_atoms.iter().map(|atom| Element::from(atom.number));
-        for (kind1, kind2) in element_iter.clone().cartesian_product(element_iter) {
-            slako.add(kind1, kind2);
-            vrep.add(kind1, kind2);
+        if input.1.slater_koster.use_mio == true {
+            for handler in skf_handlers.iter() {
+                let repot_table: RepulsivePotentialTable =
+                    RepulsivePotentialTable::from(handler);
+                let slako_table_ab: SlaterKosterTable =
+                    SlaterKosterTable::from((handler, None, "ab"));
+                let slako_handler_ba: SkfHandler = SkfHandler::new(
+                    handler.element_b,
+                    handler.element_a,
+                    input.1.slater_koster.mio_directory.clone(),
+                );
+                let slako_table: SlaterKosterTable =
+                    SlaterKosterTable::from((&slako_handler_ba, Some(slako_table_ab), "ba"));
+
+                // insert the tables into the hashmaps
+                slako
+                    .map
+                    .insert((handler.element_a, handler.element_b), slako_table);
+                vrep.map
+                    .insert((handler.element_a, handler.element_b), repot_table);
+            }
+        } else {
+            let element_iter = unique_atoms.iter().map(|atom| Element::from(atom.number));
+            for (kind1, kind2) in element_iter.clone().cartesian_product(element_iter) {
+                slako.add(kind1, kind2);
+                vrep.add(kind1, kind2);
+            }
         }
 
         // Initialize the unscreened Gamma function -> r_lr == 0.00
@@ -201,7 +255,6 @@ impl From<(Frame, Configuration)> for SuperSystem {
         let mut pair_indices: HashMap<(usize, usize),usize> = HashMap::new();
         let mut esd_pair_indices:HashMap<(usize, usize),usize> = HashMap::new();
         let mut pair_types: HashMap<(usize, usize), PairType> = HashMap::new();
-
 
         info!("{}", timer);
         // The construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after

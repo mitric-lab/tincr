@@ -101,12 +101,19 @@ impl SuperSystem {
         for mol in self.monomers.iter_mut() {
             mol.prepare_excited_gradient(&self.atoms[mol.slice.atom_as_range()]);
         }
+        let monomer_index_i:usize = 0;
+        let monomer_index_j:usize = 1;
         // calculate the gradient of the charge-transfer energy
-        let ct_energy = self.exciton_ct_energy(0,1,0,0,true);
+        let ct_energy = self.exciton_ct_energy(monomer_index_i,monomer_index_j,0,0,true);
         // let ct_energy = self.exciton_hamiltonian_ct_test();
-        let grad:Array1<f64> = self.ct_gradient_new(0,1,0,0,ct_energy,true);
+        let grad:Array1<f64> = self.ct_gradient_new(monomer_index_i,monomer_index_j,0,0,ct_energy,true);
+        let mol_i = &self.monomers[monomer_index_i];
+        let mol_j = &self.monomers[monomer_index_j];
+        let mut full_gradient:Array1<f64> = Array1::zeros(self.atoms.len()*3);
+        full_gradient.slice_mut(s![mol_i.slice.grad]).assign(&grad.slice(s![..mol_i.n_atoms*3]));
+        full_gradient.slice_mut(s![mol_j.slice.grad]).assign(&grad.slice(s![mol_i.n_atoms*3..]));
         // let grad:Array1<f64> = self.ct_gradient(0,1,0,0);
-        return grad;
+        return  full_gradient;
     }
 
     pub fn test_ct_gradient(&mut self){
