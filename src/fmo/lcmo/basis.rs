@@ -14,9 +14,6 @@ use crate::utils::Timer;
 impl SuperSystem {
     /// The diabatic basis states are constructed, which will be used for the Exciton-Hamiltonian.
     pub fn create_diab_basis(&self) -> Vec<BasisState> {
-        // TODO: The first three numbers should be read from the input file.
-        let max_iter: usize = 50;
-        let tolerance: f64 = 1e-4;
         let lcmo_config: LcmoConfig = self.config.lcmo.clone();
         // Number of LE states per monomer.
         let n_le: usize = lcmo_config.n_le;
@@ -149,20 +146,16 @@ impl SuperSystem {
         // Initialize the Exciton-Hamiltonian.
         let mut h: Array2<f64> = Array2::zeros([dim, dim]);
 
-        let timer: Timer = Timer::start();
-
         for (i, state_i) in states.iter().enumerate() {
             // Only the upper triangle is calculated!
             for (j, state_j) in states[i..].iter().enumerate() {
                 h[[i, j+i]] = self.exciton_coupling(state_i, state_j);
             }
         }
-        println!("time calculate matrix {}",timer);
         // The Hamiltonian is returned. Only the upper triangle is filled, so this has to be
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
         let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
-        println!("Eigh of matrix {}",timer);
 
         // let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
         // let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();

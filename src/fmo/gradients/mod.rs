@@ -45,28 +45,17 @@ impl SuperSystem {
         // self.self_consistent_z_vector(1e-10);
         // info!("Z-vector: {}", timer);
 
-        let timer: Timer = Timer::start();
         let monomer_gradient: Array1<f64> = self.monomer_gradients();
-        info!("Monomer : {}", timer);
 
-        let timer: Timer = Timer::start();
         let pair_gradient: Array1<f64> = self.pair_gradients(monomer_gradient.view());
-        info!("Pair : {}", timer);
 
-        let timer: Timer = Timer::start();
         let embedding_gradient: Array1<f64> = self.embedding_gradient();
-        info!("Embedding : {}", timer);
 
-        let timer: Timer = Timer::start();
         let esd_gradient: Array1<f64> = self.es_dimer_gradient();
-        info!("ESD : {}", timer);
 
-        drop(timer);
         // let timer: Timer = Timer::start();
         // let response_gradient: Array1<f64> = self.response_embedding_gradient();
         // info!("Response : {}", timer);
-
-
 
         return monomer_gradient + pair_gradient + embedding_gradient + esd_gradient;// + response_gradient;
     }

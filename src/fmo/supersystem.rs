@@ -228,7 +228,7 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // Set the number of occupied and virtual orbitals.
         properties.set_n_occ(mol_indices.occs);
         properties.set_n_virt(mol_indices.virts);
-        info!("{}", timer);
+
         // Compute the Gamma function between all atoms if it is requested in the user input
         // TODO: Insert a input option for this choice
         if true {
@@ -256,7 +256,6 @@ impl From<(Frame, Configuration)> for SuperSystem {
         let mut esd_pair_indices:HashMap<(usize, usize),usize> = HashMap::new();
         let mut pair_types: HashMap<(usize, usize), PairType> = HashMap::new();
 
-        info!("{}", timer);
         // The construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after
         // each monomer
         // TODO: Read the vdw scaling parameter from the input file instead of setting hard to 2.0
