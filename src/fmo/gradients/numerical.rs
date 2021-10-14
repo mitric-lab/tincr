@@ -83,7 +83,9 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let val:f64 = self.exciton_ct_energy(0,1,0,0,true);
+        let monomer_index_i:usize = 0;
+        let monomer_index_j:usize = 1;
+        let val:f64 = self.exciton_ct_energy(monomer_index_i,monomer_index_j,0,0,true);
         // let val = self.exciton_hamiltonian_ct_test();
         return val;
     }
