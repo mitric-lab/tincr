@@ -51,6 +51,7 @@ mod excited_states;
 mod gradients;
 mod properties;
 mod optimization;
+mod coupling;
 
 #[macro_use]
 extern crate clap;
