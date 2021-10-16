@@ -199,3 +199,15 @@ impl System{
         return s_ci;
     }
 }
+
+pub fn get_sign_of_array(arr:ArrayView1<f64>)->Array1<f64>{
+    let mut sign:Array1<f64> = Array1::zeros(arr.len());
+    arr.iter().enumerate().for_each(|(idx,val)|
+        if val.is_sign_positive(){
+            sign[idx] = 1.0;
+        }else{
+            sign[idx] = -1.0;
+        }
+    );
+    return sign;
+}
