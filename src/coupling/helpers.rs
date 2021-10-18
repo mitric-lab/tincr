@@ -151,29 +151,28 @@ impl System{
                             let max_coeff_j = coeffs_j.map(|val| val.abs()).max().unwrap().to_owned();
                             // if the value of the coefficient is smaller than the threshold,
                             // exclude the excited state
-                            if max_coeff_j < threshold{
-                                continue
-                            }
-                            let mut s_ab:Array2<f64> = s_ij.to_owned();
-                            // select part of overlap matrix for orbitals
-                            // in |Psi_ia> and |Psi_jb>
-                            // <1,...,a,...|1,...,b,...>
-                            s_ab.slice_mut(s![*i,..]).assign(&s_mo.slice(s![*a,..n_occ]));
-                            s_ab.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ,*b]));
-                            s_ab[[*i,*j]] = s_mo[[*a,*b]];
-                            let det_ab:f64 = s_ao.det().unwrap();
+                            if max_coeff_j > threshold{
+                                let mut s_ab:Array2<f64> = s_ij.to_owned();
+                                // select part of overlap matrix for orbitals
+                                // in |Psi_ia> and |Psi_jb>
+                                // <1,...,a,...|1,...,b,...>
+                                s_ab.slice_mut(s![*i,..]).assign(&s_mo.slice(s![*a,..n_occ]));
+                                s_ab.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ,*b]));
+                                s_ab[[*i,*j]] = s_mo[[*a,*b]];
+                                let det_ab:f64 = s_ao.det().unwrap();
 
-                            let mut s_ib:Array2<f64> = s_ij.to_owned();
-                            // <1,...,i,...|1,...,b,...>
-                            s_ib.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ,*b]));
-                            let det_ib:f64 = s_ib.det().unwrap();
+                                let mut s_ib:Array2<f64> = s_ij.to_owned();
+                                // <1,...,i,...|1,...,b,...>
+                                s_ib.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ,*b]));
+                                let det_ib:f64 = s_ib.det().unwrap();
 
-                            // loop over excited states
-                            for state_i in (1..n_states){
-                                for state_j in (1..n_states){
-                                    let cc:f64 = coeffs_i[state_i-1] * coeffs_j[state_j-1];
-                                    // see eqn. (9.39) in A. Humeniuk, PhD thesis (2018)
-                                    s_ci[[state_i,state_j]] += cc * (det_ab * det_ij + det_aj * det_ib);
+                                // loop over excited states
+                                for state_i in (1..n_states){
+                                    for state_j in (1..n_states){
+                                        let cc:f64 = coeffs_i[state_i-1] * coeffs_j[state_j-1];
+                                        // see eqn. (9.39) in A. Humeniuk, PhD thesis (2018)
+                                        s_ci[[state_i,state_j]] += cc * (det_ab * det_ij + det_aj * det_ib);
+                                    }
                                 }
                             }
                         }
