@@ -12,7 +12,7 @@ impl System{
         old_s_ci:ArrayView2<f64>,
     )->(Array2<f64>,Array2<f64>){
         // TODO: save and load arrays from the previous iteration.
-        let n_states:usize = self.config.excited.nstates;
+        let n_states:usize = self.config.excited.nstates +1;
         // scalar coupling matrix
         let s_ci:Array2<f64> = self.ci_overlap(old_atoms,old_orbs,old_ci_coeff,n_states);
         // align phases

@@ -102,95 +102,81 @@ impl System{
         s_ci[[0,0]] = det_ij;
 
         // calculate the overlap between the excited states
-        // iterate over the new CI coefficients
+        // iterate over the old CI coefficients
         for i in occ_indices.iter(){
             for a in virt_indices.iter(){
                 // slice old CI coefficients at the indicies i and a
                 let coeffs_i = old_ci_coeff.slice(s![..,*i,*a]);
                 let max_coeff_i = coeffs_i.map(|val| val.abs()).max().unwrap().to_owned();
-                // if the value of the coefficient is smaller than the threshold,
-                // exclude the excited state
-                if max_coeff_i < threshold{
-                    continue
-                }
-                let mut s_aj:Array2<f64> = s_ij.to_owned();
-                // occupied orbitals in the configuration state function |Psi_ia>
-                // oveerlap <1,...,a,...|1,...,j,...>
-                s_aj.slice_mut(s![*i,..]).assign(&s_mo.slice(s![*a,..n_occ]));
-                let det_aj:f64 = s_aj.det().unwrap();
 
-                // iterate over the old CI coefficients
-                for j in occ_indices.iter(){
-                    for b in virt_indices.iter(){
-                        // slice the new CI coefficients at the indicies j and b
-                        let coeffs_j = ci_coeff.slice(s![..,*j,*b]);
-                        let max_coeff_j = coeffs_j.map(|val| val.abs()).max().unwrap().to_owned();
-                        // if the value of the coefficient is smaller than the threshold,
-                        // exclude the excited state
-                        if max_coeff_j < threshold{
-                            continue
-                        }
-                        let mut s_ab:Array2<f64> = s_ij.to_owned();
-                        // select part of overlap matrix for orbitals
-                        // in |Psi_ia> and |Psi_jb>
-                        // <1,...,a,...|1,...,b,...>
-                        s_ab.slice_mut(s![*i,..]).assign(&s_mo.slice(s![*a,..n_occ]));
-                        s_ab.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ,*b]));
-                        s_ab[[*i,*j]] = s_mo[[*a,*b]];
-                        let det_ab:f64 = s_ao.det().unwrap();
-
-                        let mut s_ib:Array2<f64> = s_ij.to_owned();
-                        // <1,...,i,...|1,...,b,...>
-                        s_ib.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ,*b]));
-                        let det_ib:f64 = s_ib.det().unwrap();
-
-                        // loop over excited states
-                        for state_i in (1..n_states){
-                            for state_j in (1..n_states){
-                                let cc:f64 = coeffs_i[state_i-1] * coeffs_j[state_j-1];
-                                // see eqn. (9.39) in A. Humeniuk, PhD thesis (2018)
-                                s_ci[[state_i,state_j]] += cc * (det_ab * det_ij + det_aj * det_ib);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // overlaps between ground state <Psi0|PsiJ'> and excited states
-        // and
-        // overlaps between ground state <PsiI|Psi0'> and excited states
-        for i in occ_indices.iter(){
-            for a in virt_indices.iter(){
-
-                let coeffs_i = old_ci_coeff.slice(s![..,*i,*a]);
-                let max_coeff_i = coeffs_i.map(|val| val.abs()).max().unwrap().to_owned();
-
-                let coeffs_j = ci_coeff.slice(s![..,*i,*a]);
-                let max_coeff_j = coeffs_j.map(|val| val.abs()).max().unwrap().to_owned();
+                // slice new CI coefficients at the indicies i and a
+                let coeffs_new = ci_coeff.slice(s![..,*i,*a]);
+                let max_coeff_new = coeffs_new.map(|val| val.abs()).max().unwrap().to_owned();
 
                 // if the value of the coefficient is smaller than the threshold,
                 // exclude the excited state
-                if max_coeff_j > threshold{
+                if max_coeff_new > threshold{
                     let mut s_ia:Array2<f64> = s_ij.to_owned();
                     // overlap <Psi0|PsiJ'>
                     s_ia.slice_mut(s![..,*i]).assign(&s_mo.slice(s![..n_occ,*a]));
                     let det_ia:f64 = s_ia.det().unwrap();
 
+                    // overlaps between ground state <Psi0|PsiJ'> and excited states
                     for state_j in (1..n_states){
-                        let c0:f64 = coeffs_j[state_j-1];
+                        let c0:f64 = coeffs_new[state_j-1];
                         s_ci[[0,state_j]] += c0 * 2.0_f64.sqrt() * (det_ia * det_ij);
                     }
 
                 }
+                // if the value of the coefficient is smaller than the threshold,
+                // exclude the excited state
                 if max_coeff_i > threshold{
-                    let mut s_ia:Array2<f64> = s_ij.to_owned();
-                    // overlap <PsiI|Psi0'>
-                    s_ia.slice_mut(s![*i,..]).assign(&s_mo.slice(s![*a,..n_occ]));
-                    let det_ia:f64 = s_ia.det().unwrap();
+                    let mut s_aj:Array2<f64> = s_ij.to_owned();
+                    // occupied orbitals in the configuration state function |Psi_ia>
+                    // oveerlap <1,...,a,...|1,...,j,...>
+                    s_aj.slice_mut(s![*i,..]).assign(&s_mo.slice(s![*a,..n_occ]));
+                    let det_aj:f64 = s_aj.det().unwrap();
 
+                    // overlaps between ground state <PsiI|Psi0'> and excited states
                     for state_i in (1..n_states){
                         let c0:f64 = coeffs_i[state_i-1];
-                        s_ci[[state_i,0]] += c0 * 2.0_f64.sqrt() * (det_ia * det_ij);
+                        s_ci[[state_i,0]] += c0 * 2.0_f64.sqrt() * (det_aj * det_ij);
+                    }
+
+                    // iterate over the new CI coefficients
+                    for j in occ_indices.iter(){
+                        for b in virt_indices.iter(){
+                            // slice the new CI coefficients at the indicies j and b
+                            let coeffs_j = ci_coeff.slice(s![..,*j,*b]);
+                            let max_coeff_j = coeffs_j.map(|val| val.abs()).max().unwrap().to_owned();
+                            // if the value of the coefficient is smaller than the threshold,
+                            // exclude the excited state
+                            if max_coeff_j < threshold{
+                                continue
+                            }
+                            let mut s_ab:Array2<f64> = s_ij.to_owned();
+                            // select part of overlap matrix for orbitals
+                            // in |Psi_ia> and |Psi_jb>
+                            // <1,...,a,...|1,...,b,...>
+                            s_ab.slice_mut(s![*i,..]).assign(&s_mo.slice(s![*a,..n_occ]));
+                            s_ab.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ,*b]));
+                            s_ab[[*i,*j]] = s_mo[[*a,*b]];
+                            let det_ab:f64 = s_ao.det().unwrap();
+
+                            let mut s_ib:Array2<f64> = s_ij.to_owned();
+                            // <1,...,i,...|1,...,b,...>
+                            s_ib.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ,*b]));
+                            let det_ib:f64 = s_ib.det().unwrap();
+
+                            // loop over excited states
+                            for state_i in (1..n_states){
+                                for state_j in (1..n_states){
+                                    let cc:f64 = coeffs_i[state_i-1] * coeffs_j[state_j-1];
+                                    // see eqn. (9.39) in A. Humeniuk, PhD thesis (2018)
+                                    s_ci[[state_i,state_j]] += cc * (det_ab * det_ij + det_aj * det_ib);
+                                }
+                            }
+                        }
                     }
                 }
             }

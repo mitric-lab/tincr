@@ -55,7 +55,7 @@ impl SuperSystem{
         return val;
     }
 
-    pub fn singular_le_gradient(
+    pub fn exciton_le_gradient(
         &mut self,
         monomer_index:usize,
         state:usize,

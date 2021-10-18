@@ -165,7 +165,7 @@ impl SuperSystem {
         let monomer_index:usize = 0;
         let le_state:usize = 0;
         // calculate the gradient of the le_energy
-        let grad:Array1<f64> = self.singular_le_gradient(monomer_index,le_state);
+        let grad:Array1<f64> = self.exciton_le_gradient(monomer_index,le_state);
 
         let mut full_gradient:Array1<f64> = Array1::zeros(self.atoms.len()*3);
         let mol = &self.monomers[monomer_index];
