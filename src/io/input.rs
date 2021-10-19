@@ -1,8 +1,9 @@
 use chemfiles::Frame;
 use crate::io::{read_file_to_frame, Configuration};
 use std::path::Path;
-use crate::defaults::CONFIG_FILE_NAME;
+use crate::defaults::{CONFIG_FILE_NAME, DYNAMIC_CONFIG_FILE_NAME};
 use std::fs;
+use rusty_fish::initialization::{DynamicConfiguration, SystemData};
 
 pub fn read_input(geom_file: &str) -> (Frame, Configuration) {
     // The file containing the cartesian coordinates is the only mandatory file to
@@ -28,4 +29,24 @@ pub fn read_input(geom_file: &str) -> (Frame, Configuration) {
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
     (frame, config)
+}
+
+pub fn read_dynamic_input(frame:Frame)->SystemData{
+    let config_file_path: &Path = Path::new(DYNAMIC_CONFIG_FILE_NAME);
+    let mut config_string: String = if config_file_path.exists() {
+        fs::read_to_string(config_file_path).expect("Unable to read config file")
+    } else {
+        String::from("")
+    };
+    // load the configuration
+    let config: DynamicConfiguration = toml::from_str(&config_string).unwrap();
+    // save the configuration file if it does not exist already so that the user can see
+    // all the used options
+    if config_file_path.exists() == false {
+        config_string = toml::to_string(&config).unwrap();
+        fs::write(config_file_path, config_string).expect("Unable to write config file");
+    }
+
+    let data_system: SystemData = SystemData::from((frame, config));
+    return data_system;
 }

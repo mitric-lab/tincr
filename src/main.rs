@@ -16,7 +16,7 @@ use toml;
 use crate::io::MoldenExporterBuilder;
 use ndarray::prelude::*;
 use crate::defaults::CONFIG_FILE_NAME;
-use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter};
+use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter,read_dynamic_input};
 use chemfiles::Frame;
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
@@ -26,7 +26,7 @@ use crate::excited_states::ExcitedState;
 use crate::utils::Timer;
 use ndarray::{Array2, Array1};
 use crate::scc::scc_routine_unrestricted::UnrestrictedSCC;
-
+use rusty_fish::initialization::{DynamicConfiguration, SystemData, Simulation};
 
 use crate::excited_states::davidson::Davidson;
 use crate::excited_states::tda::*;
@@ -41,6 +41,7 @@ use ndarray_npy::write_npy;
 mod constants;
 mod defaults;
 mod io;
+mod dynamics;
 //mod optimization;
 mod initialization;
 mod scc;
@@ -101,11 +102,15 @@ fn main() {
     // and the total wall-time timer is started.
     let timer: Timer = Timer::start();
 
+    // create data for the dynamic simulation
+    let dynamics_data:SystemData = read_dynamic_input(frame.clone());
 
     // Computations.
     // ................................................................
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
+        // create the struct which starts the dynamics
+        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
         // system.prepare_scc();
         // system.run_scc();
         system.optimize_cartesian(Some(1));
@@ -114,6 +119,9 @@ fn main() {
         // system.run_tda(config.excited.nstates, 150, 1e-4);
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
+        // create the struct which starts the dynamics
+        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
         // system.prepare_scc();
         // system.run_scc();

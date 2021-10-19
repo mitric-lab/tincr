@@ -7,6 +7,7 @@ pub const MULTIPLICITY: u8 = 1;
 pub const JOBTYPE: &str = "sp";
 // config file
 pub const CONFIG_FILE_NAME: &str = "tincr.toml";
+pub const DYNAMIC_CONFIG_FILE_NAME:&str = "fish.toml";
 // occupation of orbitals is smeared out by Fermi
 // distribution with temperature T in Kelvin
 pub const TEMPERATURE: f64 = 0.0;
