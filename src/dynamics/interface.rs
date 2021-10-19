@@ -18,8 +18,7 @@ impl QuantumChemistryInterface for System{
         // update the coordinats of the system
         self.update_xyz(coordinates.into_shape(self.n_atoms).unwrap().to_owned());
         // calculate the energy and the gradient of the state
-        let (energy,gradient):(f64,Array1<f64>) = self.calculate_energy_and_gradient(state);
-        let energies:Array1<f64> = array![energy];
+        let (energies,gradient):(Array1<f64>,Array1<f64>) = self.calculate_energies_and_gradient(state);
         let gradient:Array2<f64> = gradient.into_shape([self.n_atoms,3]).unwrap();
 
         // placeholder arrays for NAD-coupling and transition dipoles
@@ -46,8 +45,7 @@ impl QuantumChemistryInterface for SuperSystem{
         // update the coordinats of the system
         self.update_xyz(coordinates.into_shape(n_atoms).unwrap().to_owned());
         // calculate the energy and the gradient of the state
-        let (energy,gradient):(f64,Array1<f64>) = self.calculate_energy_and_gradient(state);
-        let energies:Array1<f64> = array![energy];
+        let (energies,gradient):(Array1<f64>,Array1<f64>) = self.calculate_energies_and_gradient(state);
         let gradient:Array2<f64> = gradient.into_shape([n_atoms,3]).unwrap();
 
         // placeholder arrays for NAD-coupling and transition dipoles

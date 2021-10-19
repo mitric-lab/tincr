@@ -110,7 +110,7 @@ fn main() {
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
         // create the struct which starts the dynamics
-        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
         // system.prepare_scc();
         // system.run_scc();
         system.optimize_cartesian(Some(1));
@@ -120,7 +120,7 @@ fn main() {
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
         // create the struct which starts the dynamics
-        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
 
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
         // system.prepare_scc();
