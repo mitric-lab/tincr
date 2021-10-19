@@ -26,6 +26,7 @@ impl System{
         let p:Array2<f64> = Array::from_diag(&sign);
         // align the new CI coefficients with the old coefficients
         let p_exclude_gs:ArrayView2<f64> = p.slice(s![1..,1..]);
+        //TODO:save aligned coeff as old ci coefficients
         let aligned_coeff:Array2<f64> = self.properties.ci_coefficients().unwrap()
             .dot(&p_exclude_gs);
 

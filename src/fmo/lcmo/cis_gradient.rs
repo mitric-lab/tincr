@@ -70,11 +70,10 @@ impl SuperSystem {
         }
 
         // iterate over the basis states and calculate their gradient
-        let mut gradients:Vec<Array1<f64>> = Vec::new();
         let n_atoms:usize = self.atoms.len();
         let mut gradient:Array1<f64> = Array1::zeros(3*n_atoms);
 
-        println!("Number of contributions {}",contributions.len());
+        // println!("Number of contributions {}",contributions.len());
 
         for state in contributions.iter(){
             // let (gradient):(Array1<f64>) = match state.type_of_state{
@@ -90,8 +89,8 @@ impl SuperSystem {
                     mol.prepare_excited_gradient(monomer_atoms);
                     let grad = mol.tda_gradient_lc(le_state) * state.coefficient;
 
-                    println!("Monomer_ind {}",monomer_ind);
-                    println!("slice {:?}",mol.slice.grad);
+                    // println!("Monomer_ind {}",monomer_ind);
+                    // println!("slice {:?}",mol.slice.grad);
                     gradient.slice_mut(s![mol.slice.grad]).add_assign(&grad);
                     // let monomer_atom_ind:usize = monomer_ind * 3;
                     // gradient.slice_mut(s![3*monomer_atom_ind..3*monomer_atom_ind+9]).add_assign(&grad);
@@ -103,12 +102,12 @@ impl SuperSystem {
                     let index_i:usize = state.monomer_indices[0];
                     let index_j:usize = state.monomer_indices[1];
                     let pair_type:PairType = self.properties.type_of_pair(index_i, index_j);
-                    if pair_type == PairType::Pair{
-                        println!("Real pair");
-                    }
-                    else{
-                        println!("ESD pair");
-                    }
+                    // if pair_type == PairType::Pair{
+                    //     println!("Real pair");
+                    // }
+                    // else{
+                    //     println!("ESD pair");
+                    // }
 
                     // get Atom vector and nocc of the monomer I
                     let mol_i:&Monomer = &self.monomers[index_i];
@@ -165,13 +164,9 @@ impl SuperSystem {
                         //gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
                         //gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
                     }
-
-                    // grad
                 }
             }
-            // gradients.push(gradient);
         }
-        // Reorder the calculated gradient using the monomer indices of the specific states
         return gradient;
     }
 }
