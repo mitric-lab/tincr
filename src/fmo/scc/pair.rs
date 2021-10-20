@@ -218,9 +218,13 @@ impl Pair {
                 self.properties.set_h_coul_x(h_save);
                 break 'scf_loop;
             }
+            if !converged && iter == max_iter-1{
+                panic!("Pair scc routine does not converge!");
+            }
         }
         // only remove the large arrays not the energy or charges
         //self.properties.reset();
+
         self.properties
             .set_delta_dq(&dq - &self.properties.dq().unwrap());
         self.properties.set_dq(dq);

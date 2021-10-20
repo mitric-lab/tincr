@@ -7,7 +7,6 @@ impl System{
     pub fn calculate_energies_and_gradient(&mut self, state:usize)->(Array1<f64>,Array1<f64>){
         let mut gradient: Array1<f64> = Array::zeros(3 * self.n_atoms);
         let mut energies:Array1<f64> = Array1::zeros(self.config.excited.nstates+1);
-        println!("state {}",state);
 
         if state == 0{
             // ground state energy

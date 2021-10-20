@@ -122,7 +122,7 @@ fn main() {
         let mut system = SuperSystem::from((frame, config.clone()));
         // create the struct which starts the dynamics
         let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
-
+        dynamic.verlet_dynamics();
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
         // system.prepare_scc();
         // system.run_scc();
