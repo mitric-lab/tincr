@@ -6,33 +6,35 @@ use crate::fmo::SuperSystem;
 impl System{
     pub fn calculate_energies_and_gradient(&mut self, state:usize)->(Array1<f64>,Array1<f64>){
         let mut gradient: Array1<f64> = Array::zeros(3 * self.n_atoms);
-        let mut energies:Array1<f64> = Array1::zeros(self.config.excited.nstates);
+        let mut energies:Array1<f64> = Array1::zeros(self.config.excited.nstates+1);
+        println!("state {}",state);
 
         if state == 0{
-            // excited state calculation
-            let excited_state:usize = state -1;
+            // ground state energy
             self.prepare_scc();
             let gs_energy:f64 = self.run_scc().unwrap();
+            energies[0] = gs_energy;
 
             // calculate excited states
             self.prepare_tda();
             self.run_tda(self.config.excited.nstates, 100, 1e-4);
             let ci_energies:ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
-            energies = gs_energy +&ci_energies;
+            energies.slice_mut(s![1..]).assign(&(gs_energy +&ci_energies));
 
             gradient = self.ground_state_gradient(true);
         }
         else{
-            // excited state calculation
+            // ground state energy
             let excited_state:usize = state -1;
             self.prepare_scc();
             let gs_energy:f64 = self.run_scc().unwrap();
+            energies[0] = gs_energy;
 
             // calculate excited states
             self.prepare_tda();
             self.run_tda(self.config.excited.nstates, 100, 1e-4);
             let ci_energies:ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
-            energies = gs_energy +&ci_energies;
+            energies.slice_mut(s![1..]).assign(&(gs_energy +&ci_energies));
 
             gradient = self.ground_state_gradient(true);
 

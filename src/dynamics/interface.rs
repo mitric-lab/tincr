@@ -16,7 +16,7 @@ impl QuantumChemistryInterface for System{
     {
         //Return enegies, forces, non-adiabtic coupling and the transition dipole
         // update the coordinats of the system
-        self.update_xyz(coordinates.into_shape(self.n_atoms).unwrap().to_owned());
+        self.update_xyz(coordinates.to_owned().into_shape(3*self.n_atoms).unwrap());
         // calculate the energy and the gradient of the state
         let (energies,gradient):(Array1<f64>,Array1<f64>) = self.calculate_energies_and_gradient(state);
         let gradient:Array2<f64> = gradient.into_shape([self.n_atoms,3]).unwrap();

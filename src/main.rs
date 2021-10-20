@@ -103,31 +103,32 @@ fn main() {
     let timer: Timer = Timer::start();
 
     // create data for the dynamic simulation
-    let dynamics_data:SystemData = read_dynamic_input(frame.clone());
+    let dynamics_data:SystemData = read_dynamic_input(frame.clone(),&config);
 
     // Computations.
     // ................................................................
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
         // create the struct which starts the dynamics
-        // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        dynamic.verlet_dynamics();
         // system.prepare_scc();
         // system.run_scc();
-        system.optimize_cartesian(Some(1));
+        // system.optimize_cartesian(Some(1));
         // system.test_tda_lc_gradient();
         // system.prepare_tda();
         // system.run_tda(config.excited.nstates, 150, 1e-4);
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
         // create the struct which starts the dynamics
-        // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
 
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
         // system.prepare_scc();
         // system.run_scc();
         // system.test_le_gradient();
         // system.test_ct_gradient();
-        system.optimize_cartesian(Some(1));
+        // system.optimize_cartesian(Some(1));
         // system.test_ct_gradient();
         // system.test_orbital_energy_derivative();
         // let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
