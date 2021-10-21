@@ -219,6 +219,8 @@ impl Pair {
                 break 'scf_loop;
             }
             if !converged && iter == max_iter-1{
+                println!("Iteration {}",iter);
+                println!("Monomer indices: {},{}",self.i,self.j);
                 panic!("Pair scc routine does not converge!");
             }
         }

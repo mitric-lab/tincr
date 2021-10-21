@@ -16,7 +16,7 @@ use toml;
 use crate::io::MoldenExporterBuilder;
 use ndarray::prelude::*;
 use crate::defaults::CONFIG_FILE_NAME;
-use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter,read_dynamic_input};
+use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter,read_dynamic_input,create_dynamics_data};
 use chemfiles::Frame;
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
@@ -102,13 +102,14 @@ fn main() {
     // and the total wall-time timer is started.
     let timer: Timer = Timer::start();
 
-    // create data for the dynamic simulation
-    let dynamics_data:SystemData = read_dynamic_input(frame.clone(),&config);
+    // create config for the dynamic simulation
+    let dynamics_config:DynamicConfiguration = read_dynamic_input(&config);
 
     // Computations.
     // ................................................................
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
+        let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
         // create the struct which starts the dynamics
         let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
         dynamic.verlet_dynamics();
@@ -121,6 +122,7 @@ fn main() {
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
         // create the struct which starts the dynamics
+        let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
         let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
         dynamic.verlet_dynamics();
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
