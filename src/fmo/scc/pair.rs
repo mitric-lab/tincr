@@ -8,9 +8,12 @@ use crate::scc::h0_and_s::*;
 use crate::scc::gamma_approximation::*;
 use crate::scc::{density_matrix_ref, lc_exact_exchange, density_matrix, get_repulsive_energy, get_electronic_energy};
 use crate::scc::mixer::{BroydenMixer, Mixer};
-use crate::scc::mulliken::mulliken;
+use crate::scc::mulliken::{mulliken, mulliken_old};
 use crate::initialization::Atom;
 use crate::io::SccConfig;
+use crate::defaults;
+use std::path::Path;
+use ndarray_npy::write_npy;
 
 impl Pair {
     pub fn prepare_scc(&mut self, atoms: &[Atom], m1: &Monomer, m2: &Monomer) {
@@ -152,6 +155,8 @@ impl Pair {
         let f: &[f64] = self.properties.occupation().unwrap();
         let v: ArrayView2<f64> = self.properties.v().unwrap();
         let h_esp: Array2<f64> = &h0 + &v;
+        let mut dq_saved:Array2<f64> = Array2::zeros((self.n_atoms,max_iter));
+        let mut delta_dq_saved:Array2<f64> = Array2::zeros((self.n_orbs,max_iter));
 
         'scf_loop: for iter in 0..max_iter {
             let h_coul: Array2<f64> =
@@ -179,6 +184,7 @@ impl Pair {
 
             // charge difference to previous iteration
             let delta_dq: Array1<f64> = &q_ao_n - &q_ao;
+            delta_dq_saved.slice_mut(s![..,iter]).assign(&delta_dq);
 
             let delta_dq_max: f64 = *delta_dq.map(|x| x.abs()).max().unwrap();
 
@@ -188,6 +194,7 @@ impl Pair {
             p = p * &(&q_ao / &q_ao_n);
             let dp: Array2<f64> = &p - &p0;
             dq = mulliken(dp.view(), s.view(), &atoms);
+            dq_saved.slice_mut(s![..,iter]).assign(&dq);
 
             // compute electronic energy
             let scf_energy = get_electronic_energy(
@@ -221,6 +228,9 @@ impl Pair {
             if !converged && iter == max_iter-1{
                 println!("Iteration {}",iter);
                 println!("Monomer indices: {},{}",self.i,self.j);
+                let mut string:String= String::from("dq.npy");
+                write_npy(Path::new(&string), &dq_saved.view());
+                write_npy(Path::new(&String::from("delta_dq_saved.npy")), &delta_dq_saved.view());
                 panic!("Pair scc routine does not converge!");
             }
         }
