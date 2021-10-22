@@ -189,7 +189,11 @@ impl Pair {
             let delta_dq_max: f64 = *delta_dq.map(|x| x.abs()).max().unwrap();
 
             // Broyden mixing of partial charges # changed new_dq to dq
-            q_ao = mixer.next(q_ao, delta_dq);
+            // if iter < 10 && iter > 1{
+            //     mixer.iter = 0;
+            // }
+            // q_ao = mixer.next(q_ao, delta_dq);
+            q_ao = q_ao +&delta_dq * defaults::BROYDEN_MIXING_PARAMETER;
             // The density matrix is updated in accordance with the Mulliken charges.
             p = p * &(&q_ao / &q_ao_n);
             let dp: Array2<f64> = &p - &p0;
