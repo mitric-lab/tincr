@@ -11,5 +11,3 @@ pub trait Mixer {
     fn next(&mut self, q_inp: Array1<f64>, q_diff: Array1<f64>) -> Array1<f64>;
     fn reset(&mut self, n_atoms: usize);
 }
-
-

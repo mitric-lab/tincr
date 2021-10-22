@@ -16,13 +16,13 @@ impl Pulay80 {
     pub fn new() -> Pulay80 {
         let t_v: Vec<Array2<f64>> = Vec::new();
         let r_v: Vec<Array1<f64>> = Vec::new();
-        return Pulay80 {
+        Pulay80 {
             trial_vectors: t_v,
             residual_vectors: r_v,
             memory: defaults::DIIS_LIMIT,
             iter: 0,
             start: false,
-        };
+        }
     }
 
     pub fn reset(&mut self) {
@@ -103,7 +103,7 @@ impl Pulay80 {
                 .iter()
                 .cloned(),
         );
-        return p_next;
+        p_next
     }
 
     // add the trial vector p and replace it with the DIIS approximate
@@ -113,21 +113,19 @@ impl Pulay80 {
         if self.start {
             p_next = self.get_approximation()
         } else {
-            if self.trial_vectors.len() > 3 {
-                if self.relative_change() < 0.5 {
-                    self.start = true;
-                }
+            if self.trial_vectors.len() > 3 && self.relative_change() < 0.5 {
+                self.start = true;
             }
             p_next = p;
         }
-        return p_next;
+        p_next
     }
 
     // compute the relative change in the last iteration
     // |p_(i+1) - p_i|/|p_i|
     pub fn relative_change(&self) -> f64 {
         let mut change: f64;
-        if self.residual_vectors.len() == 0 {
+        if self.residual_vectors.is_empty() {
             change = 0.0;
         } else {
             change = 0.0;
@@ -138,7 +136,7 @@ impl Pulay80 {
             }
             change /= navg as f64;
         }
-        return change;
+        change
     }
 }
 
@@ -154,13 +152,13 @@ impl Pulay82 {
     pub fn new() -> Pulay82 {
         let t_v: Vec<Array2<f64>> = Vec::new();
         let r_v: Vec<Array1<f64>> = Vec::new();
-        return Pulay82 {
+        Pulay82 {
             trial_vectors: t_v,
             error_vectors: r_v,
             memory: defaults::DIIS_LIMIT,
             iter: 0,
             start: false,
-        };
+        }
     }
 
     pub fn reset(&mut self) {
@@ -220,20 +218,18 @@ impl Pulay82 {
         for (idx, coeff) in ci.slice(s![0..diis_count]).iter().enumerate() {
             h_next += &self.trial_vectors[idx].map(|x| x * *coeff);
         }
-        return h_next;
+        h_next
     }
 
     // add the trial vector p and replace it with the DIIS approximate
     pub fn next(&mut self, h: Array2<f64>) -> Array2<f64> {
         println!("NEXT {}", self.start);
         let h_next: Array2<f64>;
-        if self.start == false {
-            if self.trial_vectors.len() > 2 {
-                println!("relative change {}", self.relative_change());
-                if self.relative_change() < 0.1 {
-                    println!("START DIIS");
-                    self.start = true;
-                }
+        if !self.start && self.trial_vectors.len() > 2 {
+            println!("relative change {}", self.relative_change());
+            if self.relative_change() < 0.1 {
+                println!("START DIIS");
+                self.start = true;
             }
         }
         if self.start {
@@ -242,12 +238,12 @@ impl Pulay82 {
             h_next = h.clone();
         }
         self.trial_vectors.push(h);
-        return h_next;
+        h_next
     }
 
     // compute the relative change in the last iteration
     pub fn relative_change(&self) -> f64 {
-        let mut change: f64;
+        let change: f64;
         if self.trial_vectors.len() < 2 {
             change = 1.0;
         } else {
@@ -257,6 +253,6 @@ impl Pulay82 {
             change = diff / self.trial_vectors[t_len - 1].norm();
         }
         println!("CHANGE {}", change);
-        return change;
+        change
     }
 }

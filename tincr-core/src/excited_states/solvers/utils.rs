@@ -6,11 +6,10 @@
 
 use ndarray::prelude::*;
 use ndarray_linalg::generate::random;
-//use log::info;
+use log::{info};
 use approx::relative_eq;
 use std::cmp::Ordering;
 use std::time::Instant;
-use std::{println as info, println as warn};
 
 /// Generate the initial subspace vectors. These correspond to the `dim` lowest
 /// diagonal elements of the matrix that will be diagonalized.

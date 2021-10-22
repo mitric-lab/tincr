@@ -1,4 +1,4 @@
-use crate::io::settings::JobType;
+use crate::io::settings::{JobType, LC};
 
 // MOLECULE SPECIFICATION
 // charge of the molecule in a.u.
@@ -15,7 +15,7 @@ pub const TEMPERATURE: f64 = 0.0;
 
 pub const LONG_RANGE_RADIUS: f64 = 3.03;
 pub const PROXIMITY_CUTOFF: f64 = 30.00;
-pub const LONG_RANGE_CORRECTION: bool = true;
+pub const LONG_RANGE_CORRECTION: LC = LC::ON;
 pub const DISPERSION_CORRECTION: bool = true;
 
 // PARAMETERS
@@ -71,8 +71,8 @@ pub const GEOM_OPT_TOL_GRADIENT: f64 = 0.0;
 pub const GEOM_OPT_TOL_ENERGY: f64 = 0.0;
 
 // Directory of the mio parameters
-pub const MIO_DIR:&str = " ";
-pub const USE_MIO:bool = false;
+pub const MIO_DIR: &str = " ";
+pub const USE_MIO: bool = false;
 
 pub const NUM_LE_STATES: usize = 2;
 pub const NUM_HOLES: usize = 1;

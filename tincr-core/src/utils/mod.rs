@@ -1,11 +1,11 @@
-mod zbrent;
 pub(crate) mod array_helper;
+mod zbrent;
 //mod tests;
 
 pub use array_helper::ToOwnedF;
-pub use zbrent::zbrent;
 use std::time::Instant;
-use std::{fmt, env};
+use std::{env, fmt};
+pub use zbrent::zbrent;
 
 //pub use tests::*;
 use crate::defaults;
@@ -21,7 +21,9 @@ pub struct Timer {
 
 impl Timer {
     pub fn start() -> Self {
-        Timer{time: Instant::now()}
+        Timer {
+            time: Instant::now(),
+        }
     }
 }
 
@@ -29,7 +31,8 @@ impl Timer {
 impl fmt::Display for Timer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Use `self.number` to refer to each positional data point.
-        write!(f,
+        write!(
+            f,
             "{:>68} {:>8.2} s",
             "elapsed time:",
             self.time.elapsed().as_secs_f32()

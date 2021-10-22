@@ -23,25 +23,23 @@ pub fn q_lele<'a>(
     kind_b: ElecHole,
     s: ArrayView2<f64>,
 ) -> Array3<f64> {
-    // Check if the transition charges are on the same monomer or not.
-    let inter: bool = a.monomer != b.monomer;
-
     // Number of atoms.
-    let n_atoms: usize = if inter {
-        a.monomer.atoms.len() + b.monomer.atoms.len()
-    } else {
-        a.monomer.atoms.len()
-    };
+    let n_atoms_i: usize = a.atoms.len();
+    let n_atoms_j: usize = b.atoms.len();
+    let n_atoms: usize = n_atoms_i + n_atoms_j;
+
     // Check if the occupied or virtual orbitals of the first LE state are needed.
     let orbs_i: ArrayView2<f64> = match kind_a {
         ElecHole::Hole => a.occs,
         ElecHole::Electron => a.virts,
     };
+
     // Check if the occupied or virtual orbitals of the second LE state are needed.
     let orbs_j: ArrayView2<f64> = match kind_b {
         ElecHole::Hole => b.occs,
         ElecHole::Electron => b.virts,
     };
+
     // Number of molecular orbitals on monomer I.
     let dim_i: usize = orbs_i.ncols();
     // Number of molecular orbitals on monomer J.
@@ -50,40 +48,38 @@ pub fn q_lele<'a>(
     let mut q_trans: Array3<f64> = Array3::zeros([n_atoms, dim_i, dim_j]);
 
     // Matrix product of overlap matrix with the orbitals on I.
-    let sc_i: Array2<f64> = s.dot(&orbs_j);
+    let sc_mu_j: Array2<f64> = s.dot(&orbs_j);
     // Matrix product of overlap matrix with the orbitals on J.
-    let sc_j: Array2<f64> = s.t().dot(&orbs_i);
-    // Either append or sum the contributions, depending whether the orbitals are on the same monomer.
-    let sc_ij: Array2<f64> = if inter {
-        concatenate![Axis(0), sc_i, sc_j]
-    } else {
-        &orbs_i + &sc_i
-    };
-    let orbs_ij: Array2<f64> = if inter {
-        concatenate![Axis(0), orbs_i, orbs_j]
-    } else {
-        &orbs_j + &sc_j // TODO: CHECK IF CORRECT
-    };
+    let sc_mu_i: Array2<f64> = s.t().dot(&orbs_i);
 
-    // Iterator over the atoms.
-    let atom_iter = if inter {
-        a.atoms.iter().chain(b.atoms.iter())
-    } else {
-        let empty_slice: &[Atom] = &[];
-        a.atoms.iter().chain(empty_slice.iter())
-    };
 
     let mut mu: usize = 0;
-    // Iteration over all atoms (A).
-    for (atom, mut q_n) in atom_iter.zip(q_trans.axis_iter_mut(Axis(0))) {
-        // Iteration over atomic orbitals mu on A.
+    // Iteration over all atoms (I).
+    for (atom, mut q_n) in a.atoms.iter().zip(q_trans.slice_mut(s![0..n_atoms_i, .., ..]).axis_iter_mut(Axis(0))) {
+        // Iteration over atomic orbitals mu on I.
         for _ in 0..atom.n_orbs() {
-            // Iteration over occupied orbital i.
-            for (orb_i, mut q_j) in sc_ij.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
-                // Iteration over occupied orbital j.
-                for (orb_j, mut q) in orbs_ij.row(mu).iter().zip(q_j.iter_mut()) {
+            // Iteration over orbitals i on monomer I. orb_i -> C_(mu i) (mu on I, i on I)
+            for (orb_i, mut q_i) in orbs_i.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                // Iteration over S * C_J on monomer J. sc -> SC_(mu j) (mu on I, j on J)
+                for (sc, mut q) in sc_mu_j.row(mu).iter().zip(q_i.iter_mut()) {
                     // The transition charge is computed.
-                    *q += orb_i * orb_j;
+                    *q += orb_i * sc;
+                }
+            }
+            mu += 1;
+        }
+    }
+    mu = 0;
+    // Iteration over all atoms J.
+    for (atom, mut q_n) in b.atoms.iter().zip(q_trans.slice_mut(s![n_atoms_i.., .., ..]).axis_iter_mut(Axis(0))) {
+        // Iteration over atomic orbitals mu on J.
+        for _ in 0..atom.n_orbs() {
+            // Iteration over occupied orbital i. sc -> SC_(mu i) (mu on J, i on I)
+            for (sc, mut q_i) in sc_mu_i.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                // Iteration over occupied orbital j. C_(mu j) (mu on J, j on J)
+                for (orb_j, mut q) in orbs_j.row(mu).iter().zip(q_i.iter_mut()) {
+                    // The transition charge is computed.
+                    *q += orb_j * sc;
                 }
             }
             mu += 1;

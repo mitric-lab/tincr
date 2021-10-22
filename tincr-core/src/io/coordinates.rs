@@ -1,8 +1,6 @@
+use crate::constants::BOHR_TO_ANGS;
 use chemfiles::{Frame, Trajectory};
-use ndarray::{Array2};
-use crate::constants::{BOHR_TO_ANGS};
-use hashbrown::HashMap;
-use crate::Atom;
+use ndarray::Array2;
 
 /// Extract the atomic numbers and positions (in bohr) from a [Frame](chemfiles::frame)
 pub fn frame_to_coordinates(frame: Frame) -> (Vec<u8>, Array2<f64>) {
@@ -15,9 +13,9 @@ pub fn frame_to_coordinates(frame: Frame) -> (Vec<u8>, Array2<f64>) {
             .cloned()
             .collect(),
     )
-        .unwrap();
+    .unwrap();
     // transform the coordinates from angstrom to bohr
-    positions = positions / BOHR_TO_ANGS;
+    positions /= BOHR_TO_ANGS;
     // read the atomic number of each coordinate
     let atomic_numbers: Vec<u8> = (0..frame.size() as usize)
         .map(|i| frame.atom(i).atomic_number() as u8)
@@ -26,7 +24,7 @@ pub fn frame_to_coordinates(frame: Frame) -> (Vec<u8>, Array2<f64>) {
     // let mut smiles_repr: Trajectory = Trajectory::memory_writer("SMI").unwrap();
     // smiles_repr.write(&mut frame).unwrap();
     // let smiles: String = smiles_repr.memory_buffer().unwrap().replace('~', "").replace('\n', "");
-    return (atomic_numbers, positions);
+    (atomic_numbers, positions)
 }
 
 // /// Extract the atoms and coordinates from the [Frame](chemfiles::Frame). The unique atoms will
@@ -52,11 +50,11 @@ pub fn frame_to_coordinates(frame: Frame) -> (Vec<u8>, Array2<f64>) {
 // }
 
 /// Read a xyz-geometry file like .xyz or .pdb and returns a [Frame](chemfiles::Frame)
-pub fn read_file_to_frame(filename: &str) -> Frame{
+pub fn read_file_to_frame(filename: &str) -> Frame {
     // read the geometry file
     let mut trajectory = Trajectory::open(filename, 'r').unwrap();
     let mut frame = Frame::new();
     // if multiple geometries are contained in the file, we will only use the first one
     trajectory.read(&mut frame).unwrap();
-    return frame;
+    frame
 }

@@ -3,13 +3,13 @@ mod zvector;
 mod vector_products;
 
 use ndarray::prelude::*;
-use ndarray::Data;
-use peroxide::fuga::gamma;
+
+
 
 #[derive(Copy, Clone)]
 pub enum TDA {
-    ON,
-    OFF,
+    On,
+    Off,
 }
 
 enum VTypes {}
@@ -59,24 +59,24 @@ pub trait ExcitedStateGradient {
         let tda: TDA = self.tda_or_tddft();
 
         // The U vectors are computed.
-        let u_ab: Array2<f64> = compute_u(x_plus_y.view(), x_minus_y.view(), tda);
-        let u_ij: Array2<f64> = compute_u(x_plus_y.t(), x_minus_y.t(), tda);
+        let _u_ab: Array2<f64> = compute_u(x_plus_y.view(), x_minus_y.view(), tda);
+        let _u_ij: Array2<f64> = compute_u(x_plus_y.t(), x_minus_y.t(), tda);
 
         // The V vectors are computed.
-        let v_ab: Array2<f64> = compute_v(x_plus_y.t(), x_minus_y.t(), e_i.view(), tda);
-        let v_ij: Array2<f64> = compute_v(x_plus_y.view(), x_minus_y.view(), e_a.view(), tda);
+        let _v_ab: Array2<f64> = compute_v(x_plus_y.t(), x_minus_y.t(), e_i.view(), tda);
+        let _v_ij: Array2<f64> = compute_v(x_plus_y.view(), x_minus_y.view(), e_a.view(), tda);
 
         // The T vectors are computed.
-        let t_ab: Array2<f64> = compute_u(x_plus_y.view(), x_minus_y.view(), tda);
-        let t_ij: Array2<f64> = compute_u(x_plus_y.t(), x_minus_y.t(), tda);
+        let _t_ab: Array2<f64> = compute_u(x_plus_y.view(), x_minus_y.view(), tda);
+        let _t_ij: Array2<f64> = compute_u(x_plus_y.t(), x_minus_y.t(), tda);
     }
 }
 
 
 fn compute_u(x_plus_y: ArrayView2<f64>, x_minus_y: ArrayView2<f64>, tda: TDA) -> Array2<f64> {
     match tda {
-        TDA::ON => 2.0 * x_plus_y.t().dot(&x_plus_y),
-        TDA::OFF => x_plus_y.t().dot(&x_minus_y) + x_minus_y.t().dot(&x_plus_y),
+        TDA::On => 2.0 * x_plus_y.t().dot(&x_plus_y),
+        TDA::Off => x_plus_y.t().dot(&x_minus_y) + x_minus_y.t().dot(&x_plus_y),
     }
 }
 
@@ -87,14 +87,14 @@ fn compute_v(
     tda: TDA,
 ) -> Array2<f64> {
     match tda {
-        TDA::ON => 2.0 * x_plus_y.dot(&e).dot(&x_plus_y.t()),
-        TDA::OFF => x_plus_y.dot(&e).dot(&x_plus_y.t()) + x_minus_y.dot(&e).dot(&x_minus_y.t()),
+        TDA::On => 2.0 * x_plus_y.dot(&e).dot(&x_plus_y.t()),
+        TDA::Off => x_plus_y.dot(&e).dot(&x_plus_y.t()) + x_minus_y.dot(&e).dot(&x_minus_y.t()),
     }
 }
 
 fn compute_t(x_plus_y: ArrayView2<f64>, x_minus_y: ArrayView2<f64>, tda: TDA) -> Array2<f64> {
     match tda {
-        TDA::ON => x_plus_y.t().dot(&x_plus_y),
-        TDA::OFF => x_plus_y.t().dot(&x_plus_y) + x_minus_y.t().dot(&x_minus_y),
+        TDA::On => x_plus_y.t().dot(&x_plus_y),
+        TDA::Off => x_plus_y.t().dot(&x_plus_y) + x_minus_y.t().dot(&x_minus_y),
     }
 }

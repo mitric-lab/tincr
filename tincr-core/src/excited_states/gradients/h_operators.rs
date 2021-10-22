@@ -1,13 +1,7 @@
 use ndarray::prelude::*;
-use ndarray::Data;
-use derive_builder::*;
 
-/// Control if the long-range correction is used or not.
-#[derive(Clone, Copy)]
-pub enum LC {
-    ON,
-    OFF,
-}
+use derive_builder::*;
+use crate::io::settings::LC;
 
 // Types to specify if the transformations are done for occupied-occupied (OO), occupied-virtual (OV)
 // or virtual-virtual (VV) orbitals.
@@ -178,7 +172,7 @@ impl<'a> HPlusMinus<'a>
         // Reference to the long-range corrected gamma matrix.
         let gamma_lr: &ArrayView2<f64> = self.gamma_lr.as_ref().unwrap();
         // The number of atoms.
-        let n_atoms: usize = self.atoms.len();
+        let n_atoms: usize = self.n_atoms;
         // The dimension of the sum over p and q.
         let (p_dim, q_dim): (usize, usize) = self.get_dim(pq);
         // The dimension of the sum over r and s.
@@ -235,7 +229,7 @@ impl<'a> HPlusMinus<'a>
         // Reference to the long-range corrected gamma matrix.
         let gamma_lr: &ArrayView2<f64> = self.gamma_lr.as_ref().unwrap();
         // The number of atoms.
-        let n_atoms: usize = self.atoms.len();
+        let n_atoms: usize = self.n_atoms;
         // The dimension of the sum over p and q.
         let (p_dim, q_dim): (usize, usize) = self.get_dim(pq);
         // The dimension of the sum over r and s.

@@ -1,13 +1,12 @@
-use std::ops::{Sub};
-use soa_derive::StructOfArray;
-use std::cmp::Ordering;
+use crate::types::atomic_orbital::AtomicOrbital;
+use crate::Element;
 use nalgebra::Vector3;
 use ndarray::prelude::*;
-use crate::{Element};
-use crate::types::atomic_orbital::AtomicOrbital;
-use hashbrown::HashMap;
-use crate::utils::array_helper::argsort_usize;
+use soa_derive::StructOfArray;
+use std::cmp::Ordering;
+use std::ops::Sub;
 
+use crate::utils::array_helper::argsort_usize;
 
 /// `Atom` type that contains basic information about the chemical element as well as the
 /// data used for the semi-empirical parameters that are used in the DFTB calculations.
@@ -52,7 +51,7 @@ pub struct Atom {
     pub n_elec: usize,
     /// Position of the atom in bohr
     pub xyz: Vector3<f64>,
-    pub spin_coupling:f64,
+    pub spin_coupling: f64,
 }
 //
 // impl From<Element> for Atom {
@@ -134,16 +133,7 @@ pub struct Atom {
 //     }
 // }
 
-impl Atom {
-    pub fn position_from_slice(&mut self, position: &[f64]) {
-        self.xyz = Vector3::from_iterator(position.iter().cloned());
-    }
-
-    pub fn position_from_ndarray(&mut self, position: Array1<f64>) {
-        let xyz: Vector3<f64> = nalgebra::Matrix::from_vec_generic(nalgebra::Const::<3>, nalgebra::Const::<1>, position.into_raw_vec());
-        self.xyz = xyz;
-    }
-
+impl<'a> AtomRef<'a> {
     pub fn sort_indices_atomic_orbitals(&self) -> Vec<usize> {
         let indices: Array1<usize> = self.valorbs.iter().map(|orb| orb.ord_idx()).collect();
         argsort_usize(indices.view())

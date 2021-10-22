@@ -1,7 +1,7 @@
-use ndarray::prelude::*;
-use std::cmp::{max};
-use crate::utils::zbrent;
 use crate::constants;
+use crate::utils::zbrent;
+use ndarray::prelude::*;
+use std::cmp::max;
 
 /// Find the occupation of single-particle state a at finite temperature T
 /// according to the Fermi distribution:
@@ -51,7 +51,7 @@ pub fn fermi_occupation(
             fermi_occ.push(fermi(*en, mu, t));
         }
     }
-    return (mu, fermi_occ);
+    (mu, fermi_occ)
 }
 
 /// Find the occupation of single-particle states at T=0
@@ -67,15 +67,13 @@ fn fermi_occupation_t0(
     for a in sort_indx.iter() {
         if n_elec_paired > 0.0 {
             fermi_occ[*a] = 2.0_f64.min(n_elec_paired);
-            n_elec_paired = n_elec_paired - 2.0;
-        } else {
-            if n_elec_unpaired > 0.0 {
-                fermi_occ[*a] = 1.0_f64.min(n_elec_unpaired);
-                n_elec_unpaired = n_elec_unpaired - 1.0;
-            }
+            n_elec_paired -= 2.0;
+        } else if n_elec_unpaired > 0.0 {
+            fermi_occ[*a] = 1.0_f64.min(n_elec_unpaired);
+            n_elec_unpaired -= 1.0;
         }
     }
-    return (0.0, fermi_occ);
+    (0.0, fermi_occ)
 }
 
 // original code from from https://qiita.com/osanshouo/items/71b0272cd5e156cbf5f2
@@ -99,7 +97,7 @@ fn fa_minus_nelec(
     // find the root of this function to enforce sum_a f_a = Nelec
     let mut sum_fa: f64 = 0.0;
     for en_a in orbe.iter() {
-        sum_fa = sum_fa + fermi_function(*en_a, mu, t)
+        sum_fa += fermi_function(*en_a, mu, t)
     }
-    return sum_fa - (n_elec as f64);
+    sum_fa - (n_elec as f64)
 }

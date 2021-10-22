@@ -1,8 +1,8 @@
-use chemfiles::Frame;
-use crate::io::{read_file_to_frame, Configuration};
-use std::path::Path;
 use crate::defaults::CONFIG_FILE_NAME;
+use crate::io::{read_file_to_frame, Configuration};
+use chemfiles::Frame;
 use std::fs;
+use std::path::Path;
 
 pub fn read_input(geom_file: &str) -> (Frame, Configuration) {
     // The file containing the cartesian coordinates is the only mandatory file to
@@ -23,7 +23,7 @@ pub fn read_input(geom_file: &str) -> (Frame, Configuration) {
     let config: Configuration = toml::from_str(&config_string).unwrap();
     // The configuration file is saved if it does not exist already so that the user can see
     // all the used options.
-    if config_file_path.exists() == false {
+    if !config_file_path.exists() {
         config_string = toml::to_string(&config).unwrap();
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }

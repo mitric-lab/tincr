@@ -44,14 +44,14 @@ impl ProductCache {
         // the array is stacked as new columns to the old values.
         self.products
             .entry(key)
-            .or_insert(Array2::zeros([value.nrows(), 0]))
+            .or_insert_with(|| Array2::zeros([value.nrows(), 0]))
             .append(Axis(1), value.view());
         // Return a view of the products.
         self.products.get(key).unwrap().view()
     }
 
     /// The HashMap is cleared.
-    pub fn reset(&mut self) -> () {
+    pub fn reset(&mut self) {
         self.products = HashMap::new();
     }
 

@@ -2,18 +2,18 @@
 #![allow(warnings)]
 #[macro_use]
 use clap::crate_version;
+use crate::constants;
 use crate::constants::BOHR_TO_ANGS;
 use crate::defaults::*;
 use chemfiles::{Frame, Trajectory};
 use clap::App;
 use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
-use std::{env, fs};
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::ptr::eq;
-use std::collections::HashMap;
-use crate::constants;
+use std::{env, fs};
 
 #[derive(Serialize, Deserialize, Copy, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -22,6 +22,12 @@ pub enum JobType {
     Force,
     Opt,
     Dyn,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub enum LC {
+    ON,
+    OFF,
 }
 
 fn default_charge() -> i8 {
@@ -33,8 +39,10 @@ fn default_multiplicity() -> u8 {
 fn default_jobtype() -> JobType {
     JOBTYPE
 }
-fn default_use_fmo() -> bool {false}
-fn default_long_range_correction() -> bool {
+fn default_use_fmo() -> bool {
+    false
+}
+fn default_long_range_correction() -> LC {
     LONG_RANGE_CORRECTION
 }
 fn default_long_range_radius() -> f64 {
@@ -94,9 +102,15 @@ fn default_n_holes() -> usize {
 fn default_n_particles() -> usize {
     NUM_PARTICLES
 }
-fn default_params() -> bool { USE_MIO }
-fn default_skf_directory() ->String { String::from( MIO_DIR ) }
-fn default_number_of_cores()->usize{1}
+fn default_params() -> bool {
+    USE_MIO
+}
+fn default_skf_directory() -> String {
+    String::from(MIO_DIR)
+}
+fn default_number_of_cores() -> usize {
+    1
+}
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
     return mol_config;
@@ -117,16 +131,16 @@ fn default_excited_state_config() -> ExcitedStatesConfig {
     let excited_config: ExcitedStatesConfig = toml::from_str("").unwrap();
     return excited_config;
 }
-fn default_slater_koster_config()->SlaterKosterConfig{
-    let slako_config:SlaterKosterConfig = toml::from_str("").unwrap();
+fn default_slater_koster_config() -> SlaterKosterConfig {
+    let slako_config: SlaterKosterConfig = toml::from_str("").unwrap();
     return slako_config;
 }
-fn default_parallelization_config()->ParallelizationConfig{
-    let parallelization_config:ParallelizationConfig = toml::from_str("").unwrap();
+fn default_parallelization_config() -> ParallelizationConfig {
+    let parallelization_config: ParallelizationConfig = toml::from_str("").unwrap();
     return parallelization_config;
 }
 
-fn default_lcmo_config()-> LcmoConfig{
+fn default_lcmo_config() -> LcmoConfig {
     let config: LcmoConfig = toml::from_str("").unwrap();
     return config;
 }
@@ -150,12 +164,11 @@ pub struct Configuration {
     #[serde(default = "default_excited_state_config")]
     pub excited: ExcitedStatesConfig,
     #[serde(default = "default_slater_koster_config")]
-    pub slater_koster:SlaterKosterConfig,
+    pub slater_koster: SlaterKosterConfig,
     #[serde(default = "default_parallelization_config")]
-    pub parallelization:ParallelizationConfig,
+    pub parallelization: ParallelizationConfig,
     #[serde(default = "default_lcmo_config")]
     pub lcmo: LcmoConfig,
-
 }
 
 impl Configuration {
@@ -215,7 +228,7 @@ pub struct OptConfig {
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct LCConfig {
     #[serde(default = "default_long_range_correction")]
-    pub long_range_correction: bool,
+    pub long_range_correction: LC,
     #[serde(default = "default_long_range_radius")]
     pub long_range_radius: f64,
 }
@@ -235,7 +248,7 @@ pub struct ExcitedStatesConfig {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct SlaterKosterConfig{
+pub struct SlaterKosterConfig {
     #[serde(default = "default_params")]
     pub use_skf_files: bool,
     #[serde(default = "default_skf_directory")]
@@ -243,7 +256,7 @@ pub struct SlaterKosterConfig{
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct LcmoConfig{
+pub struct LcmoConfig {
     #[serde(default = "default_n_le")]
     pub n_le: usize,
     #[serde(default = "default_n_holes")]
@@ -253,7 +266,7 @@ pub struct LcmoConfig{
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct ParallelizationConfig{
+pub struct ParallelizationConfig {
     #[serde(default = "default_number_of_cores")]
-    pub number_of_cores:usize,
+    pub number_of_cores: usize,
 }

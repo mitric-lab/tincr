@@ -1,12 +1,11 @@
-use crate::param::skf_handler::{SkfHandler, process_slako_line};
-use ndarray::prelude::*;
-use hashbrown::HashMap;
+use crate::param::skf_handler::{process_slako_line, SkfHandler};
 use crate::utils::get_path_prefix;
-use std::path::Path;
-use std::fs;
+use hashbrown::HashMap;
+use ndarray::prelude::*;
 use ron::from_str;
 use serde::{Deserialize, Serialize};
-
+use std::fs;
+use std::path::Path;
 
 impl PseudoAtom {
     pub fn free_atom(element: &str) -> PseudoAtom {

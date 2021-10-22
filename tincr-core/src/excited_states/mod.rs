@@ -1,25 +1,25 @@
 use crate::constants::HARTREE_TO_EV;
-use crate::io::MoldenExporter;
+use crate::io::{MoldenExporter, MoldenExporterBuilder};
+use crate::AtomSlice;
 use ndarray::prelude::*;
 use ndarray_npy::{write_npy, WriteNpyError};
 pub use solvers::*;
 use std::fs::File;
 use std::io::Write;
 use std::ops::AddAssign;
-pub use tda::*;
 pub use transition_charges::*;
 pub use utils::*;
 
 mod ntos;
 mod solvers;
-pub mod tda;
+//pub mod tda;
 mod transition_charges;
 mod utils;
 mod gradients;
 
-use crate::MoldenExporterBuilder;
-use ndarray::Data;
-use ndarray_linalg::{Scalar, Lapack};
+
+
+use crate::excited_states::ntos::natural_transition_orbitals;
 
 /// General trait for all excited states struct, to implement basis functions.
 pub trait ExcitedState {
@@ -77,12 +77,12 @@ pub trait ExcitedState {
 
         // and write the data.
         f.write_all(txt.as_bytes())
-            .expect(&format!("Unable to write data at: {}", &filename));
+            .unwrap_or_else(|_| panic!("Unable to write data at: {}", &filename));
     }
 
     /// Compute the Natural Transition Orbitals (NTOs) of an excited state and write these orbitals
     /// to a molden file.
-    fn ntos_to_molden(&self, atoms: &[Atom], state: usize, filename: &str) {
+    fn ntos_to_molden(&self, atoms: AtomSlice, state: usize, filename: &str) {
         // Get NTOs.
         let (lambdas, ntos): (Array1<f64>, Array2<f64>) = natural_transition_orbitals(
             self.get_transition_density_matrix(state).view(),
@@ -101,7 +101,7 @@ pub trait ExcitedState {
 
         // The singular values are used as occupation numbers.
         let molden_exporter: MoldenExporter = MoldenExporterBuilder::default()
-            .atoms(&atoms)
+            .atoms(atoms)
             .orbs(ntos.view())
             .orbe(dummy_energies.view())
             .f(lambdas.to_vec())

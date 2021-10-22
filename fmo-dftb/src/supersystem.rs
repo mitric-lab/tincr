@@ -103,9 +103,3 @@ impl<'a> SuperSystem<'a> {
         gamma
     }
 }
-
-#[derive(Copy, Clone)]
-pub enum LRC {
-    ON,
-    OFF,
-}

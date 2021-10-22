@@ -1,5 +1,5 @@
-use ndarray::prelude::*;
 use crate::defaults;
+use ndarray::prelude::*;
 
 pub struct LevelShifter {
     shift_value: f64,
@@ -30,7 +30,7 @@ impl LevelShifter {
         LevelShifter {
             shift_value: defaults::HOMO_LUMO_SHIFT,
             weight: 1.0,
-            vv_block: vv_block,
+            vv_block,
             is_on: true,
         }
     }

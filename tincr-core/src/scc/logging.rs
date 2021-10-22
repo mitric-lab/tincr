@@ -1,6 +1,6 @@
-use ndarray::ArrayView1;
 use crate::utils::Timer;
 use log::{debug, info};
+use ndarray::ArrayView1;
 
 pub fn print_scc_init(max_iter: usize, temperature: f64, rep_energy: f64) {
     info!("{:^80}", "");
@@ -33,7 +33,14 @@ pub fn print_charges(q: ArrayView1<f64>, dq: ArrayView1<f64>) {
     debug!("{:-^55}", "");
 }
 
-pub fn print_energies_at_iteration(iter: usize, scf_energy: f64, rep_energy: f64, energy_old: f64, dq_diff_max:f64, ls_weight: f64) {
+pub fn print_energies_at_iteration(
+    iter: usize,
+    scf_energy: f64,
+    rep_energy: f64,
+    energy_old: f64,
+    dq_diff_max: f64,
+    ls_weight: f64,
+) {
     if iter == 0 {
         info!(
             "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>12.4}",
@@ -55,7 +62,14 @@ pub fn print_energies_at_iteration(iter: usize, scf_energy: f64, rep_energy: f64
     }
 }
 
-pub fn print_energies_at_iteration_unrestricted(iter: usize, scf_energy: f64, rep_energy: f64, energy_old: f64, dq_diff_max_alpha:f64, dq_diff_max_beta:f64) {
+pub fn print_energies_at_iteration_unrestricted(
+    iter: usize,
+    scf_energy: f64,
+    rep_energy: f64,
+    energy_old: f64,
+    dq_diff_max_alpha: f64,
+    dq_diff_max_beta: f64,
+) {
     if iter == 0 {
         info!(
             "{: >5} {:>18.10e} {:>18.13} {:>18.10e} {:>18.10e}",
@@ -77,7 +91,14 @@ pub fn print_energies_at_iteration_unrestricted(iter: usize, scf_energy: f64, re
     }
 }
 
-pub fn print_scc_end(timer: Timer, jobtype: &str, scf_energy: f64, rep_energy: f64, orbe: ArrayView1<f64>, f: &[f64]) {
+pub fn print_scc_end(
+    timer: Timer,
+    jobtype: &str,
+    scf_energy: f64,
+    rep_energy: f64,
+    orbe: ArrayView1<f64>,
+    f: &[f64],
+) {
     info!("{:-^75} ", "");
     info!("{: ^75}", "SCC converged");
     info!("{:^80} ", "");
@@ -85,11 +106,20 @@ pub fn print_scc_end(timer: Timer, jobtype: &str, scf_energy: f64, rep_energy: f
     info!("{:-<80} ", "");
     info!("{}", timer);
     if jobtype == "sp" {
-        print_orbital_information(orbe.view(), &f);
+        print_orbital_information(orbe.view(), f);
     }
 }
 
-pub fn print_unrestricted_scc_end(timer: Timer, jobtype: &str, scf_energy: f64, rep_energy: f64, orbe_alpha: ArrayView1<f64>, f_alpha: &[f64],orbe_beta: ArrayView1<f64>, f_beta: &[f64]) {
+pub fn print_unrestricted_scc_end(
+    timer: Timer,
+    jobtype: &str,
+    scf_energy: f64,
+    rep_energy: f64,
+    orbe_alpha: ArrayView1<f64>,
+    f_alpha: &[f64],
+    orbe_beta: ArrayView1<f64>,
+    f_beta: &[f64],
+) {
     info!("{:-^75} ", "");
     info!("{: ^75}", "SCC converged");
     info!("{:^80} ", "");
@@ -98,14 +128,13 @@ pub fn print_unrestricted_scc_end(timer: Timer, jobtype: &str, scf_energy: f64, 
     info!("{}", timer);
     if jobtype == "sp" {
         info!("Information about alpha orbitals");
-        print_orbital_information(orbe_alpha.view(), &f_alpha);
+        print_orbital_information(orbe_alpha.view(), f_alpha);
         info!("Information about beta orbitals");
-        print_orbital_information(orbe_beta.view(), &f_beta);
+        print_orbital_information(orbe_beta.view(), f_beta);
     }
 }
 
-
-pub fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) -> () {
+pub fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) {
     info!("{:^80} ", "");
     info!(
         "{:^8} {:^6} {:>18.14} | {:^8} {:^6} {:>18.14}",

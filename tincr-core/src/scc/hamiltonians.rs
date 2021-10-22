@@ -1,15 +1,14 @@
-use itertools::Itertools;
-use log::{debug};
-use ndarray::prelude::*;
-use crate::{Atom, defaults, AtomSlice};
 use crate::scc::energies::get_homo_lumo_gap;
-
+use crate::{defaults, Atom, AtomSlice};
+use itertools::Itertools;
+use log::debug;
+use ndarray::prelude::*;
 
 // find indices of HOMO and LUMO orbitals (starting from 0)
 pub fn get_frontier_orbitals(n_elec: usize) -> (usize, usize) {
     let homo: usize = (n_elec / 2) - 1;
     let lumo: usize = homo + 1;
-    return (homo, lumo);
+    (homo, lumo)
 }
 
 // find indices of HOMO and LUMO orbitals (starting from 0)
@@ -18,11 +17,10 @@ pub fn get_frontier_orbitals_from_occ(f: &[f64]) -> (usize, usize) {
         .iter()
         .enumerate()
         .filter_map(|(idx, val)| if *val > 0.5 { Some(idx) } else { None })
-        .collect::<Vec<usize>>()
-        .len();
+        .count();
     let homo: usize = n_occ - 1;
     let lumo: usize = homo + 1;
-    return (homo, lumo);
+    (homo, lumo)
 }
 
 /// the repulsive potential, the dispersion correction and only depend on the nuclear
@@ -43,11 +41,9 @@ pub fn lc_exact_exchange(
     hx = hx + &g0_lr_ao * &(s.dot(&dp)).dot(&s);
     hx = hx + (s.dot(&(&dp * &g0_lr_ao))).dot(&s);
     hx = hx + s.dot(&(&g0_lr_ao * &dp.dot(&s)));
-    hx = hx * -0.125;
-    return hx;
+    hx *= -0.125;
+    hx
 }
-
-
 
 /// Construct the density matrix
 /// P_mn = sum_a f_a C_ma* C_na
@@ -64,7 +60,7 @@ pub fn density_matrix(orbs: ArrayView2<f64>, f: &[f64]) -> Array2<f64> {
     }
     let f_occ_mat: Array2<f64> = Array2::from_shape_vec(occ_orbs.raw_dim(), f_occ_mat).unwrap();
     let p: Array2<f64> = (f_occ_mat * &occ_orbs).dot(&occ_orbs.t());
-    return p;
+    p
 }
 
 /// Construct reference density matrix
@@ -80,7 +76,7 @@ pub fn density_matrix_ref(n_orbs: usize, atoms: AtomSlice) -> Array2<f64> {
             idx += 1;
         }
     }
-    return p0;
+    p0
 }
 
 pub fn construct_h1(
@@ -93,26 +89,26 @@ pub fn construct_h1(
     let mut h1: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
     let mut mu: usize = 0;
     let mut nu: usize;
-    for (n_orbs_i, esp_i) in atoms.n_orbs.iter().zip(e_stat_pot.iter()){
+    for (n_orbs_i, esp_i) in atoms.n_orbs.iter().zip(e_stat_pot.iter()) {
         for _ in 0..*n_orbs_i {
             nu = 0;
             for (n_orbs_j, esp_j) in atoms.n_orbs.iter().zip(e_stat_pot.iter()) {
                 for _ in 0..*n_orbs_j {
                     h1[[mu, nu]] = 0.5 * (esp_i + esp_j);
-                    nu = nu + 1;
+                    nu += 1;
                 }
             }
-            mu = mu + 1;
+            mu += 1;
         }
     }
-    return h1;
+    h1
 }
 
 pub fn construct_h_magnetization(
     n_orbs: usize,
     atoms: &[Atom],
     dq: ArrayView1<f64>,
-    spin_couplings:ArrayView1<f64>
+    spin_couplings: ArrayView1<f64>,
 ) -> Array2<f64> {
     let pot: Array1<f64> = &dq * &spin_couplings;
     let mut h: Array2<f64> = Array2::zeros([n_orbs, n_orbs]);
@@ -124,13 +120,13 @@ pub fn construct_h_magnetization(
             for (j, atomj) in atoms.iter().enumerate() {
                 for _ in 0..(atomj.n_orbs) {
                     h[[mu, nu]] = 0.5 * (pot[i] + pot[j]);
-                    nu = nu + 1;
+                    nu += 1;
                 }
             }
-            mu = mu + 1;
+            mu += 1;
         }
     }
-    return h;
+    h
 }
 
 pub fn enable_level_shifting(orbe: ArrayView1<f64>, n_elec: usize) -> bool {

@@ -1,4 +1,3 @@
-
 /// In the original DFTBaby code the Fermi energy is searched using the bisection
 /// method, as it is necessary to find the root of (sum_a fa - n_elec).
 /// Since the bisection method can be slow, we use the Brent's method.
@@ -9,7 +8,7 @@
 /// Numerical Recipes in C: The Art of Scientific Computing. W. H. Press,
 /// S. A. Teukolsky, W. T. Vetterling, B. P. Flannery. Cambridge University Press 1992
 pub fn zbrent<F: Fn(f64) -> f64>(func: F, x1: f64, x2: f64, tol: f64, maxiter: usize) -> f64 {
-    let eps: f64 = 2.220446049250313e-016_f64.sqrt();
+    let eps: f64 = 2.220_446_049_250_313e-16_f64.sqrt();
     let mut a: f64 = x1;
     let mut b: f64 = x2;
     let mut c: f64 = x2;
@@ -96,15 +95,15 @@ pub fn zbrent<F: Fn(f64) -> f64>(func: F, x1: f64, x2: f64, tol: f64, maxiter: u
         a = b;
         fa = fb;
         if d.abs() > tol1 {
-            b = b + d;
+            b += d;
         } else if xm > 0.0 {
-            b = b + tol1;
+            b += tol1;
         } else {
-            b = b - tol1;
+            b -= tol1;
         }
         fb = func(b);
     }
-    return root;
+    root
 }
 
 #[cfg(test)]
@@ -114,7 +113,7 @@ mod tests {
     /// See https://people.sc.fsu.edu/~jburkardt/py_src/brent/zero.py
     #[test]
     fn zero_test() {
-        let eps: f64 = 2.220446049250313e-016;
+        let eps: f64 = 2.220_446_049_250_313e-16;
         let maxiter: usize = 100;
         let t: f64 = 10.0 * (eps).sqrt();
 

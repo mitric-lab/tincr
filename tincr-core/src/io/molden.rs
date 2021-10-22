@@ -1,12 +1,15 @@
+#![allow(unused_must_use)]
+
 use crate::io::basis_set::BasisSet;
+use crate::AtomSlice;
 use chrono::{DateTime, Utc};
+use derive_builder::export::core::fs::File;
 use derive_builder::*;
 use ndarray::prelude::*;
+use soa_derive::soa_zip;
 use std::fmt::{Display, Formatter, Result};
-use std::path::Path;
-use derive_builder::export::core::fs::File;
 use std::io::Write;
-use crate::Atom;
+use std::path::Path;
 
 /// Export to Molden format to visualize orbitals.
 /// To this end we convert Kohn-Sham atomic orbitals from DFTB calculation into STO-3G basis. Note
@@ -25,7 +28,7 @@ use crate::Atom;
 /// ```
 #[derive(Builder)]
 pub struct MoldenExporter<'a> {
-    atoms: &'a [Atom],
+    atoms: AtomSlice<'a>,
     #[builder(setter(custom))]
     orbs: Array2<f64>, // MO coefficients, but reorderd in cartesian order.
     orbe: ArrayView1<'a, f64>,
@@ -46,7 +49,7 @@ impl MoldenExporterBuilder<'_> {
     /// order the orbitals. It is necessary, that the atoms are set before the orbitals are set.
     pub fn orbs(&mut self, orbs: ArrayView2<f64>) -> &mut Self {
         let mut new = self;
-        let ordered_orbs: Array2<f64> = reorder_orbitals(orbs, new.atoms.as_ref().unwrap());
+        let ordered_orbs: Array2<f64> = reorder_orbitals(orbs, *new.atoms.as_ref().unwrap());
         new.orbs = Some(ordered_orbs);
         new
     }
@@ -61,15 +64,15 @@ impl MoldenExporter<'_> {
     /// Returns a String representation of the atomic coordinates.
     fn repr_atoms(&self) -> String {
         let mut txt: String = "[Atoms] AU\n".to_owned();
-        for (i, atom) in self.atoms.iter().enumerate() {
+        for (i, (kind, xyz)) in soa_zip!(self.atoms, [kind, xyz]).enumerate() {
             txt += &format!(
                 "{} {} {} {:2.7} {:2.7} {:2.7}\n",
-                atom.kind.symbol(),
+                kind.symbol(),
                 i + 1,
-                atom.kind.number(),
-                atom.xyz.x,
-                atom.xyz.y,
-                atom.xyz.z
+                kind.number(),
+                xyz.x,
+                xyz.y,
+                xyz.z
             );
         }
         txt
@@ -101,13 +104,13 @@ impl MoldenExporter<'_> {
         let mut txt: String = "[5D]\n[MO]\n".to_owned();
         let (occs, virts): (Vec<usize>, Vec<usize>) = self.occ_and_virts();
 
-        for (i, idx) in occs.iter().chain(virts.iter()).enumerate() {
+        for (i, _idx) in occs.iter().chain(virts.iter()).enumerate() {
             txt += &format!(" Sym=  {}a\n", i + 1);
             txt += &format!(" Ene=  {:2.7}\n", self.orbe[i]);
             txt += " Spin= Alpha\n";
             txt += &format!(" Occup={:2.7}\n", self.f[i]);
             for (j, aoj) in self.orbs.slice(s![.., i]).iter().enumerate() {
-                txt += &format!("    {} {:2.7}\n", j+1, aoj);
+                txt += &format!("    {} {:2.7}\n", j + 1, aoj);
             }
         }
         txt
@@ -117,18 +120,18 @@ impl MoldenExporter<'_> {
         let mut txt = "[GTO]\n".to_owned();
         for (i, atom) in self.atoms.iter().enumerate() {
             txt += &format!("{} 0\n", i + 1);
-            txt += &self.basis.repr_basis_set(atom.kind);
+            txt += &self.basis.repr_basis_set(*atom.kind);
             txt += "\n";
         }
         txt
     }
 
-    pub fn write_to(&self, path: &Path) -> () {
+    pub fn write_to(&self, path: &Path) {
         let filename: String = path.to_str().unwrap().to_owned();
         let mut f = File::create(path).expect(&*format!("Unable to create file: {}", &filename));
-        f.write_all(format!("{}", self).as_bytes()).expect(&format!("Unable to write data at: {}", &filename));
+        f.write_all(format!("{}", self).as_bytes())
+            .unwrap_or_else(|_| panic!("Unable to write data at: {}", &filename));
     }
-
 }
 
 impl Display for MoldenExporter<'_> {
@@ -154,7 +157,7 @@ impl Display for MoldenExporter<'_> {
 ///     py, pz, px            ->   px, py, pz
 ///     dxy,dyz,dz2,dzx,dx2y2 -> dz2,dzx,dyz,dx2y2,dxy
 /// The ordering of the orbitals is primarily done in the impl of `AtomicOrbital`.
-fn reorder_orbitals(orbs: ArrayView2<f64>, atoms: &[Atom]) -> Array2<f64> {
+fn reorder_orbitals(orbs: ArrayView2<f64>, atoms: AtomSlice) -> Array2<f64> {
     // Empty Vec that holds the indices to sort the MO coefficients.
     let mut indices: Vec<usize> = Vec::with_capacity(orbs.nrows());
     let mut mu: usize = 0;

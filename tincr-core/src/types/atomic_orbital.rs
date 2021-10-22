@@ -48,15 +48,17 @@ impl AtomicOrbital {
         index += (self.l * 10) as usize;
         index += match self.l {
             0 => 0, // s-orbitals
-            1 => { // p-orbitals
+            1 => {
+                // p-orbitals
                 match self.m {
-                    1 => 0, // px
-                    -1 => 1,// py
-                    0 => 2, // pz
+                    1 => 0,  // px
+                    -1 => 1, // py
+                    0 => 2,  // pz
                     _ => 3,
                 }
-            },
-            2 => { // d-orbitals
+            }
+            2 => {
+                // d-orbitals
                 match self.m {
                     0 => 0,  // dz2
                     1 => 1,  // dzx
@@ -65,7 +67,7 @@ impl AtomicOrbital {
                     2 => 4,  // dxy
                     _ => 5,
                 }
-            },
+            }
             _ => 6,
         };
         index

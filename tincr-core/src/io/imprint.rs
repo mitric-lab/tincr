@@ -1,5 +1,5 @@
-use log::{info};
 use clap::crate_version;
+use log::info;
 
 pub fn write_header() {
     info!("{: ^80}", "-----------------");
@@ -13,11 +13,29 @@ pub fn write_header() {
     info!("{: ^80}", "::           Roland Mitric          ::");
     info!("{: ^80}", "::  Chair of Theoretical Chemistry  ::");
     info!("{: ^80}", "::       University of Würzburg     ::");
-    info!("{: ^80}", "::::::::::::..................................::::::::::::");
-    info!("{: ^80}", ":: Authors:                                             ::");
-    info!("{: ^80}", ":: --------                                             ::");
-    info!("{: ^80}", ":: Joscha Hoche         <joscha.hoche@uni-wuerzburg.de> ::");
-    info!("{: ^80}", ":: Richard Einsele   <richard.einsele@uni-wuerzburg.de> ::");
-    info!("{: ^80}", "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
+    info!(
+        "{: ^80}",
+        "::::::::::::..................................::::::::::::"
+    );
+    info!(
+        "{: ^80}",
+        ":: Authors:                                             ::"
+    );
+    info!(
+        "{: ^80}",
+        ":: --------                                             ::"
+    );
+    info!(
+        "{: ^80}",
+        ":: Joscha Hoche         <joscha.hoche@uni-wuerzburg.de> ::"
+    );
+    info!(
+        "{: ^80}",
+        ":: Richard Einsele   <richard.einsele@uni-wuerzburg.de> ::"
+    );
+    info!(
+        "{: ^80}",
+        "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+    );
     info!("{: ^80}", "");
 }

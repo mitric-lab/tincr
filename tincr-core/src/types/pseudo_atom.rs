@@ -87,4 +87,3 @@ pub struct PseudoAtomMio {
     pub nshell: Vec<i8>,
     pub orbital_occupation: Vec<i8>,
 }
-

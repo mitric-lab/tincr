@@ -1,6 +1,6 @@
 use ndarray::prelude::*;
 use derive_builder::*;
-use core::::gradients::h_operators::LC;
+use crate::io::settings::LC;
 
 /// Matrix products for iterative solvers.
 ///
@@ -98,19 +98,19 @@ impl AplusB<'_> {
     fn exchange1(&self, v: ArrayView1<f64>) -> Array1<f64> {
         self.gamma_lr.unwrap() // [natoms, natoms]
             .dot(&self.q_oo) // [natoms, nocc * nocc]
-            .into_shape([self.atoms.len() * self.n_occ, self.n_occ]) // => [natoms * nocc, nocc]
+            .into_shape([self.n_atoms * self.n_occ, self.n_occ]) // => [natoms * nocc, nocc]
             .unwrap()
             .t() // T -> [nocc, natoms * nocc]
             .dot(
                 &self.q_vv // [natoms, nvirt * nvirt]
-                    .into_shape([self.atoms.len() * self.n_virt, self.n_virt])
+                    .into_shape([self.n_atoms * self.n_virt, self.n_virt])
                     .unwrap() // => [natoms * nvirt, nvirt]
                     .dot(&v.into_shape([self.n_occ, self.n_virt]).unwrap().t()) // v: [nocc, nvirt]
-                    .into_shape([self.atoms.len(), self.n_virt, self.n_occ]) // => [natoms, nvirt, nocc]
+                    .into_shape([self.n_atoms, self.n_virt, self.n_occ]) // => [natoms, nvirt, nocc]
                     .unwrap()
                     .permuted_axes([0, 2, 1]) // => [natoms, nocc, nvirt]
                     .as_standard_layout()
-                    .into_shape([self.atoms.len() * self.n_occ, self.n_virt]) // [natoms * nocc, nvirt]
+                    .into_shape([self.n_atoms * self.n_occ, self.n_virt]) // [natoms * nocc, nvirt]
                     .unwrap(), // => [nocc, natoms * nocc] . [natoms * nocc, nvirt]
             ) // => [nocc, nvirt]
             .into_shape([self.n_occ * self.n_virt])
@@ -121,14 +121,14 @@ impl AplusB<'_> {
     /// u_ia = sum_{A,B,j,b} q_{A,j,a} γ_{A,B} q_{B,i,b} V_{j,b}
     fn exchange2(&self, v: ArrayView1<f64>) -> Array1<f64> {
         self.q_ov // [natoms, nocc * nvirt]
-            .into_shape([self.atoms.len() * self.n_occ, self.n_virt])
+            .into_shape([self.n_atoms * self.n_occ, self.n_virt])
             .unwrap() // => [natoms * nocc, nvirt]
             .dot(&v.into_shape([self.n_occ, self.n_virt]).unwrap().t()) // v.T : [nvirt, nocc]
             .t() // => [nocc, natoms * nocc]
             .dot(
                 &self.gamma_lr.unwrap()// [natoms, natoms]
                     .dot(&self.q_ov) // => [natoms, nocc * nvirt]
-                    .into_shape([self.atoms.len() * self.n_occ, self.n_virt]) // [natoms * nocc, nvirt]
+                    .into_shape([self.n_atoms * self.n_occ, self.n_virt]) // [natoms * nocc, nvirt]
                     .unwrap()
             ) // => [nocc, nvirt]
             .into_shape([self.n_occ * self.n_virt])
