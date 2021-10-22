@@ -1,18 +1,18 @@
-use crate::excited_states::{trans_charges};
+use core::::{trans_charges};
 use crate::gradients::helpers::*;
-use crate::initialization::*;
+use core::::*;
 use crate::utils::ToOwnedF;
 use ndarray::{s, Array, Array1, Array2, Array3, Array4, ArrayView1, ArrayView2, ArrayView3, Axis};
 use ndarray_linalg::{into_col, into_row, IntoTriangular, Solve, UPLO};
 use std::time::Instant;
-use crate::scc::gamma_approximation::{gamma_gradients_ao_wise, gamma_ao_wise_from_gamma_atomwise, gamma_gradients_ao_wise_from_atomwise};
+use core::::gamma_approximation::{gamma_gradients_ao_wise, gamma_ao_wise_from_gamma_atomwise, gamma_gradients_ao_wise_from_atomwise};
 
-impl System {
+impl<'a> System<'a> {
     pub fn prepare_excited_grad(&mut self) {
         // calculate transition charges if they don't exist
         if !self.data.q_ov_is_set() {
             let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
-                self.n_atoms,
+                self.atoms.len(),
                 &self.atoms,
                 self.data.orbs(),
                 self.data.s(),
@@ -28,7 +28,7 @@ impl System {
         let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
             self.data.gamma(),
             &self.atoms,
-            self.n_orbs
+            self.n_orbs()
         );
         self.data.set_gamma_ao(g0_ao);
 
@@ -36,8 +36,8 @@ impl System {
             let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
                 &self.gammafunction,
                 &self.atoms,
-                self.n_atoms,
-                self.n_orbs,
+                self.atoms.len(),
+                self.n_orbs(),
             );
             self.data.set_grad_gamma(g1);
             self.data.set_grad_gamma_ao(g1_ao);
@@ -46,8 +46,8 @@ impl System {
             let g1_ao: Array3<f64> = gamma_gradients_ao_wise_from_atomwise(
                 self.data.grad_gamma(),
                 &self.atoms,
-                self.n_atoms,
-                self.n_orbs,
+                self.atoms.len(),
+                self.n_orbs(),
             );
             self.data.set_grad_gamma_ao(g1_ao);
         }
@@ -84,9 +84,9 @@ impl System {
         let t_ij: Array2<f64> = x_state.dot(&x_state.t());
 
         // get the transition charges
-        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.atoms.len(),n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.atoms.len(),n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.atoms.len(),n_virt,n_virt)).unwrap();
 
         // set gamma matrix
         let g0: ArrayView2<f64> = self.data.gamma();
@@ -135,7 +135,7 @@ impl System {
             g0,
             qtrans_ov,
             self.config.mol.multiplicity,
-            Array1::zeros(self.n_atoms).view(),
+            Array1::zeros(self.atoms.len()).view(),
         );
 
         // calculate w_ij
@@ -191,15 +191,15 @@ impl System {
             grad_s,
             g0_ao,
             g1_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
         let grad_h: Array3<f64> = &grad_h + &f_dmd0;
 
         // set the occupied and virtuals orbital coefficients
         let orbs: ArrayView2<f64> = self.data.orbs();
-        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, n_occ));
-        let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs, n_virt));
+        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs(), n_occ));
+        let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs(), n_virt));
         for (i, index) in self.occ_indices.iter().enumerate() {
             orbs_occ.slice_mut(s![.., i]).assign(&orbs.column(*index));
         }
@@ -224,34 +224,34 @@ impl System {
             grad_s,
             g0_ao,
             g1_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
 
         // assemble the excited gradient
-        let mut gradExc: Array1<f64> = Array::zeros(3 * self.n_atoms);
+        let mut gradExc: Array1<f64> = Array::zeros(3 * self.atoms.len());
         // gradH * (T + Z)
         gradExc = gradExc
             + grad_h
-            .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+            .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
             .unwrap()
             .dot(
                 &(t_vv - t_oo + z_ao)
-                    .into_shape(self.n_orbs * self.n_orbs)
+                    .into_shape(self.n_orbs() * self.n_orbs())
                     .unwrap(),
             );
         // - gradS * W
         gradExc = gradExc
             - grad_s
-            .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+            .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
             .unwrap()
-            .dot(&w_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
+            .dot(&w_ao.into_shape(self.n_orbs() * self.n_orbs()).unwrap());
         // 2.0 * sum (X+Y) F (X+Y)
         gradExc = gradExc
             + 2.0
-            * f.into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+            * f.into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
             .unwrap()
-            .dot(&x_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
+            .dot(&x_ao.view().into_shape(self.n_orbs() * self.n_orbs()).unwrap());
 
         return gradExc;
     }
@@ -285,9 +285,9 @@ impl System {
         let t_ij: Array2<f64> = x_state.dot(&x_state.t());
 
         // get the transition charges
-        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.atoms.len(),n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.atoms.len(),n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.atoms.len(),n_virt,n_virt)).unwrap();
         let qtrans_vo: Array3<f64> = qtrans_ov
             .permuted_axes([0, 2, 1])
             .as_standard_layout()
@@ -346,7 +346,7 @@ impl System {
             qtrans_vv,
             qtrans_ov,
             self.config.mol.multiplicity,
-            Array1::zeros(self.n_atoms).view(),
+            Array1::zeros(self.atoms.len()).view(),
         );
 
         // calculate w_ij
@@ -403,15 +403,15 @@ impl System {
             grad_s,
             g0_ao,
             g1_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
         let grad_h: Array3<f64> = &grad_h + &f_dmd0- 0.5 * &flr_dmd0;
 
         // set the occupied and virtuals orbital coefficients
         let orbs: ArrayView2<f64> = self.data.orbs();
-        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, n_occ));
-        let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs, n_virt));
+        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs(), n_occ));
+        let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs(), n_virt));
         for (i, index) in self.occ_indices.iter().enumerate() {
             orbs_occ.slice_mut(s![.., i]).assign(&orbs.column(*index));
         }
@@ -440,8 +440,8 @@ impl System {
             grad_s,
             g0_ao,
             g1_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
         let flr_p = f_lr(
             x_ao.t(),
@@ -449,40 +449,40 @@ impl System {
             grad_s,
             g0lr_ao,
             g1lr_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
 
         // assemble the excited gradient
-        let mut gradExc: Array1<f64> = Array::zeros(3 * self.n_atoms);
+        let mut gradExc: Array1<f64> = Array::zeros(3 * self.atoms.len());
         // gradH * (T + Z)
         gradExc = gradExc
             + grad_h
-            .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+            .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
             .unwrap()
             .dot(
                 &(t_vv - t_oo + z_ao)
-                    .into_shape(self.n_orbs * self.n_orbs)
+                    .into_shape(self.n_orbs() * self.n_orbs())
                     .unwrap(),
             );
         // - gradS * W
         gradExc = gradExc
             - grad_s
-            .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+            .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
             .unwrap()
-            .dot(&w_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
+            .dot(&w_ao.into_shape(self.n_orbs() * self.n_orbs()).unwrap());
         // 2.0 * sum (X+Y) F (X+Y)
         gradExc = gradExc
             + 2.0
-            * f.into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+            * f.into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
             .unwrap()
-            .dot(&x_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
+            .dot(&x_ao.view().into_shape(self.n_orbs() * self.n_orbs()).unwrap());
         // - sum (X) F_lr (X)(X)
         gradExc = gradExc
             - flr_p
-            .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+            .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
             .unwrap()
-            .dot(&x_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
+            .dot(&x_ao.into_shape(self.n_orbs() * self.n_orbs()).unwrap());
         return gradExc;
     }
 
@@ -520,9 +520,9 @@ impl System {
             0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.atoms.len(),n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.atoms.len(),n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.atoms.len(),n_virt,n_virt)).unwrap();
         let qtrans_vo: Array3<f64> = qtrans_ov
             .permuted_axes([0, 2, 1])
             .as_standard_layout()
@@ -602,7 +602,7 @@ impl System {
             qtrans_vv,
             qtrans_ov,
             self.config.mol.multiplicity,
-            Array1::zeros(self.n_atoms).view(),
+            Array1::zeros(self.atoms.len()).view(),
         );
 
         // calculate w_ij
@@ -658,15 +658,15 @@ impl System {
             grad_s,
             g0_ao,
             g1_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
         let grad_h: Array3<f64> = &grad_h + &f_dmd0 - 0.5 * &flr_dmd0;
 
         // set the occupied and virtuals orbital coefficients
         let orbs: ArrayView2<f64> = self.data.orbs();
-        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, n_occ));
-        let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs, n_virt));
+        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs(), n_occ));
+        let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs(), n_virt));
         for (i, index) in self.occ_indices.iter().enumerate() {
             orbs_occ.slice_mut(s![.., i]).assign(&orbs.column(*index));
         }
@@ -696,8 +696,8 @@ impl System {
             grad_s,
             g0_ao,
             g1_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
         let flr_p = f_lr(
             (&xpy_ao + &xpy_ao.t()).view(),
@@ -705,8 +705,8 @@ impl System {
             grad_s,
             g0lr_ao,
             g1lr_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
         let flr_m = -f_lr(
             (&xmy_ao - &xmy_ao.t()).view(),
@@ -714,48 +714,48 @@ impl System {
             grad_s,
             g0lr_ao,
             g1lr_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
 
         // assemble the excited gradient
-        let mut gradExc: Array1<f64> = Array::zeros(3 * self.n_atoms);
+        let mut gradExc: Array1<f64> = Array::zeros(3 * self.atoms.len());
         // gradH * (T + Z)
         gradExc = gradExc
             + grad_h
-                .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
                 .unwrap()
                 .dot(
                     &(t_vv - t_oo + z_ao)
-                        .into_shape(self.n_orbs * self.n_orbs)
+                        .into_shape(self.n_orbs() * self.n_orbs())
                         .unwrap(),
                 );
         // - gradS * W
         gradExc = gradExc
             - grad_s
-                .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
                 .unwrap()
-                .dot(&w_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
+                .dot(&w_ao.into_shape(self.n_orbs() * self.n_orbs()).unwrap());
         // 2.0 * sum (X+Y) F (X+Y)
         gradExc = gradExc
             + 2.0
-                * f.into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                * f.into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
                     .unwrap()
-                    .dot(&xpy_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
+                    .dot(&xpy_ao.view().into_shape(self.n_orbs() * self.n_orbs()).unwrap());
         // - 0.5 * sum (X+Y) F_lr (X+Y)(X+Y)
         gradExc = gradExc
             - 0.5
                 * flr_p
-                    .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                    .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
                     .unwrap()
-                    .dot(&xpy_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
+                    .dot(&xpy_ao.into_shape(self.n_orbs() * self.n_orbs()).unwrap());
         // - 0.5 * sum (X-Y) F_lr (X-Y)(X-Y)
         gradExc = gradExc
             - 0.5
                 * flr_m
-                    .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                    .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
                     .unwrap()
-                    .dot(&xmy_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
+                    .dot(&xmy_ao.view().into_shape(self.n_orbs() * self.n_orbs()).unwrap());
 
         return gradExc;
     }
@@ -794,9 +794,9 @@ impl System {
             0.5 * (xpy_state.dot(&xpy_state.t()) + xmy_state.dot(&xmy_state.t()));
 
         // get the transition charges
-        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.n_atoms,n_occ,n_virt)).unwrap();
-        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.n_atoms,n_occ,n_occ)).unwrap();
-        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.n_atoms,n_virt,n_virt)).unwrap();
+        let qtrans_ov: ArrayView3<f64> = self.data.q_ov().into_shape((self.atoms.len(),n_occ,n_virt)).unwrap();
+        let qtrans_oo: ArrayView3<f64> = self.data.q_oo().into_shape((self.atoms.len(),n_occ,n_occ)).unwrap();
+        let qtrans_vv: ArrayView3<f64> = self.data.q_vv().into_shape((self.atoms.len(),n_virt,n_virt)).unwrap();
 
         // set gamma matrix
         let g0: ArrayView2<f64> = self.data.gamma();
@@ -845,7 +845,7 @@ impl System {
             g0,
             qtrans_ov,
             self.config.mol.multiplicity,
-            Array1::zeros(self.n_atoms).view(),
+            Array1::zeros(self.atoms.len()).view(),
         );
 
         // calculate w_ij
@@ -901,15 +901,15 @@ impl System {
             grad_s,
             g0_ao,
             g1_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
         let grad_h: Array3<f64> = &grad_h + &f_dmd0;
 
         // set the occupied and virtuals orbital coefficients
         let orbs: ArrayView2<f64> = self.data.orbs();
-        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs, n_occ));
-        let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs, n_virt));
+        let mut orbs_occ: Array2<f64> = Array::zeros((self.n_orbs(), n_occ));
+        let mut orbs_virt: Array2<f64> = Array::zeros((self.n_orbs(), n_virt));
         for (i, index) in self.occ_indices.iter().enumerate() {
             orbs_occ.slice_mut(s![.., i]).assign(&orbs.column(*index));
         }
@@ -934,34 +934,34 @@ impl System {
             grad_s,
             g0_ao,
             g1_ao,
-            self.n_atoms,
-            self.n_orbs,
+            self.atoms.len(),
+            self.n_orbs(),
         );
 
         // assemble the excited gradient
-        let mut gradExc: Array1<f64> = Array::zeros(3 * self.n_atoms);
+        let mut gradExc: Array1<f64> = Array::zeros(3 * self.atoms.len());
         // gradH * (T + Z)
         gradExc = gradExc
             + grad_h
-                .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
                 .unwrap()
                 .dot(
                     &(t_vv - t_oo + z_ao)
-                        .into_shape(self.n_orbs * self.n_orbs)
+                        .into_shape(self.n_orbs() * self.n_orbs())
                         .unwrap(),
                 );
         // - gradS * W
         gradExc = gradExc
             - grad_s
-                .into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                .into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
                 .unwrap()
-                .dot(&w_ao.into_shape(self.n_orbs * self.n_orbs).unwrap());
+                .dot(&w_ao.into_shape(self.n_orbs() * self.n_orbs()).unwrap());
         // 2.0 * sum (X+Y) F (X+Y)
         gradExc = gradExc
             + 2.0
-                * f.into_shape([3 * self.n_atoms, self.n_orbs * self.n_orbs])
+                * f.into_shape([3 * self.atoms.len(), self.n_orbs() * self.n_orbs()])
                     .unwrap()
-                    .dot(&xpy_ao.view().into_shape(self.n_orbs * self.n_orbs).unwrap());
+                    .dot(&xpy_ao.view().into_shape(self.n_orbs() * self.n_orbs()).unwrap());
 
         return gradExc;
     }

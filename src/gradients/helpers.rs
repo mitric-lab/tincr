@@ -2,7 +2,7 @@ use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, ArrayView3,
 use rayon::iter::*;
 use std::collections::HashMap;
 use ndarray_einsum_beta::tensordot;
-use crate::initialization::Atom;
+use core::::Atom;
 use nalgebra::Vector3;
 use ndarray_linalg::krylov::qr;
 use crate::param::reppot::RepulsivePotential;

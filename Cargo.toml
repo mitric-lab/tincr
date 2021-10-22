@@ -9,37 +9,39 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members = ["data", "dftb", "fmo-dftb", "parameters", "tincr-core"]
+
 [dependencies]
 chemfiles = "0.10"
 ndarray = {version = "0.15.3", features = ["serde-1", "approx", "rayon"]}
 ndarray-npy = "0.8"
 approx = "0.3.2"
-ndarray-linalg = { version = "0.14", features = ["netlib-static"]}
+ndarray-linalg = { version = "0.14", features = ["intel-mkl-system"]}
 ndarray-stats = "0.5"
-phf = { version = "0.8.0", features = ["macros"] }
+phf = { version = "0.10.0", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_derive = "1.0"
-rayon = "1.5.0"
-ron = "0.6.0"
-peroxide = {version = "0.27.0", features = ["serde"]}
-itertools = "0.9"
+rayon = "1.5.1"
+ron = "0.6"
+peroxide = {version = "0.30", features = ["serde"]}
+itertools = "0.10"
 libm = "0.2.1"
-bspline = "0.2.3"
+bspline = "1.0"
 rusty-fitpack = { git = "https://github.com/mitric-lab/Rusty-FITPACK.git"}
-ndarray_einsum_beta = "0.5.0"
-petgraph = "0.5.1"
-nalgebra = "0.27.1"
-nshare = {version = "0.7", features = ["ndarray", "nalgebra"]}
-clap = "3.0.0-beta.2"
+ndarray_einsum_beta = "0.7"
+petgraph = "0.6"
+nalgebra = "0.29"
+clap = "3.0.0-beta.5"
 toml = "0.5"
-rand = "0.8.3"
-log = "0.4.0"
-env_logger = "0.8.3"
+rand = "0.8"
+log = "0.4"
+env_logger = "0.9"
 pretty_env_logger = "0.4"
 enum-as-inner = "0.3.3"
 soa_derive = "0.10.0"
-data_reader = "0.3.0"
+data_reader = "0.4"
 hashbrown = "0.11.2"
 derive_builder = "0.10.2"
 chrono = "0.4"

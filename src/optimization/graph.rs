@@ -27,7 +27,7 @@ pub fn build_connectivity_matrix(
     atomic_numbers: &Vec<u8>,
 ) -> (Array2<bool>) {
     let mut connectivtiy_matrix: Array2<bool> = Array::default((n_atoms, n_atoms));
-    for i in (0..n_atoms).combinations(2) {
+    for i in (0..atoms.len()).combinations(2) {
         let r_cov = (constants::COVALENCE_RADII[&atomic_numbers[i[0]]]
             + constants::COVALENCE_RADII[&atomic_numbers[i[1]]]);
         if distance_matrix[[i[0], i[1]]] < (1.3 * r_cov) {

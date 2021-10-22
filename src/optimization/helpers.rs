@@ -1,11 +1,11 @@
 use ndarray::prelude::*;
 use ndarray_linalg::{into_col,into_row};
-use crate::initialization::{System,Atom};
+use core::::{System, Atom};
 use std::path::Path;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::fs;
-use crate::constants;
+use core::constants;
 use serde::{Deserialize, Serialize};
 
 // References
@@ -40,7 +40,7 @@ pub fn bfgs_update(
     return inv_hkp1;
 }
 
-impl System{
+impl<'a> System<'a>{
     pub fn armijo_line_search(
         &mut self,
         xk: ArrayView1<f64>,
@@ -103,7 +103,7 @@ pub fn write_xyz_custom(xyz: &XYZ_Output) {
     let mut string: String = n_atoms.to_string();
     string.push_str("\n");
     string.push_str("\n");
-    for atom in (0..n_atoms) {
+    for atom in (0..atoms.len()) {
         let str: String = xyz.atoms[atom].to_string();
         string.push_str(&str);
         string.push_str("\t");

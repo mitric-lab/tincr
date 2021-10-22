@@ -1,57 +1,51 @@
 #![allow(dead_code)]
 #![allow(warnings)]
 
+use core::::*;
+use core::::{initial_subspace, orbe_differences, ProductCache, trans_charges};
+use core::::davidson::Davidson;
+use core::::ExcitedState;
+use core::::gamma_approximation::gamma_atomwise;
+use core::::scc_routine::RestrictedSCC;
+use core::::scc_routine_unrestricted::UnrestrictedSCC;
+use core::::tda::*;
+use core::defaults::CONFIG_FILE_NAME;
 use std::{env, fs};
+use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::process;
 use std::time::{Duration, Instant};
 
+use chemfiles::Frame;
+use chrono::offset::LocalResult::Single;
 use clap::{App, Arg};
-use env_logger::Builder;
-use log::{info};
+use env_logger::{Builder, init};
+use log::info;
 use log::LevelFilter;
+use ndarray::{Array1, Array2};
+use ndarray::prelude::*;
+use ndarray_npy::write_npy;
 use petgraph::stable_graph::*;
 use toml;
-use crate::io::{MoldenExporterBuilder, frame_to_coordinates};
-use ndarray::prelude::*;
-use crate::defaults::CONFIG_FILE_NAME;
-use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter};
-use chemfiles::Frame;
-use crate::initialization::{System, create_atoms, Atom, get_parametrization, initialize_gamma_function};
-use crate::scc::scc_routine::RestrictedSCC;
-use crate::scc::gamma_approximation::gamma_atomwise;
-use crate::excited_states::ExcitedState;
 
-use crate::utils::Timer;
-use ndarray::{Array2, Array1};
-use crate::scc::scc_routine_unrestricted::UnrestrictedSCC;
-
-
-use crate::excited_states::davidson::Davidson;
-use crate::excited_states::tda::*;
-use crate::excited_states::{orbe_differences, trans_charges, initial_subspace, ProductCache};
-
+use crate::data::Parametrization;
+use crate::driver::JobType::Force;
+use crate::fmo::{SuperSystem, SuperSystemSetup};
 use crate::fmo::gradients::GroundStateGradient;
-use crate::fmo::SuperSystem;
-use std::fs::File;
-use ndarray_npy::write_npy;
+use crate::io::{frame_to_coordinates, MoldenExporterBuilder};
+use crate::io::{Configuration, MoldenExporter, read_file_to_frame, read_input, write_header};
 use crate::param::slako::ParamFiles;
+use crate::utils::Timer;
 
-
-mod constants;
-mod defaults;
 mod io;
-//mod optimization;
-mod initialization;
-mod scc;
 mod utils;
 mod fmo;
 mod param;
-mod excited_states;
 mod gradients;
 mod optimization;
 mod data;
+mod driver;
 
 #[macro_use]
 extern crate clap;
@@ -69,6 +63,10 @@ fn main() {
                 .index(1),
         )
         .get_matches();
+
+    // The total wall-time timer is started.
+    let timer: Timer = Timer::start();
+
     // The file containing the cartesian coordinates is the only mandatory file to
     // start a calculation.
     let geometry_file = matches.value_of("xyz-File").unwrap();
@@ -98,59 +96,27 @@ fn main() {
 
     // The program header is written to the command line.
     write_header();
-    // and the total wall-time timer is started.
-    let timer: Timer = Timer::start();
 
 
-    // Computations.
+    // The computations start at this point.
     // ................................................................
 
-    // Check if SKF files should be used as for the parametrization or own files.
-    let params: ParamFiles = if config.slater_koster.use_skf_files {
-        ParamFiles::SKF(&config.slater_koster.path_to_skf)
-    } else {
-        ParamFiles::OWN
-    };
-
+    // Atomic numbers and xyz-coordinates are extracted from the Frame object.
     let (at_numbers, coords): (Vec<u8>, Array2<f64>) = frame_to_coordinates(frame.clone());
 
-    let (u_atoms, atoms): (Vec<Atom>, Vec<Atom>) = create_atoms(&at_numbers, coords.view());
-    let (slako, vrep) = get_parametrization(&u_atoms, params);
-    // Count the number of orbitals
-    let n_orbs: usize = atoms.iter().fold(0, |n, atom| n + atom.n_orbs);
-    let gf = initialize_gamma_function(&u_atoms, 0.0);
-    let gf_lr = initialize_gamma_function(&u_atoms, config.lc.long_range_radius);
-    let gamma: Array2<f64> = gamma_atomwise(&gf, &atoms);
-    let gamma_lr: Option<Array2<f64>> = if config.lc.long_range_correction {
-        Some(gamma_atomwise(&gf_lr, &atoms))
-    } else {
-        None
-    };
-    let (s, h0): (Array2<f64>, Array2<f64>) = slako.h0_and_s(n_orbs, &atoms);
+    // Two vectors of Atom's are created. The first one with the unique elements and the second
+    // with all atoms from the given geometry.
+    let (u_atoms, atoms): (AtomVec, AtomVec) = create_atoms(&at_numbers, coords.view());
+
+    // Get the parametrization from the corresponding files.
+    let params = Parameters::new(&config, u_atoms.as_slice());
+
+    // Compute the Gamma, H0 and S matrix for the current geometry.
+    let param_data = params.compute_matrices(&config, atoms.as_slice());
+
+    let setup = SuperSystemSetup::new(atoms.as_slice());
 
 
-
-    if config.jobtype == "sp" {
-        let mut system = System::from((frame, config.clone()));
-        system.prepare_scc();
-        system.run_scc();
-        // system.prepare_tda();
-        // system.run_tda(config.excited.nstates, 50, 1e-4);
-    } else if config.jobtype == "fmo" {
-        let mut system = SuperSystem::from((frame, config.clone()));
-        //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
-        system.prepare_scc();
-        system.run_scc();
-        // let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
-        //     .atoms(&system.atoms)
-        //     .orbs(system.data.orbs()())
-        //     .orbe(system.data.orbe())
-        //     .f(system.data.occupation().to_vec())
-        //     .build()
-        //     .unwrap();
-
-        let hamiltonian = system.create_exciton_hamiltonian();
-    }
 
     // let path = Path::new("/Users/hochej/Downloads/test.molden");
     // molden_exp.write_to(path);

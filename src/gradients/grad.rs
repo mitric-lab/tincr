@@ -1,17 +1,17 @@
 use ndarray::{Array1, Array2, Array3, Array};
-use crate::initialization::*;
+use core::::*;
 use crate::gradients::ground_state::*;
-use crate::scc::scc_routine;
-use crate::scc::scc_routine::RestrictedSCC;
+use core::::scc_routine;
+use core::::scc_routine::RestrictedSCC;
 
-impl System{
+impl<'a> System<'a>{
     pub fn calculate_gradients(&mut self,state:usize)->(Array1<f64>,Array1<f64>){
         // ground state scc routine
         self.prepare_scc();
         self.run_scc();
 
-        let mut ground_state_gradient:Array1<f64> = Array1::zeros(3*self.n_atoms);
-        let mut excited_state_gradient:Array1<f64> = Array1::zeros(3*self.n_atoms);
+        let mut ground_state_gradient:Array1<f64> = Array1::zeros(3*self.atoms.len());
+        let mut excited_state_gradient:Array1<f64> = Array1::zeros(3*self.atoms.len());
 
         if state == 0{
             // calculate ground state gradients
@@ -53,7 +53,7 @@ impl System{
 //     info!("{:^80}", "Calculating analytic gradient");
 //     info!("{:-^80}", "");
 //     let grad_timer = Instant::now();
-//     let n_at: usize = molecule.n_atoms;
+//     let n_at: usize = molecule.atoms.len();
 //     let active_occ: Vec<usize> = molecule.calculator.active_occ.clone().unwrap();
 //     let active_virt: Vec<usize> = molecule.calculator.active_virt.clone().unwrap();
 //     let full_occ: Vec<usize> = molecule.calculator.full_occ.clone().unwrap();
@@ -342,7 +342,7 @@ impl System{
 //         }
 //     }
 //     let total_grad: Array2<f64> = (&grad_e0 + &grad_vrep + &grad_ex)
-//         .into_shape([molecule.n_atoms, 3])
+//         .into_shape([molecule.atoms.len(), 3])
 //         .unwrap();
 //     if log_enabled!(Level::Debug) || molecule.config.jobtype == "force" {
 //         info!("{: <45} ", "Gradient in atomic units");

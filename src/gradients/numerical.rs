@@ -1,12 +1,12 @@
 use ndarray::prelude::*;
 use ndarray_stats::{QuantileExt, DeviationExt};
 use std::cmp::max;
-use crate::scc::scc_routine::RestrictedSCC;
+use core::::scc_routine::RestrictedSCC;
 use crate::fmo::GroundStateGradient;
-use crate::initialization::System;
-use crate::excited_states::tda;
+use core::::System;
+use core::::tda;
 
-impl System{
+impl<'a> System<'a>{
     pub fn tda_gradient_wrapper(&mut self, geometry: Array1<f64>) -> f64 {
         self.data.clear();
         self.update_xyz(geometry);

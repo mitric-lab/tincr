@@ -40,10 +40,10 @@ pub fn optimize_geometry_ic(
 
     let state: usize = state.unwrap_or(0);
 
-    let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+    let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.atoms.len()).unwrap();
     // let (energy, gradient): (f64, Array1<f64>) = get_energy_and_gradient_s0(&coords, mol);
     let mut energy: f64 = 0.0;
-    let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+    let mut gradient: Array1<f64> = Array::zeros(3 * mol.atoms.len());
     let mut old_z_vec: Array3<f64> = Array::zeros((
         mol.calculator.active_occ.clone().unwrap().len(),
         mol.calculator.active_virt.clone().unwrap().len(),
@@ -139,7 +139,7 @@ pub fn optimize_geometry_ic(
             info!("{:-^80}", "");
             opt_timer = Instant::now();
             let mut energy_new: f64 = 0.0;
-            let mut gradient_new: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+            let mut gradient_new: Array1<f64> = Array::zeros(3 * mol.atoms.len());
             if state == 0 {
                 let (en, grad): (f64, Array1<f64>) =
                     get_energy_and_gradient_s0(&new_cart_coords, mol);
@@ -794,13 +794,13 @@ pub fn geometry_optimization(
     let coord_system: String = coord_system.unwrap_or(String::from("internal"));
     let mut cart_coord: bool = false;
 
-    let mut final_coord: Array1<f64> = Array::zeros(3 * mol.n_atoms);
-    let mut final_grad: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+    let mut final_coord: Array1<f64> = Array::zeros(3 * mol.atoms.len());
+    let mut final_grad: Array1<f64> = Array::zeros(3 * mol.atoms.len());
 
     if coord_system == "cartesian" {
         cart_coord = true;
         // flatten cartesian coordinates
-        let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.n_atoms).unwrap();
+        let coords: Array1<f64> = mol.positions.clone().into_shape(3 * mol.atoms.len()).unwrap();
         // start the geometry optimization
         let tmp: (Array1<f64>, Array1<f64>, usize) = minimize(
             &coords, cart_coord, state, mol, None, None, None, None, None,
@@ -812,13 +812,13 @@ pub fn geometry_optimization(
 
         // and start optimization
     }
-    let final_cartesian: Array2<f64> = final_coord.into_shape((mol.n_atoms, 3)).unwrap();
+    let final_cartesian: Array2<f64> = final_coord.into_shape((mol.atoms.len(), 3)).unwrap();
 
     return (final_cartesian, final_grad);
 }
 
 pub fn get_energy_and_gradient_s0(x: &Array1<f64>, mol: &mut Molecule) -> (f64, Array1<f64>) {
-    let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
+    let coords: Array2<f64> = x.clone().into_shape((mol.atoms.len(), 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
@@ -844,7 +844,7 @@ pub fn get_energies_and_gradient(
     ex_state: usize,
     old_z_vec: Option<Array3<f64>>,
 ) -> (Array1<f64>, Array1<f64>, Array3<f64>) {
-    let coords: Array2<f64> = x.clone().into_shape((mol.n_atoms, 3)).unwrap();
+    let coords: Array2<f64> = x.clone().into_shape((mol.atoms.len(), 3)).unwrap();
     //let mut molecule: Molecule = mol.clone();
     mol.update_geometry(coords);
     let (energy, orbs, orbe, s, f): (f64, Array2<f64>, Array1<f64>, Array2<f64>, Vec<f64>) =
@@ -890,7 +890,7 @@ pub fn get_energies_and_gradient(
 pub fn objective_cart(x: &Array1<f64>, state: usize, mol: &mut Molecule) -> (f64, Array1<f64>) {
     println!("coordinate_vector {}", x);
     let mut energy: f64 = 0.0;
-    let mut gradient: Array1<f64> = Array::zeros(3 * mol.n_atoms);
+    let mut gradient: Array1<f64> = Array::zeros(3 * mol.atoms.len());
     if state == 0 {
         let (en, grad): (f64, Array1<f64>) = get_energy_and_gradient_s0(x, mol);
         energy = en;
@@ -1573,7 +1573,7 @@ fn test_optimization_geomeTRIC_step() {
         [1.2809200000, -0.9785000000, -0.0000000000],
         [1.2809200000, 0.9785000000, 0.0000000000]
     ];
-    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.atoms.len() * 3).unwrap();
     let energy_input: f64 = -78.54289384457864;
 
     let (internal_coordinates, dlc_mat, internal_coord_vec, internal_coord_grad, initial_hessian): (

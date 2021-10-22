@@ -77,7 +77,7 @@ pub fn build_primitives(mol: &Molecule) -> InternalCoordinates {
 
             let mut sel: Array2<f64> = coordinate_vector
                 .clone()
-                .into_shape((mol.n_atoms, 3))
+                .into_shape((mol.atoms.len(), 3))
                 .unwrap()
                 .slice(s![
                     node_vec[0].index()..node_vec.last().unwrap().index() + 1,
@@ -2874,7 +2874,7 @@ pub fn test_build_gmatrix() {
         [1.2809200000, -0.9785000000, -0.0000000000],
         [1.2809200000, 0.9785000000, 0.0000000000]
     ];
-    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.atoms.len() * 3).unwrap();
 
     let q_mat: Array2<f64> =
         build_delocalized_internal_coordinates(coordinates_1d.clone(), &internal_coordinates);
@@ -2921,7 +2921,7 @@ pub fn test_internal_coordinate_gradient() {
         [1.2809200000, -0.9785000000, -0.0000000000],
         [1.2809200000, 0.9785000000, 0.0000000000]
     ];
-    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.atoms.len() * 3).unwrap();
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
 
     let q_mat: Array2<f64> =
@@ -3052,7 +3052,7 @@ pub fn test_initial_hessian() {
         [1.2809200000, -0.9785000000, -0.0000000000],
         [1.2809200000, 0.9785000000, 0.0000000000]
     ];
-    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.n_atoms * 3).unwrap();
+    let coordinates_1d: Array1<f64> = positions.clone().into_shape(mol.atoms.len() * 3).unwrap();
     let internal_coordinates: InternalCoordinates = build_primitives(&mol);
 
     let q_mat: Array2<f64> =
