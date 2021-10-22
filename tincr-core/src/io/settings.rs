@@ -14,7 +14,15 @@ use std::path::Path;
 use std::ptr::eq;
 use std::collections::HashMap;
 use crate::constants;
-use crate::driver::JobType;
+
+#[derive(Serialize, Deserialize, Copy, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum JobType {
+    SP,
+    Force,
+    Opt,
+    Dyn,
+}
 
 fn default_charge() -> i8 {
     CHARGE

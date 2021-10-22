@@ -1,9 +1,4 @@
-use tincr::defaults;
-use itertools::Itertools;
-use log::{debug};
 use ndarray::prelude::*;
-use ndarray_linalg::Norm;
-use crate::Atom;
 
 // compute HOMO-LUMO gap in Hartree, should be moved to DATA
 pub fn get_homo_lumo_gap(orbe: ArrayView1<f64>, homo_lumo_idx: (usize, usize)) -> f64 {

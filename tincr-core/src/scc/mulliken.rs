@@ -15,7 +15,7 @@ pub fn mulliken(
 
     let mut mu = 0;
     for (mut q_i, n_orbs_i) in q.iter_mut().zip(atoms.n_orbs.iter()) {
-        for _ in 0..n_orbs_i {
+        for _ in 0..*n_orbs_i {
             *q_i += q_ao[mu];
             mu += 1;
         }

@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use ndarray::prelude::*;
 use ndarray::{Data};
 
+
 pub trait ToOwnedF<A, D> {
     fn to_owned_f(&self) -> Array<A, D>;
 }
@@ -12,7 +13,7 @@ impl<A, S, D> ToOwnedF<A, D> for ArrayBase<S, D>
         D: Dimension,
 {
     fn to_owned_f(&self) -> Array<A, D> {
-        let mut tmp = Array::zeros(self.raw_dim().f());
+        let mut tmp = unsafe { Array::uninitialized(self.dim().f()) };
         tmp.assign(self);
         tmp
     }

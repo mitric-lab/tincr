@@ -1,6 +1,5 @@
 use ndarray::*;
 use ndarray_linalg::{Inverse, Norm};
-use ndarray_stats::QuantileExt;
 use crate::mixer::Mixer;
 use crate::defaults;
 

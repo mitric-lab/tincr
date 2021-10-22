@@ -3,7 +3,6 @@ use ndarray::prelude::*;
 use ndarray_linalg::{Norm, Solve};
 use ndarray_stats::QuantileExt;
 use std::cmp::min;
-use std::iter::FromIterator;
 
 pub struct Pulay80 {
     trial_vectors: Vec<Array2<f64>>,
@@ -86,7 +85,7 @@ impl Pulay80 {
             .map(|x| x / max);
 
         // build residual vector, [Pulay:1980:393], Eqn. 6, RHS
-        let mut resid: Array1<f64> = Array1::zeros((diis_count + 1));
+        let mut resid: Array1<f64> = Array1::zeros(diis_count + 1);
         resid[diis_count] = -1.0;
 
         // Solve Pulay equations, [Pulay:1980:393], Eqn. 6
@@ -209,7 +208,7 @@ impl Pulay82 {
         // b.slice_mut(s![0..diis_count, 0..diis_count])
         //     .map(|x| x / max);
         // build residual vector, [Pulay:1980:393], Eqn. 6, RHS
-        let mut resid: Array1<f64> = Array1::zeros((diis_count + 1));
+        let mut resid: Array1<f64> = Array1::zeros(diis_count + 1);
         resid[diis_count] = -1.0;
 
         // Solve Pulay equations, [Pulay:1980:393], Eqn. 6

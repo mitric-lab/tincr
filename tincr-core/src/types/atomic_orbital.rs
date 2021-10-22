@@ -43,7 +43,7 @@ impl AtomicOrbital {
     /// 2 s  => 200 | 2 px  => 210 | 2 py  => 211 | 2  pz => 212 |
     /// 3 s  => 300 | 3 px  => 310 | 3 py  => 311 | 3  pz => 312 |
     ///             | 3 dz2 => 320 | 3 dzx => 321 | 3 dyz => 322 | 3 dx2y2 => 323 | 3 dxy => 324
-    fn ord_idx(&self) -> usize {
+    pub fn ord_idx(&self) -> usize {
         let mut index: usize = (self.n * 100) as usize;
         index += (self.l * 10) as usize;
         index += match self.l {

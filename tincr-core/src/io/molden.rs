@@ -162,7 +162,7 @@ fn reorder_orbitals(orbs: ArrayView2<f64>, atoms: &[Atom]) -> Array2<f64> {
         // Get the indices that sort the orbitals that belong to the current atom.
         let at_indices: Vec<usize> = atom.sort_indices_atomic_orbitals();
         indices.extend(at_indices.iter().map(|x| x + mu));
-        mu += atom.n_orbs();
+        mu += atom.n_orbs;
     }
     let mut ordered_orbs: Array2<f64> = Array2::zeros([0, orbs.ncols()]);
     for idx in indices.into_iter() {

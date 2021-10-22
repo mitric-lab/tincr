@@ -1,9 +1,7 @@
-use tincr::defaults;
 use itertools::Itertools;
 use log::{debug};
 use ndarray::prelude::*;
-use ndarray_linalg::Norm;
-use crate::{Atom, defaults};
+use crate::{Atom, defaults, AtomSlice};
 use crate::scc::energies::get_homo_lumo_gap;
 
 
@@ -96,10 +94,10 @@ pub fn construct_h1(
     let mut mu: usize = 0;
     let mut nu: usize;
     for (n_orbs_i, esp_i) in atoms.n_orbs.iter().zip(e_stat_pot.iter()){
-        for _ in 0..n_orbs_i {
+        for _ in 0..*n_orbs_i {
             nu = 0;
-            for (n_orbs_j, esp_j) in atoms.norbs.iter().zip(e_stat_pot.iter()) {
-                for _ in 0..n_orbs_j {
+            for (n_orbs_j, esp_j) in atoms.n_orbs.iter().zip(e_stat_pot.iter()) {
+                for _ in 0..*n_orbs_j {
                     h1[[mu, nu]] = 0.5 * (esp_i + esp_j);
                     nu = nu + 1;
                 }
@@ -121,10 +119,10 @@ pub fn construct_h_magnetization(
     let mut mu: usize = 0;
     let mut nu: usize;
     for (i, atomi) in atoms.iter().enumerate() {
-        for _ in 0..(atomi.n_orbs()) {
+        for _ in 0..(atomi.n_orbs) {
             nu = 0;
             for (j, atomj) in atoms.iter().enumerate() {
-                for _ in 0..(atomj.n_orbs()) {
+                for _ in 0..(atomj.n_orbs) {
                     h[[mu, nu]] = 0.5 * (pot[i] + pot[j]);
                     nu = nu + 1;
                 }

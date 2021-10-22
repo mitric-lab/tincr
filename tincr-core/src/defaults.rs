@@ -1,4 +1,4 @@
-use tincr::driver::JobType;
+use crate::io::settings::JobType;
 
 // MOLECULE SPECIFICATION
 // charge of the molecule in a.u.

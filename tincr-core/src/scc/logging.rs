@@ -1,6 +1,6 @@
 use ndarray::ArrayView1;
 use crate::utils::Timer;
-use log::{debug, error, info, log_enabled, trace, warn, Level};
+use log::{debug, info};
 
 pub fn print_scc_init(max_iter: usize, temperature: f64, rep_energy: f64) {
     info!("{:^80}", "");
@@ -113,7 +113,7 @@ pub fn print_orbital_information(orbe: ArrayView1<f64>, f: &[f64]) -> () {
     );
     info!("{:-^71} ", "");
     let n_orbs: usize = orbe.len();
-    for i in (0..n_orbs()).step_by(2) {
+    for i in (0..n_orbs).step_by(2) {
         if i + 1 < n_orbs {
             info!(
                 "MO:{:>5} {:>6} {:>18.14} | MO:{:>5} {:>6} {:>18.14}",

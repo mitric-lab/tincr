@@ -1,6 +1,4 @@
-use tincr::constants::HARTREE_TO_EV;
-use core::::ntos::natural_transition_orbitals;
-use core::::Atom;
+use crate::constants::HARTREE_TO_EV;
 use crate::io::MoldenExporter;
 use ndarray::prelude::*;
 use ndarray_npy::{write_npy, WriteNpyError};

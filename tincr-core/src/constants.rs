@@ -1,4 +1,4 @@
-use phf::{phf_map, phf_set};
+use phf::{phf_map};
 
 // ALL THE VALUES SHOULD BE CHANGED TO THE CURRENT CODATA VALUES!!!!
 pub const BOHR_TO_ANGS: f64 = 0.529177210903; // <- this value is already from CODATA 2018

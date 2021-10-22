@@ -1,4 +1,5 @@
 use log::{info};
+use clap::crate_version;
 
 pub fn write_header() {
     info!("{: ^80}", "-----------------");
