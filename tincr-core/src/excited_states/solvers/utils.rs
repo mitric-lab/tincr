@@ -4,10 +4,10 @@
 
  */
 
+use approx::relative_eq;
+use log::info;
 use ndarray::prelude::*;
 use ndarray_linalg::generate::random;
-use log::{info};
-use approx::relative_eq;
 use std::cmp::Ordering;
 use std::time::Instant;
 

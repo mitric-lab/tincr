@@ -1,89 +1,80 @@
-use hashbrown::HashMap;
-use serde::{Deserialize, Serialize};
+use crate::parametrization::pseudo_atom::{PseudoAtomHomegrown, PseudoAtomSKF};
 
-fn get_nan_vec() -> Vec<f64> {
-    vec![f64::NAN]
+pub trait PseudoAtom {
+    fn z(&self) -> u8;
+    fn hubbard_u(&self) -> f64;
+    fn n_elec(&self) -> u8;
+    fn energies(&self) -> &[f64];
+    fn angular_momenta(&self) -> &[i8];
+    fn valence_orbitals(&self) -> &[u8];
+    fn nshell(&self) -> &[i8];
+    fn orbital_occupation(&self) -> &[i8];
 }
 
-fn get_nan_value() -> f64 {
-    f64::NAN
+impl PseudoAtom for PseudoAtomHomegrown {
+    fn z(&self) -> u8 {
+        self.z
+    }
+
+    fn hubbard_u(&self) -> f64 {
+        self.hubbard_u
+    }
+
+    fn n_elec(&self) -> u8 {
+        self.n_elec
+    }
+
+    fn energies(&self) -> &[f64] {
+        &self.energies
+    }
+
+    fn angular_momenta(&self) -> &[i8] {
+        &self.angular_momenta
+    }
+
+    fn valence_orbitals(&self) -> &[u8] {
+        &self.valence_orbitals
+    }
+
+    fn nshell(&self) -> &[i8] {
+        &self.nshell
+    }
+
+    fn orbital_occupation(&self) -> &[i8] {
+        &self.orbital_occupation
+    }
 }
 
-fn init_none() -> Option<(Vec<f64>, Vec<f64>, usize)> {
-    None
-}
+impl PseudoAtom for PseudoAtomSKF {
+    fn z(&self) -> u8 {
+        self.z
+    }
 
-fn get_inf_value() -> f64 {
-    f64::INFINITY
-}
+    fn hubbard_u(&self) -> f64 {
+        self.hubbard_u
+    }
 
-fn init_hashmap() -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
-    HashMap::new()
-}
+    fn n_elec(&self) -> u8 {
+        self.n_elec
+    }
 
-/// A type that contains the atom-wise parameters for the DFTB calculation. The same `PseudoAtom`
-/// type is used for the free and the confined atoms. The data will be serialized from the Ron files.
-#[derive(Serialize, Deserialize)]
-pub struct PseudoAtom {
-    z: u8,
-    pub hubbard_u: f64,
-    n_elec: u8,
-    #[serde(default = "get_inf_value")]
-    r0: f64,
-    r: Vec<f64>,
-    radial_density: Vec<f64>,
-    pub occupation: Vec<(u8, u8, u8)>,
-    effective_potential: Vec<f64>,
-    orbital_names: Vec<String>,
-    pub energies: Vec<f64>,
-    radial_wavefunctions: Vec<Vec<f64>>,
-    pub angular_momenta: Vec<i8>,
-    pub valence_orbitals: Vec<u8>,
-    pub nshell: Vec<i8>,
-    pub orbital_occupation: Vec<i8>,
-    #[serde(default = "get_nan_value")]
-    pub spin_coupling_constant: f64,
-    #[serde(default = "get_nan_value")]
-    energy_1s: f64,
-    #[serde(default = "get_nan_value")]
-    energy_2s: f64,
-    #[serde(default = "get_nan_value")]
-    energy_3s: f64,
-    #[serde(default = "get_nan_value")]
-    energy_4s: f64,
-    #[serde(default = "get_nan_value")]
-    energy_2p: f64,
-    #[serde(default = "get_nan_value")]
-    energy_3p: f64,
-    #[serde(default = "get_nan_value")]
-    energy_4p: f64,
-    #[serde(default = "get_nan_value")]
-    energy_3d: f64,
-    #[serde(default = "get_nan_vec")]
-    orbital_1s: Vec<f64>,
-    #[serde(default = "get_nan_vec")]
-    orbital_2s: Vec<f64>,
-    #[serde(default = "get_nan_vec")]
-    orbital_3s: Vec<f64>,
-    #[serde(default = "get_nan_vec")]
-    orbital_4s: Vec<f64>,
-    #[serde(default = "get_nan_vec")]
-    orbital_2p: Vec<f64>,
-    #[serde(default = "get_nan_vec")]
-    orbital_3p: Vec<f64>,
-    #[serde(default = "get_nan_vec")]
-    orbital_4p: Vec<f64>,
-    #[serde(default = "get_nan_vec")]
-    orbital_3d: Vec<f64>,
-}
+    fn energies(&self) -> &[f64] {
+        &self.energies
+    }
 
-pub struct PseudoAtomMio {
-    z: u8,
-    pub hubbard_u: f64,
-    n_elec: u8,
-    pub energies: Vec<f64>,
-    pub angular_momenta: Vec<i8>,
-    pub valence_orbitals: Vec<u8>,
-    pub nshell: Vec<i8>,
-    pub orbital_occupation: Vec<i8>,
+    fn angular_momenta(&self) -> &[i8] {
+        &self.angular_momenta
+    }
+
+    fn valence_orbitals(&self) -> &[u8] {
+        &self.valence_orbitals
+    }
+
+    fn nshell(&self) -> &[i8] {
+        &self.nshell
+    }
+
+    fn orbital_occupation(&self) -> &[i8] {
+        &self.orbital_occupation
+    }
 }

@@ -1,10 +1,8 @@
 mod h_operators;
-mod zvector;
 mod vector_products;
+mod zvector;
 
 use ndarray::prelude::*;
-
-
 
 #[derive(Copy, Clone)]
 pub enum TDA {
@@ -71,7 +69,6 @@ pub trait ExcitedStateGradient {
         let _t_ij: Array2<f64> = compute_u(x_plus_y.t(), x_minus_y.t(), tda);
     }
 }
-
 
 fn compute_u(x_plus_y: ArrayView2<f64>, x_minus_y: ArrayView2<f64>, tda: TDA) -> Array2<f64> {
     match tda {

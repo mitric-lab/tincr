@@ -16,12 +16,12 @@ that the correction vector is computed.
 
 use ndarray::prelude::*;
 
+use crate::excited_states::{solvers::utils, DavidsonEngine};
 use ndarray_linalg::*;
 use ndarray_stats::QuantileExt;
 use std::error;
 use std::fmt;
 use std::time::Instant;
-use crate::excited_states::{DavidsonEngine, solvers::utils};
 
 #[derive(Debug, PartialEq)]
 pub struct DavidsonError;

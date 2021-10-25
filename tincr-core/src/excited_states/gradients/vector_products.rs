@@ -1,6 +1,6 @@
-use ndarray::prelude::*;
-use derive_builder::*;
 use crate::io::settings::LC;
+use derive_builder::*;
+use ndarray::prelude::*;
 
 /// Matrix products for iterative solvers.
 ///
@@ -50,26 +50,25 @@ impl AplusBBuilder<'_> {
     // Private helper method with access to the builder struct.
     fn default_n_atoms(&self) -> Result<usize, String> {
         match self.q_oo {
-            Some(q)  => Ok(q.dim().0),
+            Some(q) => Ok(q.dim().0),
             _ => Err("q_oo is missing".to_string()),
         }
     }
 
     fn default_n_occ(&self) -> Result<usize, String> {
         match self.q_oo {
-            Some(q)  => Ok((q.dim().1 as f64).sqrt() as usize),
+            Some(q) => Ok((q.dim().1 as f64).sqrt() as usize),
             _ => Err("q_oo is missing".to_string()),
         }
     }
 
     fn default_n_virt(&self) -> Result<usize, String> {
         match self.q_vv {
-            Some(q)  => Ok((q.dim().1 as f64).sqrt() as usize),
+            Some(q) => Ok((q.dim().1 as f64).sqrt() as usize),
             _ => Err("q_vv is missing".to_string()),
         }
     }
 }
-
 
 impl AplusB<'_> {
     /// Compute the matrix product for the iterative Z-vector solver.
@@ -81,8 +80,8 @@ impl AplusB<'_> {
             LC::ON => {
                 u_ia += &self.exchange1(v.view());
                 u_ia += &self.exchange2(v.view());
-            },
-            LC::OFF => {},
+            }
+            LC::OFF => {}
         }
         u_ia
     }
@@ -96,13 +95,15 @@ impl AplusB<'_> {
     /// Exchange contribution:
     /// u_ia = sum_{A,B,j,b} q_{A,i,j} γ_{A,B} q_{B,a,b} V_{j,b}
     fn exchange1(&self, v: ArrayView1<f64>) -> Array1<f64> {
-        self.gamma_lr.unwrap() // [natoms, natoms]
+        self.gamma_lr
+            .unwrap() // [natoms, natoms]
             .dot(&self.q_oo) // [natoms, nocc * nocc]
             .into_shape([self.n_atoms * self.n_occ, self.n_occ]) // => [natoms * nocc, nocc]
             .unwrap()
             .t() // T -> [nocc, natoms * nocc]
             .dot(
-                &self.q_vv // [natoms, nvirt * nvirt]
+                &self
+                    .q_vv // [natoms, nvirt * nvirt]
                     .into_shape([self.n_atoms * self.n_virt, self.n_virt])
                     .unwrap() // => [natoms * nvirt, nvirt]
                     .dot(&v.into_shape([self.n_occ, self.n_virt]).unwrap().t()) // v: [nocc, nvirt]
@@ -126,10 +127,12 @@ impl AplusB<'_> {
             .dot(&v.into_shape([self.n_occ, self.n_virt]).unwrap().t()) // v.T : [nvirt, nocc]
             .t() // => [nocc, natoms * nocc]
             .dot(
-                &self.gamma_lr.unwrap()// [natoms, natoms]
+                &self
+                    .gamma_lr
+                    .unwrap() // [natoms, natoms]
                     .dot(&self.q_ov) // => [natoms, nocc * nvirt]
                     .into_shape([self.n_atoms * self.n_occ, self.n_virt]) // [natoms * nocc, nvirt]
-                    .unwrap()
+                    .unwrap(),
             ) // => [nocc, nvirt]
             .into_shape([self.n_occ * self.n_virt])
             .unwrap()

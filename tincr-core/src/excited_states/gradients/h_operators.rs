@@ -1,7 +1,7 @@
 use ndarray::prelude::*;
 
-use derive_builder::*;
 use crate::io::settings::LC;
+use derive_builder::*;
 
 // Types to specify if the transformations are done for occupied-occupied (OO), occupied-virtual (OV)
 // or virtual-virtual (VV) orbitals.
@@ -35,8 +35,7 @@ type Vrs = MOSpace;
 ///       .unwrap();
 /// ```
 #[derive(Builder)]
-pub struct HPlusMinus<'a>
-{
+pub struct HPlusMinus<'a> {
     /// Transition charges between occupied and occupied MOs.
     q_oo: ArrayView2<'a, f64>,
     /// Transition charges between virtual and virtual MOs.
@@ -60,35 +59,35 @@ pub struct HPlusMinus<'a>
     n_occ: usize,
     /// Number of virtual orbitals.
     #[builder(default = "self.default_n_virt()?")]
-    n_virt: usize
+    n_virt: usize,
 }
 
 impl HPlusMinusBuilder<'_> {
     // Private helper method with access to the builder struct.
     fn default_n_atoms(&self) -> Result<usize, String> {
         match self.q_oo {
-            Some(q)  => Ok(q.dim().0),
+            Some(q) => Ok(q.dim().0),
             _ => Err("q_oo is missing".to_string()),
         }
     }
 
     fn default_n_occ(&self) -> Result<usize, String> {
         match self.q_oo {
-            Some(q)  => Ok((q.dim().1 as f64).sqrt() as usize),
+            Some(q) => Ok((q.dim().1 as f64).sqrt() as usize),
             _ => Err("q_oo is missing".to_string()),
         }
     }
 
     fn default_n_virt(&self) -> Result<usize, String> {
         match self.q_vv {
-            Some(q)  => Ok((q.dim().1 as f64).sqrt() as usize),
+            Some(q) => Ok((q.dim().1 as f64).sqrt() as usize),
             _ => Err("q_vv is missing".to_string()),
         }
     }
 
     fn default_q_vo(&self) -> Result<Array2<f64>, String> {
         match self.q_ov {
-            Some(q)  => {
+            Some(q) => {
                 // Number of occupied orbitals.
                 let n_occ: usize = self.default_n_occ().unwrap();
                 // Number of virtual orbitals.
@@ -104,15 +103,14 @@ impl HPlusMinusBuilder<'_> {
                     .into_shape([n_atoms, n_virt * n_occ])
                     .unwrap()
                     .to_owned();
-                Ok(q_vo)},
+                Ok(q_vo)
+            }
             _ => Err("q_ov is missing".to_string()),
         }
     }
 }
 
-
-impl<'a> HPlusMinus<'a>
-{
+impl<'a> HPlusMinus<'a> {
     /// The H+ operator is applied on the vector `v`.
     pub fn comp_plus(&mut self, v: ArrayView2<f64>, pq: Hpq, rs: Vrs) -> Array2<f64> {
         let t1: Array1<f64> = self.term_one(v.view(), pq, rs);
@@ -281,7 +279,6 @@ impl<'a> HPlusMinus<'a>
             MOSpace::VV => (n_virt, n_virt),
         }
     }
-
 }
 
 fn flatten(array: ArrayView2<f64>) -> ArrayView1<f64> {

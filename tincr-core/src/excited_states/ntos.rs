@@ -1,7 +1,7 @@
-
 use ndarray::concatenate;
 use ndarray::prelude::*;
 use ndarray_linalg::SVD;
+use std::cmp::Ordering;
 
 /// Compute the MO coefficients of natural transition orbitals.
 ///
@@ -54,7 +54,6 @@ pub fn natural_transition_orbitals(
     let mut u: Array2<f64> = u.unwrap();
     u.invert_axis(Axis(1));
 
-
     // Singular values.
     let lambda: Array1<f64> = &sigma * &sigma;
     let mut lambda_rev: Array1<f64> = lambda.clone();
@@ -98,12 +97,10 @@ enum CropCoeffs {
 
 impl CropCoeffs {
     pub fn new(n_occ: usize, n_virt: usize) -> Self {
-        if n_occ == n_virt {
-            Self::None
-        } else if n_occ > n_virt {
-            Self::Occ(n_occ - n_virt)
-        } else {
-            Self::Virt(2 * n_occ)
+        match n_occ.cmp(&n_virt) {
+            Ordering::Equal => Self::None,
+            Ordering::Greater => Self::Occ(n_occ - n_virt),
+            Ordering::Less => Self::Virt(2 * n_occ),
         }
     }
 }

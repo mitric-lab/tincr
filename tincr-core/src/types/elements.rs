@@ -33,6 +33,12 @@ impl PartialOrd for Element {
     }
 }
 
+impl Ord for Element {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.number().cmp(&other.number())
+    }
+}
+
 // The atomic number of the chemical element is used for the hashing
 impl Hash for Element {
     fn hash<H: Hasher>(&self, state: &mut H) {

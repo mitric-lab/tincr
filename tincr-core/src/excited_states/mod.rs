@@ -13,11 +13,9 @@ pub use utils::*;
 mod ntos;
 mod solvers;
 //pub mod tda;
+mod gradients;
 mod transition_charges;
 mod utils;
-mod gradients;
-
-
 
 use crate::excited_states::ntos::natural_transition_orbitals;
 

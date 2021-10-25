@@ -1,7 +1,7 @@
+use hashbrown::HashMap;
+use nalgebra::Vector3;
 use ndarray::prelude::*;
 use rusty_fitpack::{splder_uniform, splev_uniform};
-use std::collections::HashMap;
-use nalgebra::{VectorSlice3, Vector3};
 
 const SQRT3: f64 = 1.7320508075688772;
 // pub fn get_h0_and_s_mu_nu(
@@ -31,7 +31,7 @@ const SQRT3: f64 = 1.7320508075688772;
 /// ========
 /// r: length of vector
 /// x,y,z: directional cosines
-pub fn directional_cosines(pos1: &Vector3<f64>, pos2: &Vector3<f64>) -> (f64, f64, f64, f64) {
+pub fn directional_cosines_old(pos1: &Vector3<f64>, pos2: &Vector3<f64>) -> (f64, f64, f64, f64) {
     let xc: f64 = pos2.x - pos1.x;
     let yc: f64 = pos2.y - pos1.y;
     let zc: f64 = pos2.z - pos1.z;
@@ -49,7 +49,7 @@ pub fn directional_cosines(pos1: &Vector3<f64>, pos2: &Vector3<f64>) -> (f64, f6
         y = 0.0;
         z = 1.0;
     }
-    return (r, x, y, z);
+    (r, x, y, z)
 }
 
 /// transformation rules for matrix elements
@@ -105,7 +105,7 @@ pub fn slako_transformation(
                 * SQRT3)
                 / 2.
         }
-        (1, -1, 0, 0) =>  y * splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r),
+        (1, -1, 0, 0) => y * splev_uniform(&s_or_h[&4].0, &s_or_h[&4].1, s_or_h[&4].2, r),
         (1, -1, 1, -1) => {
             (x.powi(2) + z.powi(2)) * splev_uniform(&s_or_h[&5].0, &s_or_h[&5].1, s_or_h[&5].2, r)
                 + y.powi(2) * splev_uniform(&s_or_h[&6].0, &s_or_h[&6].1, s_or_h[&6].2, r)
@@ -674,7 +674,7 @@ pub fn slako_transformation(
         }
         _ => panic!("No combination of l1, m1, l2, m2 found!"),
     };
-    return value;
+    value
 }
 
 /// transformation rules for matrix elements

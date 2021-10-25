@@ -23,6 +23,7 @@ pub const DISPERSION_CORRECTION: bool = true;
 pub const HUBBARD_SCALING: f64 = 1.0;
 // scaling of repulsive potentials by this factor
 pub const REPPOT_SCALING: f64 = 1.0;
+pub const HOMEGROWN_PATH: &str = "/param_files/homegrown/repulsive_potentials/";
 
 // SCF ITERATION
 // stop SCF calculation after maxiter iterations

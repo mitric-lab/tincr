@@ -12,7 +12,6 @@ pub fn trans_charges(
     occ_indices: &[usize],
     virt_indices: &[usize],
 ) -> (Array2<f64>, Array2<f64>, Array2<f64>) {
-
     // Number of occupied orbitals.
     let dim_o: usize = occ_indices.len();
 
