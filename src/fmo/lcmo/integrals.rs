@@ -191,7 +191,7 @@ impl SuperSystem {
             CTCoupling::IJIK => {
                 // Gamma matrix between pair JK and monomer I.
                 if type_jk == PairType::Pair {
-                    let gamma_jk_i: Array2<f64> = self.gamma_ab_c(j.idx, k.idx, i.idx, LRC::OFF);
+                    let gamma_jk_i: Array2<f64> = self.gamma_ab_c(j.idx, l.idx, i.idx, LRC::OFF);
                     Some(gamma_jk_i)
                 } else {
                     None
@@ -265,7 +265,7 @@ impl SuperSystem {
                         let s_ii: ArrayView2<f64> = i.monomer.properties.s().unwrap();
                         let s_jk: ArrayView2<f64> = self
                             .properties
-                            .s_slice(j.monomer.slice.orb, k.monomer.slice.orb)
+                            .s_slice(j.monomer.slice.orb, l.monomer.slice.orb)
                             .unwrap();
                         (Some(s_jk), Some(s_ii))
                     }
@@ -341,7 +341,6 @@ impl SuperSystem {
                 //panic!("{} {} {} {} {} {} This is not possible", p1, p2, i.idx, j.idx, k.idx, l.idx)
             }
         };
-
         let ij_ab: f64 = match (gamma_jl_ik, s_jl, s_ik) {
             (Some(gamma), Some(sjl), Some(sik)) => {
                 let q_ij: Array1<f64> = q_pp(j, l, sjl.view());
@@ -424,7 +423,7 @@ impl SuperSystem {
                 let s_ij: ArrayView2<f64> = self.properties.s_slice(j.electron.monomer.slice.orb, j.hole.monomer.slice.orb).unwrap();
 
                 // Gamma matrix between pair IJ and monomer I. TODO: Check LC
-                let gamma_ij_i: Array2<f64> = self.gamma_ab_c(i.monomer.index, j.electron.idx, j.hole.idx, LRC::ON);
+                let gamma_ij_i: Array2<f64> = self.gamma_ab_c( j.electron.idx, j.hole.idx,i.monomer.index, LRC::ON);
 
                 // q_bj is computed instead of q_jb to use the same overlap and Gamma matrix.
                 let q_bj: Array1<f64> = q_pp(&j.electron, &j.hole, s_ij.view());
@@ -454,7 +453,7 @@ impl SuperSystem {
                 let s_ij: ArrayView2<f64> = self.properties.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb).unwrap();
 
                 // Gamma matrix between pair IJ and monomer I. TODO: Check LC
-                let gamma_ij_i: Array2<f64> = self.gamma_ab_c(i.monomer.index, j.hole.idx, j.electron.idx, LRC::ON);
+                let gamma_ij_i: Array2<f64> = self.gamma_ab_c( j.hole.idx, j.electron.idx,i.monomer.index, LRC::ON);
 
                 // Transition charge between hole on I and electron on J.
                 let q_jb: Array1<f64> = q_pp(&j.hole, &j.electron, s_ij.view());
@@ -485,7 +484,7 @@ impl SuperSystem {
                 let s_kj: ArrayView2<f64> = self.properties.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb).unwrap();
 
                 // Gamma matrix between pair KJ and monomer I. TODO: Check LC
-                let gamma_kj_i: Array2<f64> = self.gamma_ab_c(i.monomer.index, j.hole.idx, j.electron.idx, LRC::ON);
+                let gamma_kj_i: Array2<f64> = self.gamma_ab_c( j.hole.idx, j.electron.idx,i.monomer.index, LRC::ON);
 
                 // Transition charge between hole on J and electron on K.
                 let q_jb: Array1<f64> = q_pp(&j.hole, &j.electron, s_kj.view());
@@ -510,9 +509,8 @@ impl SuperSystem {
                 let q_ab: Array2<f64> = q_le_p(&i, &j.electron, s_ij.view(), ElecHole::Electron);
 
                 // The two electron integral b_ia (ij|ab) is computed.
-                i.tdm.dot(&q_ij.t().dot(&gamma_ik_ij.t().dot(&q_ab)).into_shape([i.occs.ncols() * i.virts.ncols()]).unwrap())
+                i.tdm.dot(&q_ij.t().dot(&gamma_ik_ij.dot(&q_ab)).into_shape([i.occs.ncols() * i.virts.ncols()]).unwrap())
             } else {0.0}; // If overlap IK or IJ is zero, the integral is zero.
-
             2.0 * ia_jb - ij_ab
         }
     }
@@ -542,30 +540,37 @@ impl<'a> From<(&Particle<'a>, &Particle<'a>, &Particle<'a>, &Particle<'a>)> for 
         let (c, d): (usize, usize) = (k.idx, l.idx);
         // IJ | IJ
         if a == c && b == d {
+            // println!("Coupling kind: IJIJ");
             Self::IJIJ
         }
         // IJ | JI
         else if a == d && b == c {
+            // println!("Coupling kind: IJJI");
             Self::IJJI
         }
         // IJ | IK
         else if a == c {
+            // println!("Coupling kind: IJIK");
             Self::IJIK
         }
         // IJ | JK
         else if b == c {
+            // println!("Coupling kind: IJJK");
             Self::IJJK
         }
         // IJ | KI
         else if a == d {
+            // println!("Coupling kind: IJKI");
             Self::IJKI
         }
         // IJ | KJ
         else if b == d {
+            // println!("Coupling kind: IJKJ");
             Self::IJKJ
         }
         // IJ | KL
         else {
+            // println!("Coupling kind: IJKL");
             Self::IJKL
         }
     }
