@@ -6,8 +6,30 @@ use crate::fmo::PairType;
 use hashbrown::HashMap;
 use crate::excited_states::ProductCache;
 use nalgebra::Vector3;
+use crate::initialization::Atom;
 
 impl Properties {
+    pub fn old_atoms(&self) -> Option<&[Atom]> {
+        match self.get("old_atoms") {
+            Some(value) => Some(value.as_vec_atom().unwrap()),
+            _=> None,
+        }
+    }
+
+    pub fn old_orbs(&self) -> Option<ArrayView2<f64>> {
+        match self.get("old_orbs") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    pub fn old_ci_coeffs(&self) -> Option<ArrayView3<f64>> {
+        match self.get("old_ci_coeffs") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference the atomic numbers
     pub fn atomic_numbers(&self) -> Option<&[u8]> {
         match self.get("atomic_numbers") {

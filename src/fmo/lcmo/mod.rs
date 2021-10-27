@@ -1,6 +1,6 @@
 mod hamiltonian;
 mod ct_gradient;
-mod basis;
+pub mod basis;
 mod integrals;
 mod lcmo_trans_charges;
 mod utils;
