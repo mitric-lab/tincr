@@ -180,6 +180,7 @@ impl SuperSystem {
         // exciton.spectrum_to_txt("/Users/hochej/Downloads/lcmo_spec.txt");
         // exciton.ntos_to_molden(&self.atoms, 1, "/Users/hochej/Downloads/ntos_fmo.molden");
         // println!("{}", exciton);
+        // exciton.print_state_contributions(0);
 
         self.properties.set_ci_eigenvalues(energies);
         self.properties.set_ci_coefficients(eigvectors);

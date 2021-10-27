@@ -121,10 +121,21 @@ fn main() {
         // system.run_tda(config.excited.nstates, 150, 1e-4);
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
+        // for atom in system.atoms.iter(){
+        //     print!("{} \t",atom.name);
+        //     for data in atom.xyz.iter(){
+        //         print!("{} \t",data * constants::BOHR_TO_ANGS);
+        //     }
+        //     println!(" ");
+        // }
+        // assert!(1==2);
+        system.prepare_scc();
+        system.run_scc();
+        system.create_exciton_hamiltonian();
         // create the struct which starts the dynamics
-        let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
-        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
-        dynamic.verlet_dynamics();
+        // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
+        // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        // dynamic.verlet_dynamics();
         //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
         // system.prepare_scc();
         // system.run_scc();

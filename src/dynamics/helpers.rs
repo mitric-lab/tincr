@@ -31,7 +31,7 @@ impl System{
 
             // calculate excited states
             self.prepare_tda();
-            self.run_tda(self.config.excited.nstates, 100, 1e-4);
+            self.run_tda(self.config.excited.nstates, 200, 1e-4);
             let ci_energies:ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
             energies.slice_mut(s![1..]).assign(&(gs_energy +&ci_energies));
 

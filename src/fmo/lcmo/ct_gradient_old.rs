@@ -1,6 +1,5 @@
 use crate::excited_states::trans_charges;
 use crate::fmo::helpers::get_pair_slice;
-use crate::fmo::lcmo::helpers::*;
 use crate::fmo::{Monomer, Pair, SuperSystem, GroundStateGradient, PairType, ESDPair};
 use crate::gradients::helpers::{f_lr, f_v};
 use crate::initialization::Atom;
@@ -921,20 +920,6 @@ fn f_v_ct(
             }
         }
         d_f = d_f * 0.25;
-
-        // if nc == 0 || nc ==2 {
-        //     println!("Test prints");
-        //     println!("ds_i {}",ds_i);
-        //     println!(" ");
-        //     println!("gsv {}",gsv);
-        //     println!(" ");
-        //     println!("dgsv {}",dgsv);
-        //     println!(" ");
-        //     println!("gdsv {}",gdsv);
-        //     println!(" ");
-        //     println!("df {}",d_f.view());
-        //     println!(" ");
-        // }
 
         f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
     }

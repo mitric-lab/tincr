@@ -1,5 +1,4 @@
 mod hamiltonian;
-mod helpers;
 mod ct_gradient;
 mod basis;
 mod integrals;
@@ -8,6 +7,7 @@ mod utils;
 mod cis_gradient;
 mod ct_gradient_old;
 mod le_gradient;
+mod coupling_gradients;
 
 pub use basis::*;
 use ndarray::prelude::*;
@@ -141,6 +141,58 @@ impl<'a> ExcitonStates<'a> {
             dim: dim,
         }
 
+    }
+
+    pub fn print_state_contributions(&self,state:usize){
+        let threshold = 0.05;
+        let mut txt: String = format!("{:^80}\n", "");
+
+        // Header for the section.
+        txt += &format!("{: ^80}\n", "FMO-LCMO Excitation Energy");
+        // Horizontal rule as delimiter.
+        txt += &format!("{:-^75}\n", "");
+
+        let n:usize = state;
+        let e:f64 = self.energies[state];
+        let v = self.coefficients.slice(s![..,state]);
+
+        // Absolute energy of each excited state.
+        let abs_energy: f64 = self.total_energy + e;
+
+        // Relative excitation energy in eV.
+        let rel_energy_ev: f64 = e * HARTREE_TO_EV;
+
+        // The transition dipole moment of the current state.
+        let tr_dip: Vector3<f64> = self.tr_dip[n];
+
+        txt += &format!("Excited state {: >5}: Excitation energy = {:>8.6} eV\n", n + 1, rel_energy_ev);
+        txt += &format!("Total energy for state {: >5}: {:22.12} Hartree\n", n + 1, abs_energy);
+        txt += &format!("  Multiplicity: Singlet\n");
+        txt += &format!("  Trans. Mom. (a.u.): {:10.6} X  {:10.6} Y  {:10.6} Z\n",
+                        tr_dip.x, tr_dip.y, tr_dip.z);
+        txt += &format!("  Oscillator Strength:  {:10.8}\n", self.f[n]);
+
+        // Sort the indices by coefficients of the current eigenvector.
+        let sorted_indices: Vec<usize> = argsort_abs(v.view());
+
+        // Reverse the Iterator to write the largest amplitude first.
+        for i in sorted_indices.into_iter().rev() {
+            // Amplitude of the current transition.
+            let c: f64 = v[i].abs();
+
+            // Only write transition with an amplitude higher than a certain threshold.
+            if c > threshold {
+                txt += &format!("  {:28} Amplitude: {:6.4} => {:>4.1} %\n", format!("{}", self.basis.get(i).unwrap()), c, c.powi(2) * 1e2);
+            }
+        }
+
+        // Information at the end about the threshold.
+        txt += &format!("All transition with amplitudes > {:10.8} were printed.\n", threshold);
+
+        // Horizontal rule as delimiter.
+        txt += &format!("{:-^75} \n", "");
+
+        println!("{}",txt);
     }
 
 }
