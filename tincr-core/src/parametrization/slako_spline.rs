@@ -1,6 +1,6 @@
 use crate::parametrization::skf_handler::*;
 use crate::utils::get_path_prefix;
-use crate::{constants, Element};
+use crate::{constants, Element, SorH, Spline};
 use hashbrown::HashMap;
 use ndarray::prelude::*;
 use ron::from_str;
@@ -25,7 +25,7 @@ fn get_inf_value() -> f64 {
     f64::INFINITY
 }
 
-fn init_hashmap() -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
+fn init_hashmap() -> HashMap<u8, Spline> {
     HashMap::new()
 }
 
@@ -50,10 +50,10 @@ pub struct SlaterKosterTable {
     index_to_symbol: StdHashMap<u8, String>,
     #[serde(default = "init_hashmap")]
     /// Spline representation for the overlap matrix elements
-    pub s_spline: HashMap<u8, (Vec<f64>, Vec<f64>, usize)>,
+    pub s_spline: HashMap<u8, Spline>,
     /// Spline representation for the H0 matrix elements
     #[serde(default = "init_hashmap")]
-    pub h_spline: HashMap<u8, (Vec<f64>, Vec<f64>, usize)>,
+    pub h_spline: HashMap<u8, Spline>,
 }
 
 impl SlaterKosterTable {
@@ -83,34 +83,25 @@ impl SlaterKosterTable {
         slako_table
     }
 
-    pub(crate) fn spline_overlap(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
-        let mut splines: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = HashMap::new();
-        for ((_l1, _l2, i), value) in &self.s {
-            let x: Vec<f64> = self.d.clone();
-            let y: Vec<f64> = value.clone();
-            splines.insert(
-                *i,
-                rusty_fitpack::splrep(
-                    x, y, None, None, None, None, None, None, None, None, None, None,
-                ),
-            );
-        }
-        splines
+    fn spline_overlap(&self) -> HashMap<u8, Spline> {
+        self.s
+            .iter()
+            .map(|((_, _, i), y)| (*i, Spline::new(&self.d, y)))
+            .collect::<HashMap<u8, Spline>>()
     }
 
-    pub(crate) fn spline_hamiltonian(&self) -> HashMap<u8, (Vec<f64>, Vec<f64>, usize)> {
-        let mut splines: HashMap<u8, (Vec<f64>, Vec<f64>, usize)> = HashMap::new();
-        for ((_l1, _l2, i), value) in &self.h {
-            let x: Vec<f64> = self.d.clone();
-            let y: Vec<f64> = value.clone();
-            splines.insert(
-                *i,
-                rusty_fitpack::splrep(
-                    x, y, None, None, None, None, None, None, None, None, None, None,
-                ),
-            );
+    fn spline_hamiltonian(&self) -> HashMap<u8, Spline> {
+        self.h
+            .iter()
+            .map(|((_, _, i), y)| (*i, Spline::new(&self.d, y)))
+            .collect::<HashMap<u8, Spline>>()
+    }
+
+    pub fn get_splines(&self, s_or_h: SorH) -> &HashMap<u8, Spline> {
+        match s_or_h {
+            SorH::S => &self.s_spline,
+            SorH::H0 => &self.h_spline,
         }
-        splines
     }
 }
 

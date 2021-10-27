@@ -161,7 +161,9 @@ impl Davidson {
                     let orth_v: Array1<f64> = &vec - &guess.dot(&guess.t().dot(&vec));
                     let norm: f64 = orth_v.norm();
                     if norm > 1.0e-8 {
-                        guess.push_column((&orth_v / norm).view());
+                        guess
+                            .push_column((&orth_v / norm).view())
+                            .expect("Append of column failed!");
                     }
                 }
             }

@@ -47,8 +47,10 @@ pub trait ExcitedState {
 
         let energies_ev: Array1<f64> = HARTREE_TO_EV * &self.get_energies();
         // Convert the excitation energy in eV.
-        data.push(Axis(1), energies_ev.view());
-        data.push(Axis(1), self.get_oscillator_strengths());
+        data.push(Axis(1), energies_ev.view())
+            .expect("Append of energy column failed!");
+        data.push(Axis(1), self.get_oscillator_strengths())
+            .expect("Append of oscillator strenght column failed");
 
         // Write the npy file.
         write_npy(filename, &data)

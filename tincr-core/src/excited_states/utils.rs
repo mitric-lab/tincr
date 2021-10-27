@@ -45,7 +45,8 @@ impl ProductCache {
         self.products
             .entry(key)
             .or_insert_with(|| Array2::zeros([value.nrows(), 0]))
-            .append(Axis(1), value.view());
+            .append(Axis(1), value.view())
+            .expect("Add of products to the Cache failed");
         // Return a view of the products.
         self.products.get(key).unwrap().view()
     }
