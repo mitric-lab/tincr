@@ -4,6 +4,7 @@ use crate::scc::mixer::BroydenMixer;
 use crate::excited_states::ProductCache;
 use hashbrown::HashMap;
 use crate::fmo::PairType;
+use crate::initialization::Atom;
 
 /// A `Property` is a piece of data that can be associated with an `Molecule` or
 /// `ElectronicData`. The idea of this enum is taken from Guillaume Fraux's (@Luthaf) Chemfiles
@@ -48,6 +49,7 @@ pub enum Property {
     VecUsize(Vec<usize>),
     /// Vector property of f64 type
     VecF64(Vec<f64>),
+    VecAtom(Vec<Atom>),
     /// Arraybase<f64, Ix1> property
     Array1(Array1<f64>),
     /// Arraybase<f64, Ix2> property
