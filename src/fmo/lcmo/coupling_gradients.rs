@@ -52,22 +52,26 @@ impl SuperSystem {
             let pair_index:usize = self.properties.index_of_pair(i.monomer.index,j.monomer.index);
             // get the pair from pairs vector
             let pair: &mut Pair = &mut self.pairs[pair_index];
+            // monomers
+            let m_i: &Monomer = &self.monomers[pair.i];
+            let m_j: &Monomer = &self.monomers[pair.j];
+
             let pair_atoms: Vec<Atom> = get_pair_slice(
                 &self.atoms,
-                i.monomer.slice.atom_as_range(),
-                j.monomer.slice.atom_as_range(),
+                m_i.slice.atom_as_range(),
+                m_j.slice.atom_as_range(),
             );
             // calculate S,dS, gamma_AO and dgamma_AO of the pair
-            pair.prepare_lcmo_gradient(&pair_atoms,i.monomer,j.monomer);
+            pair.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
             let grad_s_pair = pair.properties.grad_s().unwrap();
             let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
             let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
 
             // Coulomb: S, dS, gamma_AO and dgamma_AO of the pair necessary
-            let coulomb_gradient: Array1<f64> = f_pair_coulomb(
+            let coulomb_gradient: Array1<f64> = f_le_le_coulomb(
                 tdm_j.view(),
-                i.monomer.properties.s().unwrap(),
-                j.monomer.properties.s().unwrap(),
+                m_i.properties.s().unwrap(),
+                m_j.properties.s().unwrap(),
                 grad_s_i,
                 grad_s_j,
                 pair.properties.gamma_ao().unwrap(),
@@ -80,14 +84,14 @@ impl SuperSystem {
                 .dot(&tdm_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
             // Exchange: S, dS, gamma_AO_lr and dgamma_AO_lr of the pair necessary
-            let exchange_gradient: Array1<f64> = f_lr_pair_exchange(
+            let exchange_gradient: Array1<f64> = f_lr_le_le_exchange(
                 tdm_j.t(),
                 pair.properties.s().unwrap(),
                 grad_s_pair.view(),
                 pair.properties.gamma_lr_ao().unwrap(),
                 pair.properties.grad_gamma_lr_ao().unwrap(),
-                i.monomer.n_atoms,
-                j.monomer.n_atoms,
+                m_i.n_atoms,
+                m_j.n_atoms,
                 n_orbs_i,
             )
                 .into_shape([3 * pair.n_atoms, n_orbs_i * n_orbs_i])
@@ -95,7 +99,8 @@ impl SuperSystem {
                 .dot(&tdm_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
             gradient = 2.0 * coulomb_gradient - exchange_gradient;
-
+            // TODO: reset specific part of the properties
+            pair.properties.reset_gradient();
         }
         else{
             // calculate only the coulomb contribution of the gradient
@@ -103,13 +108,17 @@ impl SuperSystem {
             let pair_index:usize = self.properties.index_of_esd_pair(i.monomer.index,j.monomer.index);
             // get correct pair from pairs vector
             let esd_pair: &mut ESDPair = &mut self.esd_pairs[pair_index];
+            // monomers
+            let m_i: &Monomer = &self.monomers[esd_pair.i];
+            let m_j: &Monomer = &self.monomers[esd_pair.j];
+
             // get pair atoms
             let esd_pair_atoms: Vec<Atom> = get_pair_slice(
                 &self.atoms,
-                i.monomer.slice.atom_as_range(),
-                j.monomer.slice.atom_as_range(),
+                m_i.slice.atom_as_range(),
+                m_j.slice.atom_as_range(),
             );
-            esd_pair.prepare_scc(&esd_pair_atoms,i.monomer,j.monomer);
+            esd_pair.prepare_scc(&esd_pair_atoms,m_i,m_j);
             esd_pair.run_scc(&esd_pair_atoms,self.config.scf);
             esd_pair.prepare_lcmo_gradient(&esd_pair_atoms);
 
@@ -118,10 +127,10 @@ impl SuperSystem {
             let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
 
             // Coulomb: S, dS, gamma_AO and dgamma_AO necessary
-            let coulomb_gradient: Array1<f64> = f_pair_coulomb(
+            let coulomb_gradient: Array1<f64> = f_le_le_coulomb(
                 tdm_j.view(),
-                i.monomer.properties.s().unwrap(),
-                j.monomer.properties.s().unwrap(),
+                m_i.properties.s().unwrap(),
+                m_j.properties.s().unwrap(),
                 grad_s_i,
                 grad_s_j,
                 esd_pair.properties.gamma_ao().unwrap(),
@@ -134,31 +143,199 @@ impl SuperSystem {
                 .dot(&tdm_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
             gradient = 2.0 * coulomb_gradient;
+            // reset properties of the esd_pair
+            esd_pair.properties.reset();
         }
     }
 
-    pub fn ct_ct_coupling_grad<'a>(&self, state_1: &'a ChargeTransfer<'a>, state_2: &'a ChargeTransfer<'a>){
+    pub fn ct_ct_coupling_grad<'a>(&mut self, state_1: &'a ChargeTransfer<'a>, state_2: &'a ChargeTransfer<'a>){
 
     }
 
-    pub fn le_ct_coupling_grad<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>){
-
+    pub fn le_ct_coupling_grad<'a>(&mut self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>){
+        self.le_ct_1e_coupling_grad(i,j) + self.le_ct_2e_coupling_grad(i,j);
     }
 
-    pub fn ct_le_coupling_grad<'a>(&self, i: &'a ChargeTransfer<'a>, j: &'a LocallyExcited<'a>){
+    pub fn ct_le_coupling_grad<'a>(&mut self, i: &'a ChargeTransfer<'a>, j: &'a LocallyExcited<'a>){
         self.le_ct_coupling_grad(j, i)
     }
 
-    pub fn le_ct_1e_coupling_grad<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) {
+    pub fn le_ct_1e_coupling_grad<'a>(&mut self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) {
 
     }
 
-    pub fn le_ct_2e_coupling_grad<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) {
+    pub fn le_ct_2e_coupling_grad<'a>(&mut self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) {
+        // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
+        let type_ij: PairType = self.properties.type_of_pair(i.monomer.index, j.hole.idx);
+        // The same for I and K
+        let type_ik: PairType = self.properties.type_of_pair(i.monomer.index, j.electron.idx);
+        // and J K
+        let type_jk: PairType = self.properties.type_of_pair(j.electron.idx, j.hole.idx);
 
+        // transform the CI coefficients of the monomers to the AO basis
+        let nocc = i.monomer.properties.n_occ().unwrap();
+        let nvirt = i.monomer.properties.n_virt().unwrap();
+        let cis_c = i.tdm.into_shape([nocc,nvirt]).unwrap();
+        let tdm:Array2<f64> = i.occs.dot(&cis_c.dot(&i.virts.t()));
+        let n_orbs_i: usize = i.monomer.n_orbs;
+
+        // < LE I | H | CT J_j -> I_b>
+        if i.monomer.index == j.electron.idx {
+            // Check if the pair IK is close, so that the overlap is non-zero.
+            if type_ik == PairType::Pair {
+                // get the index of the pair
+                let pair_index:usize = self.properties.index_of_pair(i.monomer.index,j.hole.idx);
+                // get the pair from pairs vector
+                let pair: &mut Pair = &mut self.pairs[pair_index];
+                // monomers
+                let m_i: &Monomer = &self.monomers[pair.i];
+                let m_j: &Monomer = &self.monomers[pair.j];
+                let n_atoms:usize = m_i.n_atoms + m_j.n_atoms;
+                let n_orbs_j:usize = m_j.n_orbs;
+
+                let pair_atoms: Vec<Atom> = get_pair_slice(
+                    &self.atoms,
+                    m_i.slice.atom_as_range(),
+                    m_j.slice.atom_as_range(),
+                );
+                // calculate S,dS, gamma_AO and dgamma_AO of the pair
+                pair.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
+
+                // calculate the gradient of the coulomb integral
+                let coulomb_gradient:Array1<f64> = f_le_ct_coulomb(
+                    tdm.view(),
+                    pair.properties.s().unwrap(),
+                    pair.properties.grad_s().unwrap(),
+                    pair.properties.gamma_lr_ao().unwrap(),
+                    pair.properties.grad_gamma_lr_ao().unwrap(),
+                     n_atoms,
+                    n_orbs_i,
+                    n_orbs_j,
+                ).into_shape([3*n_atoms*n_orbs_i,n_orbs_j]).unwrap().dot(&j.hole.mo.c)
+                    .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.electron.mo.c);
+
+                // calculate the gradient of the exchange integral
+
+                pair.properties.reset_gradient();
+            }
+            else{
+                // If overlap IK is zero, the coupling is zero.
+            }
+        }
+        else if i.monomer.index == j.hole.idx {
+            // Check if the pair IJ is close, so that the overlap is non-zero.
+            if type_ij == PairType::Pair {
+                // get the index of the pair
+                let pair_index:usize = self.properties.index_of_pair(i.monomer.index,j.electron.idx);
+                // get the pair from pairs vector
+                let pair: &mut Pair = &mut self.pairs[pair_index];
+                // monomers
+                let m_i: &Monomer = &self.monomers[pair.i];
+                let m_j: &Monomer = &self.monomers[pair.j];
+                let n_atoms:usize = m_i.n_atoms + m_j.n_atoms;
+                let n_orbs_j:usize = m_j.n_orbs;
+
+                let pair_atoms: Vec<Atom> = get_pair_slice(
+                    &self.atoms,
+                    m_i.slice.atom_as_range(),
+                    m_j.slice.atom_as_range(),
+                );
+                // calculate S,dS, gamma_AO and dgamma_AO of the pair
+                pair.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
+                let grad_s_pair = pair.properties.grad_s().unwrap();
+                let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
+                let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
+
+                // calculate the gradient of the coulomb integral
+                let coulomb_gradient:Array1<f64> = f_le_ct_coulomb(
+                    tdm.view(),
+                    pair.properties.s().unwrap(),
+                    pair.properties.grad_s().unwrap(),
+                    pair.properties.gamma_lr_ao().unwrap(),
+                    pair.properties.grad_gamma_lr_ao().unwrap(),
+                    n_atoms,
+                    n_orbs_i,
+                    n_orbs_j,
+                ).into_shape([3*n_atoms*n_orbs_i,n_orbs_j]).unwrap().dot(&j.electron.mo.c)
+                    .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.hole.mo.c);
+
+                // calculate the gradient of the exchange integral
+
+                pair.properties.reset_gradient();
+            }
+            else{
+                // If overlap IJ is zero, the coupling is zero.
+            }
+        }
+        // < LE I_ia | H | CT K_j -> J_b >
+        else{
+            // The integral (ia|jb) requires that the overlap between K and J is non-zero.
+            // coulomb
+            if type_jk == PairType::Pair {
+
+            }
+            else{
+                // If overlap JK is zero, the integral is zero.
+            }
+            // exchange
+            if type_ik == PairType::Pair && type_ij == PairType::Pair {
+
+            }
+            else{
+                // If overlap IK or IJ is zero, the integral is zero.
+            }
+        }
     }
 }
 
-fn f_pair_coulomb(
+fn f_le_ct_coulomb(
+    v: ArrayView2<f64>,
+    s: ArrayView2<f64>,
+    grad_s: ArrayView3<f64>,
+    g0_pair_ao: ArrayView2<f64>,
+    g1_pair_ao: ArrayView3<f64>,
+    n_atoms: usize,
+    n_orb_i: usize,
+    n_orb_j:usize,
+) -> Array3<f64> {
+    let s_i:ArrayView2<f64> = s.slice(s![..n_orb_i,..n_orb_i]);
+    let s_ij:ArrayView2<f64> = s.slice(s![..n_orb_i,n_orb_i..]);
+    let si_v: Array1<f64> = (&s_i * &v).sum_axis(Axis(1));
+    let g_i:ArrayView2<f64> = g0_pair_ao.slice(s![..n_orb_i,..n_orb_i]);
+    let gi_sv:Array1<f64> = g_i.dot(&si_v);
+    let g_ij:ArrayView2<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]);
+    let gij_sv: Array1<f64> = g_ij.dot(&si_v);
+
+    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_j));
+
+    for nc in 0..3 * n_atoms {
+        let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, ..n_orb_i]);
+        let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, n_orb_i..]);
+        let dg_i: ArrayView2<f64> = g1_pair_ao.slice(s![nc, ..n_orb_i, ..n_orb_i]);
+        let dg_ij:ArrayView2<f64> = g1_pair_ao.slice(s![nc, ..n_orb_i, n_orb_i..]);
+
+        let gi_dsv:Array1<f64> = g_i.dot(&(&ds_i * &v).sum_axis(Axis(1)));
+        let gij_dsv:Array1<f64> = g_ij.t().dot(&(&ds_i * &v).sum_axis(Axis(1)));
+        let dgi_sv:Array1<f64> = dg_i.dot(&si_v);
+        let dgij_sv:Array1<f64> = dg_ij.dot(&si_v);
+
+        let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_j));
+
+        for b in 0..n_orb_i {
+            for a in 0..n_orb_j {
+                d_f[[b, a]] = 2.0* ds_ij[[b, a]]  * (gi_sv[b] + gij_sv[a])
+                    + 2.0 * s_ij[[b, a]] * (gi_dsv[b] + gij_dsv[a] + dgi_sv[b] + dgij_sv[a]);
+            }
+        }
+        d_f = d_f * 0.25;
+
+        f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
+    }
+
+    return f_return;
+}
+
+fn f_le_le_coulomb(
     v: ArrayView2<f64>,
     s_i: ArrayView2<f64>,
     s_j: ArrayView2<f64>,
@@ -198,7 +375,7 @@ fn f_pair_coulomb(
     return f_return;
 }
 
-fn f_lr_pair_exchange(
+fn f_lr_le_le_exchange(
     v: ArrayView2<f64>,
     s_ij: ArrayView2<f64>,
     grad_pair_s: ArrayView3<f64>,

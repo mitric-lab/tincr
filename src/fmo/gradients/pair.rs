@@ -288,6 +288,7 @@ impl Pair{
         // derivative of H0 and S
         let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
         self.properties.set_grad_s(grad_s);
+        self.properties.set_grad_h0(grad_h0);
     }
 }
 
@@ -312,5 +313,6 @@ impl ESDPair{
         // derivative of H0 and S
         let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
         self.properties.set_grad_s(grad_s);
+        self.properties.set_grad_h0(grad_h0);
     }
 }

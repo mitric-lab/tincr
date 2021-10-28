@@ -62,6 +62,25 @@ impl Properties {
         }
     }
 
+    pub fn reset_gradient(&mut self) {
+        let multi_dim_data = [
+            "gradH0",
+            "gradS",
+            "gamma_ao_wise",
+            "gamma_lr_ao_wise",
+            "gamma_atom_wise_gradient",
+            "gamma_ao_wise_gradient",
+            "gamma_lr_atom_wise_gradient",
+            "gamma_lr_ao_wise_gradient",
+            "cache",
+            "ci_eigenvalues",
+            "ci_coefficients",
+        ];
+        for data_name in multi_dim_data.iter() {
+            self.map.remove(*data_name);
+        }
+    }
+
     pub fn get(&self, name: &'static str) -> Option<&Property> {
         self.map.get(name)
     }

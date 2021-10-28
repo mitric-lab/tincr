@@ -136,10 +136,6 @@ impl SuperSystem {
                         ) *state.coefficient;
                         let grad_i:Array1<f64> = grad.slice(s![0..3*n_atoms_i]).to_owned();
                         let grad_j:Array1<f64> = grad.slice(s![3*n_atoms_i..]).to_owned();
-                        // let monomer_atom_ind_i:usize = index_i * 3;
-                        // let monomer_atom_ind_j:usize = index_j * 3;
-                        // gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
-                        // gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
 
                         gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
                         gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
@@ -158,11 +154,6 @@ impl SuperSystem {
 
                         gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
                         gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
-
-                        //let monomer_atom_ind_i:usize = index_i * 3;
-                        //let monomer_atom_ind_j:usize = index_j * 3;
-                        //gradient.slice_mut(s![3*monomer_atom_ind_i..3*monomer_atom_ind_i+9]).add_assign(&grad_i);
-                        //gradient.slice_mut(s![3*monomer_atom_ind_j..3*monomer_atom_ind_j+9]).add_assign(&grad_j);
                     }
                 }
             }
