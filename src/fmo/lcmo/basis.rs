@@ -152,10 +152,12 @@ impl SuperSystem {
                 h[[i, j+i]] = self.exciton_coupling(state_i, state_j);
             }
         }
+        write_npy("diabatic_hamiltonian.npy",&h);
+
         // The Hamiltonian is returned. Only the upper triangle is filled, so this has to be
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
-        let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+        // let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
 
         // let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
         // let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();
@@ -182,8 +184,8 @@ impl SuperSystem {
         // println!("{}", exciton);
         // exciton.print_state_contributions(0);
 
-        self.properties.set_ci_eigenvalues(energies);
-        self.properties.set_ci_coefficients(eigvectors);
+        // self.properties.set_ci_eigenvalues(energies);
+        // self.properties.set_ci_coefficients(eigvectors);
     }
 }
 
