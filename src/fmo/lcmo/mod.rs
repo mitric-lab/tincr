@@ -8,6 +8,7 @@ mod cis_gradient;
 mod ct_gradient_old;
 mod le_gradient;
 mod coupling_gradients;
+mod helpers;
 
 pub use basis::*;
 use ndarray::prelude::*;

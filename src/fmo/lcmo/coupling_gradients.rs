@@ -6,6 +6,9 @@ use crate::fmo::{Pair,ESDPair};
 use ndarray::prelude::*;
 use crate::fmo::helpers::get_pair_slice;
 use std::net::UdpSocket;
+use crate::fmo::lcmo::helpers::{f_le_ct_coulomb, f_lr_le_ct_exchange_hole_i, f_lr_le_ct_exchange_hole_j, f_le_le_coulomb, f_lr_le_le_exchange, f_coulomb_ct_ct_ijij, f_exchange_ct_ct_ijij};
+use crate::fmo::lcmo::integrals::CTCoupling;
+use ndarray_linalg::{into_col, into_row};
 
 impl SuperSystem {
     pub fn exciton_coupling_gradient<'a>(&mut self, lhs: &'a BasisState<'a>, rhs: &'a BasisState<'a>){
@@ -148,20 +151,18 @@ impl SuperSystem {
         }
     }
 
-    pub fn ct_ct_coupling_grad<'a>(&mut self, state_1: &'a ChargeTransfer<'a>, state_2: &'a ChargeTransfer<'a>){
-
-    }
-
     pub fn le_ct_coupling_grad<'a>(&mut self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>){
-        // self.le_ct_1e_coupling_grad(i,j) + self.le_ct_2e_coupling_grad(i,j);
+        // self.le_ct_1e_coupling_grad(i,j);
+        self.le_ct_2e_coupling_grad(i,j);
     }
 
     pub fn ct_le_coupling_grad<'a>(&mut self, i: &'a ChargeTransfer<'a>, j: &'a LocallyExcited<'a>){
-        self.le_ct_coupling_grad(j, i)
+        self.le_ct_coupling_grad(j, i);
     }
 
     pub fn le_ct_1e_coupling_grad<'a>(&mut self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) {
-
+        // Neglect the contribution? Depends on the derivative of the Fock matrix
+        // -> CPHF necessary
     }
 
     pub fn le_ct_2e_coupling_grad<'a>(&mut self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) {
@@ -201,7 +202,7 @@ impl SuperSystem {
                 // calculate S,dS, gamma_AO and dgamma_AO of the pair
                 pair.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
 
-                if pair.i == i.monomer.index{
+                let (grad_i,grad_j) = if pair.i == i.monomer.index{
                     // calculate the gradient of the coulomb integral
                     // the order of the gradient is [3*n_atoms I + 3*n_atoms J]
                     let coulomb_gradient:Array1<f64> = f_le_ct_coulomb(
@@ -213,7 +214,7 @@ impl SuperSystem {
                         n_atoms,
                         n_orbs_i,
                         n_orbs_j,
-                        false,
+                        true,
                     ).into_shape([3*n_atoms*n_orbs_i,n_orbs_j]).unwrap().dot(&j.hole.mo.c)
                         .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.electron.mo.c);
 
@@ -229,7 +230,13 @@ impl SuperSystem {
                         n_orbs_j,
                         true,
                     ).into_shape([3*n_atoms*n_orbs_i,n_orbs_j]).unwrap().dot(&j.hole.mo.c)
-                        .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.electron.mo.c);;
+                        .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.electron.mo.c);
+
+                    let gradient:Array1<f64> = 2.0* coulomb_gradient - exchange_gradient;
+                    let gradient_i = gradient.slice(s![..3*m_i.n_atoms]).to_owned();
+                    let gradient_j = gradient.slice(s![3*m_i.n_atoms..]).to_owned();
+
+                    (gradient_i,gradient_j)
                 }
                 else{
                     // calculate the gradient of the coulomb integral
@@ -248,7 +255,6 @@ impl SuperSystem {
                         .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.electron.mo.c);
 
                     // calculate the gradient of the exchange integral
-                    // calculate the gradient of the exchange integral
                     let exchange_gradient:Array1<f64> = f_lr_le_ct_exchange_hole_j(
                         tdm.view(),
                         pair.properties.s().unwrap(),
@@ -260,13 +266,16 @@ impl SuperSystem {
                         n_orbs_j,
                         false,
                     ).into_shape([3*n_atoms*n_orbs_i,n_orbs_j]).unwrap().dot(&j.hole.mo.c)
-                        .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.electron.mo.c);;
-                }
+                        .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.electron.mo.c);
+
+                    let gradient:Array1<f64> = 2.0* coulomb_gradient - exchange_gradient;
+                    let gradient_j = gradient.slice(s![..3*m_j.n_atoms]).to_owned();
+                    let gradient_i = gradient.slice(s![3*m_j.n_atoms..]).to_owned();
+
+                    (gradient_i,gradient_j)
+                };
 
                 pair.properties.reset_gradient();
-            }
-            else{
-                // If overlap IK is zero, the coupling is zero.
             }
         }
         else if i.monomer.index == j.hole.idx {
@@ -290,7 +299,7 @@ impl SuperSystem {
                 // calculate S,dS, gamma_AO and dgamma_AO of the pair
                 pair.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
 
-                if pair.i == i.monomer.index{
+                let (grad_i,grad_j) = if pair.i == i.monomer.index{
                     // calculate the gradient of the coulomb integral
                     // the order of the gradient is [3*n_atoms I + 3*n_atoms J]
                     let coulomb_gradient:Array1<f64> = f_le_ct_coulomb(
@@ -319,6 +328,12 @@ impl SuperSystem {
                         true,
                     ).into_shape([3*n_atoms*n_orbs_i,n_orbs_j]).unwrap().dot(&j.electron.mo.c)
                         .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.hole.mo.c);
+
+                    let gradient:Array1<f64> = 2.0* coulomb_gradient - exchange_gradient;
+                    let gradient_i = gradient.slice(s![..3*m_i.n_atoms]).to_owned();
+                    let gradient_j = gradient.slice(s![3*m_i.n_atoms..]).to_owned();
+
+                    (gradient_i,gradient_j)
                 }
                 else{
                     // calculate the gradient of the coulomb integral
@@ -349,12 +364,15 @@ impl SuperSystem {
                         false,
                     ).into_shape([3*n_atoms*n_orbs_i,n_orbs_j]).unwrap().dot(&j.electron.mo.c)
                         .into_shape([3*n_atoms,n_orbs_i]).unwrap().dot(&j.hole.mo.c);
-                }
+
+                    let gradient:Array1<f64> = 2.0* coulomb_gradient - exchange_gradient;
+                    let gradient_j = gradient.slice(s![..3*m_j.n_atoms]).to_owned();
+                    let gradient_i = gradient.slice(s![3*m_j.n_atoms..]).to_owned();
+
+                    (gradient_i,gradient_j)
+                };
 
                 pair.properties.reset_gradient();
-            }
-            else{
-                // If overlap IJ is zero, the coupling is zero.
             }
         }
         // < LE I_ia | H | CT K_j -> J_b >
@@ -364,395 +382,238 @@ impl SuperSystem {
             if type_jk == PairType::Pair {
 
             }
-            else{
-                // If overlap JK is zero, the integral is zero.
-            }
             // exchange
             if type_ik == PairType::Pair && type_ij == PairType::Pair {
 
             }
-            else{
-                // If overlap IK or IJ is zero, the integral is zero.
+        }
+    }
+
+    pub fn ct_ct_coupling_grad<'a>(&mut self, state_1: &'a ChargeTransfer<'a>, state_2: &'a ChargeTransfer<'a>){
+        // i -> electron on I, j -> hole on J.
+        let (i, j): (&Particle, &Particle) = (&state_1.electron, &state_1.hole);
+        // k -> electron on K, l -> hole on L.
+        let (k, l): (&Particle, &Particle) = (&state_2.electron, &state_2.hole);
+
+        // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
+        let type_ij: PairType = self.properties.type_of_pair(i.idx, j.idx);
+        // I and K
+        let type_ik: PairType = self.properties.type_of_pair(i.idx, k.idx);
+        // I and L
+        let type_il: PairType = self.properties.type_of_pair(i.idx, l.idx);
+        // J and K
+        let type_jk: PairType = self.properties.type_of_pair(j.idx, k.idx);
+        // J and L
+        let type_jl: PairType = self.properties.type_of_pair(j.idx, l.idx);
+        // K and L
+        let type_kl: PairType = self.properties.type_of_pair(k.idx, l.idx);
+
+        // Check how many monomers are involved in this matrix element.
+        let kind: CTCoupling = CTCoupling::from((i, j, k, l));
+
+        match kind {
+            // electrons i,k on I, holes j,l on J
+            CTCoupling::IJIJ => {
+                if type_ij == PairType::Pair{
+                    // get the index of the pair
+                    let pair_index:usize = self.properties.index_of_pair(i.monomer.index,j.monomer.index);
+                    // get the pair from pairs vector
+                    let pair: &mut Pair = &mut self.pairs[pair_index];
+                    // monomers
+                    let m_i: &Monomer = &self.monomers[pair.i];
+                    let m_j: &Monomer = &self.monomers[pair.j];
+                    let n_atoms:usize = m_i.n_atoms + m_j.n_atoms;
+                    let orbs_i:usize = m_i.n_orbs;
+                    let orbs_j:usize = m_j.n_orbs;
+
+                    let pair_atoms: Vec<Atom> = get_pair_slice(
+                        &self.atoms,
+                        m_i.slice.atom_as_range(),
+                        m_j.slice.atom_as_range(),
+                    );
+                    // calculate S,dS, gamma_AO and dgamma_AO of the pair
+                    pair.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
+
+                    // MO coefficients of the virtual orbitals of I in 2D
+                    let c_mat_virts:Array2<f64> = into_col(i.mo.c.to_owned())
+                        .dot(&into_row(k.mo.c.to_owned()));
+                    // MO coefficients of the occupied orbitals of J in 2D
+                    let c_mat_occs:Array2<f64> = into_col(j.mo.c.to_owned())
+                        .dot(&into_row(l.mo.c.to_owned()));
+
+                    // Check if the monomers of the CT have the same order as the pair
+                    let (grad_i,grad_j) = if pair.i == i.monomer.index{
+                        let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
+                            c_mat_virts.view(),
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            true
+                        )
+                            .into_shape([3 * n_atoms, orbs_i * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijij(
+                            c_mat_virts.view(),
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            true
+                        ).into_shape([3 * n_atoms, orbs_i * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        let gradient:Array1<f64> = 2.0* exchange_gradient - coulomb_gradient;
+                        let gradient_i = gradient.slice(s![..3*m_i.n_atoms]).to_owned();
+                        let gradient_j = gradient.slice(s![3*m_i.n_atoms..]).to_owned();
+
+                        (gradient_i,gradient_j)
+                    }
+                    else{
+                        let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
+                            c_mat_virts.view(),
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            false
+                        )
+                            .into_shape([3 * n_atoms, orbs_i * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijij(
+                            c_mat_virts.view(),
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            true
+                        ).into_shape([3 * n_atoms, orbs_i * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        let gradient:Array1<f64> = 2.0* exchange_gradient - coulomb_gradient;
+                        let gradient_j = gradient.slice(s![..3*m_j.n_atoms]).to_owned();
+                        let gradient_i = gradient.slice(s![3*m_j.n_atoms..]).to_owned();
+
+                        (gradient_i,gradient_j)
+                    };
+                }
+                // Only coulomb gradient for ESD
+                else{
+                    // get the index of the pair
+                    let esd_pair_index:usize = self.properties.index_of_esd_pair(i.monomer.index,j.monomer.index);
+                    // get the pair from pairs vector
+                    let esd_pair: &mut ESDPair = &mut self.esd_pairs[esd_pair_index];
+                    // monomers
+                    let m_i: &Monomer = &self.monomers[esd_pair.i];
+                    let m_j: &Monomer = &self.monomers[esd_pair.j];
+                    let n_atoms:usize = m_i.n_atoms + m_j.n_atoms;
+                    let orbs_i:usize = m_i.n_orbs;
+                    let orbs_j:usize = m_j.n_orbs;
+
+                    // get pair atoms
+                    let esd_pair_atoms: Vec<Atom> = get_pair_slice(
+                        &self.atoms,
+                        m_i.slice.atom_as_range(),
+                        m_j.slice.atom_as_range(),
+                    );
+                    esd_pair.prepare_scc(&esd_pair_atoms,m_i,m_j);
+                    esd_pair.run_scc(&esd_pair_atoms,self.config.scf);
+                    esd_pair.prepare_lcmo_gradient(&esd_pair_atoms);
+
+                    // MO coefficients of the virtual orbitals of I in 2D
+                    let c_mat_virts:Array2<f64> = into_col(i.mo.c.to_owned())
+                        .dot(&into_row(k.mo.c.to_owned()));
+                    // MO coefficients of the occupied orbitals of J in 2D
+                    let c_mat_occs:Array2<f64> = into_col(j.mo.c.to_owned())
+                        .dot(&into_row(l.mo.c.to_owned()));
+
+                    // Check if the monomers of the CT have the same order as the pair
+                    let (grad_i,grad_j) = if esd_pair.i == i.monomer.index{
+                        let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
+                            c_mat_virts.view(),
+                            esd_pair.properties.s().unwrap(),
+                            esd_pair.properties.grad_s().unwrap(),
+                            esd_pair.properties.gamma_ao().unwrap(),
+                            esd_pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            true
+                        )
+                            .into_shape([3 * n_atoms, orbs_i * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        let gradient_i = coulomb_gradient.slice(s![..3*m_i.n_atoms]).to_owned();
+                        let gradient_j = coulomb_gradient.slice(s![3*m_i.n_atoms..]).to_owned();
+
+                        (gradient_i,gradient_j)
+                    }
+                    else{
+                        let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
+                            c_mat_virts.view(),
+                            esd_pair.properties.s().unwrap(),
+                            esd_pair.properties.grad_s().unwrap(),
+                            esd_pair.properties.gamma_ao().unwrap(),
+                            esd_pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            false
+                        )
+                            .into_shape([3 * n_atoms, orbs_i * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        let gradient_j = coulomb_gradient.slice(s![..3*m_j.n_atoms]).to_owned();
+                        let gradient_i = coulomb_gradient.slice(s![3*m_j.n_atoms..]).to_owned();
+
+                        (gradient_i,gradient_j)
+                    };
+                }
+            }
+            // electron i on I, electron k on J, hole j on J, hole l on I
+            CTCoupling::IJJI => {
+
+            }
+            // electrons i,k on I, hole j on J, hole l on K
+            CTCoupling::IJIK => {
+
+            }
+            // electron i on I, electron k on J, hole j on J, hole l on K
+            CTCoupling::IJJK => {
+
+            }
+            // electron i on I, electron k on K, hole j on J, hole l on I
+            CTCoupling::IJKI => {
+
+            }
+            // electron i on I, electron k on K, hole j on J, hole l on J
+            CTCoupling::IJKJ => {
+
+            }
+            // electron i on I, electron k on K, hole j on J, hole l on L
+            CTCoupling::IJKL => {
+
             }
         }
     }
-}
-
-fn f_le_ct_coulomb(
-    v: ArrayView2<f64>,
-    s: ArrayView2<f64>,
-    grad_s: ArrayView3<f64>,
-    g0_pair_ao: ArrayView2<f64>,
-    g1_pair_ao: ArrayView3<f64>,
-    n_atoms: usize,
-    n_orb_i: usize,
-    n_orb_j:usize,
-    bool_ij:bool,
-) -> Array3<f64> {
-    // The pair indices are IJ -> I < J
-    let (s_i,s_ij,g_i,g_ij) = if bool_ij{
-        let s_i:ArrayView2<f64> = s.slice(s![..n_orb_i,..n_orb_i]);
-        let s_ij:ArrayView2<f64> = s.slice(s![..n_orb_i,n_orb_i..]);
-        let g_i:ArrayView2<f64> = g0_pair_ao.slice(s![..n_orb_i,..n_orb_i]);
-        let g_ij:ArrayView2<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]);
-
-        (s_i,s_ij,g_i,g_ij)
-    }else{
-        // The pair indices are JI -> J < I
-        let s_i:ArrayView2<f64> = s.slice(s![n_orb_j..,n_orb_j..]);
-        let s_ij:ArrayView2<f64> = s.slice(s![n_orb_j..,..n_orb_j]);
-        let g_i:ArrayView2<f64> = g0_pair_ao.slice(s![n_orb_j..,n_orb_j..]);
-        let g_ij:ArrayView2<f64> = g0_pair_ao.slice(s![n_orb_j..,..n_orb_j]);
-
-        (s_i,s_ij,g_i,g_ij)
-    };
-
-
-    let si_v: Array1<f64> = (&s_i * &v).sum_axis(Axis(1));
-    let gi_sv:Array1<f64> = g_i.dot(&si_v);
-    let gij_sv: Array1<f64> = g_ij.dot(&si_v);
-
-    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_j));
-
-    for nc in 0..3 * n_atoms {
-        let (ds_i,ds_ij,dg_i,dg_ij) = if bool_ij{
-            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, ..n_orb_i]);
-            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, n_orb_i..]);
-            let dg_i: ArrayView2<f64> = g1_pair_ao.slice(s![nc, ..n_orb_i, ..n_orb_i]);
-            let dg_ij:ArrayView2<f64> = g1_pair_ao.slice(s![nc, ..n_orb_i, n_orb_i..]);
-
-            (ds_i,ds_ij,dg_i,dg_ij)
-        }else{
-            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j..,n_orb_j..]);
-            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j..,..n_orb_j]);
-            let dg_i: ArrayView2<f64> = g1_pair_ao.slice(s![nc, n_orb_j..,n_orb_j..]);
-            let dg_ij:ArrayView2<f64> = g1_pair_ao.slice(s![nc, n_orb_j..,..n_orb_j]);
-
-            (ds_i,ds_ij,dg_i,dg_ij)
-        };
-
-        let gi_dsv:Array1<f64> = g_i.dot(&(&ds_i * &v).sum_axis(Axis(1)));
-        let gij_dsv:Array1<f64> = g_ij.t().dot(&(&ds_i * &v).sum_axis(Axis(1)));
-        let dgi_sv:Array1<f64> = dg_i.dot(&si_v);
-        let dgij_sv:Array1<f64> = dg_ij.dot(&si_v);
-
-        let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_j));
-
-        for b in 0..n_orb_i {
-            for a in 0..n_orb_j {
-                d_f[[b, a]] = 2.0* ds_ij[[b, a]]  * (gi_sv[b] + gij_sv[a])
-                    + 2.0 * s_ij[[b, a]] * (gi_dsv[b] + gij_dsv[a] + dgi_sv[b] + dgij_sv[a]);
-            }
-        }
-        d_f = d_f * 0.25;
-
-        f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
-    }
-
-    return f_return;
-}
-
-fn f_lr_le_ct_exchange_hole_i(
-    v: ArrayView2<f64>,
-    s: ArrayView2<f64>,
-    grad_s: ArrayView3<f64>,
-    g0_lr_a0: ArrayView2<f64>,
-    g1_lr_ao: ArrayView3<f64>,
-    n_atoms: usize,
-    n_orb_i: usize,
-    n_orb_j:usize,
-    bool_ij:bool,
-) -> Array3<f64> {
-    let (s_i,s_ij,g_i,g_ij) = if bool_ij{
-        let s_i:ArrayView2<f64> = s.slice(s![..n_orb_i,..n_orb_i]);
-        let s_ij:ArrayView2<f64> = s.slice(s![..n_orb_i,n_orb_i..]);
-        let g_i:ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j..,n_orb_j..]);
-        let g_ij:ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j..,..n_orb_j]);
-
-        (s_i,s_ij,g_i,g_ij)
-    }
-    else{
-        let s_i:ArrayView2<f64> = s.slice(s![n_orb_j..,n_orb_j..]);
-        let s_ij:ArrayView2<f64> = s.slice(s![n_orb_j..,..n_orb_j]);
-        let g_i:ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j..,n_orb_j..]);
-        let g_ij:ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j..,..n_orb_j]);
-
-        (s_i,s_ij,g_i,g_ij)
-    };
-
-    // for term 1
-    let gi_v: Array2<f64> = &g_i * &v;
-    // for term 1
-    let gi_v_sij:Array2<f64> = gi_v.dot(&s_ij);
-    // for term 2
-    let v_si:Array2<f64> = v.dot(&s_i);
-    // for term 4, 10
-    let v_sij:Array2<f64> = v.dot(&s_ij);
-    // for term 5
-    let gi_v_si:Array2<f64> = s_i.dot(&gi_v);
-    // for term 7, 11, 12
-    let vt_si:Array2<f64> = v.t().dot(&s_i);
-    // for term 7
-    let gi_vt_si:Array2<f64> = &g_i * &vt_si;
-    // for term 8
-    let si_v:Array2<f64> = s_i.dot(&v);
-    // for term 12
-    let vt_si_t_sij:Array2<f64> = vt_si.t().dot(&s_ij);
-
-    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_i));
-
-    for nc in 0..3 * n_atoms {
-        let (ds_i,ds_ij,dg_i,dg_ij) = if bool_ij{
-            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, ..n_orb_i]);
-            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, n_orb_i..]);
-            let dg_i: ArrayView2<f64> = g1_lr_ao.slice(s![nc, ..n_orb_i, ..n_orb_i]);
-            let dg_ij: ArrayView2<f64> = g1_lr_ao.slice(s![nc, ..n_orb_i, n_orb_i..]);
-
-            (ds_i,ds_ij,dg_i,dg_ij)
-        }else{
-            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j..,n_orb_j..]);
-            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j..,..n_orb_j]);
-            let dg_i: ArrayView2<f64> = g1_lr_ao.slice(s![nc, n_orb_j..,n_orb_j..]);
-            let dg_ij: ArrayView2<f64> = g1_lr_ao.slice(s![nc, n_orb_j..,..n_orb_j]);
-
-            (ds_i,ds_ij,dg_i,dg_ij)
-        };
-
-        let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_j));
-        // 1st term
-        d_f = d_f + ds_i.dot(&gi_v_sij);
-        // 2nd term
-        d_f = d_f + (&v_si * &ds_i).t().dot(&g_ij);
-        // 3rd term
-        d_f = d_f + (&ds_i.dot(&v) * &g_i).dot(&s_ij);
-        // 4th term
-        d_f = d_f + &ds_i.dot(&v_sij) *&g_ij;
-        // 5th term
-        d_f = d_f + gi_v_si.dot(&ds_ij);
-        // 6th term
-        d_f = d_f + s_i.dot(&(&v.dot(&ds_ij) *&g_ij));
-        // 7th term
-        d_f = d_f + gi_vt_si.t().dot(&ds_ij);
-        // 8th term
-        d_f = d_f + &si_v.dot(&ds_ij) * &g_ij;
-        // 9th term
-        d_f = d_f + s_i.dot(&(&dg_i*&v).dot(&s_ij));
-        // 10th term
-        d_f = d_f + s_i.dot(&(&v_sij * &dg_ij));
-        // 11th term
-        d_f = d_f + (&vt_si*&dg_i).t().dot(&s_ij);
-        // 12th term
-        d_f = d_f + &vt_si_t_sij*&dg_ij;
-        d_f = d_f * 0.25;
-
-        f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
-    }
-    return f_return;
-}
-
-fn f_lr_le_ct_exchange_hole_j(
-    v: ArrayView2<f64>,
-    s: ArrayView2<f64>,
-    grad_s: ArrayView3<f64>,
-    g0_lr_a0: ArrayView2<f64>,
-    g1_lr_ao: ArrayView3<f64>,
-    n_atoms: usize,
-    n_orb_i: usize,
-    n_orb_j:usize,
-    bool_ij:bool,
-) -> Array3<f64> {
-    let (s_i,s_ij,g_i,g_ij) = if bool_ij{
-        let s_i:ArrayView2<f64> = s.slice(s![..n_orb_i,..n_orb_i]);
-        let s_ij:ArrayView2<f64> = s.slice(s![..n_orb_i,n_orb_i..]);
-        let g_i:ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j..,n_orb_j..]);
-        let g_ij:ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j..,..n_orb_j]);
-
-        (s_i,s_ij,g_i,g_ij)
-    }
-    else{
-        let s_i:ArrayView2<f64> = s.slice(s![n_orb_j..,n_orb_j..]);
-        let s_ij:ArrayView2<f64> = s.slice(s![n_orb_j..,..n_orb_j]);
-        let g_i:ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j..,n_orb_j..]);
-        let g_ij:ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j..,..n_orb_j]);
-
-        (s_i,s_ij,g_i,g_ij)
-    };
-
-    // for term 1
-    let gi_v: Array2<f64> = &g_i * &v;
-    // for term 1
-    let gi_v_si:Array2<f64> = gi_v.dot(&s_i);
-    // for term 4,10
-    let v_si:Array2<f64> = v.dot(&s_i);
-    // for term 2
-    let v_sij:Array2<f64> = v.dot(&s_ij);
-    // for term 5
-    let gi_v_sij:Array2<f64> = gi_v.t().dot(&s_ij);
-    // for term 7, 11, 12
-    let vt_sij:Array2<f64> = v.t().dot(&s_ij);
-    // for term 7
-    let gij_vt_sij:Array2<f64> = &g_ij * &vt_sij;
-    // for term 8
-    let sij_v:Array2<f64> = s_ij.t().dot(&v);
-    // for term 12
-    let si_t_vt_sij:Array2<f64> = s_i.t().dot(&vt_sij);
-
-    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_i));
-
-    for nc in 0..3 * n_atoms {
-        let (ds_i,ds_ij,dg_i,dg_ij) = if bool_ij{
-            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, ..n_orb_i]);
-            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, n_orb_i..]);
-            let dg_i: ArrayView2<f64> = g1_lr_ao.slice(s![nc, ..n_orb_i, ..n_orb_i]);
-            let dg_ij: ArrayView2<f64> = g1_lr_ao.slice(s![nc, ..n_orb_i, n_orb_i..]);
-
-            (ds_i,ds_ij,dg_i,dg_ij)
-        }else{
-            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j..,n_orb_j..]);
-            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j..,..n_orb_j]);
-            let dg_i: ArrayView2<f64> = g1_lr_ao.slice(s![nc, n_orb_j..,n_orb_j..]);
-            let dg_ij: ArrayView2<f64> = g1_lr_ao.slice(s![nc, n_orb_j..,..n_orb_j]);
-
-            (ds_i,ds_ij,dg_i,dg_ij)
-        };
-
-        let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_j));
-        // 1st term
-        d_f = d_f + gi_v_si.t().dot(&ds_ij);
-        // 2nd term
-        d_f = d_f + g_i.dot(&(&v_sij * &ds_ij));
-        // 3rd term
-        d_f = d_f + s_i.dot(&(&v.t().dot(&ds_ij) * &g_ij));
-        // 4th term
-        d_f = d_f + v_si.t().dot(&ds_ij) *&g_ij;
-        // 5th term
-        d_f = d_f + ds_i.t().dot(&gi_v_sij);
-        // 6th term
-        d_f = d_f + (&v.dot(&ds_i) *&g_i).t().dot(&s_ij);
-        // 7th term
-        d_f = d_f + ds_i.t().dot(&gij_vt_sij);
-        // 8th term
-        d_f = d_f + &ds_i.t().dot(&sij_v.t()) * &g_ij;
-        // 9th term
-        d_f = d_f + (&dg_i*&v).dot(&s_i).t().dot(&s_ij);
-        // 10th term
-        d_f = d_f + (&v_si * &dg_i).t().dot(&s_ij);
-        // 11th term
-        d_f = d_f + s_i.t().dot(&(&vt_sij*&dg_ij));
-        // 12th term
-        d_f = d_f + &si_t_vt_sij*&dg_ij;
-        d_f = d_f * 0.25;
-
-        f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
-    }
-    return f_return;
-}
-
-fn f_le_le_coulomb(
-    v: ArrayView2<f64>,
-    s_i: ArrayView2<f64>,
-    s_j: ArrayView2<f64>,
-    grad_s_i: ArrayView3<f64>,
-    grad_s_j: ArrayView3<f64>,
-    g0_pair_ao: ArrayView2<f64>,
-    g1_pair_ao: ArrayView3<f64>,
-    n_atoms: usize,
-    n_orb_i: usize,
-) -> Array3<f64> {
-    let vp: Array2<f64> = &v + &(v.t());
-    let s_j_v: Array1<f64> = (&s_j * &vp).sum_axis(Axis(0));
-    let gsv: Array1<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]).dot(&s_j_v);
-
-    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_i));
-
-    for nc in 0..3 * n_atoms {
-        let ds_i: ArrayView2<f64> = grad_s_i.slice(s![nc, .., ..]);
-        let ds_j: ArrayView2<f64> = grad_s_j.slice(s![nc, .., ..]);
-        let dg: ArrayView2<f64> = g1_pair_ao.slice(s![nc, .., ..]);
-
-        let gdsv: Array1<f64> = g0_pair_ao.slice(s![..n_orb_i,n_orb_i..]).dot(&(&ds_j * &vp).sum_axis(Axis(0)));
-        let dgsv: Array1<f64> = dg.slice(s![..n_orb_i,n_orb_i..]).dot(&s_j_v);
-        let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_i));
-
-        for b in 0..n_orb_i {
-            for a in 0..n_orb_i {
-                d_f[[a, b]] = ds_i[[a, b]] * (gsv[a] + gsv[b])
-                    + s_i[[a, b]] * (dgsv[a] + gdsv[a] + dgsv[b] + gdsv[b]);
-            }
-        }
-        d_f = d_f * 0.25;
-
-        f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
-    }
-
-    return f_return;
-}
-
-fn f_lr_le_le_exchange(
-    v: ArrayView2<f64>,
-    s_ij: ArrayView2<f64>,
-    grad_pair_s: ArrayView3<f64>,
-    g0_pair_lr_a0: ArrayView2<f64>,
-    g1_pair_lr_ao: ArrayView3<f64>,
-    n_atoms_i: usize,
-    n_atoms_j: usize,
-    n_orb_i: usize,
-) -> Array3<f64> {
-    let g0_lr_ao_i: ArrayView2<f64> = g0_pair_lr_a0.slice(s![..n_orb_i, ..n_orb_i]);
-    let g0_lr_ao_j: ArrayView2<f64> = g0_pair_lr_a0.slice(s![n_orb_i.., n_orb_i..]);
-    let g0_lr_ao_ij: ArrayView2<f64> = g0_pair_lr_a0.slice(s![..n_orb_i, n_orb_i..]);
-    let s_ij_outer:ArrayView2<f64> = s_ij.slice(s![..n_orb_i,n_orb_i..]);
-    let n_atoms: usize = n_atoms_i + n_atoms_j;
-
-    let sv: Array2<f64> = s_ij_outer.dot(&v);
-    let v_t: ArrayView2<f64> = v.t();
-    let sv_t: Array2<f64> = s_ij_outer.dot(&v_t);
-    let gv: Array2<f64> = &g0_lr_ao_j * &v;
-
-    let t_sv: ArrayView2<f64> = sv.t();
-    let svg_t: Array2<f64> = (&sv * &g0_lr_ao_ij).reversed_axes();
-    let sgv_t: Array2<f64> = s_ij_outer.dot(&gv).reversed_axes();
-
-    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_i));
-
-    for nc in 0..3 * n_atoms {
-        let d_s: ArrayView2<f64> = grad_pair_s.slice(s![nc, ..n_orb_i, n_orb_i..]);
-        let d_g_i: ArrayView2<f64> = g1_pair_lr_ao.slice(s![nc, ..n_orb_i, ..n_orb_i]);
-        let d_g_j: ArrayView2<f64> = g1_pair_lr_ao.slice(s![nc, n_orb_i.., n_orb_i..]);
-        let d_g_ij: ArrayView2<f64> = g1_pair_lr_ao.slice(s![nc, ..n_orb_i, n_orb_i..]);
-
-        let d_sv_t: Array2<f64> = d_s.dot(&v_t);
-        let d_sv: Array2<f64> = d_s.dot(&v);
-        let d_gv: Array2<f64> = &d_g_j * &v;
-
-        let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_i));
-        // 1st term
-        d_f = d_f + &g0_lr_ao_i * &(d_s.dot(&t_sv));
-        // 2nd term
-        d_f = d_f + (&d_sv_t * &g0_lr_ao_ij).dot(&s_ij_outer.t());
-        // 3rd term
-        d_f = d_f + d_s.dot(&svg_t);
-        // 4th term
-        d_f = d_f + d_s.dot(&sgv_t);
-        // 5th term
-        d_f = d_f + &g0_lr_ao_i * &(s_ij_outer.dot(&d_sv.t()));
-        // 6th term
-        d_f = d_f + (&sv_t * &g0_lr_ao_ij).dot(&d_s.t());
-        // 7th term
-        d_f = d_f + s_ij_outer.dot(&(&d_sv * &g0_lr_ao_ij).t());
-        // 8th term
-        d_f = d_f + s_ij_outer.dot(&(d_s.dot(&gv)).t());
-        // 9th term
-        d_f = d_f + &d_g_i * &(s_ij_outer.dot(&t_sv));
-        // 10th term
-        d_f = d_f + (&sv_t * &d_g_ij).dot(&s_ij_outer.t());
-        // 11th term
-        d_f = d_f + s_ij_outer.dot(&(&sv * &d_g_ij).t());
-        // 12th term
-        d_f = d_f + s_ij_outer.dot(&(s_ij_outer.dot(&d_gv)).t());
-        d_f = d_f * 0.25;
-
-        f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
-    }
-    return f_return;
 }

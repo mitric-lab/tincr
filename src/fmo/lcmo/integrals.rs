@@ -521,7 +521,7 @@ impl SuperSystem {
 
 /// Type that specifies what kind of CT-CT coupling is calculated. The letters I,J,K,L indicate the
 /// monomers. The naming follows: IJKL -> < CT J -> I | H | CT L -> K >
-enum CTCoupling {
+pub enum CTCoupling {
     IJIJ,
     IJJI,
     IJIK,
