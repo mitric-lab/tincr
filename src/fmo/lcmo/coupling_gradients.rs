@@ -6,7 +6,7 @@ use crate::fmo::{Pair,ESDPair};
 use ndarray::prelude::*;
 use crate::fmo::helpers::get_pair_slice;
 use std::net::UdpSocket;
-use crate::fmo::lcmo::helpers::{f_le_ct_coulomb, f_lr_le_ct_exchange_hole_i, f_lr_le_ct_exchange_hole_j, f_le_le_coulomb, f_lr_le_le_exchange, f_coulomb_ct_ct_ijij, f_exchange_ct_ct_ijij};
+use crate::fmo::lcmo::helpers::{f_le_ct_coulomb, f_lr_le_ct_exchange_hole_i, f_lr_le_ct_exchange_hole_j, f_le_le_coulomb, f_lr_le_le_exchange, f_coulomb_ct_ct_ijij, f_exchange_ct_ct_ijij, f_coul_ct_ct_ijji};
 use crate::fmo::lcmo::integrals::CTCoupling;
 use ndarray_linalg::{into_col, into_row};
 
@@ -548,7 +548,7 @@ impl SuperSystem {
                     // Check if the monomers of the CT have the same order as the pair
                     let (grad_i,grad_j) = if esd_pair.i == i.monomer.index{
                         let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
-                            c_mat_virts.view(),
+                            c_mat_occs.view(),
                             esd_pair.properties.s().unwrap(),
                             esd_pair.properties.grad_s().unwrap(),
                             esd_pair.properties.gamma_ao().unwrap(),
@@ -560,7 +560,7 @@ impl SuperSystem {
                         )
                             .into_shape([3 * n_atoms, orbs_i * orbs_i])
                             .unwrap()
-                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+                            .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
 
                         let gradient_i = coulomb_gradient.slice(s![..3*m_i.n_atoms]).to_owned();
                         let gradient_j = coulomb_gradient.slice(s![3*m_i.n_atoms..]).to_owned();
@@ -569,7 +569,7 @@ impl SuperSystem {
                     }
                     else{
                         let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
-                            c_mat_virts.view(),
+                            c_mat_occs.view(),
                             esd_pair.properties.s().unwrap(),
                             esd_pair.properties.grad_s().unwrap(),
                             esd_pair.properties.gamma_ao().unwrap(),
@@ -581,7 +581,7 @@ impl SuperSystem {
                         )
                             .into_shape([3 * n_atoms, orbs_i * orbs_i])
                             .unwrap()
-                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+                            .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
 
                         let gradient_j = coulomb_gradient.slice(s![..3*m_j.n_atoms]).to_owned();
                         let gradient_i = coulomb_gradient.slice(s![3*m_j.n_atoms..]).to_owned();
@@ -592,7 +592,57 @@ impl SuperSystem {
             }
             // electron i on I, electron k on J, hole j on J, hole l on I
             CTCoupling::IJJI => {
+                // Only real pair gradient, ESD gradient is zero
+                if type_ij == PairType::Pair{
+                    // get the index of the pair
+                    let pair_index:usize = self.properties.index_of_pair(i.monomer.index,j.monomer.index);
+                    // get the pair from pairs vector
+                    let pair: &mut Pair = &mut self.pairs[pair_index];
+                    // monomers
+                    let m_i: &Monomer = &self.monomers[pair.i];
+                    let m_j: &Monomer = &self.monomers[pair.j];
+                    let n_atoms:usize = m_i.n_atoms + m_j.n_atoms;
+                    let orbs_i:usize = m_i.n_orbs;
+                    let orbs_j:usize = m_j.n_orbs;
 
+                    let pair_atoms: Vec<Atom> = get_pair_slice(
+                        &self.atoms,
+                        m_i.slice.atom_as_range(),
+                        m_j.slice.atom_as_range(),
+                    );
+                    // calculate S,dS, gamma_AO and dgamma_AO of the pair
+                    pair.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
+
+                    // MO coefficients of the virtual orbitals:
+                    // shape: orbs_i, orbs_j
+                    let c_mat_virts:Array2<f64> = into_col(i.mo.c.to_owned())
+                        .dot(&into_row(k.mo.c.to_owned()));
+                    // MO coefficients of the occupied orbitals:
+                    // shape: orbs_j, orbs_i
+                    let c_mat_occs:Array2<f64> = into_col(j.mo.c.to_owned())
+                        .dot(&into_row(l.mo.c.to_owned()));
+
+                    if m_j.index == j.idx{
+                        // calculate the gradient of the coulomb integral
+                        let coulomb_gradient:Array1<f64> = f_coul_ct_ct_ijji(
+                            c_mat_virts.view(),
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j
+                        ).into_shape([3 * n_atoms, orbs_j * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_i]).unwrap());
+
+                        // calculate the gradient of the exchange integral
+                    }
+                    else{
+                        // Do the same but switch slice orders in functions
+                    }
+                }
             }
             // electrons i,k on I, hole j on J, hole l on K
             CTCoupling::IJIK => {

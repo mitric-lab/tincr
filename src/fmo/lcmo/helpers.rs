@@ -537,3 +537,70 @@ pub fn f_exchange_ct_ct_ijij(
     }
     return f_return;
 }
+
+pub fn f_coul_ct_ct_ijji(
+    v: ArrayView2<f64>,
+    s: ArrayView2<f64>,
+    grad_s: ArrayView3<f64>,
+    g0_ao: ArrayView2<f64>,
+    g1_ao: ArrayView3<f64>,
+    n_atoms: usize,
+    n_orb_i: usize,
+    n_orb_j:usize,
+) -> Array3<f64> {
+    /// This function calculates the coulomb and exchange integral gradient
+    /// for the CT-CT coupling type IJJI
+    /// The shape of the input array v is [orbs_i,orbs_j]
+    /// The shape of the output array is [3*n_atoms,orbs_j,orbs_i]
+
+    // slice the overlap and gamma matrix
+    let s_ij:ArrayView2<f64> = s.slice(s![..n_orb_i,n_orb_i..]);
+    let g_i:ArrayView2<f64> = g0_ao.slice(s![..n_orb_i,..n_orb_i]);
+    let g_j:ArrayView2<f64> = g0_ao.slice(s![n_orb_i..,n_orb_i..]);
+    let g_ij:ArrayView2<f64> = g0_ao.slice(s![..n_orb_i,n_orb_i..]);
+
+    // calculate specific terms
+    let v_s_0:Array1<f64> = (&v*&s).sum_axis(Axis(0));
+    let v_s_1:Array1<f64> = (&v*&s).sum_axis(Axis(1));
+    let g_ji_vs:Array1<f64> = g_ij.t().dot(&v_s_1);
+    let g_j_vs:Array1<f64> = g_j.dot(&v_s_0);
+    let g_i_vs:Array1<f64> = g_i.dot(&v_s_1);
+    let g_ij_vs:Array1<f64> = g_ij.dot(&v_s_0);
+
+    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_i));
+
+    for nc in 0..3 * n_atoms {
+        // slice the gradient of the overlap and the gradient of the gamma matrix
+        let ds_ij:ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, n_orb_i..]);
+        let dg_i: ArrayView2<f64> = g1_ao.slice(s![nc, ..n_orb_i, ..n_orb_i]);
+        let dg_j: ArrayView2<f64> = g1_ao.slice(s![nc, n_orb_i.., n_orb_i..]);
+        let dg_ij:ArrayView2<f64> = g1_ao.slice(s![nc, ..n_orb_i, n_orb_i..]);
+
+        // calculate specific terms
+        let dg_ji_vs:Array1<f64> = dg_ij.t().dot(&v_s_1);
+        let dg_j_vs:Array1<f64> = dg_j.dot(&v_s_0);
+        let dg_i_vs:Array1<f64> = dg_i.dot(&v_s_1);
+        let dg_ij_vs:Array1<f64> = dg_ij.dot(&v_s_0);
+        let v_ds_0:Array1<f64> = (&v*&ds_ij).sum_axis(Axis(0));
+        let v_ds_1:Array1<f64> = (&v*&ds_ij).sum_axis(Axis(1));
+        let g_ji_vds:Array1<f64> = g_ij.t().dot(&v_ds_1);
+        let g_j_vds:Array1<f64> = g_j.dot(&v_ds_0);
+        let g_i_vds:Array1<f64> = g_i.dot(&v_s_1);
+        let g_ij_vds:Array1<f64> = g_ij.dot(&v_ds_0);
+
+        let mut d_f: Array2<f64> = Array2::zeros((n_orb_j, n_orb_i));
+
+        for j in 0..n_orb_j {
+            for i in 0..n_orb_i {
+                d_f[[j,i]] += ds_ij[[i,j]] * (g_ji_vs[j] + g_j_vs[j] + g_i_vs[i] + g_ij_vs[i])
+                +s_ij[[i,j]] * (dg_ji_vs[j] + dg_j_vs[j] + dg_i_vs[i] + dg_ij_vs[i]
+                + g_ji_vds[j] + g_j_vds[j] + g_i_vds[i] + g_ij_vds[i]);
+            }
+        }
+        d_f = d_f * 0.25;
+
+        f_return.slice_mut(s![nc, .., ..]).assign(&d_f);
+    }
+
+    return f_return;
+}
