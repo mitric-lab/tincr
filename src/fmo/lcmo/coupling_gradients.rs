@@ -444,7 +444,7 @@ impl SuperSystem {
                     // Check if the monomers of the CT have the same order as the pair
                     let (grad_i,grad_j) = if pair.i == i.monomer.index{
                         let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
-                            c_mat_virts.view(),
+                            c_mat_occs.view(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_ao().unwrap(),
@@ -456,10 +456,10 @@ impl SuperSystem {
                         )
                             .into_shape([3 * n_atoms, orbs_i * orbs_i])
                             .unwrap()
-                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+                            .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
 
                         let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijij(
-                            c_mat_virts.view(),
+                            c_mat_occs.view(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_ao().unwrap(),
@@ -470,7 +470,7 @@ impl SuperSystem {
                             true
                         ).into_shape([3 * n_atoms, orbs_i * orbs_i])
                             .unwrap()
-                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+                            .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
 
                         let gradient:Array1<f64> = 2.0* exchange_gradient - coulomb_gradient;
                         let gradient_i = gradient.slice(s![..3*m_i.n_atoms]).to_owned();
@@ -480,7 +480,7 @@ impl SuperSystem {
                     }
                     else{
                         let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
-                            c_mat_virts.view(),
+                            c_mat_occs.view(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_ao().unwrap(),
@@ -492,10 +492,10 @@ impl SuperSystem {
                         )
                             .into_shape([3 * n_atoms, orbs_i * orbs_i])
                             .unwrap()
-                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+                            .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
 
                         let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijij(
-                            c_mat_virts.view(),
+                            c_mat_occs.view(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_ao().unwrap(),
@@ -503,10 +503,10 @@ impl SuperSystem {
                             n_atoms,
                             orbs_i,
                             orbs_j,
-                            true
+                            false
                         ).into_shape([3 * n_atoms, orbs_i * orbs_i])
                             .unwrap()
-                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+                            .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
 
                         let gradient:Array1<f64> = 2.0* exchange_gradient - coulomb_gradient;
                         let gradient_j = gradient.slice(s![..3*m_j.n_atoms]).to_owned();
