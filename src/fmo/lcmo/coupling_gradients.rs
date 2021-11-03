@@ -6,7 +6,7 @@ use crate::fmo::{Pair,ESDPair};
 use ndarray::prelude::*;
 use crate::fmo::helpers::get_pair_slice;
 use std::net::UdpSocket;
-use crate::fmo::lcmo::helpers::{f_le_ct_coulomb, f_lr_le_ct_exchange_hole_i, f_lr_le_ct_exchange_hole_j, f_le_le_coulomb, f_lr_le_le_exchange, f_coulomb_ct_ct_ijij, f_exchange_ct_ct_ijij, f_coul_ct_ct_ijji};
+use crate::fmo::lcmo::helpers::{f_le_ct_coulomb, f_lr_le_ct_exchange_hole_i, f_lr_le_ct_exchange_hole_j, f_le_le_coulomb, f_lr_le_le_exchange, f_coulomb_ct_ct_ijij, f_exchange_ct_ct_ijij, f_coul_ct_ct_ijji, f_exchange_ct_ct_ijji};
 use crate::fmo::lcmo::integrals::CTCoupling;
 use ndarray_linalg::{into_col, into_row};
 
@@ -632,15 +632,62 @@ impl SuperSystem {
                             pair.properties.grad_gamma_ao().unwrap(),
                             n_atoms,
                             orbs_i,
-                            orbs_j
+                            orbs_j,
+                            true,
                         ).into_shape([3 * n_atoms, orbs_j * orbs_i])
                             .unwrap()
                             .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_i]).unwrap());
 
                         // calculate the gradient of the exchange integral
+                        let exchange_gradient:Array1<f64> = f_exchange_ct_ct_ijji(
+                            c_mat_virts.view(),
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            true,
+                        ).into_shape([3 * n_atoms, orbs_j * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_i]).unwrap());
+
+                        let gradient:Array1<f64> = 2.0* exchange_gradient - coulomb_gradient;
                     }
                     else{
-                        // Do the same but switch slice orders in functions
+                        // calculate the gradient of the coulomb integral
+                        // c_mats must be transposed if the monomer index J is the CT index I
+                        let coulomb_gradient:Array1<f64> = f_coul_ct_ct_ijji(
+                            c_mat_virts.t(),
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            false,
+                        ).into_shape([3 * n_atoms, orbs_j * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.t().into_shape([orbs_j * orbs_i]).unwrap());
+
+                        // calculate the gradient of the exchange integral
+                        let exchange_gradient:Array1<f64> = f_exchange_ct_ct_ijji(
+                            c_mat_virts.t(),
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                            false,
+                        ).into_shape([3 * n_atoms, orbs_j * orbs_i])
+                            .unwrap()
+                            .dot(&c_mat_occs.t().into_shape([orbs_j * orbs_i]).unwrap());
+
+                        let gradient:Array1<f64> = 2.0* exchange_gradient - coulomb_gradient;
                     }
                 }
             }
