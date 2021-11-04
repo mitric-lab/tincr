@@ -377,15 +377,17 @@ impl SuperSystem {
         }
         // < LE I_ia | H | CT K_j -> J_b >
         else{
-            // The integral (ia|jb) requires that the overlap between K and J is non-zero.
-            // coulomb
-            if type_jk == PairType::Pair {
+            // neglect this contribution
 
-            }
-            // exchange
-            if type_ik == PairType::Pair && type_ij == PairType::Pair {
-
-            }
+            // // The integral (ia|jb) requires that the overlap between K and J is non-zero.
+            // // coulomb
+            // if type_jk == PairType::Pair {
+            //
+            // }
+            // // exchange
+            // if type_ik == PairType::Pair && type_ij == PairType::Pair {
+            //
+            // }
         }
     }
 
@@ -643,8 +645,8 @@ impl SuperSystem {
                             c_mat_virts.view(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
-                            pair.properties.gamma_ao().unwrap(),
-                            pair.properties.grad_gamma_ao().unwrap(),
+                            pair.properties.gamma_lr_ao().unwrap(),
+                            pair.properties.grad_gamma_lr_ao().unwrap(),
                             n_atoms,
                             orbs_i,
                             orbs_j,
@@ -677,8 +679,8 @@ impl SuperSystem {
                             c_mat_virts.t(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
-                            pair.properties.gamma_ao().unwrap(),
-                            pair.properties.grad_gamma_ao().unwrap(),
+                            pair.properties.gamma_lr_ao().unwrap(),
+                            pair.properties.grad_gamma_lr_ao().unwrap(),
                             n_atoms,
                             orbs_i,
                             orbs_j,
@@ -693,23 +695,23 @@ impl SuperSystem {
             }
             // electrons i,k on I, hole j on J, hole l on K
             CTCoupling::IJIK => {
-
+                // neglect this type of coupling
             }
             // electron i on I, electron k on J, hole j on J, hole l on K
             CTCoupling::IJJK => {
-
+                // neglect this type of coupling
             }
             // electron i on I, electron k on K, hole j on J, hole l on I
             CTCoupling::IJKI => {
-
+                // neglect this type of coupling
             }
             // electron i on I, electron k on K, hole j on J, hole l on J
             CTCoupling::IJKJ => {
-
+                // neglect this type of coupling
             }
             // electron i on I, electron k on K, hole j on J, hole l on L
             CTCoupling::IJKL => {
-
+                // neglect this type of coupling
             }
         }
     }
