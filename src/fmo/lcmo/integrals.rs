@@ -273,7 +273,7 @@ impl SuperSystem {
                         // SJK SIJ
                         let s_jk: ArrayView2<f64> = self
                             .properties
-                            .s_slice(j.monomer.slice.orb, k.monomer.slice.orb)
+                            .s_slice(j.monomer.slice.orb, l.monomer.slice.orb)
                             .unwrap();
                         let s_ij: ArrayView2<f64> = self
                             .properties
