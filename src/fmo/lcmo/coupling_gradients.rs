@@ -12,7 +12,6 @@ use crate::fmo::{ESDPair, Pair};
 use crate::initialization::Atom;
 use ndarray::prelude::*;
 use ndarray_linalg::{into_col, into_row};
-use std::net::UdpSocket;
 
 impl SuperSystem {
     pub fn exciton_coupling_gradient<'a>(
