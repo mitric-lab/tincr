@@ -200,4 +200,207 @@ impl SuperSystem {
 
         return val;
     }
+
+    pub fn exciton_ct_ct_coupling(
+        &mut self,
+        ind_i: usize,
+        ind_j: usize,
+        ct_i: usize,
+        ct_j: usize,
+        hole_i: bool,
+        ind_a: usize,
+        ind_b: usize,
+        ct_a: usize,
+        ct_b: usize,
+        hole_a: bool,
+    ) -> f64 {
+        let hamiltonian = self.build_lcmo_fock_matrix();
+        self.properties.set_lcmo_fock(hamiltonian);
+        // Reference to the atoms of the total system.
+        let atoms: &[Atom] = &self.atoms[..];
+
+        // get monomers for the first CT state
+        let m_i: &Monomer = &self.monomers[ind_i];
+        let m_j: &Monomer = &self.monomers[ind_j];
+
+        // get occupied and virtual orbitals for the first CT state
+        let mut occs: &[usize];
+        let mut virts: &[usize];
+        let mut hole: MO;
+        let mut elec: MO;
+
+        let state_1: BasisState = if hole_i {
+            // Indices of the occupied orbitals of Monomer J.
+            occs = m_i.properties.occ_indices().unwrap();
+            // Indices of the virtual orbitals of Monomer J.
+            virts = m_j.properties.virt_indices().unwrap();
+            // set ct indices
+            let nocc: usize = occs.len();
+            let occ: usize = occs[nocc - 1 - ct_i];
+            let virt: usize = virts[ct_j];
+
+            // create hole and electron
+            hole = MO::new(
+                m_i.properties.mo_coeff(occ).unwrap(),
+                m_i.properties.orbe().unwrap()[occ],
+                occ,
+                m_i.properties.occupation().unwrap()[occ],
+            );
+            elec = MO::new(
+                m_j.properties.mo_coeff(virt).unwrap(),
+                m_j.properties.orbe().unwrap()[virt],
+                virt,
+                m_j.properties.occupation().unwrap()[virt],
+            );
+
+            BasisState::CT(ChargeTransfer {
+                // system: &self,
+                hole: Particle {
+                    idx: m_i.index,
+                    atoms: &atoms[m_i.slice.atom_as_range()],
+                    monomer: &m_i,
+                    mo: hole,
+                },
+                electron: Particle {
+                    idx: m_j.index,
+                    atoms: &atoms[m_j.slice.atom_as_range()],
+                    monomer: &m_j,
+                    mo: elec,
+                },
+            })
+        } else {
+            // Indices of the occupied orbitals of Monomer J.
+            occs = m_j.properties.occ_indices().unwrap();
+            // Indices of the virtual orbitals of Monomer J.
+            virts = m_i.properties.virt_indices().unwrap();
+            // set ct indices
+            let nocc: usize = occs.len();
+            let occ: usize = occs[nocc - 1 - ct_j];
+            let virt: usize = virts[ct_i];
+
+            // create hole and electron
+            hole = MO::new(
+                m_j.properties.mo_coeff(occ).unwrap(),
+                m_j.properties.orbe().unwrap()[occ],
+                occ,
+                m_j.properties.occupation().unwrap()[occ],
+            );
+            elec = MO::new(
+                m_i.properties.mo_coeff(virt).unwrap(),
+                m_i.properties.orbe().unwrap()[virt],
+                virt,
+                m_i.properties.occupation().unwrap()[virt],
+            );
+
+            BasisState::CT(ChargeTransfer {
+                // system: &self,
+                hole: Particle {
+                    idx: m_j.index,
+                    atoms: &atoms[m_j.slice.atom_as_range()],
+                    monomer: &m_j,
+                    mo: hole,
+                },
+                electron: Particle {
+                    idx: m_i.index,
+                    atoms: &atoms[m_i.slice.atom_as_range()],
+                    monomer: &m_i,
+                    mo: elec,
+                },
+            })
+        };
+
+        // get monomers for the second CT state
+        let m_a: &Monomer = &self.monomers[ind_a];
+        let m_b: &Monomer = &self.monomers[ind_b];
+
+        // get occupied and virtual orbitals for the second CT state
+        let mut occs: &[usize];
+        let mut virts: &[usize];
+        let mut hole: MO;
+        let mut elec: MO;
+
+        let state_2: BasisState = if hole_a {
+            // Indices of the occupied orbitals of Monomer J.
+            occs = m_a.properties.occ_indices().unwrap();
+            // Indices of the virtual orbitals of Monomer J.
+            virts = m_b.properties.virt_indices().unwrap();
+            // set ct indices
+            let nocc: usize = occs.len();
+            let occ: usize = occs[nocc - 1 - ct_a];
+            let virt: usize = virts[ct_b];
+
+            // create hole and electron
+            hole = MO::new(
+                m_a.properties.mo_coeff(occ).unwrap(),
+                m_a.properties.orbe().unwrap()[occ],
+                occ,
+                m_a.properties.occupation().unwrap()[occ],
+            );
+            elec = MO::new(
+                m_b.properties.mo_coeff(virt).unwrap(),
+                m_b.properties.orbe().unwrap()[virt],
+                virt,
+                m_b.properties.occupation().unwrap()[virt],
+            );
+
+            BasisState::CT(ChargeTransfer {
+                // system: &self,
+                hole: Particle {
+                    idx: m_a.index,
+                    atoms: &atoms[m_a.slice.atom_as_range()],
+                    monomer: &m_a,
+                    mo: hole,
+                },
+                electron: Particle {
+                    idx: m_b.index,
+                    atoms: &atoms[m_b.slice.atom_as_range()],
+                    monomer: &m_b,
+                    mo: elec,
+                },
+            })
+        } else {
+            // Indices of the occupied orbitals of Monomer J.
+            occs = m_b.properties.occ_indices().unwrap();
+            // Indices of the virtual orbitals of Monomer J.
+            virts = m_a.properties.virt_indices().unwrap();
+            // set ct indices
+            let nocc: usize = occs.len();
+            let occ: usize = occs[nocc - 1 - ct_b];
+            let virt: usize = virts[ct_a];
+
+            // create hole and electron
+            hole = MO::new(
+                m_b.properties.mo_coeff(occ).unwrap(),
+                m_b.properties.orbe().unwrap()[occ],
+                occ,
+                m_b.properties.occupation().unwrap()[occ],
+            );
+            elec = MO::new(
+                m_a.properties.mo_coeff(virt).unwrap(),
+                m_a.properties.orbe().unwrap()[virt],
+                virt,
+                m_a.properties.occupation().unwrap()[virt],
+            );
+
+            BasisState::CT(ChargeTransfer {
+                // system: &self,
+                hole: Particle {
+                    idx: m_b.index,
+                    atoms: &atoms[m_b.slice.atom_as_range()],
+                    monomer: &m_b,
+                    mo: hole,
+                },
+                electron: Particle {
+                    idx: m_a.index,
+                    atoms: &atoms[m_a.slice.atom_as_range()],
+                    monomer: &m_a,
+                    mo: elec,
+                },
+            })
+        };
+
+        let val: f64 = self.exciton_coupling(&state_1, &state_2);
+
+        return val;
+    }
 }
