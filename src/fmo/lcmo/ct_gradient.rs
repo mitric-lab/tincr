@@ -1,10 +1,13 @@
 use crate::fmo::helpers::get_pair_slice;
-use crate::fmo::{Monomer, Pair, SuperSystem, GroundStateGradient, PairType, ESDPair, BasisState, ChargeTransfer, Particle};
+use crate::fmo::{
+    BasisState, ChargeTransfer, ESDPair, GroundStateGradient, Monomer, Pair, PairType, Particle,
+    SuperSystem,
+};
 use crate::initialization::{Atom, MO};
-use crate::scc::gamma_approximation::{gamma_atomwise_ab};
+use crate::scc::gamma_approximation::gamma_atomwise_ab;
+use crate::scc::h0_and_s::h0_and_s_ab;
 use ndarray::prelude::*;
 use std::ops::AddAssign;
-use crate::scc::h0_and_s::h0_and_s_ab;
 
 impl SuperSystem {
     pub fn ct_gradient_new(
@@ -13,20 +16,20 @@ impl SuperSystem {
         index_j: usize,
         ct_ind_i: usize,
         ct_ind_j: usize,
-        ct_energy:f64,
-        hole_i:bool,
-    )->Array1<f64>{
+        ct_energy: f64,
+        hole_i: bool,
+    ) -> Array1<f64> {
         // get monomers
         let m_i: &Monomer = &self.monomers[index_i];
         let m_j: &Monomer = &self.monomers[index_j];
 
         // get pair type
-        let pair_type:PairType = self.properties.type_of_pair(index_i, index_j);
-        let mut ct_gradient:Array1<f64> = Array1::zeros([3*(m_i.n_atoms+m_j.n_atoms)]);
+        let pair_type: PairType = self.properties.type_of_pair(index_i, index_j);
+        let mut ct_gradient: Array1<f64> = Array1::zeros([3 * (m_i.n_atoms + m_j.n_atoms)]);
 
-        if pair_type == PairType::Pair{
+        if pair_type == PairType::Pair {
             // get pair index
-            let pair_index:usize = self.properties.index_of_pair(index_i,index_j);
+            let pair_index: usize = self.properties.index_of_pair(index_i, index_j);
             // get correct pair from pairs vector
             let pair_ij: &mut Pair = &mut self.pairs[pair_index];
             // get pair atoms
@@ -36,16 +39,15 @@ impl SuperSystem {
                 m_j.slice.atom_as_range(),
             );
 
-            pair_ij.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
-            pair_ij.prepare_ct_state(&pair_atoms,m_i,m_j,ct_ind_i,ct_ind_j,ct_energy,hole_i);
+            pair_ij.prepare_lcmo_gradient(&pair_atoms, m_i, m_j);
+            pair_ij.prepare_ct_state(&pair_atoms, m_i, m_j, ct_ind_i, ct_ind_j, ct_energy, hole_i);
             ct_gradient = pair_ij.tda_gradient_lc(0);
             // reset gradient specific properties
             pair_ij.properties.reset_gradient();
-        }
-        else{
+        } else {
             // Do something for ESD pairs
             // get pair index
-            let pair_index:usize = self.properties.index_of_esd_pair(index_i,index_j);
+            let pair_index: usize = self.properties.index_of_esd_pair(index_i, index_j);
             // get correct pair from pairs vector
             let pair_ij: &mut ESDPair = &mut self.esd_pairs[pair_index];
             // get pair atoms
@@ -56,11 +58,11 @@ impl SuperSystem {
             );
 
             // do a scc calculation of the ESD pair
-            pair_ij.prepare_scc(&pair_atoms,m_i,m_j);
-            pair_ij.run_scc(&pair_atoms,self.config.scf);
+            pair_ij.prepare_scc(&pair_atoms, m_i, m_j);
+            pair_ij.run_scc(&pair_atoms, self.config.scf);
 
             pair_ij.prepare_lcmo_gradient(&pair_atoms);
-            pair_ij.prepare_ct_state(&pair_atoms,m_i,m_j,ct_ind_i,ct_ind_j,ct_energy,hole_i);
+            pair_ij.prepare_ct_state(&pair_atoms, m_i, m_j, ct_ind_i, ct_ind_j, ct_energy, hole_i);
             ct_gradient = pair_ij.tda_gradient_nolc(0);
             pair_ij.properties.reset();
         }
@@ -70,13 +72,12 @@ impl SuperSystem {
 
     pub fn exciton_ct_energy(
         &mut self,
-        index_i:usize,
-        index_j:usize,
-        ct_ind_i:usize,
-        ct_ind_j:usize,
-        hole_i:bool,
-    ) -> f64
-    {
+        index_i: usize,
+        index_j: usize,
+        ct_ind_i: usize,
+        ct_ind_j: usize,
+        hole_i: bool,
+    ) -> f64 {
         let hamiltonian = self.build_lcmo_fock_matrix();
         self.properties.set_lcmo_fock(hamiltonian);
         // Reference to the atoms of the total system.
@@ -87,30 +88,34 @@ impl SuperSystem {
         let m_j: &Monomer = &self.monomers[index_j];
 
         // get occupied and virtual orbitals
-        let mut occs:&[usize];
-        let mut virts:&[usize];
-        let mut hole:MO;
-        let mut elec:MO;
+        let mut occs: &[usize];
+        let mut virts: &[usize];
+        let mut hole: MO;
+        let mut elec: MO;
 
-        let state:BasisState = if hole_i{
+        let state: BasisState = if hole_i {
             // Indices of the occupied orbitals of Monomer J.
             occs = m_i.properties.occ_indices().unwrap();
             // Indices of the virtual orbitals of Monomer J.
             virts = m_j.properties.virt_indices().unwrap();
             // set ct indices
-            let nocc:usize = occs.len();
-            let occ:usize = occs[nocc-1-ct_ind_i];
-            let virt:usize = virts[ct_ind_j];
+            let nocc: usize = occs.len();
+            let occ: usize = occs[nocc - 1 - ct_ind_i];
+            let virt: usize = virts[ct_ind_j];
 
             // create hole and electron
-            hole = MO::new(m_i.properties.mo_coeff(occ).unwrap(),
-                           m_i.properties.orbe().unwrap()[occ],
-                           occ,
-                           m_i.properties.occupation().unwrap()[occ]);
-            elec = MO::new(m_j.properties.mo_coeff(virt).unwrap(),
-                           m_j.properties.orbe().unwrap()[virt],
-                           virt,
-                           m_j.properties.occupation().unwrap()[virt]);
+            hole = MO::new(
+                m_i.properties.mo_coeff(occ).unwrap(),
+                m_i.properties.orbe().unwrap()[occ],
+                occ,
+                m_i.properties.occupation().unwrap()[occ],
+            );
+            elec = MO::new(
+                m_j.properties.mo_coeff(virt).unwrap(),
+                m_j.properties.orbe().unwrap()[virt],
+                virt,
+                m_j.properties.occupation().unwrap()[virt],
+            );
 
             BasisState::CT(ChargeTransfer {
                 // system: &self,
@@ -125,27 +130,31 @@ impl SuperSystem {
                     atoms: &atoms[m_j.slice.atom_as_range()],
                     monomer: &m_j,
                     mo: elec,
-                }
+                },
             })
-        } else{
+        } else {
             // Indices of the occupied orbitals of Monomer J.
             occs = m_j.properties.occ_indices().unwrap();
             // Indices of the virtual orbitals of Monomer J.
             virts = m_i.properties.virt_indices().unwrap();
             // set ct indices
-            let nocc:usize = occs.len();
-            let occ:usize = occs[nocc-1-ct_ind_j];
-            let virt:usize = virts[ct_ind_i];
+            let nocc: usize = occs.len();
+            let occ: usize = occs[nocc - 1 - ct_ind_j];
+            let virt: usize = virts[ct_ind_i];
 
             // create hole and electron
-            hole = MO::new(m_j.properties.mo_coeff(occ).unwrap(),
-                           m_j.properties.orbe().unwrap()[occ],
-                           occ,
-                           m_j.properties.occupation().unwrap()[occ]);
-            elec = MO::new(m_i.properties.mo_coeff(virt).unwrap(),
-                           m_i.properties.orbe().unwrap()[virt],
-                           virt,
-                           m_i.properties.occupation().unwrap()[virt]);
+            hole = MO::new(
+                m_j.properties.mo_coeff(occ).unwrap(),
+                m_j.properties.orbe().unwrap()[occ],
+                occ,
+                m_j.properties.occupation().unwrap()[occ],
+            );
+            elec = MO::new(
+                m_i.properties.mo_coeff(virt).unwrap(),
+                m_i.properties.orbe().unwrap()[virt],
+                virt,
+                m_i.properties.occupation().unwrap()[virt],
+            );
 
             BasisState::CT(ChargeTransfer {
                 // system: &self,
@@ -160,10 +169,10 @@ impl SuperSystem {
                     atoms: &atoms[m_i.slice.atom_as_range()],
                     monomer: &m_i,
                     mo: elec,
-                }
+                },
             })
         };
-        let val:f64 = self.exciton_coupling(&state,&state);
+        let val: f64 = self.exciton_coupling(&state, &state);
 
         return val;
     }
@@ -180,14 +189,14 @@ impl SuperSystem {
         // Compute the n_le excited states for each monomer.
         for mol in self.monomers.iter_mut() {
             mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
-            mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le,  max_iter, tolerance);
+            mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le, max_iter, tolerance);
         }
 
         // Construct the diabatic basis states.
         let states: Vec<BasisState> = self.create_diab_basis();
 
-        let ct_state = &states[2*n_le];
-        let val:f64 = self.exciton_coupling(ct_state,ct_state);
+        let ct_state = &states[2 * n_le];
+        let val: f64 = self.exciton_coupling(ct_state, ct_state);
 
         return val;
     }

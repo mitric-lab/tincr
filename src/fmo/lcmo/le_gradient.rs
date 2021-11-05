@@ -1,21 +1,19 @@
-use crate::fmo::{Monomer, SuperSystem, ExcitonStates, BasisState, LocallyExcited, ExcitedStateMonomerGradient};
-use crate::initialization::{Atom, MO};
-use ndarray::prelude::*;
-use nalgebra::{max, Vector3};
 use crate::excited_states::tda::*;
-use ndarray_linalg::{Eigh, UPLO};
-use std::fmt::{Display, Formatter};
 use crate::excited_states::ExcitedState;
+use crate::fmo::{
+    BasisState, ExcitedStateMonomerGradient, ExcitonStates, LocallyExcited, Monomer, SuperSystem,
+};
+use crate::initialization::{Atom, MO};
 use crate::io::settings::LcmoConfig;
-use ndarray_npy::write_npy;
 use crate::utils::Timer;
+use nalgebra::{max, Vector3};
+use ndarray::prelude::*;
+use ndarray_linalg::{Eigh, UPLO};
+use ndarray_npy::write_npy;
+use std::fmt::{Display, Formatter};
 
-impl SuperSystem{
-    pub fn exciton_le_energy(
-        &mut self,
-        monomer_index:usize,
-        state:usize,
-    )->f64{
+impl SuperSystem {
+    pub fn exciton_le_energy(&mut self, monomer_index: usize, state: usize) -> f64 {
         let lcmo_config: LcmoConfig = self.config.lcmo.clone();
         // Number of LE states per monomer.
         let n_le: usize = lcmo_config.n_le;
@@ -29,10 +27,10 @@ impl SuperSystem{
         let mol = &mut self.monomers[monomer_index];
         // Compute the excited states for the monomer.
         mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
-        mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le,  max_iter, tolerance);
+        mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le, max_iter, tolerance);
 
         // switch to immutable borrow for the monomer
-        let mol= &self.monomers[monomer_index];
+        let mol = &self.monomers[monomer_index];
 
         // Calculate transition charges
         let homo: usize = mol.properties.homo().unwrap();
@@ -40,26 +38,22 @@ impl SuperSystem{
 
         // Create the LE state
         let tdm: ArrayView1<f64> = mol.properties.ci_coefficient(state).unwrap();
-        let le_state:BasisState = BasisState::LE(LocallyExcited {
+        let le_state: BasisState = BasisState::LE(LocallyExcited {
             monomer: mol,
             n: state,
             atoms: &atoms[mol.slice.atom_as_range()],
             q_trans: q_ov.dot(&tdm),
-            occs: mol.properties.orbs_slice(0, Some(homo+1)).unwrap(),
+            occs: mol.properties.orbs_slice(0, Some(homo + 1)).unwrap(),
             virts: mol.properties.orbs_slice(homo + 1, None).unwrap(),
             tdm: tdm,
             tr_dipole: mol.properties.tr_dipole(state).unwrap(),
         });
 
-        let val:f64 = self.exciton_coupling(&le_state,&le_state);
+        let val: f64 = self.exciton_coupling(&le_state, &le_state);
         return val;
     }
 
-    pub fn exciton_le_gradient(
-        &mut self,
-        monomer_index:usize,
-        state:usize,
-    )->Array1<f64>{
+    pub fn exciton_le_gradient(&mut self, monomer_index: usize, state: usize) -> Array1<f64> {
         let lcmo_config: LcmoConfig = self.config.lcmo.clone();
         // Number of LE states per monomer.
         let n_le: usize = lcmo_config.n_le;
@@ -75,7 +69,7 @@ impl SuperSystem{
         let mol = &mut self.monomers[monomer_index];
         // Compute the excited states for the monomer.
         mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
-        mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le,  max_iter, tolerance);
+        mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le, max_iter, tolerance);
 
         // calculate the gradient
         mol.prepare_excited_gradient(&atoms[mol.slice.atom_as_range()]);
