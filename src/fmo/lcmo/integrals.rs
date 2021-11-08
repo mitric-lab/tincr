@@ -11,6 +11,7 @@ use ndarray::{concatenate, Slice};
 use ndarray_linalg::Trace;
 use peroxide::fuga::gamma;
 use crate::fmo::PairType::Pair;
+use crate::fmo::lcmo::cis_gradient::ReducedParticle;
 
 impl SuperSystem {
     pub fn exciton_coupling<'a>(&self, lhs: &'a BasisState<'a>, rhs: &'a BasisState<'a>) -> f64 {
@@ -538,6 +539,51 @@ impl<'a> From<(&Particle<'a>, &Particle<'a>, &Particle<'a>, &Particle<'a>)> for 
         // The indices that provide the index of the corresponding monomers.
         let (a, b): (usize, usize) = (i.idx, j.idx);
         let (c, d): (usize, usize) = (k.idx, l.idx);
+        // IJ | IJ
+        if a == c && b == d {
+            // println!("Coupling kind: IJIJ");
+            Self::IJIJ
+        }
+        // IJ | JI
+        else if a == d && b == c {
+            // println!("Coupling kind: IJJI");
+            Self::IJJI
+        }
+        // IJ | IK
+        else if a == c {
+            // println!("Coupling kind: IJIK");
+            Self::IJIK
+        }
+        // IJ | JK
+        else if b == c {
+            // println!("Coupling kind: IJJK");
+            Self::IJJK
+        }
+        // IJ | KI
+        else if a == d {
+            // println!("Coupling kind: IJKI");
+            Self::IJKI
+        }
+        // IJ | KJ
+        else if b == d {
+            // println!("Coupling kind: IJKJ");
+            Self::IJKJ
+        }
+        // IJ | KL
+        else {
+            // println!("Coupling kind: IJKL");
+            Self::IJKL
+        }
+    }
+}
+
+impl From<(&ReducedParticle, &ReducedParticle, &ReducedParticle, &ReducedParticle)> for CTCoupling {
+    fn from(
+        (i, j, k, l): (&ReducedParticle, &ReducedParticle, &ReducedParticle, &ReducedParticle),
+    ) -> Self {
+        // The indices that provide the index of the corresponding monomers.
+        let (a, b): (usize, usize) = (i.m_index, j.m_index);
+        let (c, d): (usize, usize) = (k.m_index, l.m_index);
         // IJ | IJ
         if a == c && b == d {
             // println!("Coupling kind: IJIJ");
