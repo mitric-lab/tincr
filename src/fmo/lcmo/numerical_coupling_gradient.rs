@@ -69,7 +69,7 @@ impl SuperSystem {
             SuperSystem::fmo_le_le_coupling_energy_wrapper,
             SuperSystem::fmo_le_le_coupling_gradient_wrapper,
             self.get_xyz(),
-            0.001,
+            0.01,
             1e-6,
         );
     }
@@ -148,7 +148,7 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let val: f64 = self.exciton_ct_ct_coupling(0, 1, 0, 0, true, 1, 0, 0, 0, true);
+        let val: f64 = self.exciton_ct_ct_coupling(0, 1, 0, 0, true, 0, 1, 1, 1, true);
         return val;
     }
 
@@ -164,7 +164,7 @@ impl SuperSystem {
         self.run_scc();
 
         let grad: Array1<f64> =
-            self.exciton_ct_ct_coupling_gradient(0, 1, 0, 0, true, 1, 0, 0, 0, true);
+            self.exciton_ct_ct_coupling_gradient(0, 1, 0, 0, true, 0, 1, 1, 1, true);
         let mol_a: &Monomer = &self.monomers[0];
         let mol_b: &Monomer = &self.monomers[1];
 
@@ -977,7 +977,6 @@ impl SuperSystem {
                 state_coefficient: 0.0,
             })
         };
-
         let grad: Array1<f64> = self.exciton_coupling_gradient_new(&state_1, &state_2);
         return grad;
     }

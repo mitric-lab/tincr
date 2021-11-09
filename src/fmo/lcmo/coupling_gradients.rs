@@ -1,10 +1,6 @@
 use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::lcmo::cis_gradient::{ReducedBasisState, ReducedCT, ReducedLE, ReducedParticle};
-use crate::fmo::lcmo::helpers::{
-    f_coul_ct_ct_ijji, f_coulomb_ct_ct_ijij, f_exchange_ct_ct_ijij, f_exchange_ct_ct_ijji,
-    f_le_ct_coulomb, f_le_le_coulomb, f_lr_le_ct_exchange_hole_i, f_lr_le_ct_exchange_hole_j,
-    f_lr_le_le_exchange,
-};
+use crate::fmo::lcmo::helpers::*;
 use crate::fmo::lcmo::integrals::CTCoupling;
 use crate::fmo::{
     BasisState, ChargeTransfer, LocallyExcited, Monomer, PairType, Particle, SuperSystem, LRC,
@@ -556,8 +552,9 @@ impl SuperSystem {
 
                     // Check if the monomers of the CT have the same order as the pair
                     let grad = if pair.i == i.m_index {
+                        println!("Index I is pair index I");
                         let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
-                            c_mat_occs.view(),
+                            c_mat_virts.view(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_ao().unwrap(),
@@ -567,31 +564,64 @@ impl SuperSystem {
                             orbs_j,
                             true,
                         )
-                        .into_shape([3 * n_atoms, orbs_i * orbs_i])
+                        .into_shape([3 * n_atoms, orbs_j * orbs_j])
                         .unwrap()
-                        .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
+                        .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap());
+
+                        let coulomb_integral:Array5<f64> = f_coulomb_ct_ct_ijij_loop(
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                        );
+                        let coulomb_grad:Array1<f64> = coulomb_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
+                            .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        println!("coulomb gradient: {}",coulomb_gradient.slice(s![0..10]));
+                        println!("coulomb grad loop: {}",coulomb_grad.slice(s![0..10]));
+                        assert!(coulomb_gradient.abs_diff_eq(&coulomb_grad,1e-14),"Coulomb gradients are NOT equal!");
 
                         let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijij(
-                            c_mat_occs.view(),
+                            c_mat_virts.t(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
-                            pair.properties.gamma_ao().unwrap(),
-                            pair.properties.grad_gamma_ao().unwrap(),
+                            pair.properties.gamma_lr_ao().unwrap(),
+                            pair.properties.grad_gamma_lr_ao().unwrap(),
                             n_atoms,
                             orbs_i,
                             orbs_j,
                             true,
                         )
-                        .into_shape([3 * n_atoms, orbs_i * orbs_i])
+                        .into_shape([3 * n_atoms, orbs_j * orbs_j])
                         .unwrap()
-                        .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
+                        .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap());
 
+                        let exchange_integral:Array5<f64> = f_exchange_ct_ct_ijij_loop(
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_lr_ao().unwrap(),
+                            pair.properties.grad_gamma_lr_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                        );
+                        let exchange_grad:Array1<f64> = exchange_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
+                            .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
+                        assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Coulomb gradients are NOT equal!");
+
+                        // add the coulomb and exchange gradient
                         let gradient: Array1<f64> = 2.0 * exchange_gradient - coulomb_gradient;
 
                         gradient
                     } else {
+                        println!("Index J is pair index I");
                         let coulomb_gradient: Array1<f64> = f_coulomb_ct_ct_ijij(
-                            c_mat_occs.view(),
+                            c_mat_virts.view(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_ao().unwrap(),
@@ -603,14 +633,31 @@ impl SuperSystem {
                         )
                         .into_shape([3 * n_atoms, orbs_i * orbs_i])
                         .unwrap()
-                        .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
+                        .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        let coulomb_integral:Array5<f64> = f_coulomb_ct_ct_ijij_loop(
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            pair.properties.grad_gamma_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                        );
+                        let coulomb_grad:Array1<f64> = coulomb_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
+                            .dot(&c_mat_virts.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+
+                        println!("coulomb gradient: {}",coulomb_gradient.slice(s![0..10]));
+                        println!("coulomb grad loop: {}",coulomb_grad.slice(s![0..10]));
+                        assert!(coulomb_gradient.abs_diff_eq(&coulomb_grad,1e-14),"Coulomb gradients are NOT equal!");
 
                         let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijij(
-                            c_mat_occs.view(),
+                            c_mat_virts.t(),
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
-                            pair.properties.gamma_ao().unwrap(),
-                            pair.properties.grad_gamma_ao().unwrap(),
+                            pair.properties.gamma_lr_ao().unwrap(),
+                            pair.properties.grad_gamma_lr_ao().unwrap(),
                             n_atoms,
                             orbs_i,
                             orbs_j,
@@ -618,8 +665,23 @@ impl SuperSystem {
                         )
                         .into_shape([3 * n_atoms, orbs_i * orbs_i])
                         .unwrap()
-                        .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
+                        .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
 
+                        let exchange_integral:Array5<f64> = f_exchange_ct_ct_ijij_loop(
+                            pair.properties.s().unwrap(),
+                            pair.properties.grad_s().unwrap(),
+                            pair.properties.gamma_lr_ao().unwrap(),
+                            pair.properties.grad_gamma_lr_ao().unwrap(),
+                            n_atoms,
+                            orbs_i,
+                            orbs_j,
+                        );
+                        let exchange_grad:Array1<f64> = exchange_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
+                            .dot(&c_mat_virts.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
+                            .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+                        assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Coulomb gradients are NOT equal!");
+
+                        // add the coulomb and exchange gradient
                         let gradient: Array1<f64> = 2.0 * exchange_gradient - coulomb_gradient;
 
                         gradient
@@ -750,7 +812,6 @@ impl SuperSystem {
                         .into_shape([3 * n_atoms, orbs_j * orbs_i])
                         .unwrap()
                         .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_i]).unwrap());
-
                         // calculate the gradient of the exchange integral
                         let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijji(
                             c_mat_virts.view(),
