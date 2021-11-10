@@ -21,10 +21,10 @@ pub fn f_le_ct_coulomb(
         (s_i, s_ij, g_i, g_ij)
     } else {
         // The pair indices are JI -> J < I
-        let s_i: ArrayView2<f64> = s.slice(s![n_orb_j.., n_orb_j..]);
-        let s_ij: ArrayView2<f64> = s.slice(s![n_orb_j.., ..n_orb_j]);
-        let g_i: ArrayView2<f64> = g0_pair_ao.slice(s![n_orb_j.., n_orb_j..]);
-        let g_ij: ArrayView2<f64> = g0_pair_ao.slice(s![n_orb_j.., ..n_orb_j]);
+        let s_i: ArrayView2<f64> = s.slice(s![n_orb_i.., n_orb_i..]);
+        let s_ij: ArrayView2<f64> = s.slice(s![n_orb_i.., ..n_orb_i]);
+        let g_i: ArrayView2<f64> = g0_pair_ao.slice(s![n_orb_i.., n_orb_i..]);
+        let g_ij: ArrayView2<f64> = g0_pair_ao.slice(s![n_orb_i.., ..n_orb_i]);
 
         (s_i, s_ij, g_i, g_ij)
     };
@@ -33,7 +33,12 @@ pub fn f_le_ct_coulomb(
     let gi_sv: Array1<f64> = g_i.dot(&si_v);
     let gij_sv: Array1<f64> = g_ij.dot(&si_v);
 
-    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_j));
+    let mut f_return: Array3<f64>;
+    if bool_ij{
+        f_return = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_j));;
+    }else{
+        f_return = Array3::zeros((3 * n_atoms, n_orb_j, n_orb_i));
+    }
 
     for nc in 0..3 * n_atoms {
         let (ds_i, ds_ij, dg_i, dg_ij) = if bool_ij {
@@ -44,10 +49,10 @@ pub fn f_le_ct_coulomb(
 
             (ds_i, ds_ij, dg_i, dg_ij)
         } else {
-            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j.., n_orb_j..]);
-            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j.., ..n_orb_j]);
-            let dg_i: ArrayView2<f64> = g1_pair_ao.slice(s![nc, n_orb_j.., n_orb_j..]);
-            let dg_ij: ArrayView2<f64> = g1_pair_ao.slice(s![nc, n_orb_j.., ..n_orb_j]);
+            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_i.., n_orb_i..]);
+            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_i.., ..n_orb_i]);
+            let dg_i: ArrayView2<f64> = g1_pair_ao.slice(s![nc, n_orb_i.., n_orb_i..]);
+            let dg_ij: ArrayView2<f64> = g1_pair_ao.slice(s![nc, n_orb_i.., ..n_orb_i]);
 
             (ds_i, ds_ij, dg_i, dg_ij)
         };
@@ -57,12 +62,17 @@ pub fn f_le_ct_coulomb(
         let dgi_sv: Array1<f64> = dg_i.dot(&si_v);
         let dgij_sv: Array1<f64> = dg_ij.dot(&si_v);
 
-        let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_j));
+        let mut d_f: Array2<f64>;
+        if bool_ij{
+            d_f = Array2::zeros((n_orb_i, n_orb_j));;
+        }else{
+            d_f = Array2::zeros((n_orb_j, n_orb_i));
+        }
 
         for b in 0..n_orb_i {
             for a in 0..n_orb_j {
-                d_f[[b, a]] = 2.0 * ds_ij[[b, a]] * (gi_sv[b] + gij_sv[a])
-                    + 2.0 * s_ij[[b, a]] * (gi_dsv[b] + gij_dsv[a] + dgi_sv[b] + dgij_sv[a]);
+                d_f[[b, a]] += ds_ij[[b, a]] * (gi_sv[b] + gij_sv[a])
+                    + s_ij[[b, a]] * (gi_dsv[b] + gij_dsv[a] + dgi_sv[b] + dgij_sv[a]);
             }
         }
         d_f = d_f * 0.25;
@@ -378,7 +388,7 @@ pub fn f_lr_le_le_exchange(
     return f_return;
 }
 
-pub fn f_coulomb_ct_ct_ijij_loop(
+pub fn f_coulomb_loop(
     s: ArrayView2<f64>,
     grad_s: ArrayView3<f64>,
     g0_ao: ArrayView2<f64>,
@@ -413,7 +423,7 @@ pub fn f_coulomb_ct_ct_ijij_loop(
     return integral;
 }
 
-pub fn f_exchange_ct_ct_ijij_loop(
+pub fn f_exchange_loop(
     s: ArrayView2<f64>,
     grad_s: ArrayView3<f64>,
     g0_ao: ArrayView2<f64>,

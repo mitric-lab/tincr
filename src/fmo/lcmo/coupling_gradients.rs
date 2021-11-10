@@ -73,8 +73,6 @@ impl SuperSystem {
             .unwrap();
         let occs_i = mol_i.properties.orbs_slice(0, Some(i.homo + 1)).unwrap();
         let virts_i = mol_i.properties.orbs_slice(i.homo + 1, None).unwrap();
-        let tdm_i: Array2<f64> = occs_i.dot(&cis_c_i.dot(&virts_i.t()));
-        let n_orbs_i: usize = mol_i.n_orbs;
 
         let nocc_j = mol_j.properties.n_occ().unwrap();
         let nvirt_j = mol_j.properties.n_virt().unwrap();
@@ -86,7 +84,17 @@ impl SuperSystem {
             .unwrap();
         let occs_j = mol_j.properties.orbs_slice(0, Some(j.homo + 1)).unwrap();
         let virts_j = mol_j.properties.orbs_slice(j.homo + 1, None).unwrap();
-        let tdm_j: Array2<f64> = occs_j.dot(&cis_c_j.dot(&virts_j.t()));
+
+        let mut tdm_i:Array2<f64>;
+        let mut tdm_j:Array2<f64>;
+        if i.monomer_index < j.monomer_index{
+            tdm_i = occs_i.dot(&cis_c_i.dot(&virts_i.t()));
+            tdm_j = occs_j.dot(&cis_c_j.dot(&virts_j.t()));
+        }
+        else{
+            tdm_j = occs_i.dot(&cis_c_i.dot(&virts_i.t()));
+            tdm_i = occs_j.dot(&cis_c_j.dot(&virts_j.t()));
+        }
 
         let n_atoms: usize = mol_i.n_atoms + mol_j.n_atoms;
         let mut gradient: Array1<f64> = Array1::zeros(3 * n_atoms);
@@ -104,6 +112,8 @@ impl SuperSystem {
             // monomers
             let m_i: &Monomer = &self.monomers[pair.i];
             let m_j: &Monomer = &self.monomers[pair.j];
+            let n_orbs_i: usize = m_i.n_orbs;
+            let n_orbs_j: usize = m_j.n_orbs;
 
             let pair_atoms: Vec<Atom> = get_pair_slice(
                 &self.atoms,
@@ -132,6 +142,25 @@ impl SuperSystem {
             .unwrap()
             .dot(&tdm_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
+            let coulomb_integral:Array5<f64> = f_coulomb_loop(
+                pair.properties.s().unwrap(),
+                pair.properties.grad_s().unwrap(),
+                pair.properties.gamma_ao().unwrap(),
+                pair.properties.grad_gamma_ao().unwrap(),
+                pair.n_atoms,
+                n_orbs_i,
+                n_orbs_j
+            );
+            let coulomb_grad:Array1<f64> = coulomb_integral.view()
+                .into_shape([3*n_atoms*n_orbs_i*n_orbs_i,n_orbs_j*n_orbs_j]).unwrap()
+                .dot(&tdm_j.view().into_shape([n_orbs_j*n_orbs_j]).unwrap())
+                .into_shape([3*n_atoms,n_orbs_i*n_orbs_i]).unwrap()
+                .dot(&tdm_i.view().into_shape([n_orbs_i*n_orbs_i]).unwrap());
+
+            println!("coulomb gradient: {}",coulomb_gradient.slice(s![0..10]));
+            println!("coulomb grad loop: {}",coulomb_grad.slice(s![0..10]));
+            assert!(coulomb_gradient.abs_diff_eq(&coulomb_grad,1e-14),"LE-LE coulomb gradient is wrong!");
+
             // Exchange: S, dS, gamma_AO_lr and dgamma_AO_lr of the pair necessary
             let exchange_gradient: Array1<f64> = f_lr_le_le_exchange(
                 tdm_j.t(),
@@ -147,6 +176,25 @@ impl SuperSystem {
             .unwrap()
             .dot(&tdm_i.view().into_shape([n_orbs_i * n_orbs_i]).unwrap());
 
+            let exchange_integral:Array5<f64> = f_exchange_loop(
+                pair.properties.s().unwrap(),
+                pair.properties.grad_s().unwrap(),
+                pair.properties.gamma_lr_ao().unwrap(),
+                pair.properties.grad_gamma_lr_ao().unwrap(),
+                pair.n_atoms,
+                n_orbs_i,
+                n_orbs_j
+            );
+            let exchange_grad:Array1<f64> = exchange_integral.view()
+                .into_shape([3*n_atoms*n_orbs_i*n_orbs_i,n_orbs_j*n_orbs_j]).unwrap()
+                .dot(&tdm_j.view().into_shape([n_orbs_j*n_orbs_j]).unwrap())
+                .into_shape([3*n_atoms,n_orbs_i*n_orbs_i]).unwrap()
+                .dot(&tdm_i.view().into_shape([n_orbs_i*n_orbs_i]).unwrap());
+
+            println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
+            println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
+            assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"LE-LE exchange gradient is wrong!");
+
             gradient = 2.0 * coulomb_gradient - exchange_gradient;
             pair.properties.reset_gradient();
         } else {
@@ -160,6 +208,8 @@ impl SuperSystem {
             // monomers
             let m_i: &Monomer = &self.monomers[esd_pair.i];
             let m_j: &Monomer = &self.monomers[esd_pair.j];
+            let n_orbs_i: usize = m_i.n_orbs;
+            let n_orbs_j: usize = m_j.n_orbs;
 
             // get pair atoms
             let esd_pair_atoms: Vec<Atom> = get_pair_slice(
@@ -238,7 +288,6 @@ impl SuperSystem {
         let occs = mol_i.properties.orbs_slice(0, Some(i.homo + 1)).unwrap();
         let virts = mol_i.properties.orbs_slice(i.homo + 1, None).unwrap();
         let tdm: Array2<f64> = occs.dot(&cis_c.dot(&virts.t()));
-        let n_orbs_i: usize = mol_i.n_orbs;
 
         // initialize return value
         let mut return_gradient: Array1<f64> = Array1::zeros(mol_i.n_atoms);
@@ -257,6 +306,7 @@ impl SuperSystem {
                 let m_i: &Monomer = &self.monomers[pair.i];
                 let m_j: &Monomer = &self.monomers[pair.j];
                 let n_atoms: usize = m_i.n_atoms + m_j.n_atoms;
+                let n_orbs_i: usize = m_i.n_orbs;
                 let n_orbs_j: usize = m_j.n_orbs;
 
                 let pair_atoms: Vec<Atom> = get_pair_slice(
@@ -371,6 +421,7 @@ impl SuperSystem {
                 let m_i: &Monomer = &self.monomers[pair.i];
                 let m_j: &Monomer = &self.monomers[pair.j];
                 let n_atoms: usize = m_i.n_atoms + m_j.n_atoms;
+                let n_orbs_i: usize = m_i.n_orbs;
                 let n_orbs_j: usize = m_j.n_orbs;
 
                 let pair_atoms: Vec<Atom> = get_pair_slice(
@@ -438,10 +489,10 @@ impl SuperSystem {
                         n_orbs_j,
                         false,
                     )
-                    .into_shape([3 * n_atoms * n_orbs_i, n_orbs_j])
+                    .into_shape([3 * n_atoms * n_orbs_j, n_orbs_i])
                     .unwrap()
                     .dot(&j.electron.mo.c)
-                    .into_shape([3 * n_atoms, n_orbs_i])
+                    .into_shape([3 * n_atoms, n_orbs_j])
                     .unwrap()
                     .dot(&j.hole.mo.c);
 
@@ -457,10 +508,10 @@ impl SuperSystem {
                         n_orbs_j,
                         false,
                     )
-                    .into_shape([3 * n_atoms * n_orbs_i, n_orbs_j])
+                    .into_shape([3 * n_atoms * n_orbs_j, n_orbs_i])
                     .unwrap()
                     .dot(&j.electron.mo.c)
-                    .into_shape([3 * n_atoms, n_orbs_i])
+                    .into_shape([3 * n_atoms, n_orbs_j])
                     .unwrap()
                     .dot(&j.hole.mo.c);
 
@@ -568,7 +619,7 @@ impl SuperSystem {
                         .unwrap()
                         .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap());
 
-                        let coulomb_integral:Array5<f64> = f_coulomb_ct_ct_ijij_loop(
+                        let coulomb_integral:Array5<f64> = f_coulomb_loop(
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_ao().unwrap(),
@@ -600,7 +651,7 @@ impl SuperSystem {
                         .unwrap()
                         .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap());
 
-                        let exchange_integral:Array5<f64> = f_exchange_ct_ct_ijij_loop(
+                        let exchange_integral:Array5<f64> = f_exchange_loop(
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_lr_ao().unwrap(),
@@ -635,7 +686,7 @@ impl SuperSystem {
                         .unwrap()
                         .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
 
-                        let coulomb_integral:Array5<f64> = f_coulomb_ct_ct_ijij_loop(
+                        let coulomb_integral:Array5<f64> = f_coulomb_loop(
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_ao().unwrap(),
@@ -667,7 +718,7 @@ impl SuperSystem {
                         .unwrap()
                         .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
 
-                        let exchange_integral:Array5<f64> = f_exchange_ct_ct_ijij_loop(
+                        let exchange_integral:Array5<f64> = f_exchange_loop(
                             pair.properties.s().unwrap(),
                             pair.properties.grad_s().unwrap(),
                             pair.properties.gamma_lr_ao().unwrap(),
