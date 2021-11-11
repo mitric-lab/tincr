@@ -290,12 +290,11 @@ impl SuperSystem {
         let tdm: Array2<f64> = occs.dot(&cis_c.dot(&virts.t()));
 
         // initialize return value
-        let mut return_gradient: Array1<f64> = Array1::zeros(mol_i.n_atoms);
-
+        let mut return_gradient: Array1<f64> = Array1::zeros(3*mol_i.n_atoms);
         // < LE I | H | CT J_j -> I_b>
         if i.monomer_index == j.electron.m_index {
             // Check if the pair IK is close, so that the overlap is non-zero.
-            if type_ik == PairType::Pair {
+            if type_ij == PairType::Pair {
                 // get the index of the pair
                 let pair_index: usize = self
                     .properties
@@ -410,7 +409,7 @@ impl SuperSystem {
             }
         } else if i.monomer_index == j.hole.m_index {
             // Check if the pair IJ is close, so that the overlap is non-zero.
-            if type_ij == PairType::Pair {
+            if type_ik == PairType::Pair {
                 // get the index of the pair
                 let pair_index: usize = self
                     .properties
@@ -453,6 +452,25 @@ impl SuperSystem {
                     .unwrap()
                     .dot(&j.hole.mo.c);
 
+                    let coulomb_integral:Array5<f64> = f_le_ct_coulomb_loop(
+                        pair.properties.s().unwrap(),
+                        pair.properties.grad_s().unwrap(),
+                        pair.properties.gamma_lr_ao().unwrap(),
+                        pair.properties.grad_gamma_lr_ao().unwrap(),
+                        n_atoms,
+                        n_orbs_i,
+                        n_orbs_j
+                    );
+                    let coulomb_grad:Array1<f64> = coulomb_integral.view()
+                        .into_shape([3*n_atoms*n_orbs_i*n_orbs_i*n_orbs_i,n_orbs_j]).unwrap()
+                        .dot(&j.electron.mo.c).into_shape([3*n_atoms*n_orbs_i*n_orbs_i,n_orbs_i]).unwrap()
+                        .dot(&j.hole.mo.c).into_shape([3*n_atoms,n_orbs_i*n_orbs_i]).unwrap()
+                        .dot(&tdm.view().into_shape([n_orbs_i*n_orbs_i]).unwrap());
+
+                    println!("coulomb gradient: {}",coulomb_gradient.slice(s![0..10]));
+                    println!("coulomb grad loop: {}",coulomb_grad.slice(s![0..10]));
+                    assert!(coulomb_gradient.abs_diff_eq(&coulomb_grad,1e-14),"LE-LE coulomb gradient is wrong!");
+
                     // calculate the gradient of the exchange integral
                     let exchange_gradient: Array1<f64> = f_lr_le_ct_exchange_hole_i(
                         tdm.view(),
@@ -471,6 +489,25 @@ impl SuperSystem {
                     .into_shape([3 * n_atoms, n_orbs_i])
                     .unwrap()
                     .dot(&j.hole.mo.c);
+
+                    let exchange_integral:Array5<f64> = f_le_ct_exchange_loop(
+                        pair.properties.s().unwrap(),
+                        pair.properties.grad_s().unwrap(),
+                        pair.properties.gamma_lr_ao().unwrap(),
+                        pair.properties.grad_gamma_lr_ao().unwrap(),
+                        n_atoms,
+                        n_orbs_i,
+                        n_orbs_j
+                    );
+                    let exchange_grad:Array1<f64> = exchange_integral.view()
+                        .into_shape([3*n_atoms*n_orbs_i*n_orbs_i*n_orbs_i,n_orbs_j]).unwrap()
+                        .dot(&j.electron.mo.c).into_shape([3*n_atoms*n_orbs_i*n_orbs_i,n_orbs_i]).unwrap()
+                        .dot(&j.hole.mo.c).into_shape([3*n_atoms,n_orbs_i*n_orbs_i]).unwrap()
+                        .dot(&tdm.view().into_shape([n_orbs_i*n_orbs_i]).unwrap());
+
+                    println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
+                    println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
+                    assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"LE-LE exchange gradient is wrong!");
 
                     let gradient: Array1<f64> = 2.0 * coulomb_gradient - exchange_gradient;
 
