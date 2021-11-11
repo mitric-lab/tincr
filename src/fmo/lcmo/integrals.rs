@@ -419,7 +419,7 @@ impl SuperSystem {
         // < LE I | H | CT J_j -> I_b>
         if i.monomer.index == j.electron.idx {
             // Check if the pair IK is close, so that the overlap is non-zero.
-            if type_ik == PairType::Pair {
+            if type_ij == PairType::Pair {
                 // Overlap matrix between monomer I and J.
                 let s_ij: ArrayView2<f64> = self.properties.s_slice(j.electron.monomer.slice.orb, j.hole.monomer.slice.orb).unwrap();
 
@@ -449,7 +449,7 @@ impl SuperSystem {
         // < LE I | H | CT I -> J >
         } else if i.monomer.index == j.hole.idx {
             // Check if the pair IJ is close, so that the overlap is non-zero.
-            if type_ij == PairType::Pair {
+            if type_ik == PairType::Pair {
                 // Overlap matrix between monomer I and J.
                 let s_ij: ArrayView2<f64> = self.properties.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb).unwrap();
 
