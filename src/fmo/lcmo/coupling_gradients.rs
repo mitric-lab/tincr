@@ -373,10 +373,10 @@ impl SuperSystem {
                         n_orbs_j,
                         false,
                     )
-                    .into_shape([3 * n_atoms * n_orbs_i, n_orbs_j])
+                    .into_shape([3 * n_atoms * n_orbs_j, n_orbs_i])
                     .unwrap()
                     .dot(&j.hole.mo.c)
-                    .into_shape([3 * n_atoms, n_orbs_i])
+                    .into_shape([3 * n_atoms, n_orbs_j])
                     .unwrap()
                     .dot(&j.electron.mo.c);
 
@@ -392,7 +392,7 @@ impl SuperSystem {
                         n_orbs_j,
                         false,
                     )
-                    .into_shape([3 * n_atoms * n_orbs_i, n_orbs_j])
+                    .into_shape([3 * n_atoms * n_orbs_j, n_orbs_i])
                     .unwrap()
                     .dot(&j.hole.mo.c)
                     .into_shape([3 * n_atoms, n_orbs_i])

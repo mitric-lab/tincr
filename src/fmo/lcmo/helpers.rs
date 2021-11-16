@@ -66,14 +66,21 @@ pub fn f_le_ct_coulomb(
         let mut d_f: Array2<f64>;
         if bool_ij{
             d_f = Array2::zeros((n_orb_i, n_orb_j));;
+
+            for b in 0..n_orb_i {
+                for a in 0..n_orb_j {
+                    d_f[[b, a]] += ds_ij[[b, a]] * (gi_sv[b] + gij_sv[a])
+                        + s_ij[[b, a]] * (gi_dsv[b] + gij_dsv[a] + dgi_sv[b] + dgij_sv[a]);
+                }
+            }
         }else{
             d_f = Array2::zeros((n_orb_j, n_orb_i));
-        }
 
-        for b in 0..n_orb_i {
-            for a in 0..n_orb_j {
-                d_f[[b, a]] += ds_ij[[b, a]] * (gi_sv[b] + gij_sv[a])
-                    + s_ij[[b, a]] * (gi_dsv[b] + gij_dsv[a] + dgi_sv[b] + dgij_sv[a]);
+            for b in 0..n_orb_j {
+                for a in 0..n_orb_i {
+                    d_f[[b, a]] += ds_ij[[b, a]] * (gi_sv[b] + gij_sv[a])
+                        + s_ij[[b, a]] * (gi_dsv[b] + gij_dsv[a] + dgi_sv[b] + dgij_sv[a]);
+                }
             }
         }
         d_f = d_f * 0.25;
@@ -210,10 +217,10 @@ pub fn f_lr_le_ct_exchange_hole_j(
 
         (s_i, s_ij, g_i, g_ij)
     } else {
-        let s_i: ArrayView2<f64> = s.slice(s![n_orb_j.., n_orb_j..]);
-        let s_ij: ArrayView2<f64> = s.slice(s![n_orb_j.., ..n_orb_j]);
-        let g_i: ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j.., n_orb_j..]);
-        let g_ij: ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_j.., ..n_orb_j]);
+        let s_i: ArrayView2<f64> = s.slice(s![n_orb_i.., n_orb_i..]);
+        let s_ij: ArrayView2<f64> = s.slice(s![n_orb_i.., ..n_orb_i]);
+        let g_i: ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_i.., n_orb_i..]);
+        let g_ij: ArrayView2<f64> = g0_lr_a0.slice(s![n_orb_i.., ..n_orb_i]);
 
         (s_i, s_ij, g_i, g_ij)
     };
@@ -222,22 +229,25 @@ pub fn f_lr_le_ct_exchange_hole_j(
     let gi_v: Array2<f64> = &g_i * &v;
     // for term 1
     let gi_v_si: Array2<f64> = gi_v.dot(&s_i);
-    // for term 4,10
-    let v_si: Array2<f64> = v.dot(&s_i);
     // for term 2
     let v_sij: Array2<f64> = v.dot(&s_ij);
+    // for term 4,10
+    let v_si: Array2<f64> = v.dot(&s_i);
     // for term 5
     let gi_v_sij: Array2<f64> = gi_v.t().dot(&s_ij);
-    // for term 7, 11, 12
+    // for term 7,8 11, 12
     let vt_sij: Array2<f64> = v.t().dot(&s_ij);
     // for term 7
     let gij_vt_sij: Array2<f64> = &g_ij * &vt_sij;
-    // for term 8
-    let sij_v: Array2<f64> = s_ij.t().dot(&v);
     // for term 12
     let si_t_vt_sij: Array2<f64> = s_i.t().dot(&vt_sij);
 
-    let mut f_return: Array3<f64> = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_i));
+    let mut f_return: Array3<f64>;
+    if bool_ij{
+        f_return = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_j));
+    }else{
+        f_return = Array3::zeros((3 * n_atoms, n_orb_j, n_orb_i));
+    }
 
     for nc in 0..3 * n_atoms {
         let (ds_i, ds_ij, dg_i, dg_ij) = if bool_ij {
@@ -248,21 +258,26 @@ pub fn f_lr_le_ct_exchange_hole_j(
 
             (ds_i, ds_ij, dg_i, dg_ij)
         } else {
-            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j.., n_orb_j..]);
-            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_j.., ..n_orb_j]);
-            let dg_i: ArrayView2<f64> = g1_lr_ao.slice(s![nc, n_orb_j.., n_orb_j..]);
-            let dg_ij: ArrayView2<f64> = g1_lr_ao.slice(s![nc, n_orb_j.., ..n_orb_j]);
+            let ds_i: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_i.., n_orb_i..]);
+            let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, n_orb_i.., ..n_orb_i]);
+            let dg_i: ArrayView2<f64> = g1_lr_ao.slice(s![nc, n_orb_i.., n_orb_i..]);
+            let dg_ij: ArrayView2<f64> = g1_lr_ao.slice(s![nc, n_orb_i.., ..n_orb_i]);
 
             (ds_i, ds_ij, dg_i, dg_ij)
         };
 
-        let mut d_f: Array2<f64> = Array2::zeros((n_orb_i, n_orb_j));
+        let mut d_f: Array2<f64>;
+        if bool_ij{
+            d_f = Array2::zeros((n_orb_i, n_orb_j));
+        }else{
+            d_f = Array2::zeros((n_orb_j, n_orb_i));
+        }
         // 1st term
         d_f = d_f + gi_v_si.t().dot(&ds_ij);
         // 2nd term
-        d_f = d_f + g_i.dot(&(&v_sij * &ds_ij));
+        d_f = d_f + g_i.t().dot(&(&v_sij * &ds_ij));
         // 3rd term
-        d_f = d_f + s_i.dot(&(&v.t().dot(&ds_ij) * &g_ij));
+        d_f = d_f + s_i.t().dot(&(&v.t().dot(&ds_ij) * &g_ij));
         // 4th term
         d_f = d_f + v_si.t().dot(&ds_ij) * &g_ij;
         // 5th term
@@ -272,7 +287,7 @@ pub fn f_lr_le_ct_exchange_hole_j(
         // 7th term
         d_f = d_f + ds_i.t().dot(&gij_vt_sij);
         // 8th term
-        d_f = d_f + &ds_i.t().dot(&sij_v.t()) * &g_ij;
+        d_f = d_f + &ds_i.t().dot(&vt_sij) * &g_ij;
         // 9th term
         d_f = d_f + (&dg_i * &v).dot(&s_i).t().dot(&s_ij);
         // 10th term
