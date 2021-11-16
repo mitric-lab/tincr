@@ -120,19 +120,19 @@ pub fn f_lr_le_ct_exchange_hole_i(
     // for term 4, 10
     let v_sij: Array2<f64> = v.dot(&s_ij);
     // for term 5
-    let gi_v_si: Array2<f64> = s_i.dot(&gi_v);
+    let gi_v_si: Array2<f64> = s_i.t().dot(&gi_v);
     // for term 7, 11, 12
     let vt_si: Array2<f64> = v.t().dot(&s_i);
     // for term 7
     let gi_vt_si: Array2<f64> = &g_i * &vt_si;
     // for term 8
-    let si_v: Array2<f64> = s_i.dot(&v);
+    let si_v: Array2<f64> = s_i.t().dot(&v);
     // for term 12
     let vt_si_t_sij: Array2<f64> = vt_si.t().dot(&s_ij);
 
     let mut f_return: Array3<f64>;
     if bool_ij{
-        f_return = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_j));;
+        f_return = Array3::zeros((3 * n_atoms, n_orb_i, n_orb_j));
     }else{
         f_return = Array3::zeros((3 * n_atoms, n_orb_j, n_orb_i));
     }
@@ -165,21 +165,21 @@ pub fn f_lr_le_ct_exchange_hole_i(
         // 2nd term
         d_f = d_f + (&v_si * &ds_i).t().dot(&g_ij);
         // 3rd term
-        d_f = d_f + (&ds_i.dot(&v) * &g_i).dot(&s_ij);
+        d_f = d_f + (&ds_i.t().dot(&v) * &g_i.t()).dot(&s_ij);
         // 4th term
-        d_f = d_f + &ds_i.dot(&v_sij) * &g_ij;
+        d_f = d_f + &ds_i.t().dot(&v_sij) * &g_ij;
         // 5th term
         d_f = d_f + gi_v_si.dot(&ds_ij);
         // 6th term
-        d_f = d_f + s_i.dot(&(&v.dot(&ds_ij) * &g_ij));
+        d_f = d_f + s_i.t().dot(&(&v.dot(&ds_ij) * &g_ij));
         // 7th term
         d_f = d_f + gi_vt_si.t().dot(&ds_ij);
         // 8th term
         d_f = d_f + &si_v.dot(&ds_ij) * &g_ij;
         // 9th term
-        d_f = d_f + s_i.dot(&(&dg_i * &v).dot(&s_ij));
+        d_f = d_f + s_i.t().dot(&(&dg_i * &v).dot(&s_ij));
         // 10th term
-        d_f = d_f + s_i.dot(&(&v_sij * &dg_ij));
+        d_f = d_f + s_i.t().dot(&(&v_sij * &dg_ij));
         // 11th term
         d_f = d_f + (&vt_si * &dg_i).t().dot(&s_ij);
         // 12th term

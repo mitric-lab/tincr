@@ -422,28 +422,21 @@ impl SuperSystem {
             if type_ij == PairType::Pair {
                 // Overlap matrix between monomer I and J.
                 let s_ij: ArrayView2<f64> = self.properties.s_slice(j.electron.monomer.slice.orb, j.hole.monomer.slice.orb).unwrap();
-
                 // Gamma matrix between pair IJ and monomer I. TODO: Check LC
                 let gamma_ij_i: Array2<f64> = self.gamma_ab_c( j.electron.idx, j.hole.idx,i.monomer.index, LRC::ON);
-
                 // q_bj is computed instead of q_jb to use the same overlap and Gamma matrix.
                 let q_bj: Array1<f64> = q_pp(&j.electron, &j.hole, s_ij.view());
-
                 // The two electron integral (ia|jb) is computed.
                 let ia_jb: f64 = qtrans.dot(&gamma_ij_i.t()).dot(&q_bj);
-
                 // Transition charges between all orbitals on I and the hole on J.
                 let q_ij: Array2<f64> = q_le_p(&i, &j.hole, s_ij, ElecHole::Hole);
-
                 // Overlap integral of monomer I.
                 let s_ii: ArrayView2<f64> = i.monomer.properties.s().unwrap();
-
                 // Transition charges betwenn all orbitals on I and the electron on I.
                 let q_ab: Array2<f64> = q_le_p(&i, &j.electron, s_ii, ElecHole::Electron);
 
                 // The two electron integral b_ia (ij|ab) is computed.
-                let ij_ab: f64 = i.tdm.dot(&q_ij.dot(&gamma_ij_i.t().dot(&q_ab)).into_shape([i.occs.ncols() * i.virts.ncols()]).unwrap());
-
+                let ij_ab: f64 = i.tdm.dot(&q_ij.t().dot(&gamma_ij_i.dot(&q_ab)).into_shape([i.occs.ncols() * i.virts.ncols()]).unwrap());
                 2.0 * ia_jb - ij_ab
             } else {0.0} // If overlap IK is zero, the coupling is zero.
         // < LE I | H | CT I -> J >
