@@ -251,6 +251,7 @@ pub static SPIN_COUPLING: phf::Map<u8, f64> = phf_map! {
     6u8  => -0.023,
     7u8  => -0.026,
     8u8  => -0.028,
+    12u8 => -0.0, // imaginary number. False
 };
 
 // Tausymbols of the skf files. They correspond to the different orbital interactions

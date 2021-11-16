@@ -1,7 +1,7 @@
 use crate::fmo::fragmentation::{build_graph, fragmentation, Graph};
 use crate::fmo::helpers::{MolecularSlice, MolIndices, MolIncrements};
 use crate::fmo::{get_pair_type, ESDPair, Monomer, Pair, PairType};
-use crate::initialization::parameters::{RepulsivePotential, SlaterKoster, RepulsivePotentialTable, SlaterKosterTable, SkfHandler};
+use crate::initialization::parameters::{RepulsivePotential, SlaterKoster, SkfHandler, RepulsivePotentialTable, SlaterKosterTable};
 use crate::properties::Properties;
 use crate::initialization::{get_unique_atoms, initialize_gamma_function, Atom, Geometry, get_unique_atoms_mio};
 use crate::io::{frame_to_atoms, frame_to_coordinates, read_file_to_frame, Configuration};
