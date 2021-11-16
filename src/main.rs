@@ -16,7 +16,7 @@ use toml;
 use crate::io::MoldenExporterBuilder;
 use ndarray::prelude::*;
 use crate::defaults::CONFIG_FILE_NAME;
-use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter};
+use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter,read_dynamic_input,create_dynamics_data};
 use chemfiles::Frame;
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
@@ -26,7 +26,7 @@ use crate::excited_states::ExcitedState;
 use crate::utils::Timer;
 use ndarray::{Array2, Array1};
 use crate::scc::scc_routine_unrestricted::UnrestrictedSCC;
-
+use rusty_fish::initialization::{DynamicConfiguration, SystemData, Simulation};
 
 use crate::excited_states::davidson::Davidson;
 use crate::excited_states::tda::*;
@@ -41,6 +41,7 @@ use ndarray_npy::write_npy;
 mod constants;
 mod defaults;
 mod io;
+mod dynamics;
 //mod optimization;
 mod initialization;
 mod scc;
@@ -51,6 +52,7 @@ mod excited_states;
 mod gradients;
 mod properties;
 mod optimization;
+mod coupling;
 
 #[macro_use]
 extern crate clap;
@@ -100,20 +102,49 @@ fn main() {
     // and the total wall-time timer is started.
     let timer: Timer = Timer::start();
 
+    // create config for the dynamic simulation
+    let dynamics_config:DynamicConfiguration = read_dynamic_input(&config);
 
     // Computations.
     // ................................................................
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
-        system.prepare_scc();
-        system.run_scc();
+        let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
+        // create the struct which starts the dynamics
+        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        dynamic.verlet_dynamics();
+        // system.prepare_scc();
+        // system.run_scc();
+        // system.optimize_cartesian(Some(1));
+        // system.test_tda_lc_gradient();
         // system.prepare_tda();
-        // system.run_tda(config.excited.nstates, 50, 1e-4);
+        // system.run_tda(config.excited.nstates, 150, 1e-4);
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
-        //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
+        // for atom in system.atoms.iter(){
+        //     print!("{} \t",atom.name);
+        //     for data in atom.xyz.iter(){
+        //         print!("{} \t",data * constants::BOHR_TO_ANGS);
+        //     }
+        //     println!(" ");
+        // }
+        // assert!(1==2);
         system.prepare_scc();
         system.run_scc();
+        system.create_exciton_hamiltonian();
+        // system.test_le_ct_coupling_gradient();
+        // create the struct which starts the dynamics
+        // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
+        // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        // dynamic.verlet_dynamics();
+        //gamma_atomwise(&system.gammafunction, &system.atoms, system.atoms.len());
+        // system.prepare_scc();
+        // system.run_scc();
+        // system.test_le_gradient();
+        // system.test_ct_gradient();
+        // system.optimize_cartesian(Some(1));
+        // system.test_ct_gradient();
+        // system.test_orbital_energy_derivative();
         // let molden_exp: MoldenExporter = MoldenExporterBuilder::default()
         //     .atoms(&system.atoms)
         //     .orbs(system.properties.orbs().unwrap())
@@ -122,7 +153,19 @@ fn main() {
         //     .build()
         //     .unwrap();
 
-        let hamiltonian = system.create_exciton_hamiltonian();
+        // println!("norbs occ {:?}",system.monomers[0].properties.occ_indices());
+        // println!("norbs virt {:?}",system.monomers[0].properties.virt_indices());
+        // write_npy("/home/einseler/Downloads/s_matrix.npy", &system.properties.s().unwrap());
+        // write_npy("/home/einseler/Downloads/gamma_matrix.npy", &system.properties.gamma().unwrap());
+        // write_npy("/home/einseler/Downloads/gamma_lr_matrix.npy", &system.properties.gamma_lr().unwrap());
+        // write_npy("/home/einseler/Downloads/coeff_a.npy", &system.monomers[0].properties.orbs().unwrap());
+        // write_npy("/home/einseler/Downloads/coeff_b.npy", &system.monomers[1].properties.orbs().unwrap());
+        // system.test_orbital_energy_derivative();
+
+        // let hamiltonian = system.create_exciton_hamiltonian();
+        // println!("integral {}",hamiltonian);
+        // let orbital_vec:Vec<usize> = system.atoms.iter().map(|atom| atom.n_orbs).collect();
+        // println!("orbital vec {:?}",orbital_vec);
     }
 
     // let path = Path::new("/Users/hochej/Downloads/test.molden");

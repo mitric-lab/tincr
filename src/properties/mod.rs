@@ -7,7 +7,7 @@ mod taker;
 pub mod base;
 mod getter;
 
-
+#[derive(Debug)]
 pub struct Properties {
     map: HashMap<&'static str, Property>,
 }
@@ -46,6 +46,35 @@ impl Properties {
             "q_vv",
             "xmy",
             "xpy",
+            "omega",
+            "homo",
+            "lumo",
+            "cache",
+            "ci_eigenvalues",
+            "ci_coefficients",
+            "q_trans",
+            "tr_dipoles",
+            "oscillator_strengths",
+            "lcmo_fock",
+        ];
+        for data_name in multi_dim_data.iter() {
+            self.map.remove(*data_name);
+        }
+    }
+
+    pub fn reset_gradient(&mut self) {
+        let multi_dim_data = [
+            "gradH0",
+            "gradS",
+            "gamma_ao_wise",
+            "gamma_lr_ao_wise",
+            "gamma_atom_wise_gradient",
+            "gamma_ao_wise_gradient",
+            "gamma_lr_atom_wise_gradient",
+            "gamma_lr_ao_wise_gradient",
+            "cache",
+            "ci_eigenvalues",
+            "ci_coefficients",
         ];
         for data_name in multi_dim_data.iter() {
             self.map.remove(*data_name);

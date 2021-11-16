@@ -11,8 +11,9 @@ impl System{
         self.properties.reset();
         self.update_xyz(geometry);
         self.prepare_scc();
+        self.run_scc();
         self.prepare_tda();
-        self.run_tda(self.config.excited.nstates, 50, 1e-4);
+        self.run_tda(self.config.excited.nstates, 100, 1e-5);
 
         return self.properties.ci_eigenvalue(0).unwrap();
     }

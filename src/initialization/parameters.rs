@@ -126,7 +126,7 @@ pub struct PseudoAtomMio {
 /// Type that holds the mapping between element pairs and their [SlaterKosterTable].
 /// This is basically a struct that allows to get the [SlaterKosterTable] without a strict
 /// order of the [Element] tuple.
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct SlaterKoster {
     pub map: HashMap<(Element, Element), SlaterKosterTable>,
 }
@@ -158,7 +158,7 @@ impl SlaterKoster {
 }
 
 /// Type that holds the pairwise atomic parameters for the Slater-Koster matrix elements
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct SlaterKosterTable {
     dipole: HashMap<(u8, u8, u8), Vec<f64>>,
     h: HashMap<(u8, u8, u8), Vec<f64>>,
@@ -245,7 +245,7 @@ impl SlaterKosterTable {
 /// Type that holds the mapping between element pairs and their [RepulsivePotentialTable].
 /// This is basically a struct that allows to get the [RepulsivePotentialTable] without a s
 /// order of the [Element] tuple.
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct RepulsivePotential {
     pub map: HashMap<(Element, Element), RepulsivePotentialTable>,
 }
@@ -275,7 +275,7 @@ impl RepulsivePotential {
 
 /// Type that contains the repulsive potential between a pair of atoms and their derivative as
 /// splines.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct RepulsivePotentialTable {
     /// Repulsive energy in Hartree on the grid `d`
     vrep: Vec<f64>,

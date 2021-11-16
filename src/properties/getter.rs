@@ -6,8 +6,30 @@ use crate::fmo::PairType;
 use hashbrown::HashMap;
 use crate::excited_states::ProductCache;
 use nalgebra::Vector3;
+use crate::initialization::Atom;
 
 impl Properties {
+    pub fn old_atoms(&self) -> Option<&[Atom]> {
+        match self.get("old_atoms") {
+            Some(value) => Some(value.as_vec_atom().unwrap()),
+            _=> None,
+        }
+    }
+
+    pub fn old_orbs(&self) -> Option<ArrayView2<f64>> {
+        match self.get("old_orbs") {
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    pub fn old_ci_coeffs(&self) -> Option<ArrayView3<f64>> {
+        match self.get("old_ci_coeffs") {
+            Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference the atomic numbers
     pub fn atomic_numbers(&self) -> Option<&[u8]> {
         match self.get("atomic_numbers") {
@@ -569,6 +591,18 @@ impl Properties {
         }
     }
 
+    /// Get the index of a ESD monomer pair.
+    pub fn index_of_esd_pair(&self, i: usize, j: usize) -> usize {
+        if i == j {
+            panic!("Choose differnt monomers!");
+            0
+        } else {
+            let map: &HashMap<(usize, usize), usize> = self.get("esd_pair_indices").unwrap().as_pair_index_map().unwrap();
+            map.get(&(i, j))
+                .unwrap_or_else(|| map.get(&(j, i)).unwrap()).to_owned()
+        }
+    }
+
     /// Get the coul/lc-Hamiltonian, which is required for the ground state gradient
     pub fn h_coul_x(&self) ->Option<ArrayView2<f64>>{
         match self.get("h_coul_x"){
@@ -597,6 +631,23 @@ impl Properties {
     pub fn f_lr_dmd0(&self) ->Option<ArrayView3<f64>> {
         match self.get("f_lr_dmd0") {
             Some(value) => Some(value.as_array3().unwrap().view()),
+            _ => None,
+        }
+    }
+
+
+    /// Returns a reference to the overlap between orbitals of monomer I and dimer IJ.
+    pub fn s_i_ij(&self)->Option<ArrayView2<f64>>{
+        match self.get("s_i_ij"){
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the overlap between orbitals of monomer J and dimer IJ.
+    pub fn s_j_ij(&self)->Option<ArrayView2<f64>>{
+        match self.get("s_j_ij"){
+            Some(value) => Some(value.as_array2().unwrap().view()),
             _ => None,
         }
     }

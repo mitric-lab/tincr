@@ -5,10 +5,22 @@ use crate::fmo::PairType;
 use crate::scc::mixer::BroydenMixer;
 use crate::properties::Properties;
 use crate::excited_states::ProductCache;
-use crate::initialization::MO;
+use crate::initialization::{MO, Atom};
 
 
 impl Properties {
+
+    pub fn set_old_atoms(&mut self, atoms: Vec<Atom>) {
+        self.set("old_atoms", Property::VecAtom(atoms))
+    }
+
+    pub fn set_old_orbs(&mut self, orbs: Array2<f64>) {
+        self.set("old_orbs", Property::Array2(orbs))
+    }
+
+    pub fn set_old_ci_coeffs(&mut self, ci_coeffs: Array3<f64>) {
+        self.set("old_ci_coeffs", Property::Array3(ci_coeffs))
+    }
 
     /// Set the HashMap that maps to monomers to the type of pair they form.
     pub fn set_pair_types(&mut self, map: HashMap<(usize, usize), PairType>) {
@@ -18,6 +30,11 @@ impl Properties {
     /// Set the HashMap that maps the monomers to the index of the pair they form.
     pub fn set_pair_indices(&mut self, map: HashMap<(usize, usize), usize>) {
         self.set("pair_indices", Property::PairIndexMap(map))
+    }
+
+    /// Set the HashMap that maps the monomers to the index of the ESD pair they form.
+    pub fn set_esd_pair_indices(&mut self, map: HashMap<(usize, usize), usize>) {
+        self.set("esd_pair_indices", Property::PairIndexMap(map))
     }
 
     /// Set the energy of the last scc iteration
@@ -314,6 +331,22 @@ impl Properties {
         self.set(
             "f_lr_dmd0",
             Property::from(f_lr_dmd0),
+        )
+    }
+
+    /// Overlap between orbitals of monomer I and dimer IJ.
+    pub fn set_overlap_i_ij(&mut self, s_i_ij:Array2<f64>){
+        self.set(
+            "s_i_ij",
+            Property::from(s_i_ij),
+        )
+    }
+
+    /// Overlap between orbitals of monomer J and dimer IJ.
+    pub fn set_overlap_j_ij(&mut self, s_j_ij:Array2<f64>){
+        self.set(
+            "s_j_ij",
+            Property::from(s_j_ij),
         )
     }
 }

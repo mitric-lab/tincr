@@ -50,6 +50,7 @@ pub struct MolIncrements {
 }
 
 /// Type that holds different Slices that are frequently used for indexing of molecular subunits
+#[derive(Debug)]
 pub struct MolecularSlice {
     /// [Slice](ndarray::prelude::Slice) for the atoms corresponding to the molecular unit
     pub atom: Slice,

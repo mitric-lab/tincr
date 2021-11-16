@@ -10,11 +10,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+rusty-fish = {path = "../Rusty-FISH/"}
 chemfiles = "0.10"
 ndarray = {version = "0.15.3", features = ["serde-1", "approx", "rayon"]}
 ndarray-npy = "0.8"
 approx = "0.3.2"
-ndarray-linalg = { version = "0.14", features = ["intel-mkl"]}
+ndarray-linalg = { version = "0.14", features = ["netlib-system"]}
 ndarray-stats = "0.5"
 phf = { version = "0.8.0", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -31,7 +32,7 @@ ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
 nalgebra = "0.27.1"
 nshare = {version = "0.7", features = ["ndarray", "nalgebra"]}
-clap = "3.0.0-beta.2"
+clap = "=3.0.0-beta.2"
 toml = "0.5"
 rand = "0.8.3"
 log = "0.4.0"

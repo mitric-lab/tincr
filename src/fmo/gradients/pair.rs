@@ -3,7 +3,7 @@ use crate::fmo::scc::helpers::*;
 use crate::fmo::{Monomer, Pair, SuperSystem};
 use crate::initialization::parameters::RepulsivePotential;
 use crate::initialization::Atom;
-use crate::scc::gamma_approximation::{gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise, gamma_gradients_ao_wise};
+use crate::scc::gamma_approximation::{gamma_ao_wise, gamma_atomwise, gamma_atomwise_ab, gamma_gradients_atomwise, gamma_gradients_ao_wise, gamma_ao_wise_from_gamma_atomwise};
 use crate::scc::h0_and_s::{h0_and_s, h0_and_s_ab, h0_and_s_gradients};
 use crate::scc::mixer::{BroydenMixer, Mixer};
 use crate::scc::mulliken::mulliken;
@@ -213,5 +213,106 @@ impl GroundStateGradient for Pair {
         // Shape of returned Array: [f, n_atoms], f = 3 * n_atoms
         return grad_dq;
     }
+}
 
+impl Pair{
+    pub fn prepare_lcmo_gradient(&mut self,pair_atoms:&[Atom],m_i: &Monomer, m_j: &Monomer){
+        if self.properties.s().is_none() {
+            let mut s: Array2<f64> = Array2::zeros([self.n_orbs, self.n_orbs]);
+            let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) = h0_and_s_ab(
+                m_i.n_orbs,
+                m_j.n_orbs,
+                &pair_atoms[0..m_i.n_atoms],
+                &pair_atoms[m_i.n_atoms..],
+                &m_i.slako,
+            );
+            let mu: usize = m_i.n_orbs;
+            s.slice_mut(s![0..mu, 0..mu])
+                .assign(&m_i.properties.s().unwrap());
+            s.slice_mut(s![mu.., mu..])
+                .assign(&m_j.properties.s().unwrap());
+            s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
+            s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
+
+            self.properties.set_s(s);
+        }
+        // get the gamma matrix
+        if self.properties.gamma().is_none() {
+            let a: usize = m_i.n_atoms;
+            let mut gamma_pair: Array2<f64> = Array2::zeros([self.n_atoms, self.n_atoms]);
+            let gamma_ab: Array2<f64> = gamma_atomwise_ab(
+                &self.gammafunction,
+                &pair_atoms[0..m_i.n_atoms],
+                &pair_atoms[m_j.n_atoms..],
+                m_i.n_atoms,
+                m_j.n_atoms,
+            );
+            gamma_pair
+                .slice_mut(s![0..a, 0..a])
+                .assign(&m_i.properties.gamma().unwrap());
+            gamma_pair
+                .slice_mut(s![a.., a..])
+                .assign(&m_j.properties.gamma().unwrap());
+            gamma_pair.slice_mut(s![0..a, a..]).assign(&gamma_ab);
+            gamma_pair.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
+
+            self.properties.set_gamma(gamma_pair);
+        }
+        // prepare the grad gamma_lr ao matrix
+        if self.gammafunction_lc.is_some(){
+            // calculate the gamma gradient matrix in AO basis
+            let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                pair_atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
+        }
+        // prepare gamma and grad gamma AO matrix
+        let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+            self.properties.gamma().unwrap(),
+            pair_atoms,
+            self.n_orbs
+        );
+        let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+            &self.gammafunction,
+            pair_atoms,
+            self.n_atoms,
+            self.n_orbs,
+        );
+        self.properties.set_grad_gamma(g1);
+        self.properties.set_gamma_ao(g0_ao);
+        self.properties.set_grad_gamma_ao(g1_ao);
+
+        // derivative of H0 and S
+        let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
+        self.properties.set_grad_s(grad_s);
+        self.properties.set_grad_h0(grad_h0);
+    }
+}
+
+impl ESDPair{
+    pub fn prepare_lcmo_gradient(&mut self,pair_atoms:&[Atom]){
+        // prepare gamma and grad gamma AO matrix
+        let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+            self.properties.gamma().unwrap(),
+            pair_atoms,
+            self.n_orbs
+        );
+        let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+            &self.gammafunction,
+            pair_atoms,
+            self.n_atoms,
+            self.n_orbs,
+        );
+        self.properties.set_grad_gamma(g1);
+        self.properties.set_gamma_ao(g0_ao);
+        self.properties.set_grad_gamma_ao(g1_ao);
+
+        // derivative of H0 and S
+        let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
+        self.properties.set_grad_s(grad_s);
+        self.properties.set_grad_h0(grad_h0);
+    }
 }

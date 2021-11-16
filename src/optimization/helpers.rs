@@ -7,6 +7,7 @@ use std::io::{BufWriter, Write};
 use std::fs;
 use crate::constants;
 use serde::{Deserialize, Serialize};
+use crate::fmo::SuperSystem;
 
 // References
 // ----------
@@ -51,7 +52,7 @@ impl System{
     ) -> Array1<f64> {
         // set defaults
         let mut a: f64 = 1.0;
-        let rho: f64 = 0.3;
+        let rho: f64 = 0.8;
         let c: f64 = 0.0001;
         let lmax: usize = 100;
 
@@ -66,7 +67,47 @@ impl System{
 
             // update coordinates
             self.update_xyz(x_interp.clone());
-            // calculate energy and gradient
+            // calculate energy
+            let energy:f64 = self.calculate_energy_line_search(state);
+
+            if energy <= (fk + c * a * df) {
+                break;
+            } else {
+                a = a * rho;
+            }
+        }
+        return x_interp;
+    }
+}
+
+impl SuperSystem{
+    pub fn armijo_line_search(
+        &mut self,
+        xk: ArrayView1<f64>,
+        fk: f64,
+        grad_fk: ArrayView1<f64>,
+        pk: ArrayView1<f64>,
+        state: usize,
+    ) -> Array1<f64> {
+        // set defaults
+        let mut a: f64 = 1.0;
+        let rho: f64 = 0.8;
+        let c: f64 = 0.0001;
+        let lmax: usize = 100;
+
+        // directional derivative
+        let df: f64 = grad_fk.dot(&pk);
+
+        assert!(df <= 0.0, "pk = {} not a descent direction", &pk);
+        let mut x_interp: Array1<f64> = Array::zeros(xk.len());
+
+        for i in 0..lmax {
+            x_interp = &xk + &(a * &pk);
+
+            // update coordinates and overlap matrix
+            self.update_xyz(x_interp.clone());
+            self.update_s();
+            // calculate energy
             let energy:f64 = self.calculate_energy_line_search(state);
 
             if energy <= (fk + c * a * df) {
@@ -114,6 +155,41 @@ pub fn write_xyz_custom(xyz: &XYZ_Output) {
         }
         string.push_str("\n");
     }
+
+    if file_path.exists() {
+        let mut file = OpenOptions::new().append(true).open(file_path).unwrap();
+        let mut stream = BufWriter::new(file);
+        stream.write_fmt(format_args!("{}", string)).unwrap();
+        stream.flush().unwrap();
+    } else {
+        fs::write(file_path, string).expect("Unable to write to dynamics.xyz file");
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Opt_Energy_Output {
+    pub step: usize,
+    pub energy: f64,
+}
+
+impl Opt_Energy_Output{
+    pub fn new(
+        step:usize,
+        energy:f64
+    )->Opt_Energy_Output{
+        Opt_Energy_Output{
+            step:step,
+            energy:energy,
+        }
+    }
+}
+
+pub fn write_opt_energy(energy_out:&Opt_Energy_Output){
+    let file_path: &Path = Path::new("opt_energies.txt");
+    let mut string: String = energy_out.step.to_string();
+    string.push_str("\t");
+    string.push_str(&energy_out.energy.to_string());
+    string.push_str("\n");
 
     if file_path.exists() {
         let mut file = OpenOptions::new().append(true).open(file_path).unwrap();

@@ -41,8 +41,16 @@ impl RestrictedSCC for SuperSystem {
     /// - the density matrix and reference density matrix
     fn prepare_scc(&mut self) {
         // prepare all individual monomers
+        let n_orbs: usize = self.monomers.iter().map(|mol| mol.n_orbs).sum();
+        let (s, h0) = h0_and_s(n_orbs, &self.atoms, &self.monomers[0].slako);
+        self.properties.set_s(s);
+        self.properties.set_gamma(gamma_atomwise(&self.gammafunction, &self.atoms, self.atoms.len()));
+        if self.gammafunction_lc.is_some(){
+            self.properties.set_gamma_lr(gamma_atomwise(&self.gammafunction_lc.clone().unwrap(), &self.atoms, self.atoms.len()));
+        }
+
         let atoms: &[Atom] = &self.atoms;
-        self.properties.set_gamma(gamma_atomwise(&self.gammafunction, &atoms, self.atoms.len()));
+        // self.properties.set_gamma(gamma_atomwise(&self.gammafunction, &atoms, self.atoms.len()));
         self.monomers
             .par_iter_mut()
             .for_each(|mol: &mut Monomer| {
@@ -65,23 +73,23 @@ impl RestrictedSCC for SuperSystem {
         // Do the self-consistent monomer calculations
         let (monomer_energies, dq): (f64, Array1<f64>) = self.monomer_scc(max_iter);
 
-        println!("Time monomers {}",timer);
+        // println!("Time monomers {}",timer);
 
         // Do the SCC-calculation for each pair individually
         let mut pair_energies: f64 = self.pair_scc(dq.view());
 
-        println!("time pairs {}",timer);
+        // println!("time pairs {}",timer);
 
         // Compute the embedding energy from all pairs
         let mut embedding: f64 = self.embedding_energy();
 
-        println!("time embedding {}",timer);
+        // println!("time embedding {}",timer);
 
         // Compute the energy from pairs that are far apart. The electrostatic dimer approximation
         // is used in this case.
         let mut esd_pair_energies: f64 = self.esd_pair_energy();
 
-        println!("time esd {}",timer);
+        // println!("time esd {}",timer);
 
         // Sum up all the individual energies
         let total_energy: f64 = monomer_energies + pair_energies + embedding + esd_pair_energies;

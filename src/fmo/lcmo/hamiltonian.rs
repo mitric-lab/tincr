@@ -8,7 +8,7 @@ use ndarray_linalg::{Eigh, Inverse, SymmetricSqrt, UPLO};
 use std::ops::AddAssign;
 
 impl SuperSystem {
-    pub fn build_lcmo_fock_matrix(&self) -> Array2<f64> {
+    pub fn build_lcmo_fock_matrix(&mut self) -> Array2<f64> {
         // TODO: READ THIS FROM THE INPUT FILE
         // Number of active orbitals per monomer
         let n_occ_m: usize = 1;
@@ -36,7 +36,7 @@ impl SuperSystem {
         }
 
         // The off-diagonal elements are set.
-        for pair in self.pairs.iter() {
+        for pair in self.pairs.iter_mut() {
             // Reference to monomer I.
             let m_i: &Monomer = &self.monomers[pair.i];
             // Reference to monomer J.
@@ -84,6 +84,10 @@ impl SuperSystem {
             let f_ab: Array2<f64> = (&s_pr * &orbe_ij).dot(&s_qr.t());
             let f_ba: Array2<f64> = (&s_qr * &orbe_ij).dot(&s_pr.t());
 
+            // Save overlap between the monomers and the dimer
+            pair.properties.set_overlap_i_ij(s_pr);
+            pair.properties.set_overlap_j_ij(s_qr);
+
             // The diagonal Fock matrix of monomer I.
             let f_i: Array2<f64> = Array2::from_diag(&m_i.properties.orbe().unwrap());
             // The diagonal Fock matrix of monomer I.
@@ -107,9 +111,9 @@ impl SuperSystem {
         // total overlap matrix is almost diagonal, it can be approximated in first order by:
         // S^-1/2 = 1.5 * I - 1/2 Delta
         let x: Array2<f64> = 1.5 * Array::eye(dim) - 0.5 * &s_total;
-        let x2: Array2<f64> = s_total.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
+        // let x2: Array2<f64> = s_total.ssqrt(UPLO::Upper).unwrap().inv().unwrap();
         // The transformed Fock matrix is returned.
-        //(x.t().dot(&fock)).dot(&x)
-        fock
+        (x.t().dot(&fock)).dot(&x)
+        // fock
     }
 }

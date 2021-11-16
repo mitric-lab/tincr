@@ -7,7 +7,7 @@ use crate::initialization::{get_unique_atoms, initialize_gamma_function, Atom, G
 use crate::io::{frame_to_atoms, frame_to_coordinates, read_file_to_frame, Configuration};
 use crate::param::elements::Element;
 use crate::scc::gamma_approximation;
-use crate::scc::gamma_approximation::{gamma_atomwise, GammaFunction};
+use crate::scc::gamma_approximation::{gamma_atomwise, GammaFunction, gamma_atomwise_par};
 use crate::utils::Timer;
 use chemfiles::Frame;
 use hashbrown::{HashMap, HashSet};
@@ -20,6 +20,7 @@ use std::vec;
 use ndarray::Slice;
 use crate::scc::h0_and_s::h0_and_s;
 
+#[derive(Debug)]
 pub struct SuperSystem {
     /// Type that holds all the input settings from the user.
     pub config: Configuration,
@@ -102,13 +103,6 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // and initialize the SlaterKoster and RepulsivePotential Tables
         let mut slako: SlaterKoster = SlaterKoster::new();
         let mut vrep: RepulsivePotential = RepulsivePotential::new();
-
-        // // Find all unique pairs of atom and fill in the SK and V-Rep tables
-        // let element_iter = unique_atoms.iter().map(|atom| Element::from(atom.number));
-        // for (kind1, kind2) in element_iter.clone().cartesian_product(element_iter) {
-        //     slako.add(kind1, kind2);
-        //     vrep.add(kind1, kind2);
-        // }
 
         if input.1.slater_koster.use_mio == true {
             for handler in skf_handlers.iter() {
@@ -243,6 +237,11 @@ impl From<(Frame, Configuration)> for SuperSystem {
                 &unique_atoms,
                 input.1.lc.long_range_radius,
             ), &atoms, atoms.len()));
+            // properties.set_gamma(gamma_atomwise_par(&gf, &atoms));
+            // properties.set_gamma_lr(gamma_atomwise_par(&initialize_gamma_function(
+            //     &unique_atoms,
+            //     input.1.lc.long_range_radius,
+            // ), &atoms));
         }
 
         // Initialize the close pairs and the ones that are treated within the ES-dimer approx
@@ -252,7 +251,9 @@ impl From<(Frame, Configuration)> for SuperSystem {
         // Create a HashMap that maps the Monomers to the type of Pair. To identify if a pair of
         // monomers are considered a real pair or should be treated with the ESD approx.
         let mut pair_iter:usize = 0;
+        let mut esd_iter:usize = 0;
         let mut pair_indices: HashMap<(usize, usize),usize> = HashMap::new();
+        let mut esd_pair_indices:HashMap<(usize, usize),usize> = HashMap::new();
         let mut pair_types: HashMap<(usize, usize), PairType> = HashMap::new();
 
         // The construction of the [Pair]s requires that the [Atom]s in the atoms are ordered after
@@ -270,23 +271,25 @@ impl From<(Frame, Configuration)> for SuperSystem {
                         pairs.push(m_i + m_j);
                         pair_types.insert((m_i.index, m_j.index), PairType::Pair);
                         pair_indices.insert((m_i.index, m_j.index),pair_iter);
+                        pair_iter += 1;
                     },
                     PairType::ESD => {
                         esd_pairs.push(ESDPair::new(i, (i + j + 1), m_i, m_j));
                         pair_types.insert((m_i.index, m_j.index), PairType::ESD);
-                        pair_indices.insert((m_i.index, m_j.index),pair_iter);
+                        esd_pair_indices.insert((m_i.index, m_j.index),esd_iter);
+                        esd_iter += 1;
                     },
                     _ => {}
                 }
-                pair_iter += 1;
             }
         }
         properties.set_pair_types(pair_types);
         properties.set_pair_indices(pair_indices);
+        properties.set_esd_pair_indices(esd_pair_indices);
+
         info!("{}", timer);
 
-
-        let (h0, s) = h0_and_s(n_orbs, &atoms, &slako);
+        let (s, h0) = h0_and_s(n_orbs, &atoms, &slako);
         properties.set_s(s);
 
         Self {
@@ -366,6 +369,13 @@ impl SuperSystem {
         gamma.slice_mut(s![0..n_atoms_a, n_atoms_c..]).assign(&self.gamma_a_b(a, d, lrc));
         gamma.slice_mut(s![n_atoms_a.., n_atoms_c..]).assign(&self.gamma_a_b(b, d, lrc));
         gamma
+    }
+
+    pub fn update_s(&mut self){
+        let n_orbs:usize = self.properties.n_occ().unwrap() + self.properties.n_virt().unwrap();
+        let slako = &self.monomers[0].slako;
+        let (s, h0) = h0_and_s(n_orbs, &self.atoms, slako);
+        self.properties.set_s(s);
     }
 }
 
