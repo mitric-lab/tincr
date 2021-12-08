@@ -509,12 +509,12 @@ pub fn f_exchange_loop(
         let ds_ij: ArrayView2<f64> = grad_s.slice(s![nc, ..n_orb_i, n_orb_i..]);
 
         for mu in 0..n_orb_i{
-            for la in 0..n_orb_i{
-                for nu in 0..n_orb_j{
+            for nu in 0..n_orb_i{
+                for la in 0..n_orb_j{
                     for sig in 0..n_orb_j{
-                        integral[[nc,mu,nu,la,sig]] = 0.25 * ((ds_ij[[mu,nu]]*s_ij[[la,sig]] + s_ij[[mu,nu]] * ds_ij[[la,sig]]) *
-                            (g_i[[mu,la]] + g_ij[[mu,sig]] + g_ij[[la,nu]] + g_j[[nu,sig]]) +
-                            s_ij[[mu,nu]] * s_ij[[la,sig]] * (dg_i[[mu,la]] + dg_ij[[mu,sig]] + dg_ij[[la,nu]] + dg_j[[nu,sig]]));
+                        integral[[nc,mu,nu,la,sig]] = 0.25 * ((ds_ij[[mu,la]]*s_ij[[nu,sig]] + s_ij[[mu,la]] * ds_ij[[nu,sig]]) *
+                            (g_i[[mu,nu]] + g_ij[[mu,sig]] + g_ij[[nu,la]] + g_j[[la,sig]]) +
+                            s_ij[[mu,la]] * s_ij[[nu,sig]] * (dg_i[[mu,nu]] + dg_ij[[mu,sig]] + dg_ij[[nu,la]] + dg_j[[la,sig]]));
                     }
                 }
             }

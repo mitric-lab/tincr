@@ -700,7 +700,7 @@ impl SuperSystem {
                         let exchange_grad:Array1<f64> = exchange_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
                             .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
                             .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
-                        assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Coulomb gradients are NOT equal!");
+                        assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Exchange gradients are NOT equal!");
 
                         // add the coulomb and exchange gradient
                         let gradient: Array1<f64> = 2.0 * exchange_gradient - coulomb_gradient;
@@ -767,7 +767,7 @@ impl SuperSystem {
                         let exchange_grad:Array1<f64> = exchange_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
                             .dot(&c_mat_virts.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
                             .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
-                        assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Coulomb gradients are NOT equal!");
+                        assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Exchange gradients are NOT equal!");
 
                         // add the coulomb and exchange gradient
                         let gradient: Array1<f64> = 2.0 * exchange_gradient - coulomb_gradient;
