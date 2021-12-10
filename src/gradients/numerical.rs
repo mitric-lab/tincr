@@ -220,6 +220,77 @@ pub fn assert_deriv<S, F, G>(
     assert!(!errors.contains(&false), "Gradient test failed")
 }
 
+pub fn assert_deriv_fd<S, F, G>(
+    system: &mut S,
+    function: F,
+    gradient: G,
+    origin: Array1<f64>,
+    stepsize: f64,
+    tol: f64,
+) where
+    S: RestrictedSCC,
+    F: Fn(&mut S, Array1<f64>) -> f64,
+    G: Fn(&mut S) -> Array1<f64>,
+{
+    // compute the analytic gradient
+    let analytic_grad: Array1<f64> = gradient(system);
+    // initialize numerical grad
+    let mut errors: Vec<bool> = Vec::with_capacity(origin.len());
+
+    assert!(stepsize > 0.0, "The stepsize has to be > 0.0, but it is {}", stepsize);
+
+    // The differences are stored in an Array
+    let mut error_values: Array1<f64> = Array1::zeros([origin.len()]);
+
+    println!(
+        "{: <5} {: >18} {: >18} {: >18} {: <8}",
+        "Index", "Analytic", "Numerical", "Error", "Correct?");
+    // PARALLEL
+    for i in 0..origin.len() {
+        // get the corresponding analytic derivative
+        let analytic_deriv: f64 = analytic_grad[i];
+        // compute the numerical derivative of this function and an error estimate using
+        // finite difference
+        let numerical_deriv: f64 = finite_difference(system, &function, origin.clone(), i, stepsize);
+        let diff: f64 = (numerical_deriv - analytic_deriv).abs();
+        let correct: bool = if diff > 1e-8 {false} else {true};
+        errors.push(correct);
+        error_values[i] = diff;
+
+        println!(
+            "{: >5} {:>18.14} {:>18.14} {:>18.14} {: >5}",
+            i, analytic_deriv, numerical_deriv, diff, correct);
+    }
+    let rmsd: f64 = (&error_values * &error_values).mean().unwrap().sqrt();
+    let max: f64 = *error_values.max().unwrap();
+
+    println!("{: <30} {:>18.4e}", "RMSD of Gradient", rmsd);
+    println!("{: <30} {:18.4e}", "Max deviation of Gradient", max);
+
+    assert!(!errors.contains(&false), "Gradient test failed")
+}
+
+fn finite_difference<S, F, D>(
+    system: &mut S,
+    function: F,               // Function which should be differentiated
+    origin: ArrayBase<D, Ix1>, // Origin of coordinates, that are used for the function
+    index: usize,              // Index for which the derivative is computed
+    stepsize: f64,             // Initial step size
+) -> f64
+    where
+        S: RestrictedSCC,
+        F: Fn(&mut S, Array1<f64>) -> f64,
+        D: ndarray::Data<Elem = f64>,
+{
+    // make the stepsize mutable
+    let mut stepsize: f64 = stepsize;
+    let mut step: Array1<f64> = Array1::zeros([origin.len()]);
+    step[index] = 1.0;
+
+    let estimate = (function(system, &origin + &(&step * stepsize)) - function(system, &origin - &(&step * stepsize))) / (2.0 * stepsize);
+
+    return estimate;
+}
 
 #[cfg(test)]
 mod tests {

@@ -20,6 +20,9 @@ impl SuperSystem {
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
         }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
+        }
         self.update_xyz(geometry);
         self.prepare_scc();
         self.run_scc();
@@ -35,6 +38,9 @@ impl SuperSystem {
         }
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
+        }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
         }
         self.prepare_scc();
         self.run_scc();
@@ -61,6 +67,9 @@ impl SuperSystem {
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
         }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
+        }
         self.prepare_scc();
         self.run_scc();
 
@@ -69,7 +78,7 @@ impl SuperSystem {
             SuperSystem::fmo_le_le_coupling_energy_wrapper,
             SuperSystem::fmo_le_le_coupling_gradient_wrapper,
             self.get_xyz(),
-            0.01,
+            0.1,
             1e-6,
         );
     }
@@ -81,6 +90,9 @@ impl SuperSystem {
         }
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
+        }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
         }
         self.update_xyz(geometry);
         self.prepare_scc();
@@ -97,6 +109,9 @@ impl SuperSystem {
         }
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
+        }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
         }
         self.prepare_scc();
         self.run_scc();
@@ -123,6 +138,9 @@ impl SuperSystem {
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
         }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
+        }
         self.prepare_scc();
         self.run_scc();
 
@@ -131,7 +149,7 @@ impl SuperSystem {
             SuperSystem::fmo_le_ct_coupling_energy_wrapper,
             SuperSystem::fmo_le_ct_coupling_gradient_wrapper,
             self.get_xyz(),
-            0.001,
+            0.1,
             1e-6,
         );
     }
@@ -143,6 +161,9 @@ impl SuperSystem {
         }
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
+        }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
         }
         self.update_xyz(geometry);
         self.prepare_scc();
@@ -159,6 +180,9 @@ impl SuperSystem {
         }
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
+        }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
         }
         self.prepare_scc();
         self.run_scc();
@@ -186,6 +210,9 @@ impl SuperSystem {
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
         }
+        for esd_pair in self.esd_pairs.iter_mut(){
+            esd_pair.properties.reset();
+        }
         self.prepare_scc();
         self.run_scc();
 
@@ -194,7 +221,7 @@ impl SuperSystem {
             SuperSystem::fmo_ct_ct_coupling_energy_wrapper,
             SuperSystem::fmo_ct_ct_coupling_gradient_wrapper,
             self.get_xyz(),
-            0.001,
+            0.01,
             1e-6,
         );
     }
@@ -206,9 +233,8 @@ impl SuperSystem {
         state_a: usize,
         state_b: usize,
     ) -> f64 {
-        let lcmo_config: LcmoConfig = self.config.lcmo.clone();
         // Number of LE states per monomer.
-        let n_le: usize = lcmo_config.n_le;
+        let n_states: usize = self.config.excited.nstates;
 
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
@@ -222,7 +248,7 @@ impl SuperSystem {
         mol_a.prepare_tda(&atoms[mol_a.slice.atom_as_range()]);
         mol_a.run_tda(
             &atoms[mol_a.slice.atom_as_range()],
-            n_le,
+            n_states,
             max_iter,
             tolerance,
         );
@@ -232,7 +258,7 @@ impl SuperSystem {
         mol_b.prepare_tda(&atoms[mol_b.slice.atom_as_range()]);
         mol_b.run_tda(
             &atoms[mol_b.slice.atom_as_range()],
-            n_le,
+            n_states,
             max_iter,
             tolerance,
         );
@@ -288,9 +314,8 @@ impl SuperSystem {
         state_a: usize,
         state_b: usize,
     ) -> Array1<f64> {
-        let lcmo_config: LcmoConfig = self.config.lcmo.clone();
-        // Number of LE states per monomer.
-        let n_le: usize = lcmo_config.n_le;
+        // Number of states per monomer.
+        let n_states:usize = self.config.excited.nstates;
 
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms;
@@ -304,7 +329,7 @@ impl SuperSystem {
         mol_a.prepare_tda(&atoms[mol_a.slice.atom_as_range()]);
         mol_a.run_tda(
             &atoms[mol_a.slice.atom_as_range()],
-            n_le,
+            n_states,
             max_iter,
             tolerance,
         );
@@ -314,7 +339,7 @@ impl SuperSystem {
         mol_b.prepare_tda(&atoms[mol_b.slice.atom_as_range()]);
         mol_b.run_tda(
             &atoms[mol_b.slice.atom_as_range()],
-            n_le,
+            n_states,
             max_iter,
             tolerance,
         );
@@ -363,9 +388,8 @@ impl SuperSystem {
         ct_ind_j: usize,
         hole_i: bool,
     ) -> f64 {
-        let lcmo_config: LcmoConfig = self.config.lcmo.clone();
-        // Number of LE states per monomer.
-        let n_le: usize = lcmo_config.n_le;
+        // Number of states per monomer.
+        let n_states: usize = self.config.excited.nstates;
 
         // calculate lcmo hamiltonian
         let hamiltonian = self.build_lcmo_fock_matrix();
@@ -383,7 +407,7 @@ impl SuperSystem {
         mol_a.prepare_tda(&atoms[mol_a.slice.atom_as_range()]);
         mol_a.run_tda(
             &atoms[mol_a.slice.atom_as_range()],
-            n_le,
+            n_states,
             max_iter,
             tolerance,
         );
@@ -515,9 +539,8 @@ impl SuperSystem {
         ct_ind_j: usize,
         hole_i: bool,
     ) -> Array1<f64> {
-        let lcmo_config: LcmoConfig = self.config.lcmo.clone();
-        // Number of LE states per monomer.
-        let n_le: usize = lcmo_config.n_le;
+        // Number of states per monomer.
+        let n_states: usize = self.config.excited.nstates;
 
         // calculate lcmo hamiltonian
         let hamiltonian = self.build_lcmo_fock_matrix();
@@ -535,7 +558,7 @@ impl SuperSystem {
         mol_a.prepare_tda(&atoms[mol_a.slice.atom_as_range()]);
         mol_a.run_tda(
             &atoms[mol_a.slice.atom_as_range()],
-            n_le,
+            n_states,
             max_iter,
             tolerance,
         );
