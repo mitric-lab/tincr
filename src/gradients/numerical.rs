@@ -149,7 +149,7 @@ where
             }
         }
         // If higher order is worse by a significant factor `safe`, then quit early.
-        if (&table[i][i] - &table[i - 1][i - 1]).abs() >= safe * error {
+        if (&table[i][i] - &table[i - 1][i - 1]).abs() >= safe * error && error < 1.0e-5 {
             break 'main;
         }
     }
@@ -180,7 +180,7 @@ pub fn assert_deriv<S, F, G>(
     // Parameters for Ridder's method,
     let con: f64 = 1.4;
     let safe: f64 = 2.0;
-    let maxiter: usize = 15;
+    let maxiter: usize = 50;
 
     // compute the analytic gradient
     let analytic_grad: Array1<f64> = gradient(system);
