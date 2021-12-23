@@ -639,6 +639,14 @@ impl SuperSystem {
                     let c_mat_occs: Array2<f64> =
                         into_col(j.mo.c.to_owned()).dot(&into_row(l.mo.c.to_owned()));
 
+                    // reference to the mo coefficients of fragment I
+                    let c_mo_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+                    // reference to the mo coefficients of fragment J
+                    let c_mo_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
+                    // calculate the U matrix of both monomers using the CPHF equations
+                    let umat_i:Array3<f64> = m_i.calculate_u_matrix(&pair_atoms[..m_i.n_atoms]);
+                    let umat_j:Array3<f64> = m_j.calculate_u_matrix(&pair_atoms[m_i.n_atoms..]);
+
                     // Check if the monomers of the CT have the same order as the pair
                     let grad = if pair.i == i.m_index {
                         println!("Index I is pair index I");
@@ -701,10 +709,26 @@ impl SuperSystem {
                         let exchange_grad:Array1<f64> = exchange_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
                             .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
                             .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
+                        println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
+                        println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
                         assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Exchange gradients are NOT equal!");
 
                         // add the coulomb and exchange gradient
                         let gradient: Array1<f64> = 2.0 * exchange_gradient - coulomb_gradient;
+                        // let gradient: Array1<f64> = - coulomb_gradient;
+                        // let gradient: Array1<f64> = 2.0 * exchange_gradient;
+
+                        // calculate gradients of the MO coefficients
+                        // dc_mu,i/dR = sum_m^all U^R_mi, C_mu,m
+                        let mut dc_mo_i:Array2<f64> = Array2::zeros([3*pair.n_atoms,m_i.n_orbs]);
+                        let mut dc_mo_j:Array2<f64> = Array2::zeros([3*pair.n_atoms,m_j.n_orbs]);
+                        // iterate over gradient dimensions of both monomers
+                        for nat in 0..3*m_i.n_atoms{
+                            dc_mo_i.slice_mut(s![nat,..]).assign(&umat_i.slice(s![nat,..,i.ct_index]).dot(&c_mo_i.t()));
+                        }
+                        for nat in 0..3*m_j.n_atoms{
+                            dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,j.ct_index]).dot(&c_mo_j.t()));
+                        }
 
                         gradient
                     } else {
@@ -768,10 +792,27 @@ impl SuperSystem {
                         let exchange_grad:Array1<f64> = exchange_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
                             .dot(&c_mat_virts.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
                             .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
+                        println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
+                        println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
                         assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Exchange gradients are NOT equal!");
 
                         // add the coulomb and exchange gradient
                         let gradient: Array1<f64> = 2.0 * exchange_gradient - coulomb_gradient;
+                        // let gradient: Array1<f64> = - coulomb_gradient;
+                        // let gradient: Array1<f64> = 2.0 * exchange_gradient;
+
+                        // calculate gradients of the MO coefficients
+                        // dc_mu,i/dR = sum_m^all U^R_mi, C_mu,m
+                        let mut dc_mo_i:Array2<f64> = Array2::zeros([3*pair.n_atoms,m_i.n_orbs]);
+                        let mut dc_mo_j:Array2<f64> = Array2::zeros([3*pair.n_atoms,m_j.n_orbs]);
+                        // iterate over gradient dimensions of both monomers
+                        for nat in 0..3*m_i.n_atoms{
+                            dc_mo_i.slice_mut(s![nat,..]).assign(&umat_i.slice(s![nat,..,j.ct_index]).dot(&c_mo_i.t()));
+                        }
+                        for nat in 0..3*m_j.n_atoms{
+                            dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,i.ct_index]).dot(&c_mo_j.t()));
+                        }
+
 
                         gradient
                     };
@@ -848,7 +889,7 @@ impl SuperSystem {
                         // let gradient_j = coulomb_gradient.slice(s![..3*m_j.n_atoms]).to_owned();
                         // let gradient_i = coulomb_gradient.slice(s![3*m_j.n_atoms..]).to_owned();
 
-                        coulomb_gradient
+                        -coulomb_gradient
                     };
                     return_gradient = grad;
                 }

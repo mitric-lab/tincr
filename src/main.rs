@@ -132,7 +132,7 @@ fn main() {
         // system.prepare_scc();
         // system.run_scc();
         // system.create_exciton_hamiltonian();
-        system.test_le_ct_coupling_gradient();
+        system.test_ct_ct_coupling_gradient();
         // create the struct which starts the dynamics
         // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
         // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
