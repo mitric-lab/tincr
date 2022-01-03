@@ -713,11 +713,6 @@ impl SuperSystem {
                         println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
                         assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Exchange gradients are NOT equal!");
 
-                        // add the coulomb and exchange gradient
-                        let gradient: Array1<f64> = 2.0 * exchange_gradient - coulomb_gradient;
-                        // let gradient: Array1<f64> = - coulomb_gradient;
-                        // let gradient: Array1<f64> = 2.0 * exchange_gradient;
-
                         // calculate gradients of the MO coefficients
                         // dc_mu,i/dR = sum_m^all U^R_mi, C_mu,m
                         let mut dc_mo_i:Array2<f64> = Array2::zeros([3*pair.n_atoms,m_i.n_orbs]);
@@ -729,6 +724,39 @@ impl SuperSystem {
                         for nat in 0..3*m_j.n_atoms{
                             dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,j.ct_index]).dot(&c_mo_j.t()));
                         }
+
+                        // calculate coulomb and exchange integrals in AO basis
+                        let coulomb_arr:Array4<f64> = coulomb_integral_loop_ao(
+                            m_i.properties.s().unwrap(),
+                            m_j.properties.s().unwrap(),
+                            pair.properties.gamma_ao().unwrap(),
+                            m_i.n_orbs,
+                            m_j.n_orbs
+                        );
+                        let mut coulomb_grad:Array1<f64> = Array1::zeros(3*pair.n_atoms);
+                        // calculate loop version of cphf coulomb gradient
+                        let c_i_ind:ArrayView1<f64> = c_mo_i.slice(s![..,i.ct_index]);
+                        let c_j_ind:ArrayView1<f64> = c_mo_j.slice(s![..,j.ct_index]);
+                        for nat in 0..3*pair.n_atoms{
+                            for mu in 0..m_i.n_orbs{
+                                for la in 0..m_i.n_orbs{
+                                    for nu in 0..m_j.n_orbs{
+                                        for sig in 0..m_j.n_orbs{
+                                            coulomb_grad[nat] += coulomb_arr[[mu,la,nu,sig]] *
+                                                (dc_mo_i[[nat,mu]] * c_i_ind[la] * c_j_ind[nu]*c_j_ind[sig]
+                                                    + dc_mo_i[[nat,la]] * c_i_ind[mu] * c_j_ind[nu]*c_j_ind[sig]
+                                                    + dc_mo_j[[nat,nu]] * c_i_ind[mu]*c_i_ind[la]*c_j_ind[sig]
+                                                    + dc_mo_j[[nat,sig]] * c_i_ind[mu]*c_i_ind[la]*c_j_ind[nu]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // add the coulomb and exchange gradient
+                        // let gradient: Array1<f64> = 2.0 * exchange_gradient - (coulomb_gradient + coulomb_grad);
+                        let gradient: Array1<f64> = - (coulomb_gradient + coulomb_grad);
+                        // let gradient: Array1<f64> = 2.0 * exchange_gradient;
 
                         gradient
                     } else {
