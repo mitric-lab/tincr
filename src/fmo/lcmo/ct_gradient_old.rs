@@ -1,6 +1,6 @@
 use crate::excited_states::trans_charges;
 use crate::fmo::helpers::get_pair_slice;
-use crate::fmo::{Monomer, Pair, SuperSystem, GroundStateGradient, PairType, ESDPair};
+use crate::fmo::{Monomer, Pair, SuperSystem, GroundStateGradient, PairType, ESDPair, ExcitedStateMonomerGradient};
 use crate::gradients::helpers::{f_lr, f_v};
 use crate::initialization::Atom;
 use crate::scc::gamma_approximation::{
@@ -393,6 +393,58 @@ impl SuperSystem{
 }
 
 impl Monomer {
+    pub fn prepare_u_matrix(&mut self,atoms:&[Atom]){
+        // check if occ and virt indices exist
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        if (self.properties.contains_key("occ_indices") == false) || (self.properties.contains_key("virt_indices") == true) {
+            // calculate the number of electrons
+            let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
+            // get the indices of the occupied and virtual orbitals
+            (0..self.n_orbs).for_each(|index| {
+                if index < (n_elec / 2) {
+                    occ_indices.push(index)
+                } else {
+                    virt_indices.push(index)
+                }
+            });
+
+            self.properties.set_occ_indices(occ_indices.clone());
+            self.properties.set_virt_indices(virt_indices.clone());
+        }
+        else{
+            occ_indices = self.properties.occ_indices().unwrap().to_vec();
+            virt_indices = self.properties.virt_indices().unwrap().to_vec();
+        }
+
+        // prepare the grad gamma_lr ao matrix
+        if self.gammafunction_lc.is_some(){
+            // calculate the gamma gradient matrix in AO basis
+            let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
+        }
+        // prepare gamma and grad gamma AO matrix
+        let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+            self.properties.gamma().unwrap(),
+            atoms,
+            self.n_orbs
+        );
+        let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+            &self.gammafunction,
+            atoms,
+            self.n_atoms,
+            self.n_orbs,
+        );
+        self.properties.set_grad_gamma(g1);
+        self.properties.set_gamma_ao(g0_ao);
+        self.properties.set_grad_gamma_ao(g1_ao);
+    }
+
     pub fn calculate_u_matrix(
         &self,
         atoms: &[Atom],

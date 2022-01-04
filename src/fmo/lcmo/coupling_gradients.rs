@@ -2,9 +2,7 @@ use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::lcmo::cis_gradient::{ReducedBasisState, ReducedCT, ReducedLE, ReducedParticle};
 use crate::fmo::lcmo::helpers::*;
 use crate::fmo::lcmo::integrals::CTCoupling;
-use crate::fmo::{
-    BasisState, ChargeTransfer, LocallyExcited, Monomer, PairType, Particle, SuperSystem, LRC,
-};
+use crate::fmo::{BasisState, ChargeTransfer, LocallyExcited, Monomer, PairType, Particle, SuperSystem, LRC, ExcitedStateMonomerGradient};
 use crate::fmo::{ESDPair, Pair};
 use crate::initialization::Atom;
 use ndarray::prelude::*;
@@ -617,18 +615,28 @@ impl SuperSystem {
                     let pair_index: usize = self.properties.index_of_pair(i.m_index, j.m_index);
                     // get the pair from pairs vector
                     let pair: &mut Pair = &mut self.pairs[pair_index];
-                    // monomers
+
+                    let pair_atoms: Vec<Atom> = get_pair_slice(
+                        &self.atoms,
+                        self.monomers[pair.i].slice.atom_as_range(),
+                        self.monomers[pair.j].slice.atom_as_range(),
+                    );
+                    let atoms_i = self.monomers[pair.i].n_atoms;
+
+                    // set necessary arrays for the U matrix calculations
+                    let monomers:&mut Vec<Monomer> = &mut self.monomers;
+                    let monomer:&mut Monomer = &mut monomers[pair.i];
+                    monomer.prepare_u_matrix(&pair_atoms[..atoms_i]);
+                    let monomer: &mut Monomer = &mut monomers[pair.j];
+                    monomer.prepare_u_matrix(&pair_atoms[atoms_i..]);
+                    let monomers:usize;
+
                     let m_i: &Monomer = &self.monomers[pair.i];
                     let m_j: &Monomer = &self.monomers[pair.j];
                     let n_atoms: usize = m_i.n_atoms + m_j.n_atoms;
                     let orbs_i: usize = m_i.n_orbs;
                     let orbs_j: usize = m_j.n_orbs;
 
-                    let pair_atoms: Vec<Atom> = get_pair_slice(
-                        &self.atoms,
-                        m_i.slice.atom_as_range(),
-                        m_j.slice.atom_as_range(),
-                    );
                     // calculate S,dS, gamma_AO and dgamma_AO of the pair
                     pair.prepare_lcmo_gradient(&pair_atoms, m_i, m_j);
 
