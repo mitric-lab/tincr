@@ -727,10 +727,10 @@ impl SuperSystem {
                         let mut dc_mo_j:Array2<f64> = Array2::zeros([3*pair.n_atoms,m_j.n_orbs]);
                         // iterate over gradient dimensions of both monomers
                         for nat in 0..3*m_i.n_atoms{
-                            dc_mo_i.slice_mut(s![nat,..]).assign(&umat_i.slice(s![nat,..,i.ct_index]).dot(&c_mo_i.t()));
+                            dc_mo_i.slice_mut(s![nat,..]).assign(&umat_i.slice(s![nat,..,i.mo.index]).dot(&c_mo_i.t()));
                         }
                         for nat in 0..3*m_j.n_atoms{
-                            dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,j.ct_index]).dot(&c_mo_j.t()));
+                            dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,j.mo.index]).dot(&c_mo_j.t()));
                         }
 
                         // calculate coulomb and exchange integrals in AO basis
@@ -743,8 +743,8 @@ impl SuperSystem {
                         );
                         let mut coulomb_grad:Array1<f64> = Array1::zeros(3*pair.n_atoms);
                         // calculate loop version of cphf coulomb gradient
-                        let c_i_ind:ArrayView1<f64> = c_mo_i.slice(s![..,i.ct_index]);
-                        let c_j_ind:ArrayView1<f64> = c_mo_j.slice(s![..,j.ct_index]);
+                        let c_i_ind:ArrayView1<f64> = c_mo_i.slice(s![..,i.mo.index]);
+                        let c_j_ind:ArrayView1<f64> = c_mo_j.slice(s![..,j.mo.index]);
                         for nat in 0..3*pair.n_atoms{
                             for mu in 0..m_i.n_orbs{
                                 for la in 0..m_i.n_orbs{
