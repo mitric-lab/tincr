@@ -75,93 +75,18 @@ impl SuperSystem{
                 m_j.slice.atom_as_range(),
             );
 
-            let (grad_s_pair, grad_h0_pair) =
-                h0_and_s_gradients(&pair_atoms, pair_ij.n_orbs, &pair_ij.slako);
-            let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
-            let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
-
-            // calculate the overlap matrix
-            if pair_ij.properties.s().is_none() {
-                let mut s: Array2<f64> = Array2::zeros([pair_ij.n_orbs, pair_ij.n_orbs]);
-                let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) = h0_and_s_ab(
-                    m_i.n_orbs,
-                    m_j.n_orbs,
-                    &pair_atoms[0..m_i.n_atoms],
-                    &pair_atoms[m_i.n_atoms..],
-                    &m_i.slako,
-                );
-
-                let mu: usize = m_i.n_orbs;
-                s.slice_mut(s![0..mu, 0..mu])
-                    .assign(&m_i.properties.s().unwrap());
-                s.slice_mut(s![mu.., mu..])
-                    .assign(&m_j.properties.s().unwrap());
-                s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
-                s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
-
-                pair_ij.properties.set_s(s);
-            }
-
-            // get the gamma matrix
-            if pair_ij.properties.gamma().is_none() {
-                let a: usize = m_i.n_atoms;
-                let mut gamma_pair: Array2<f64> = Array2::zeros([pair_ij.n_atoms, pair_ij.n_atoms]);
-                let gamma_ab: Array2<f64> = gamma_atomwise_ab(
-                    &pair_ij.gammafunction,
-                    &pair_atoms[0..m_i.n_atoms],
-                    &pair_atoms[m_j.n_atoms..],
-                    m_i.n_atoms,
-                    m_j.n_atoms,
-                );
-                gamma_pair
-                    .slice_mut(s![0..a, 0..a])
-                    .assign(&m_i.properties.gamma().unwrap());
-                gamma_pair
-                    .slice_mut(s![a.., a..])
-                    .assign(&m_j.properties.gamma().unwrap());
-                gamma_pair.slice_mut(s![0..a, a..]).assign(&gamma_ab);
-                gamma_pair.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
-
-                pair_ij.properties.set_gamma(gamma_pair);
-
-                let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
-                    self.gammafunction_lc.as_ref().unwrap(),
-                    &pair_atoms,
-                    pair_ij.n_atoms,
-                    pair_ij.n_orbs,
-                );
-                pair_ij.properties.set_gamma_lr(gamma_lr);
-                pair_ij.properties.set_gamma_lr_ao(gamma_lr_ao);
-            }
-
-            // calculate the gamma matrix in AO basis
-            let g0_ao: Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
-                pair_ij.properties.gamma().unwrap(),
-                &pair_atoms,
-                pair_ij.n_orbs,
-            );
-            // calculate the gamma gradient matrix
-            let (g1, g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-                &pair_ij.gammafunction,
-                &pair_atoms,
-                pair_ij.n_atoms,
-                pair_ij.n_orbs,
-            );
-            // gamma gradient matrix for the long range correction
-            let (g1_lr, g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-                pair_ij.gammafunction_lc.as_ref().unwrap(),
-                &pair_atoms,
-                pair_ij.n_atoms,
-                pair_ij.n_orbs,
-            );
+            pair_ij.prepare_lcmo_gradient(&pair_atoms,m_i,m_j);
+            let pair_grad_s:ArrayView3<f64> = pair_ij.properties.grad_s().unwrap();
+            let grad_s_i: ArrayView3<f64> = pair_grad_s.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
+            let grad_s_j: ArrayView3<f64> = pair_grad_s.slice(s![.., n_orbs_i.., n_orbs_i..]);
 
             let coulomb_integral:Array5<f64> = f_v_ct_2(
                 m_i.properties.s().unwrap(),
                 m_j.properties.s().unwrap(),
                 grad_s_i,
                 grad_s_j,
-                g0_ao.view(),
-                g1_ao.view(),
+                pair_ij.properties.gamma_ao().unwrap(),
+                pair_ij.properties.grad_gamma_ao().unwrap(),
                 pair_ij.n_atoms,
                 n_orbs_i,
                 n_orbs_j
@@ -176,8 +101,8 @@ impl SuperSystem{
                 m_j.properties.s().unwrap(),
                 grad_s_i,
                 grad_s_j,
-                g0_ao.view(),
-                g1_ao.view(),
+                pair_ij.properties.gamma_ao().unwrap(),
+                pair_ij.properties.grad_gamma_ao().unwrap(),
                 pair_ij.n_atoms,
                 n_orbs_i,
             )
@@ -191,9 +116,9 @@ impl SuperSystem{
             let exchange_gradient: Array1<f64> = f_lr_ct(
                 c_mat_j.t(),
                 pair_ij.properties.s().unwrap(),
-                grad_s_pair.view(),
+                pair_ij.properties.grad_s().unwrap(),
                 pair_ij.properties.gamma_lr_ao().unwrap(),
-                g1_lr_ao.view(),
+                pair_ij.properties.grad_gamma_lr_ao().unwrap(),
                 m_i.n_atoms,
                 m_j.n_atoms,
                 n_orbs_i,
@@ -220,7 +145,7 @@ impl SuperSystem{
             let coulomb_arr:Array4<f64> = f_v_coulomb_loop(
                 m_i.properties.s().unwrap(),
                 m_j.properties.s().unwrap(),
-                g0_ao.view(),
+                pair_ij.properties.gamma_ao().unwrap(),
                 m_i.n_orbs,
                 m_j.n_orbs
             );//.into_shape([m_i.n_orbs*m_i.n_orbs,m_j.n_orbs*m_j.n_orbs]).unwrap();
@@ -247,48 +172,49 @@ impl SuperSystem{
 
             let coulomb_arr:Array2<f64> =  coulomb_arr.into_shape([m_i.n_orbs*m_i.n_orbs,m_j.n_orbs*m_j.n_orbs]).unwrap();
 
-            let mut coulomb_grad_2:Array1<f64> = Array1::zeros(3*pair_ij.n_atoms);
-            // calculate dot version of cphf coulomb gradient
-            // iterate over the gradient
-            for nat in 0..3*pair_ij.n_atoms{
-                // dot product of dc_mu,i/dr c_lambda,i to c_mu,lambda of Fragment I
-                let c_i:Array2<f64> = into_col(dc_mo_i.slice(s![nat,..]).to_owned())
-                    .dot(&into_row(c_mo_i.slice(s![..,orb_ind_i]).to_owned()));
-                let c_i_2:Array2<f64> = into_col(c_mo_i.slice(s![..,orb_ind_i]).to_owned())
-                    .dot(&into_row(dc_mo_i.slice(s![nat,..]).to_owned()));
-                // dot product of dc_nu,a/dr c_sig,a to c_nu,sig of Fragment J
-                let c_j:Array2<f64> = into_col(dc_mo_j.slice(s![nat,..]).to_owned())
-                    .dot(&into_row(c_mo_j.slice(s![..,orb_ind_j]).to_owned()));
-                let c_j_2:Array2<f64> = into_col(c_mo_j.slice(s![..,orb_ind_j]).to_owned())
-                    .dot(&into_row(dc_mo_j.slice(s![nat,..]).to_owned()));
-
-                // calculate dot product of coulomb integral with previously calculated coefficients
-                // in AO basis
-                let term_1a = c_i.into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
-                    .dot(&coulomb_arr.dot(&c_mat_j.view().into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
-                let term_1b = c_i_2.into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
-                    .dot(&coulomb_arr.dot(&c_mat_j.view().into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
-                let term_2a = c_mat_i.view().into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
-                    .dot(&coulomb_arr.dot(&c_j.into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
-                let term_2b = c_mat_i.view().into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
-                    .dot(&coulomb_arr.dot(&c_j_2.into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
-
-                coulomb_grad_2[nat] = term_1a + term_1b + term_2a + term_2b;
-            }
-            assert!(coulomb_grad_2.abs_diff_eq(&coulomb_grad,1.0e-14));
-            println!("cphf coulomb grad {}",coulomb_grad.slice(s![0..5]));
-
-            // calculate the exchange and coumlob integral and multiply those by the
-            // MO coefficient derivatives
-
-            // assemble the gradient
-            // println!("gradient of orbital energies {}",gradh_i);
-            println!("exchange gradient {}",exchange_gradient.slice(s![0..5]));
-            println!("coulomb gradient {}",coulomb_gradient.slice(s![0..5]));
+            // let mut coulomb_grad_2:Array1<f64> = Array1::zeros(3*pair_ij.n_atoms);
+            // // calculate dot version of cphf coulomb gradient
+            // // iterate over the gradient
+            // for nat in 0..3*pair_ij.n_atoms{
+            //     // dot product of dc_mu,i/dr c_lambda,i to c_mu,lambda of Fragment I
+            //     let c_i:Array2<f64> = into_col(dc_mo_i.slice(s![nat,..]).to_owned())
+            //         .dot(&into_row(c_mo_i.slice(s![..,orb_ind_i]).to_owned()));
+            //     let c_i_2:Array2<f64> = into_col(c_mo_i.slice(s![..,orb_ind_i]).to_owned())
+            //         .dot(&into_row(dc_mo_i.slice(s![nat,..]).to_owned()));
+            //     // dot product of dc_nu,a/dr c_sig,a to c_nu,sig of Fragment J
+            //     let c_j:Array2<f64> = into_col(dc_mo_j.slice(s![nat,..]).to_owned())
+            //         .dot(&into_row(c_mo_j.slice(s![..,orb_ind_j]).to_owned()));
+            //     let c_j_2:Array2<f64> = into_col(c_mo_j.slice(s![..,orb_ind_j]).to_owned())
+            //         .dot(&into_row(dc_mo_j.slice(s![nat,..]).to_owned()));
+            //
+            //     // calculate dot product of coulomb integral with previously calculated coefficients
+            //     // in AO basis
+            //     let term_1a = c_i.into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+            //         .dot(&coulomb_arr.dot(&c_mat_j.view().into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+            //     let term_1b = c_i_2.into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+            //         .dot(&coulomb_arr.dot(&c_mat_j.view().into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+            //     let term_2a = c_mat_i.view().into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+            //         .dot(&coulomb_arr.dot(&c_j.into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+            //     let term_2b = c_mat_i.view().into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+            //         .dot(&coulomb_arr.dot(&c_j_2.into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+            //
+            //     coulomb_grad_2[nat] = term_1a + term_1b + term_2a + term_2b;
+            // }
+            // assert!(coulomb_grad_2.abs_diff_eq(&coulomb_grad,1.0e-14));
+            // println!("cphf coulomb grad {}",coulomb_grad.slice(s![0..5]));
+            //
+            // // calculate the exchange and coumlob integral and multiply those by the
+            // // MO coefficient derivatives
+            //
+            // // assemble the gradient
+            // // println!("gradient of orbital energies {}",gradh_i);
+            // println!("exchange gradient {}",exchange_gradient.slice(s![0..5]));
+            // println!("coulomb gradient {}",coulomb_gradient.slice(s![0..5]));
             // println!("coulomb grad v2 {}",coulomb_grad.slice(s![0..5]));
             // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
             // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
-            let gradient: Array1<f64> = - 1.0 * (coulomb_gradient + coulomb_grad);
+            let gradient: Array1<f64> = - 1.0 * (coulomb_gradient - coulomb_grad);
+            let gradient:Array1<f64> = gradh_i;
 
             gradient
         } else {
