@@ -108,7 +108,9 @@ impl SuperSystem {
         // calculate the gradient of the charge-transfer energy
         let ct_energy = self.exciton_ct_energy(monomer_index_i,monomer_index_j,0,0,true);
         // let ct_energy = self.exciton_hamiltonian_ct_test();
-        let grad:Array1<f64> = self.ct_gradient_new(monomer_index_i,monomer_index_j,0,0,ct_energy,true);
+        let mut grad:Array1<f64> = self.ct_gradient_new(monomer_index_i,monomer_index_j,0,0,ct_energy,true);
+        // let grad = self.ct_gradient(monomer_index_i,monomer_index_j,0,0);
+        grad = grad + self.ct_gradient(monomer_index_i,monomer_index_j,0,0);
         let mol_i = &self.monomers[monomer_index_i];
         let mol_j = &self.monomers[monomer_index_j];
         let mut full_gradient:Array1<f64> = Array1::zeros(self.atoms.len()*3);

@@ -138,7 +138,7 @@ impl SuperSystem{
                 dc_mo_i.slice_mut(s![nat,..]).assign(&u_mat_i.slice(s![nat,..,orb_ind_i]).dot(&c_mo_i.t()));
             }
             for nat in 0..3*m_j.n_atoms{
-                dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&u_mat_j.slice(s![nat,..,orb_ind_j]).dot(&c_mo_j.t()));
+                dc_mo_j.slice_mut(s![3*m_i.n_atoms+nat,..]).assign(&u_mat_j.slice(s![nat,..,orb_ind_j]).dot(&c_mo_j.t()));
             }
 
             // calculate coulomb and exchange integrals in AO basis
@@ -200,7 +200,7 @@ impl SuperSystem{
             //
             //     coulomb_grad_2[nat] = term_1a + term_1b + term_2a + term_2b;
             // }
-            // assert!(coulomb_grad_2.abs_diff_eq(&coulomb_grad,1.0e-14));
+            // assert!(coulomb_grad_2.abs_diff_eq(&coulomb_grad,1.0e-12));
             // println!("cphf coulomb grad {}",coulomb_grad.slice(s![0..5]));
             //
             // // calculate the exchange and coumlob integral and multiply those by the
@@ -213,8 +213,9 @@ impl SuperSystem{
             // println!("coulomb grad v2 {}",coulomb_grad.slice(s![0..5]));
             // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
             // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
-            let gradient: Array1<f64> = - 1.0 * (coulomb_gradient - coulomb_grad);
-            let gradient:Array1<f64> = gradh_i;
+            // let gradient: Array1<f64> = - 1.0 * (coulomb_gradient - coulomb_grad);
+            let gradient:Array1<f64> = coulomb_grad;
+            // let gradient:Array1<f64> = gradh_i;
 
             gradient
         } else {
@@ -1316,8 +1317,9 @@ fn solve_cphf_new(
     // let mut u_mat:Array3<f64> = Array3::zeros([3*nat,nvirt,nocc]);
     let n_orbs:usize = nocc + nvirt;
     let mut u_mat:Array3<f64> = Array3::zeros([3*nat,n_orbs,n_orbs]);
+    let mut iteration:usize = 0;
 
-    'cphf_loop: for it in 0..1000{
+    'cphf_loop: for it in 0..10000{
         // let u_prev:Array2<f64> = u_mat.clone().into_shape([3*nat,nvirt*nocc]).unwrap();
         let u_prev:Array3<f64> = u_mat.clone();
 
@@ -1346,13 +1348,15 @@ fn solve_cphf_new(
         // check convergence
         // let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
         let diff:Array3<f64> = (&u_prev - &u_mat.view()).map(|val| val.abs());
-        let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-16 {Some(item)} else {None}).collect();
+        let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-12 {Some(item)} else {None}).collect();
 
         if not_converged.len() == 0{
             println!("CPHF converged in {} Iterations.",it);
             break 'cphf_loop;
         }
+        iteration = it;
     }
+    println!("Number of iterations {}",iteration);
 
     return u_mat;
 }
