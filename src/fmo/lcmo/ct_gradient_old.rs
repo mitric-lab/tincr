@@ -9,9 +9,11 @@ use crate::scc::gamma_approximation::{
 use crate::scc::h0_and_s::{h0_and_s_ab, h0_and_s_gradients};
 use ndarray::prelude::*;
 use ndarray_linalg::trace::Trace;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, SubAssign};
 use ndarray_linalg::{into_row, into_col};
 use std::time::Instant;
+use ndarray::parallel::prelude::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 
 impl SuperSystem{
     pub fn ct_gradient(
@@ -444,46 +446,72 @@ impl Monomer {
         // for the CPHF iterations
         let mut b_mat:Array3<f64> = Array3::zeros([3*self.n_atoms,self.n_orbs,self.n_orbs]);
 
+        // create orbital energy matrix
+        let mut orbe_matrix:Array2<f64> = Array2::zeros((self.n_orbs,self.n_orbs));
+        for mu in 0..self.n_orbs{
+            for nu in 0..self.n_orbs{
+                orbe_matrix[[mu,nu]] = orbe[nu];
+            }
+        }
+
+        // Calculate integrals partwise before iteration over gradient
+        // integral (ij|kl) - (ik|jl), i = nvirt, j = nocc
+        let integral_vo_2d:Array2<f64> = (2.0 * qvo.t().dot(&g0.dot(&qoo)) - qvo.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nocc,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nocc*nocc]).unwrap());
+        // integral (ij|kl) - (ik|jl), i = nocc, j = nocc
+        let integral_oo_2d:Array2<f64> = (2.0 * qoo.t().dot(&g0.dot(&qoo)) -qoo.t().dot(&g0_lr.dot(&qoo)).into_shape([nocc,nocc,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nocc,nocc*nocc]).unwrap());
+        // integral (ij|kl) - (ik|jl), i = nvirt, j = nvirt
+        let integral_vv_2d:Array2<f64> = (2.0 * qvv.t().dot(&g0.dot(&qoo)) -qvo.t().dot(&g0_lr.dot(&qvo)).into_shape([nvirt,nocc,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nocc*nocc]).unwrap());
+        // integral (ij|kl) - (ik|jl), i = nocc, j = nvirt
+        let integral_ov_2d:Array2<f64> = (2.0 * qov.t().dot(&g0.dot(&qoo)) -qoo.t().dot(&g0_lr.dot(&qvo)).into_shape([nocc,nocc,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nocc*nocc]).unwrap());
+
+        // Calculate the B matrix
         for nc in 0..3*self.n_atoms{
             let ds_mo:Array1<f64> = orbs_occ.t().dot(&grad_s.slice(s![nc,..,..])
                 .dot(&orbs_occ)).into_shape([nocc*nocc]).unwrap();
+
             // integral (ij|kl) - (ik|jl), i = nvirt, j = nocc
-            let integral_vo:Array2<f64> = (2.0 * qvo.t().dot(&g0.dot(&qoo)) - qvo.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nocc,nocc,nocc]).unwrap()
-                .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nocc*nocc]).unwrap())
-                .dot(&ds_mo).into_shape([nvirt,nocc]).unwrap();
+            let integral_vo:Array2<f64> = integral_vo_2d.dot(&ds_mo).into_shape([nvirt,nocc]).unwrap();
             // integral (ij|kl) - (ik|jl), i = nocc, j = nocc
-            let integral_oo:Array2<f64> = (2.0 * qoo.t().dot(&g0.dot(&qoo)) -qoo.t().dot(&g0_lr.dot(&qoo)).into_shape([nocc,nocc,nocc,nocc]).unwrap()
-                .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nocc,nocc*nocc]).unwrap())
-                .dot(&ds_mo).into_shape([nocc,nocc]).unwrap();
+            let integral_oo:Array2<f64> = integral_oo_2d.dot(&ds_mo).into_shape([nocc,nocc]).unwrap();
             // integral (ij|kl) - (ik|jl), i = nvirt, j = nvirt
-            let integral_vv:Array2<f64> = (2.0 * qvv.t().dot(&g0.dot(&qoo)) -qvo.t().dot(&g0_lr.dot(&qvo)).into_shape([nvirt,nocc,nvirt,nocc]).unwrap()
-                .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nocc*nocc]).unwrap())
-                .dot(&ds_mo).into_shape([nvirt,nvirt]).unwrap();
+            let integral_vv:Array2<f64> = integral_vv_2d.dot(&ds_mo).into_shape([nvirt,nvirt]).unwrap();
             // integral (ij|kl) - (ik|jl), i = nocc, j = nvirt
-            let integral_ov:Array2<f64> = (2.0 * qov.t().dot(&g0.dot(&qoo)) -qoo.t().dot(&g0_lr.dot(&qvo)).into_shape([nocc,nocc,nvirt,nocc]).unwrap()
-                .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nocc*nocc]).unwrap())
-                .dot(&ds_mo).into_shape([nocc,nvirt]).unwrap();
+            let integral_ov:Array2<f64> = integral_ov_2d.dot(&ds_mo).into_shape([nocc,nvirt]).unwrap();
 
             let gradh_mo:Array2<f64> = orbs.t().dot(&grad_h.slice(s![nc,..,..]).dot(&orbs));
             let grads_mo:Array2<f64> = orbs.t().dot(&grad_s.slice(s![nc,..,..]).dot(&orbs));
 
-            for i in 0..nvirt{
-                for j in 0..nocc{
-                    b_mat[[nc,nocc+i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_vo[[i,j]];
-                }
-                for j in 0..nvirt{
-                    b_mat[[nc,nocc+i,nocc+j]] = gradh_mo[[nocc+i,nocc+j]] - grads_mo[[nocc+i,nocc+j]] * orbe[nocc+j] - integral_vv[[i,j]];
-                }
-            }
-            for i in 0..nocc{
-                for j in 0..nocc{
-                    b_mat[[nc,i,j]] = gradh_mo[[i,j]] - grads_mo[[i,j]] * orbe[j] - integral_oo[[i,j]];
-                }
-                for j in 0..nvirt{
-                    b_mat[[nc,i,nocc+j]] = gradh_mo[[i,nocc+j]] - grads_mo[[i,nocc+j]] * orbe[nocc+j] - integral_ov[[i,j]];
-                }
-            }
+            b_mat.slice_mut(s![nc,..,..]).assign(&(&gradh_mo - &grads_mo * &orbe_matrix));
+            b_mat.slice_mut(s![nc,..nocc,..nocc]).sub_assign(&integral_oo);
+            b_mat.slice_mut(s![nc,..nocc,nocc..]).sub_assign(&integral_ov);
+            b_mat.slice_mut(s![nc,nocc..,..nocc]).sub_assign(&integral_vo);
+            b_mat.slice_mut(s![nc,nocc..,nocc..]).sub_assign(&integral_vv);
+
+            // // loop version
+            // for i in 0..nvirt{
+            //     for j in 0..nocc{
+            //         b_mat[[nc,nocc+i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_vo[[i,j]];
+            //     }
+            //     for j in 0..nvirt{
+            //         b_mat[[nc,nocc+i,nocc+j]] = gradh_mo[[nocc+i,nocc+j]] - grads_mo[[nocc+i,nocc+j]] * orbe[nocc+j] - integral_vv[[i,j]];
+            //     }
+            // }
+            // for i in 0..nocc{
+            //     for j in 0..nocc{
+            //         b_mat[[nc,i,j]] = gradh_mo[[i,j]] - grads_mo[[i,j]] * orbe[j] - integral_oo[[i,j]];
+            //     }
+            //     for j in 0..nvirt{
+            //         b_mat[[nc,i,nocc+j]] = gradh_mo[[i,nocc+j]] - grads_mo[[i,nocc+j]] * orbe[nocc+j] - integral_ov[[i,j]];
+            //     }
+            // }
         }
+        // assert!(b_mat.abs_diff_eq(&b_mat_2,1.0e-11));
+
+        println!("Elapsed time calculate B matrix: {:>8.6}",timer.elapsed().as_secs_f64());
 
         // calculate A_matrix ij,kl i = nvirt, j = nocc, k = nvirt, l = nocc
         // for the CPHF iterations
@@ -1352,6 +1380,25 @@ fn solve_cphf_new(
                 }
             }
         }
+
+        // let u_vector:Vec<Array2<f64>> = (0..3*nat).into_par_iter().map(|nc|{
+        //     // calculate sum_kl Aij,kl U^a_kl
+        //     let mut u_2d:Array2<f64> = Array2::zeros((n_orbs,n_orbs));
+        //     let a_term:Array2<f64> = a_mat.dot(&u_prev.slice(s![nc,nocc..,..nocc]).to_owned()
+        //         .into_shape(nvirt*nocc).unwrap()).into_shape([n_orbs,n_orbs]).unwrap();
+        //
+        //     for orb_i in 0..n_orbs{
+        //         for orb_j in 0..n_orbs{
+        //             if orb_i != orb_j{
+        //                 u_2d[[orb_i,orb_j]] = (1.0/(orbe[orb_j] - orbe[orb_i])) * (a_term[[orb_i,orb_j]] + b_mat[[nc,orb_i,orb_j]]);
+        //             }
+        //         }
+        //     }
+        //     u_2d
+        // }).collect();
+        // for (nc,arr) in u_vector.iter().enumerate(){
+        //     u_mat.slice_mut(s![nc,..,..]).assign(&arr);
+        // }
 
         // check convergence
         // let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
