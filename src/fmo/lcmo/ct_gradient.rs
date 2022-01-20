@@ -11,6 +11,8 @@ use std::ops::AddAssign;
 use crate::fmo::lcmo::ct_gradient_old::f_v_coulomb_loop;
 use ndarray_linalg::{into_col, into_row};
 use std::time::Instant;
+use ndarray::parallel::prelude::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 
 impl SuperSystem {
     pub fn ct_gradient_new(
@@ -346,6 +348,34 @@ impl SuperSystem {
             println!("Elapsed time other version {:>8.6}",timer.elapsed().as_secs_f64());
             drop(timer);
             // assert!(coulomb_grad_2.abs_diff_eq(&coulomb_grad,1.0e-11));
+
+            // Parallel version
+            // let grad:Vec<f64> = (0..3*pair_ij.n_atoms).into_par_iter().map(|nat |{
+            //     // dot product of dc_mu,i/dr c_lambda,i to c_mu,lambda of Fragment I
+            //     let c_i:Array2<f64> = into_col(dc_mo_i.slice(s![nat,..]).to_owned())
+            //         .dot(&into_row(c_mo_i.slice(s![..,orb_ind_i]).to_owned()));
+            //     let c_i_2:Array2<f64> = into_col(c_mo_i.slice(s![..,orb_ind_i]).to_owned())
+            //         .dot(&into_row(dc_mo_i.slice(s![nat,..]).to_owned()));
+            //     // dot product of dc_nu,a/dr c_sig,a to c_nu,sig of Fragment J
+            //     let c_j:Array2<f64> = into_col(dc_mo_j.slice(s![nat,..]).to_owned())
+            //         .dot(&into_row(c_mo_j.slice(s![..,orb_ind_j]).to_owned()));
+            //     let c_j_2:Array2<f64> = into_col(c_mo_j.slice(s![..,orb_ind_j]).to_owned())
+            //         .dot(&into_row(dc_mo_j.slice(s![nat,..]).to_owned()));
+            //
+            //     // calculate dot product of coulomb integral with previously calculated coefficients
+            //     // in AO basis
+            //     let term_1a = c_i.into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+            //         .dot(&coulomb_arr.dot(&c_mat_j.view().into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+            //     let term_1b = c_i_2.into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+            //         .dot(&coulomb_arr.dot(&c_mat_j.view().into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+            //     let term_2a = c_mat_i.view().into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+            //         .dot(&coulomb_arr.dot(&c_j.into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+            //     let term_2b = c_mat_i.view().into_shape(m_i.n_orbs*m_i.n_orbs).unwrap()
+            //         .dot(&coulomb_arr.dot(&c_j_2.into_shape(m_j.n_orbs*m_j.n_orbs).unwrap()));
+            //
+            //     term_1a + term_1b + term_2a + term_2b
+            // }).collect();
+            // coulomb_grad_2 = Array::from(grad);
 
             coulomb_grad_2
         }
