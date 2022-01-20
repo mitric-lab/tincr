@@ -730,7 +730,7 @@ impl SuperSystem {
                             dc_mo_i.slice_mut(s![nat,..]).assign(&umat_i.slice(s![nat,..,i.mo.index]).dot(&c_mo_i.t()));
                         }
                         for nat in 0..3*m_j.n_atoms{
-                            dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,j.mo.index]).dot(&c_mo_j.t()));
+                            dc_mo_j.slice_mut(s![3*m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,j.mo.index]).dot(&c_mo_j.t()));
                         }
 
                         // calculate coulomb and exchange integrals in AO basis
@@ -846,7 +846,7 @@ impl SuperSystem {
                             dc_mo_i.slice_mut(s![nat,..]).assign(&umat_i.slice(s![nat,..,j.ct_index]).dot(&c_mo_i.t()));
                         }
                         for nat in 0..3*m_j.n_atoms{
-                            dc_mo_j.slice_mut(s![m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,i.ct_index]).dot(&c_mo_j.t()));
+                            dc_mo_j.slice_mut(s![3*m_i.n_atoms+nat,..]).assign(&umat_j.slice(s![nat,..,i.ct_index]).dot(&c_mo_j.t()));
                         }
 
 

@@ -11,6 +11,7 @@ use ndarray::prelude::*;
 use ndarray_linalg::trace::Trace;
 use std::ops::AddAssign;
 use ndarray_linalg::{into_row, into_col};
+use std::time::Instant;
 
 impl SuperSystem{
     pub fn ct_gradient(
@@ -52,9 +53,10 @@ impl SuperSystem{
         // reference to the mo coefficients of fragment J
         let c_mo_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
 
-        let occ_indices_i: &[usize] = m_i.properties.virt_indices().unwrap();
+        let occ_indices_i: &[usize] = m_i.properties.occ_indices().unwrap();
         let virt_indices_j: &[usize] = m_j.properties.virt_indices().unwrap();
-        let orb_ind_i:usize = occ_indices_i[ct_ind_i];
+        let nocc_i:usize = occ_indices_i.len();
+        let orb_ind_i:usize = occ_indices_i[nocc_i -1 -ct_ind_i];
         let orb_ind_j:usize = virt_indices_j[ct_ind_j];
         let c_mat_j:Array2<f64> = into_col(c_mo_j.slice(s![..,orb_ind_j]).to_owned()).dot(&into_row(c_mo_j.slice(s![..,orb_ind_j]).to_owned()));
         let c_mat_i:Array2<f64> = into_col(c_mo_i.slice(s![..,orb_ind_i]).to_owned()).dot(&into_row(c_mo_i.slice(s![..,orb_ind_i]).to_owned()));
@@ -214,7 +216,7 @@ impl SuperSystem{
             // let gradient: Array1<f64> = gradh_i + 2.0 * exchange_gradient - 1.0 * coulomb_gradient;
             // let gradient: Array1<f64> = gradh_i - 1.0 * coulomb_gradient;
             // let gradient: Array1<f64> = - 1.0 * (coulomb_gradient - coulomb_grad);
-            let gradient:Array1<f64> = coulomb_grad;
+            let gradient:Array1<f64> = -coulomb_grad;
             // let gradient:Array1<f64> = gradh_i;
 
             gradient
@@ -376,6 +378,7 @@ impl Monomer {
         &self,
         atoms: &[Atom],
     )->Array3<f64>{
+        let timer: Instant = Instant::now();
         // derivative of H0 and S
         let (grad_s, grad_h0) = h0_and_s_gradients(&atoms, self.n_orbs, &self.slako);
 
@@ -536,6 +539,10 @@ impl Monomer {
         a_matrix.slice_mut(s![nocc..,..nocc,..]).assign(&a_mat_vo.into_shape([nvirt,nocc,nvirt*nocc]).unwrap());
         a_matrix.slice_mut(s![nocc..,nocc..,..]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nvirt*nocc]).unwrap());
         let a_mat:Array2<f64> = a_matrix.into_shape([self.n_orbs*self.n_orbs,nvirt*nocc]).unwrap();
+
+        println!("Elapsed time calculate A and B matrices: {:>8.6}",timer.elapsed().as_secs_f64());
+        drop(timer);
+        println!("Start iterative cphf routine");
         let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
 
         return u_mat;
@@ -1011,7 +1018,7 @@ fn f_v_coulomb(
     return d_f;
 }
 
-fn f_v_coulomb_loop(
+pub fn f_v_coulomb_loop(
     s_i: ArrayView2<f64>,
     s_j: ArrayView2<f64>,
     g0_pair_ao: ArrayView2<f64>,
@@ -1318,6 +1325,7 @@ fn solve_cphf_new(
     let n_orbs:usize = nocc + nvirt;
     let mut u_mat:Array3<f64> = Array3::zeros([3*nat,n_orbs,n_orbs]);
     let mut iteration:usize = 0;
+    println!("Iterations: ");
 
     'cphf_loop: for it in 0..10000{
         // let u_prev:Array2<f64> = u_mat.clone().into_shape([3*nat,nvirt*nocc]).unwrap();
@@ -1348,14 +1356,16 @@ fn solve_cphf_new(
         // check convergence
         // let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
         let diff:Array3<f64> = (&u_prev - &u_mat.view()).map(|val| val.abs());
-        let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-12 {Some(item)} else {None}).collect();
+        let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-7 {Some(item)} else {None}).collect();
 
         if not_converged.len() == 0{
             println!("CPHF converged in {} Iterations.",it);
             break 'cphf_loop;
         }
         iteration = it;
+        print!("{}",it);
     }
+    println!(" ");
     println!("Number of iterations {}",iteration);
 
     return u_mat;
