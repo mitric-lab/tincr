@@ -109,12 +109,13 @@ fn main() {
     // ................................................................
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
-        let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
-        // create the struct which starts the dynamics
-        let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
-        dynamic.verlet_dynamics();
-        // system.prepare_scc();
-        // system.run_scc();
+        // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
+        // // create the struct which starts the dynamics
+        // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
+        // dynamic.verlet_dynamics();
+        system.prepare_scc();
+        system.run_scc();
+        system.test_tda_lc_gradient();
         // system.optimize_cartesian(Some(1));
         // system.test_tda_lc_gradient();
         // system.prepare_tda();
@@ -131,7 +132,9 @@ fn main() {
         // assert!(1==2);
         // system.prepare_scc();
         // system.run_scc();
-        // system.create_exciton_hamiltonian();
+        // system.create_exciton_hamiltonian()
+        // system.test_le_gradient();
+        system.test_ct_gradient();;
         system.test_ct_ct_coupling_gradient();
         // create the struct which starts the dynamics
         // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
