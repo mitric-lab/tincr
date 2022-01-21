@@ -1450,12 +1450,10 @@ pub fn solve_cphf_pople(
     // let amat_new:Array2<f64> = amat_new.into_shape([n_orbs*n_orbs,n_orbs*n_orbs]).unwrap();
     let amat_new:Array2<f64> = amat_new_3d.into_shape([n_orbs*n_orbs,nvirt*nocc]).unwrap();
 
-    // do the iterative routine only for one nuclear gradient as a test
-    let b_zero:ArrayView1<f64> = bmat_new.slice(s![0,..,..]).into_shape([n_orbs*n_orbs]).unwrap();
-
     let mut u_matrix:Array3<f64> = Array3::zeros([3*nat,n_orbs,n_orbs]);
     // Iteration over the gradient
     for nc in 0..3*nat{
+        let b_zero:ArrayView1<f64> = bmat_new.slice(s![nc,..,..]).into_shape([n_orbs*n_orbs]).unwrap();
         let mut saved_b:Vec<Array1<f64>> = Vec::new();
         let mut saved_u_dot_a:Vec<Array1<f64>> = Vec::new();
         let mut b_prev:Array1<f64> = b_zero.to_owned();
@@ -1486,10 +1484,11 @@ pub fn solve_cphf_pople(
             // calcula the factors a_n and the contributions to the u matrix
             for (b_arr,u_dot_a) in saved_b.iter().zip(saved_u_dot_a.iter()){
                 let a_factor:f64 = b_arr.dot(&b_zero)/(b_arr.dot(b_arr)-b_arr.dot(u_dot_a));
+                println!("a factor {}",a_factor);
                 u_mat_1d = u_mat_1d + a_factor * b_arr;
             }
             let diff:Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
-            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-14 {Some(item)} else {None}).collect();
+            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-10 {Some(item)} else {None}).collect();
             u_prev = u_mat_1d;
 
             if not_converged.len() == 0{
