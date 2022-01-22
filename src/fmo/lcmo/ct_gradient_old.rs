@@ -572,10 +572,14 @@ impl Monomer {
         drop(timer);
         println!("Start iterative cphf routine");
         let u_mat_pople:Array3<f64> = solve_cphf_pople(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
-        let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
-        assert!(u_mat.abs_diff_eq(&u_mat_pople,1.0e-7));
+        //let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        // println!(" ");
+        // println!("U mat pople {}",u_mat_pople);
+        // println!(" ");
+        // println!("U mat{}",u_mat);
+        // assert!(u_mat.abs_diff_eq(&u_mat_direct,1.0e-7));
 
-        return u_mat;
+        return u_mat_pople;
     }
 
     pub fn calculate_ct_fock_gradient(
@@ -1484,20 +1488,20 @@ pub fn solve_cphf_pople(
             // calcula the factors a_n and the contributions to the u matrix
             for (b_arr,u_dot_a) in saved_b.iter().zip(saved_u_dot_a.iter()){
                 let a_factor:f64 = b_arr.dot(&b_zero)/(b_arr.dot(b_arr)-b_arr.dot(u_dot_a));
-                println!("a factor {}",a_factor);
+                // println!("a factor {}",a_factor);
                 u_mat_1d = u_mat_1d + a_factor * b_arr;
             }
             let diff:Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
             let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-10 {Some(item)} else {None}).collect();
             u_prev = u_mat_1d;
 
+            iteration = it;
             if not_converged.len() == 0{
-                println!("CPHF converged in {} Iterations.",it);
+                // println!("CPHF converged in {} Iterations.",it);
                 break 'cphf_loop;
             }
-            iteration = it;
         }
-        println!("Number of iterations {}",iteration);
+        // println!("Number of iterations {}",iteration);
         u_matrix.slice_mut(s![nc,..,..]).assign(&u_prev.into_shape([n_orbs,n_orbs]).unwrap());
     }
     return u_matrix;
