@@ -244,7 +244,7 @@ impl SuperSystem {
                 m_i.n_orbs,
                 m_j.n_orbs,
             );
-            coulomb_arr = 2.0 * exchange_arr - coulomb_arr;
+            coulomb_arr = 2.0 * coulomb_arr - exchange_arr;
             let coulomb_arr:Array2<f64> =  coulomb_arr.into_shape([m_i.n_orbs*m_i.n_orbs,m_j.n_orbs*m_j.n_orbs]).unwrap();
 
             // (d/dr tdm_i * tdm_j + tdm_i * d/dr tdm_j) * [2*exchange - coulomb]
