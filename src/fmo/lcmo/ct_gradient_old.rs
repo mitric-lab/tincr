@@ -571,15 +571,15 @@ impl Monomer {
         println!("Elapsed time calculate A and B matrices: {:>8.6}",timer.elapsed().as_secs_f64());
         drop(timer);
         println!("Start iterative cphf routine");
-        let u_mat_pople:Array3<f64> = solve_cphf_pople(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
-        //let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        // let u_mat_pople:Array3<f64> = solve_cphf_pople(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
         // println!(" ");
         // println!("U mat pople {}",u_mat_pople);
         // println!(" ");
         // println!("U mat{}",u_mat);
         // assert!(u_mat.abs_diff_eq(&u_mat_direct,1.0e-7));
 
-        return u_mat_pople;
+        return u_mat;
     }
 
     pub fn calculate_ct_fock_gradient(
@@ -1467,6 +1467,7 @@ pub fn solve_cphf_pople(
 
         let mut first_term:Array1<f64> = amat_new.dot(&b_prev.view().into_shape([n_orbs,n_orbs]).unwrap()
             .slice(s![nocc..,..nocc]).to_owned().into_shape([nvirt*nocc]).unwrap());
+        // let mut first_term:Array1<f64> = amat_new.dot(&b_prev);
         saved_u_dot_a.push(first_term.clone());
 
         'cphf_loop: for it in 0..50{
@@ -1482,6 +1483,7 @@ pub fn solve_cphf_pople(
 
             first_term = amat_new.dot(&b_prev.view().into_shape([n_orbs,n_orbs]).unwrap()
                 .slice(s![nocc..,..nocc]).to_owned().into_shape([nvirt*nocc]).unwrap());
+            // first_term = amat_new.dot(&b_prev);
             saved_u_dot_a.push(first_term.clone());
 
             let mut u_mat_1d:Array1<f64> = Array1::zeros((n_orbs*n_orbs));
@@ -1492,7 +1494,7 @@ pub fn solve_cphf_pople(
                 u_mat_1d = u_mat_1d + a_factor * b_arr;
             }
             let diff:Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
-            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-10 {Some(item)} else {None}).collect();
+            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-14 {Some(item)} else {None}).collect();
             u_prev = u_mat_1d;
 
             iteration = it;

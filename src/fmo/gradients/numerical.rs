@@ -116,7 +116,7 @@ impl SuperSystem {
         drop(timer);
         println!("Start CPHF");
         let timer: Instant = Instant::now();
-        grad = grad - self.calculate_cphf_correction(monomer_index_i,monomer_index_j,0,0,true);
+        grad = grad + self.calculate_cphf_correction(monomer_index_i,monomer_index_j,0,0,true);
         println!("Elapsed time CPHF correction: {:>8.6}",timer.elapsed().as_secs_f64());
         drop(timer);
         // grad = grad + self.ct_gradient(monomer_index_i,monomer_index_j,0,0);

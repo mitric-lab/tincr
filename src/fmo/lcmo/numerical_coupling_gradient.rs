@@ -216,6 +216,9 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
+        let val: f64 = self.exciton_ct_ct_coupling(0, 1, 0, 0, false, 0, 1, 0, 0, true);
+        println!("Coupling: {}",val);
+
         assert_deriv(
             self,
             SuperSystem::fmo_ct_ct_coupling_energy_wrapper,

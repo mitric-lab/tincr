@@ -981,3 +981,26 @@ pub fn coulomb_integral_loop_ao(
 
     return integral;
 }
+
+pub fn exchange_integral_loop_ao(
+    s_pair: ArrayView2<f64>,
+    g0_lr_pair_ao: ArrayView2<f64>,
+    n_orb_i: usize,
+    n_orb_j:usize,
+)->Array4<f64>{
+    let mut integral:Array4<f64> = Array4::zeros([n_orb_i,n_orb_i,n_orb_j,n_orb_j]);
+
+    for mu in 0..n_orb_i{
+        for la in 0..n_orb_i{
+            for nu in 0..n_orb_j{
+                for sig in 0..n_orb_j{
+                    integral[[mu,la,nu,sig]] = 0.25 * s_pair[[la,n_orb_i+sig]] * s_pair[[mu,n_orb_i+nu]] *
+                        (g0_lr_pair_ao[[mu,la]] + g0_lr_pair_ao[[mu,n_orb_i+sig]]
+                            + g0_lr_pair_ao[[n_orb_i+nu,la]] + g0_lr_pair_ao[[n_orb_i+nu,sig]]);
+                }
+            }
+        }
+    }
+
+    return integral;
+}
