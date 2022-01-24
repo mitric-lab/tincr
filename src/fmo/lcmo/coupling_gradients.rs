@@ -60,40 +60,6 @@ impl SuperSystem {
         let mol_i: &Monomer = &self.monomers[i.monomer_index];
         let mol_j: &Monomer = &self.monomers[j.monomer_index];
 
-        // transform the CI coefficients of the monomers to the AO basis
-        let nocc_i = mol_i.properties.n_occ().unwrap();
-        let nvirt_i = mol_i.properties.n_virt().unwrap();
-        let cis_c_i: ArrayView2<f64> = mol_i
-            .properties
-            .ci_coefficient(i.state_index)
-            .unwrap()
-            .into_shape([nocc_i, nvirt_i])
-            .unwrap();
-        let occs_i = mol_i.properties.orbs_slice(0, Some(i.homo + 1)).unwrap();
-        let virts_i = mol_i.properties.orbs_slice(i.homo + 1, None).unwrap();
-
-        let nocc_j = mol_j.properties.n_occ().unwrap();
-        let nvirt_j = mol_j.properties.n_virt().unwrap();
-        let cis_c_j: ArrayView2<f64> = mol_j
-            .properties
-            .ci_coefficient(j.state_index)
-            .unwrap()
-            .into_shape([nocc_j, nvirt_j])
-            .unwrap();
-        let occs_j = mol_j.properties.orbs_slice(0, Some(j.homo + 1)).unwrap();
-        let virts_j = mol_j.properties.orbs_slice(j.homo + 1, None).unwrap();
-
-        let mut tdm_i:Array2<f64>;
-        let mut tdm_j:Array2<f64>;
-        if i.monomer_index < j.monomer_index{
-            tdm_i = occs_i.dot(&cis_c_i.dot(&virts_i.t()));
-            tdm_j = occs_j.dot(&cis_c_j.dot(&virts_j.t()));
-        }
-        else{
-            tdm_j = occs_i.dot(&cis_c_i.dot(&virts_i.t()));
-            tdm_i = occs_j.dot(&cis_c_j.dot(&virts_j.t()));
-        }
-
         let n_atoms: usize = mol_i.n_atoms + mol_j.n_atoms;
         let mut gradient: Array1<f64> = Array1::zeros(3 * n_atoms);
 
@@ -123,6 +89,32 @@ impl SuperSystem {
             let grad_s_pair = pair.properties.grad_s().unwrap();
             let grad_s_i: ArrayView3<f64> = grad_s_pair.slice(s![.., ..n_orbs_i, ..n_orbs_i]);
             let grad_s_j: ArrayView3<f64> = grad_s_pair.slice(s![.., n_orbs_i.., n_orbs_i..]);
+
+            // transform the CI coefficients of the monomers to the AO basis
+            let nocc_i = m_i.properties.n_occ().unwrap();
+            let nvirt_i = m_i.properties.n_virt().unwrap();
+            let cis_c_i: ArrayView2<f64> = m_i
+                .properties
+                .ci_coefficient(i.state_index)
+                .unwrap()
+                .into_shape([nocc_i, nvirt_i])
+                .unwrap();
+            let occs_i = m_i.properties.orbs_slice(0, Some(i.homo + 1)).unwrap();
+            let virts_i = m_i.properties.orbs_slice(i.homo + 1, None).unwrap();
+
+            let nocc_j = m_j.properties.n_occ().unwrap();
+            let nvirt_j = m_j.properties.n_virt().unwrap();
+            let cis_c_j: ArrayView2<f64> = m_j
+                .properties
+                .ci_coefficient(j.state_index)
+                .unwrap()
+                .into_shape([nocc_j, nvirt_j])
+                .unwrap();
+            let occs_j = m_j.properties.orbs_slice(0, Some(j.homo + 1)).unwrap();
+            let virts_j = m_j.properties.orbs_slice(j.homo + 1, None).unwrap();
+
+            let tdm_i:Array2<f64> = occs_i.dot(&cis_c_i.dot(&virts_i.t()));
+            let tdm_j:Array2<f64> = occs_j.dot(&cis_c_j.dot(&virts_j.t()));
 
             // Coulomb: S, dS, gamma_AO and dgamma_AO of the pair necessary
             let coulomb_gradient: Array1<f64> = f_le_le_coulomb(
@@ -194,6 +186,73 @@ impl SuperSystem {
             assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"LE-LE exchange gradient is wrong!");
 
             gradient = 2.0 * coulomb_gradient - exchange_gradient;
+
+            // calculate the cphf correction
+            // calculate the U matrix of both monomers using the CPHF equations
+            let u_mat_i:Array3<f64> = mol_i.calculate_u_matrix(&pair_atoms[..m_i.n_atoms]);
+            let u_mat_j:Array3<f64> = mol_j.calculate_u_matrix(&pair_atoms[m_i.n_atoms..]);
+
+            // calculate gradients of the MO coefficients for ALL occupied and virtual orbitals
+            // dc_mu,i/dR = sum_m^all U^R_mi, C_mu,m
+            let mut dc_mo_i:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_i.n_orbs,m_i.n_orbs]);
+            let mut dc_mo_j:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_i.n_orbs,m_j.n_orbs]);
+
+            // reference to the mo coefficients of fragment I
+            let c_mo_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+            // reference to the mo coefficients of fragment J
+            let c_mo_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
+
+            // iterate over gradient dimensions of both monomers
+            for nat in 0..3*m_i.n_atoms{
+                for orb in 0..m_i.n_orbs{
+                    dc_mo_i.slice_mut(s![nat,orb,..]).assign(&u_mat_i.slice(s![nat,..,orb]).dot(&c_mo_i.t()));
+                }
+            }
+            for nat in 0..3*m_j.n_atoms{
+                for orb in 0..m_j.n_orbs{
+                    dc_mo_j.slice_mut(s![3*m_i.n_atoms+nat,orb,..]).assign(&u_mat_j.slice(s![nat,..,orb]).dot(&c_mo_j.t()));
+                }
+            }
+
+            let mut cphf_tdm_i:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_i.n_orbs,m_i.n_orbs]);
+            let mut cphf_tdm_j:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_j.n_orbs,m_j.n_orbs]);
+            for nat in 0..3*m_i.n_atoms{
+                cphf_tdm_i.slice_mut(s![nat,..,..]).assign(&(dc_mo_i.slice(s![nat,..nocc_i,..]).t()
+                    .dot(&cis_c_i).dot(&dc_mo_i.slice(s![nat,nocc_i..,..]).t())));
+            }
+            for nat in 0..3*m_j.n_atoms{
+                cphf_tdm_j.slice_mut(s![3*m_i.n_atoms+nat,..,..]).assign(&(dc_mo_j.slice(s![3*m_i.n_atoms+nat,..nocc_j,..]).t()
+                    .dot(&cis_c_i).dot(&dc_mo_j.slice(s![3*m_i.n_atoms+nat,nocc_j..,..]).t())));
+            }
+            // transform cphf tdm matrices to the shape [grad,norb*norb]
+            let cphf_tdm_i:Array2<f64> = cphf_tdm_i.into_shape([3*pair.n_atoms,m_i.n_orbs*m_i.n_orbs]).unwrap();
+            let cphf_tdm_j:Array2<f64> = cphf_tdm_j.into_shape([3*pair.n_atoms,m_j.n_orbs*m_j.n_orbs]).unwrap();
+            let tdm_i:Array1<f64> = tdm_i.into_shape([m_i.n_orbs*m_i.n_orbs]).unwrap();
+            let tdm_j:Array1<f64> = tdm_j.into_shape([m_j.n_orbs*m_j.n_orbs]).unwrap();
+
+            // calculate coulomb and exchange integrals in AO basis
+            let mut coulomb_arr:Array4<f64> = coulomb_integral_loop_ao(
+                m_i.properties.s().unwrap(),
+                m_j.properties.s().unwrap(),
+                pair.properties.gamma_ao().unwrap(),
+                m_i.n_orbs,
+                m_j.n_orbs
+            );
+            let exchange_arr:Array4<f64> = exchange_integral_loop_ao(
+                pair.properties.s().unwrap(),
+                pair.properties.gamma_lr_ao().unwrap(),
+                m_i.n_orbs,
+                m_j.n_orbs,
+            );
+            coulomb_arr = 2.0 * exchange_arr - coulomb_arr;
+            let coulomb_arr:Array2<f64> =  coulomb_arr.into_shape([m_i.n_orbs*m_i.n_orbs,m_j.n_orbs*m_j.n_orbs]).unwrap();
+
+            // (d/dr tdm_i * tdm_j + tdm_i * d/dr tdm_j) * [2*exchange - coulomb]
+            let term_1:Array1<f64> = cphf_tdm_i.dot(&coulomb_arr.dot(&tdm_j));
+            let term_2:Array1<f64> = tdm_i.dot(&coulomb_arr).dot(&cphf_tdm_j);
+
+            gradient = gradient + term_1 + term_2;
+
             pair.properties.reset_gradient();
         } else {
             // calculate only the coulomb contribution of the gradient
@@ -208,6 +267,32 @@ impl SuperSystem {
             let m_j: &Monomer = &self.monomers[esd_pair.j];
             let n_orbs_i: usize = m_i.n_orbs;
             let n_orbs_j: usize = m_j.n_orbs;
+
+            // transform the CI coefficients of the monomers to the AO basis
+            let nocc_i = m_i.properties.n_occ().unwrap();
+            let nvirt_i = m_i.properties.n_virt().unwrap();
+            let cis_c_i: ArrayView2<f64> = m_i
+                .properties
+                .ci_coefficient(i.state_index)
+                .unwrap()
+                .into_shape([nocc_i, nvirt_i])
+                .unwrap();
+            let occs_i = m_i.properties.orbs_slice(0, Some(i.homo + 1)).unwrap();
+            let virts_i = m_i.properties.orbs_slice(i.homo + 1, None).unwrap();
+
+            let nocc_j = m_j.properties.n_occ().unwrap();
+            let nvirt_j = m_j.properties.n_virt().unwrap();
+            let cis_c_j: ArrayView2<f64> = m_j
+                .properties
+                .ci_coefficient(j.state_index)
+                .unwrap()
+                .into_shape([nocc_j, nvirt_j])
+                .unwrap();
+            let occs_j = m_j.properties.orbs_slice(0, Some(j.homo + 1)).unwrap();
+            let virts_j = m_j.properties.orbs_slice(j.homo + 1, None).unwrap();
+
+            let tdm_i:Array2<f64> = occs_i.dot(&cis_c_i.dot(&virts_i.t()));
+            let tdm_j:Array2<f64> = occs_j.dot(&cis_c_j.dot(&virts_j.t()));
 
             // get pair atoms
             let esd_pair_atoms: Vec<Atom> = get_pair_slice(
