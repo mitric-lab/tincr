@@ -213,7 +213,7 @@ impl SuperSystem {
             // calculate gradients of the MO coefficients for ALL occupied and virtual orbitals
             // dc_mu,i/dR = sum_m^all U^R_mi, C_mu,m
             let mut dc_mo_i:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_i.n_orbs,m_i.n_orbs]);
-            let mut dc_mo_j:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_i.n_orbs,m_j.n_orbs]);
+            let mut dc_mo_j:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_j.n_orbs,m_j.n_orbs]);
 
             // reference to the mo coefficients of fragment I
             let c_mo_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
@@ -1163,8 +1163,8 @@ impl SuperSystem {
                             .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
                             .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
 
-                        println!("coulomb gradient: {}",coulomb_gradient.slice(s![0..10]));
-                        println!("coulomb grad loop: {}",coulomb_grad.slice(s![0..10]));
+                        // println!("coulomb gradient: {}",coulomb_gradient.slice(s![0..10]));
+                        // println!("coulomb grad loop: {}",coulomb_grad.slice(s![0..10]));
                         assert!(coulomb_gradient.abs_diff_eq(&coulomb_grad,1e-14),"Coulomb gradients are NOT equal!");
 
                         let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijij(
@@ -1194,8 +1194,8 @@ impl SuperSystem {
                         let exchange_grad:Array1<f64> = exchange_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
                             .dot(&c_mat_occs.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
                             .dot(&c_mat_virts.view().into_shape([orbs_i * orbs_i]).unwrap());
-                        println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
-                        println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
+                        // println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
+                        // println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
                         assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Exchange gradients are NOT equal!");
 
                         // Assemble the gradient
@@ -1325,8 +1325,8 @@ impl SuperSystem {
                             .dot(&c_mat_virts.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
                             .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
 
-                        println!("coulomb gradient: {}",coulomb_gradient.slice(s![0..10]));
-                        println!("coulomb grad loop: {}",coulomb_grad.slice(s![0..10]));
+                        // println!("coulomb gradient: {}",coulomb_gradient.slice(s![0..10]));
+                        // println!("coulomb grad loop: {}",coulomb_grad.slice(s![0..10]));
                         assert!(coulomb_gradient.abs_diff_eq(&coulomb_grad,1e-14),"Coulomb gradients are NOT equal!");
 
                         let exchange_gradient: Array1<f64> = f_exchange_ct_ct_ijij(
@@ -1356,8 +1356,8 @@ impl SuperSystem {
                         let exchange_grad:Array1<f64> = exchange_integral.into_shape([3*n_atoms*orbs_i*orbs_i,orbs_j*orbs_j]).unwrap()
                             .dot(&c_mat_virts.view().into_shape([orbs_j * orbs_j]).unwrap()).into_shape([3*n_atoms,orbs_i*orbs_i]).unwrap()
                             .dot(&c_mat_occs.view().into_shape([orbs_i * orbs_i]).unwrap());
-                        println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
-                        println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
+                        // println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
+                        // println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
                         assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"Exchange gradients are NOT equal!");
 
                         // Assemble the gradient
