@@ -1004,3 +1004,88 @@ pub fn exchange_integral_loop_ao(
 
     return integral;
 }
+
+pub fn coulomb_integral_loop_ao_lect(
+    s_pair: ArrayView2<f64>,
+    g0_pair_ao: ArrayView2<f64>,
+    n_orb_i: usize,
+    n_orb_j:usize,
+    le_on_I:bool,
+)->Array4<f64>{
+    let mut integral:Array4<f64>;
+    if le_on_I{
+        integral = Array4::zeros([n_orb_i,n_orb_i,n_orb_i,n_orb_j]);
+
+        let norbs:usize = n_orb_i+n_orb_j;
+        for mu in 0..n_orb_i{
+            for la in 0..n_orb_i{
+                for nu in 0..n_orb_i{
+                    for sig in n_orb_i..norbs{
+                        integral[[mu,la,nu,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                            (g0_pair_ao[[mu,nu]] + g0_pair_ao[[mu,sig]]
+                                + g0_pair_ao[[la,nu]] + g0_pair_ao[[la,sig]]);
+                    }
+                }
+            }
+        }
+    }else{
+        integral = Array4::zeros([n_orb_j,n_orb_j,n_orb_j,n_orb_i]);
+
+        let norbs:usize = n_orb_i+n_orb_j;
+        for mu in n_orb_i..norbs{
+            for la in n_orb_i..norbs{
+                for nu in n_orb_i..norbs{
+                    for sig in 0..n_orb_i{
+                        integral[[mu,la,nu,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                            (g0_pair_ao[[mu,nu]] + g0_pair_ao[[mu,sig]] + g0_pair_ao[[la,nu]] + g0_pair_ao[[la,sig]]);
+                    }
+                }
+            }
+        }
+    }
+
+    return integral;
+}
+
+pub fn exchange_integral_loop_ao_lect(
+    s_pair: ArrayView2<f64>,
+    g0_lc_pair_ao: ArrayView2<f64>,
+    n_orb_i: usize,
+    n_orb_j:usize,
+    le_on_I:bool,
+)->Array4<f64>{
+    let mut integral:Array4<f64>;
+    if le_on_I{
+        integral = Array4::zeros([n_orb_i,n_orb_i,n_orb_i,n_orb_j]);
+
+        let norbs:usize = n_orb_i+n_orb_j;
+        for mu in 0..n_orb_i{
+            for la in 0..n_orb_i{
+                for nu in 0..n_orb_i{
+                    for sig in n_orb_i..norbs{
+                        integral[[mu,la,nu,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                            (g0_lc_pair_ao[[mu,nu]] + g0_lc_pair_ao[[mu,sig]]
+                                + g0_lc_pair_ao[[la,nu]] + g0_lc_pair_ao[[la,sig]]);
+                    }
+                }
+            }
+        }
+    }else{
+        integral = Array4::zeros([n_orb_j,n_orb_j,n_orb_j,n_orb_i]);
+
+        let norbs:usize = n_orb_i+n_orb_j;
+        for mu in n_orb_i..norbs{
+            for la in n_orb_i..norbs{
+                for nu in n_orb_i..norbs{
+                    for sig in 0..n_orb_i{
+                        integral[[mu,la,nu,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                            (g0_lc_pair_ao[[mu,nu]] + g0_lc_pair_ao[[mu,sig]]
+                                + g0_lc_pair_ao[[la,nu]] + g0_lc_pair_ao[[la,sig]]);
+                    }
+                }
+            }
+        }
+    }
+
+    return integral;
+}
