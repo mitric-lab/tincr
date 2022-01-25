@@ -217,12 +217,18 @@ impl SuperSystem {
             let mut cphf_tdm_i:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_i.n_orbs,m_i.n_orbs]);
             let mut cphf_tdm_j:Array3<f64> = Array3::zeros([3*pair.n_atoms,m_j.n_orbs,m_j.n_orbs]);
             for nat in 0..3*m_i.n_atoms{
-                cphf_tdm_i.slice_mut(s![nat,..,..]).assign(&(dc_mo_i.slice(s![nat,..nocc_i,..]).t()
-                    .dot(&cis_c_i).dot(&dc_mo_i.slice(s![nat,nocc_i..,..]).t())));
+                cphf_tdm_i.slice_mut(s![nat,..,..]).assign(&((dc_mo_i.slice(s![nat,..nocc_i,..]).t()
+                    .dot(&cis_c_i).dot(&c_mo_i.slice(s![..,nocc_i..]).t())) +
+                    (c_mo_i.slice(s![..,..nocc_i]).t()
+                        .dot(&cis_c_i).dot(&dc_mo_i.slice(s![nat,nocc_i..,..]).t())))
+                );
             }
             for nat in 0..3*m_j.n_atoms{
-                cphf_tdm_j.slice_mut(s![3*m_i.n_atoms+nat,..,..]).assign(&(dc_mo_j.slice(s![3*m_i.n_atoms+nat,..nocc_j,..]).t()
-                    .dot(&cis_c_i).dot(&dc_mo_j.slice(s![3*m_i.n_atoms+nat,nocc_j..,..]).t())));
+                cphf_tdm_j.slice_mut(s![3*m_i.n_atoms+nat,..,..]).assign(&((dc_mo_j.slice(s![3*m_i.n_atoms+nat,..nocc_j,..]).t()
+                    .dot(&cis_c_j).dot(&c_mo_j.slice(s![..,nocc_j..]).t())) +
+                    (c_mo_j.slice(s![..,..nocc_j]).t()
+                        .dot(&cis_c_j).dot(&dc_mo_j.slice(s![3*m_i.n_atoms+nat,nocc_j..,..]).t())))
+                );
             }
             // transform cphf tdm matrices to the shape [grad,norb*norb]
             let cphf_tdm_i:Array2<f64> = cphf_tdm_i.into_shape([3*pair.n_atoms,m_i.n_orbs*m_i.n_orbs]).unwrap();
