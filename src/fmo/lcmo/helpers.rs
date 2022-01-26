@@ -1021,7 +1021,7 @@ pub fn coulomb_integral_loop_ao_lect(
             for la in 0..n_orb_i{
                 for nu in 0..n_orb_i{
                     for sig in n_orb_i..norbs{
-                        integral[[mu,la,nu,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                        integral[[mu,la,nu,sig-n_orb_i]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
                             (g0_pair_ao[[mu,nu]] + g0_pair_ao[[mu,sig]]
                                 + g0_pair_ao[[la,nu]] + g0_pair_ao[[la,sig]]);
                     }
@@ -1036,8 +1036,9 @@ pub fn coulomb_integral_loop_ao_lect(
             for la in n_orb_i..norbs{
                 for nu in n_orb_i..norbs{
                     for sig in 0..n_orb_i{
-                        integral[[mu,la,nu,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
-                            (g0_pair_ao[[mu,nu]] + g0_pair_ao[[mu,sig]] + g0_pair_ao[[la,nu]] + g0_pair_ao[[la,sig]]);
+                        integral[[mu-n_orb_i,la-n_orb_i,nu-n_orb_i,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                            (g0_pair_ao[[mu,nu]] + g0_pair_ao[[mu,sig]]
+                                + g0_pair_ao[[la,nu]] + g0_pair_ao[[la,sig]]);
                     }
                 }
             }
@@ -1063,7 +1064,7 @@ pub fn exchange_integral_loop_ao_lect(
             for la in 0..n_orb_i{
                 for nu in 0..n_orb_i{
                     for sig in n_orb_i..norbs{
-                        integral[[mu,la,nu,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                        integral[[mu,la,nu,sig-n_orb_i]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
                             (g0_lc_pair_ao[[mu,nu]] + g0_lc_pair_ao[[mu,sig]]
                                 + g0_lc_pair_ao[[la,nu]] + g0_lc_pair_ao[[la,sig]]);
                     }
@@ -1078,7 +1079,7 @@ pub fn exchange_integral_loop_ao_lect(
             for la in n_orb_i..norbs{
                 for nu in n_orb_i..norbs{
                     for sig in 0..n_orb_i{
-                        integral[[mu,la,nu,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                        integral[[mu-n_orb_i,la-n_orb_i,nu-n_orb_i,sig]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
                             (g0_lc_pair_ao[[mu,nu]] + g0_lc_pair_ao[[mu,sig]]
                                 + g0_lc_pair_ao[[la,nu]] + g0_lc_pair_ao[[la,sig]]);
                     }
@@ -1103,7 +1104,7 @@ pub fn coulomb_integral_loop_ao_ijji(
         for la in n_orb_i..n_orbs{
             for nu in n_orb_i..n_orbs{
                 for sig in 0..n_orb_i{
-                    integral[[mu,sig,la,nu]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
+                    integral[[mu,sig,la-n_orb_i,nu-n_orb_i]] = 0.25 * s_pair[[nu,sig]] * s_pair[[mu,la]] *
                         (g0_pair_ao[[mu,nu]] + g0_pair_ao[[mu,sig]]
                             + g0_pair_ao[[la,nu]] + g0_pair_ao[[la,sig]]);
                 }
@@ -1127,7 +1128,7 @@ pub fn exchange_integral_loop_ao_ijji(
         for la in n_orb_i..n_orbs{
             for nu in n_orb_i..n_orbs{
                 for sig in 0..n_orb_i{
-                    integral[[mu,sig,la,nu]] = 0.25 * s_pair[[mu,nu]] * s_pair[[la,sig]] *
+                    integral[[mu,sig,la-n_orb_i,nu-n_orb_i]] = 0.25 * s_pair[[mu,nu]] * s_pair[[la,sig]] *
                         (g0_lr_pair_ao[[mu,la]] + g0_lr_pair_ao[[mu,sig]]
                             + g0_lr_pair_ao[[nu,la]] + g0_lr_pair_ao[[nu,sig]]);
                 }
