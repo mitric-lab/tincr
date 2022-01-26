@@ -107,7 +107,7 @@ impl System{
         let maxiter: usize = 5000;
         let gtol: f64 = 1.0e-6;
         let ftol: f64 = 1.0e-8;
-        let method: String = String::from("Steepest Descent");
+        let method: String = String::from("BFGS");
         let line_search: String = String::from("largest");
 
         let n: usize = coords.len();
@@ -127,6 +127,7 @@ impl System{
         let mut sk: Array1<f64> = Array::zeros(n);
         let mut yk: Array1<f64> = Array::zeros(n);
         let mut inv_hk: Array2<f64> = Array::eye(n);
+        let mut iterations:usize = 0;
 
         // vector of atom names
         let atom_names:Vec<String> = self.atoms.iter().map(|atom| String::from(atom.name)).collect();
@@ -179,8 +180,13 @@ impl System{
             let gnorm: f64 = grad_f_kp1.norm();
             if f_change < ftol && gnorm < gtol {
                 // set the last coordinates and gradient
+                sk = &x_kp1 - &x_old;
                 x_old = x_kp1;
                 grad_fk = grad_f_kp1;
+                fk = f_kp1;
+                iterations = k;
+
+                println!("k = {}, f(x) = {1:.8}, |x(k+1)-x(k)| = {2:.8}, |f(k+1)-f(k)| = {3:.8}, |df/dx| = {4:.8}",k,fk,sk.norm(),f_change,gnorm);
                 break 'optimization_loop;
             }
 
@@ -205,6 +211,15 @@ impl System{
             let opt_energy:Opt_Energy_Output = Opt_Energy_Output::new(k,fk);
             write_opt_energy(&opt_energy);
         }
+        let new_coords:Array2<f64> = constants::BOHR_TO_ANGS * &x_old.view().into_shape((self.n_atoms,3)).unwrap();
+        let xyz_out:XYZ_Output =
+            XYZ_Output::new(
+                atom_names.clone(),
+                new_coords.clone().into_shape([self.n_atoms,3]).unwrap());
+        write_xyz_custom(&xyz_out);
+        let opt_energy:Opt_Energy_Output = Opt_Energy_Output::new(iterations,fk);
+        write_opt_energy(&opt_energy);
+
         return (x_old,grad_fk);
     }
 }
