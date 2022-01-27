@@ -5,7 +5,7 @@ use crate::fmo::{
     BasisState, ChargeTransfer, ExcitedStateMonomerGradient, LocallyExcited, Monomer, Particle,
     SuperSystem,
 };
-use crate::gradients::assert_deriv;
+use crate::gradients::{assert_deriv};
 use crate::initialization::{Atom, MO};
 use crate::io::settings::LcmoConfig;
 use crate::scc::scc_routine::RestrictedSCC;
@@ -28,7 +28,8 @@ impl SuperSystem {
         self.run_scc();
 
         let val: f64 = self.exciton_le_le_coupling(0, 1, 6, 6);
-        return val;
+        // println!("{}",val);
+        return val.abs();
     }
 
     pub fn fmo_le_le_coupling_gradient_wrapper(&mut self) -> Array1<f64> {
@@ -78,7 +79,7 @@ impl SuperSystem {
             SuperSystem::fmo_le_le_coupling_energy_wrapper,
             SuperSystem::fmo_le_le_coupling_gradient_wrapper,
             self.get_xyz(),
-            0.1,
+            0.001,
             1e-6,
         );
     }
@@ -98,7 +99,7 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let val: f64 = self.exciton_le_ct_coupling(0, 0, 0, 1, 0, 0, true);
+        let val: f64 = self.exciton_le_ct_coupling(0, 6, 0, 1, 0, 0, true);
         return val;
     }
 
@@ -116,7 +117,7 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let grad: Array1<f64> = self.exciton_le_ct_coupling_gradient(0, 0, 0, 1, 0, 0, true);
+        let grad: Array1<f64> = self.exciton_le_ct_coupling_gradient(0, 6, 0, 1, 0, 0, true);
         let mol_a: &Monomer = &self.monomers[0];
         let mol_b: &Monomer = &self.monomers[1];
 
@@ -149,7 +150,7 @@ impl SuperSystem {
             SuperSystem::fmo_le_ct_coupling_energy_wrapper,
             SuperSystem::fmo_le_ct_coupling_gradient_wrapper,
             self.get_xyz(),
-            0.1,
+            0.001,
             1e-6,
         );
     }
@@ -169,7 +170,7 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let val: f64 = self.exciton_ct_ct_coupling(0, 1, 0, 0, false, 0, 1, 1, 1, false);
+        let val: f64 = self.exciton_ct_ct_coupling(0, 1, 0, 0, true, 0, 1, 1, 1, false);
         return val;
     }
 
@@ -188,7 +189,7 @@ impl SuperSystem {
         self.run_scc();
 
         let grad: Array1<f64> =
-            self.exciton_ct_ct_coupling_gradient(0, 1, 0, 0, false, 0, 1, 1, 1, false);
+            self.exciton_ct_ct_coupling_gradient(0, 1, 0, 0, true, 0, 1, 1, 1, false);
         let mol_a: &Monomer = &self.monomers[0];
         let mol_b: &Monomer = &self.monomers[1];
 
@@ -216,8 +217,8 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let val: f64 = self.exciton_ct_ct_coupling(0, 1, 0, 0, false, 0, 1, 0, 0, true);
-        println!("Coupling: {}",val);
+        // let val: f64 = self.exciton_ct_ct_coupling(0, 1, 0, 0, false, 0, 1, 0, 0, true);
+        // println!("Coupling: {}",val);
 
         assert_deriv(
             self,
