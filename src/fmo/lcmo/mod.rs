@@ -10,6 +10,7 @@ mod le_gradient;
 mod coupling_gradients;
 mod helpers;
 mod numerical_coupling_gradient;
+mod cpcis;
 
 pub use basis::*;
 use ndarray::prelude::*;
