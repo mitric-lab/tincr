@@ -407,8 +407,8 @@ impl Monomer {
         }
         let two_electron_integral_derivative: Array5<f64> = two_electron_integral_derivative(
             s,
-            g0,
-            g0,
+            g0_ao,
+            g0lr_ao,
             grad_s.view(),
             g1_ao,
             g1lr_ao,
@@ -467,13 +467,16 @@ fn two_electron_integral_derivative(
     n_orbs: usize,
     n_atoms: usize,
 ) -> Array5<f64> {
+    println!("Test1");
     // calculate the two electron integrals
     let two_electron_integrals: Array4<f64> = coulomb_exchange_integral(s, g0, g0_lr, n_orbs);
+    println!("Test2");
     // calculate the derivative of the two electron integrals
     let two_electron_derivative: Array5<f64> =
         f_monomer_coulomb_exchange_loop(s, ds, g0, g0_lr, dg, dg_lr, n_atoms, n_orbs);
     // transform the derivative from the AO basis to the MO basis using MO coefficients
     // from [nc,norbs,norbs,norbs,norbs] to [nc,nvirt,nocc,nocc,nvirt]
+    println!("Test3");
     let two_electron_mo_basis: Array5<f64> = two_electron_derivative
         .view()
         .into_shape([3 * n_atoms * n_orbs * n_orbs * n_orbs, n_orbs])
@@ -481,30 +484,31 @@ fn two_electron_integral_derivative(
         .dot(&orbs.slice(s![.., nocc..]))
         .into_shape([3 * n_atoms, n_orbs, n_orbs, n_orbs, nvirt])
         .unwrap()
-        .permuted_axes([0, 1, 2, 4, 3])
+        .permuted_axes([0, 1, 2, 4, 3]).as_standard_layout()
         .to_owned()
         .into_shape([3 * n_atoms * n_orbs * n_orbs * nvirt, n_orbs])
         .unwrap()
         .dot(&orbs.slice(s![.., ..nocc]))
         .into_shape([3 * n_atoms, n_orbs, n_orbs, nvirt, nocc])
         .unwrap()
-        .permuted_axes([0, 1, 4, 3, 2])
+        .permuted_axes([0, 1, 4, 3, 2]).as_standard_layout()
         .to_owned()
         .into_shape([3 * n_atoms * n_orbs * nocc * nvirt, n_orbs])
         .unwrap()
         .dot(&orbs.slice(s![.., ..nocc]))
         .into_shape([3 * n_atoms, n_orbs, nocc, nvirt, nocc])
         .unwrap()
-        .permuted_axes([0, 4, 2, 3, 1])
+        .permuted_axes([0, 4, 2, 3, 1]).as_standard_layout()
         .to_owned()
         .into_shape([3 * n_atoms * nocc * nocc * nvirt, n_orbs])
         .unwrap()
         .dot(&orbs.slice(s![.., nocc..]))
         .into_shape([3 * n_atoms, nocc, nocc, nvirt, nvirt])
         .unwrap()
-        .permuted_axes([0, 4, 1, 2, 3])
+        .permuted_axes([0, 4, 1, 2, 3]).as_standard_layout()
         .to_owned();
 
+    println!("Test4");
     // build the product between the derivatives of the MO coefficients and the two electron integrals
     let cphf_integral: Array5<f64> = cphf_two_electron_integral(
         nocc,
@@ -538,42 +542,126 @@ fn cphf_two_electron_integral(
     let mut cphf_integral_dot:Array5<f64> = Array5::zeros((3 * n_atoms, nvirt, nocc, nocc, nvirt));
 
     for nc in 0..3 * n_atoms {
-        let term_1:Array2<f64> = &dc_mo_virts.slice(s![nc,..,..]) + 3.0* &orbs_virt.t();
-        let term_2:Array2<f64> = &dc_mo_occs.slice(s![nc,..,..]) + 3.0* &orbs_occ.t();
-
-        let tmp:Array4<f64> = two_electron_integrals
+        let tmp_1:Array4<f64> = two_electron_integrals
             .into_shape([n_orbs * n_orbs * n_orbs, n_orbs])
             .unwrap()
-            .dot(&term_1.t())
+            .dot(&orbs_virt)
             .into_shape([n_orbs, n_orbs, n_orbs, nvirt])
             .unwrap()
-            .permuted_axes([0,1,3,2])
+            .permuted_axes([0,1,3,2]).as_standard_layout()
             .to_owned()
             .into_shape([n_orbs * n_orbs * nvirt, n_orbs])
             .unwrap()
-            .dot(&term_2.t())
+            .dot(&orbs_occ)
             .into_shape([n_orbs, n_orbs, nvirt, nocc])
             .unwrap()
-            .permuted_axes([0,3,2,1])
+            .permuted_axes([0,3,2,1]).as_standard_layout()
             .to_owned()
             .into_shape([n_orbs * nocc * nvirt, n_orbs])
             .unwrap()
-            .dot(&term_2.t())
+            .dot(&orbs_occ)
             .into_shape([n_orbs, nocc, nvirt, nocc])
             .unwrap()
-            .permuted_axes([3,1,2,0])
+            .permuted_axes([3,1,2,0]).as_standard_layout()
             .to_owned()
             .into_shape([nocc * nocc * nvirt, n_orbs])
             .unwrap()
-            .dot(&term_1.t())
+            .dot(&dc_mo_virts.slice(s![nc,..,..]).t())
             .into_shape([nocc, nocc, nvirt, nvirt])
             .unwrap()
-            .permuted_axes([3,0,1,2])
+            .permuted_axes([3,0,1,2]).as_standard_layout()
+            .to_owned();
+        let tmp_2:Array4<f64> = two_electron_integrals
+            .into_shape([n_orbs * n_orbs * n_orbs, n_orbs])
+            .unwrap()
+            .dot(&orbs_virt)
+            .into_shape([n_orbs, n_orbs, n_orbs, nvirt])
+            .unwrap()
+            .permuted_axes([0,1,3,2]).as_standard_layout()
+            .to_owned()
+            .into_shape([n_orbs * n_orbs * nvirt, n_orbs])
+            .unwrap()
+            .dot(&orbs_occ)
+            .into_shape([n_orbs, n_orbs, nvirt, nocc])
+            .unwrap()
+            .permuted_axes([0,3,2,1]).as_standard_layout()
+            .to_owned()
+            .into_shape([n_orbs * nocc * nvirt, n_orbs])
+            .unwrap()
+            .dot(&dc_mo_occs.slice(s![nc,..,..]).t())
+            .into_shape([n_orbs, nocc, nvirt, nocc])
+            .unwrap()
+            .permuted_axes([3,1,2,0]).as_standard_layout()
+            .to_owned()
+            .into_shape([nocc * nocc * nvirt, n_orbs])
+            .unwrap()
+            .dot(&orbs_virt)
+            .into_shape([nocc, nocc, nvirt, nvirt])
+            .unwrap()
+            .permuted_axes([3,0,1,2]).as_standard_layout()
+            .to_owned();
+        let tmp_3:Array4<f64> = two_electron_integrals
+            .into_shape([n_orbs * n_orbs * n_orbs, n_orbs])
+            .unwrap()
+            .dot(&orbs_virt)
+            .into_shape([n_orbs, n_orbs, n_orbs, nvirt])
+            .unwrap()
+            .permuted_axes([0,1,3,2]).as_standard_layout()
+            .to_owned()
+            .into_shape([n_orbs * n_orbs * nvirt, n_orbs])
+            .unwrap()
+            .dot(&dc_mo_occs.slice(s![nc,..,..]).t())
+            .into_shape([n_orbs, n_orbs, nvirt, nocc])
+            .unwrap()
+            .permuted_axes([0,3,2,1]).as_standard_layout()
+            .to_owned()
+            .into_shape([n_orbs * nocc * nvirt, n_orbs])
+            .unwrap()
+            .dot(&orbs_occ)
+            .into_shape([n_orbs, nocc, nvirt, nocc])
+            .unwrap()
+            .permuted_axes([3,1,2,0]).as_standard_layout()
+            .to_owned()
+            .into_shape([nocc * nocc * nvirt, n_orbs])
+            .unwrap()
+            .dot(&orbs_virt)
+            .into_shape([nocc, nocc, nvirt, nvirt])
+            .unwrap()
+            .permuted_axes([3,0,1,2]).as_standard_layout()
+            .to_owned();
+        let tmp_4:Array4<f64> = two_electron_integrals
+            .into_shape([n_orbs * n_orbs * n_orbs, n_orbs])
+            .unwrap()
+            .dot(&dc_mo_virts.slice(s![nc,..,..]).t())
+            .into_shape([n_orbs, n_orbs, n_orbs, nvirt])
+            .unwrap()
+            .permuted_axes([0,1,3,2]).as_standard_layout()
+            .to_owned()
+            .into_shape([n_orbs * n_orbs * nvirt, n_orbs])
+            .unwrap()
+            .dot(&orbs_occ)
+            .into_shape([n_orbs, n_orbs, nvirt, nocc])
+            .unwrap()
+            .permuted_axes([0,3,2,1]).as_standard_layout()
+            .to_owned()
+            .into_shape([n_orbs * nocc * nvirt, n_orbs])
+            .unwrap()
+            .dot(&orbs_occ)
+            .into_shape([n_orbs, nocc, nvirt, nocc])
+            .unwrap()
+            .permuted_axes([3,1,2,0]).as_standard_layout()
+            .to_owned()
+            .into_shape([nocc * nocc * nvirt, n_orbs])
+            .unwrap()
+            .dot(&orbs_virt)
+            .into_shape([nocc, nocc, nvirt, nvirt])
+            .unwrap()
+            .permuted_axes([3,0,1,2]).as_standard_layout()
             .to_owned();
 
-        cphf_integral_dot.slice_mut(s![nc,..,..,..,..]).assign(&tmp);
+            cphf_integral_dot.slice_mut(s![nc,..,..,..,..]).assign(&(tmp_1+tmp_2+tmp_3+tmp_4));
     }
-
+    println!("Test9876654321");
     for nc in 0..3 * n_atoms {
         for a in 0..nvirt {
             for i in 0..nocc {
@@ -614,6 +702,12 @@ fn cphf_two_electron_integral(
             }
         }
     }
+    println!("Test: loop end");
+    println!("{}",cphf_integral[[0,0,0,0,0]]);
+    println!(" ");
+    println!(" ");
+    println!(" ");
+    println!("{}",cphf_integral_dot[[0,0,0,0,0]]);
     assert!(cphf_integral.abs_diff_eq(&cphf_integral_dot,1e-10),"Loop version NOT equal to dot version");
 
     return cphf_integral;
