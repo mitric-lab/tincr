@@ -74,6 +74,7 @@ impl SuperSystem {
             };
 
         if type_pair == PairType::Pair {
+            println!("Real pair");
             // calculate the coulomb and exchange contribution of the gradient
             // calculate F[tdm_j] and F_lr[tdm_j]
 
@@ -258,11 +259,10 @@ impl SuperSystem {
                 Array3::zeros([3 * pair.n_atoms, m_i.n_orbs, m_i.n_orbs]);
             let mut cphf_tdm_j_1: Array3<f64> =
                 Array3::zeros([3 * pair.n_atoms, m_j.n_orbs, m_j.n_orbs]);
-            let mut cphf_tdm_i_loop: Array3<f64> =
-                Array3::zeros([3 * pair.n_atoms, m_i.n_orbs, m_i.n_orbs]);
-            let mut cphf_tdm_j_loop: Array3<f64> =
-                Array3::zeros([3 * pair.n_atoms, m_j.n_orbs, m_j.n_orbs]);
-            println!("Loop tests");
+            // let mut cphf_tdm_i_loop: Array3<f64> =
+            //     Array3::zeros([3 * pair.n_atoms, m_i.n_orbs, m_i.n_orbs]);
+            // let mut cphf_tdm_j_loop: Array3<f64> =
+            //     Array3::zeros([3 * pair.n_atoms, m_j.n_orbs, m_j.n_orbs]);
             for nat in 0..3 * m_i.n_atoms {
                 cphf_tdm_i_1.slice_mut(s![nat, .., ..]).assign(
                     &((dc_mo_i
@@ -276,22 +276,22 @@ impl SuperSystem {
                             .dot(&dc_mo_i.slice(s![nat, nocc_i.., ..]))))
                 );
             }
-            for nat in 0..3 * m_i.n_atoms {
-                for orb_i in 0..n_orbs_i{
-                    for orb_j in 0..n_orbs_i{
-                        cphf_tdm_i_loop[[nat, orb_i, orb_j]] +=
-                            (dc_mo_i
-                                .slice(s![nat, ..nocc_i, orb_i])
-                                .dot(&cis_c_i)
-                                .dot(&c_mo_i.slice(s![orb_j, nocc_i..])))
-                                + (c_mo_i
-                                .slice(s![orb_i, ..nocc_i])
-                                .dot(&cis_c_i)
-                                .dot(&dc_mo_i.slice(s![nat, nocc_i.., orb_j])));
-                    }
-                }
-            }
-            assert!(cphf_tdm_i_1.abs_diff_eq(&cphf_tdm_i_loop,1e-10),"CPHF TDMS not equal!");
+            // for nat in 0..3 * m_i.n_atoms {
+            //     for orb_i in 0..n_orbs_i{
+            //         for orb_j in 0..n_orbs_i{
+            //             cphf_tdm_i_loop[[nat, orb_i, orb_j]] +=
+            //                 (dc_mo_i
+            //                     .slice(s![nat, ..nocc_i, orb_i])
+            //                     .dot(&cis_c_i)
+            //                     .dot(&c_mo_i.slice(s![orb_j, nocc_i..])))
+            //                     + (c_mo_i
+            //                     .slice(s![orb_i, ..nocc_i])
+            //                     .dot(&cis_c_i)
+            //                     .dot(&dc_mo_i.slice(s![nat, nocc_i.., orb_j])));
+            //         }
+            //     }
+            // }
+            // assert!(cphf_tdm_i_1.abs_diff_eq(&cphf_tdm_i_loop,1e-10),"CPHF TDMS not equal!");
             for nat in 0..3 * m_j.n_atoms {
                 cphf_tdm_j_1
                     .slice_mut(s![3*m_i.n_atoms +nat, .., ..])
@@ -307,22 +307,22 @@ impl SuperSystem {
                                 .dot(&dc_mo_j.slice(s![nat, nocc_j.., ..]))))
                     );
             }
-            for nat in 0..3 * m_j.n_atoms {
-                for orb_i in 0..n_orbs_j{
-                    for orb_j in 0..n_orbs_j{
-                        cphf_tdm_j_loop[[3*m_i.n_atoms +nat, orb_i, orb_j]] +=
-                            (dc_mo_j
-                                .slice(s![nat, ..nocc_j, orb_i])
-                                .dot(&cis_c_j)
-                                .dot(&c_mo_j.slice(s![orb_j, nocc_j..])))
-                                + (c_mo_j
-                                .slice(s![orb_i, ..nocc_j])
-                                .dot(&cis_c_j)
-                                .dot(&dc_mo_j.slice(s![nat, nocc_j.., orb_j])));
-                    }
-                }
-            }
-            assert!(cphf_tdm_j_1.abs_diff_eq(&cphf_tdm_j_loop,1e-10),"CPHF TDMS not equal!");
+            // for nat in 0..3 * m_j.n_atoms {
+            //     for orb_i in 0..n_orbs_j{
+            //         for orb_j in 0..n_orbs_j{
+            //             cphf_tdm_j_loop[[3*m_i.n_atoms +nat, orb_i, orb_j]] +=
+            //                 (dc_mo_j
+            //                     .slice(s![nat, ..nocc_j, orb_i])
+            //                     .dot(&cis_c_j)
+            //                     .dot(&c_mo_j.slice(s![orb_j, nocc_j..])))
+            //                     + (c_mo_j
+            //                     .slice(s![orb_i, ..nocc_j])
+            //                     .dot(&cis_c_j)
+            //                     .dot(&dc_mo_j.slice(s![nat, nocc_j.., orb_j])));
+            //         }
+            //     }
+            // }
+            // assert!(cphf_tdm_j_1.abs_diff_eq(&cphf_tdm_j_loop,1e-10),"CPHF TDMS not equal!");
             // transform cphf tdm matrices to the shape [grad,norb*norb]
             let cphf_tdm_i: Array2<f64> = cphf_tdm_i_1
                 .into_shape([3 * pair.n_atoms, m_i.n_orbs * m_i.n_orbs])
@@ -357,26 +357,82 @@ impl SuperSystem {
             let mut cphf_grad = cphf_tdm_i.dot(&coulomb_arr_1.dot(&tdm_j_1));
             cphf_grad = cphf_grad + tdm_i_1.dot(&coulomb_arr_1).dot(&cphf_tdm_j.t());
 
-            let mut cphf_grad_loop:Array1<f64> = Array1::zeros(3*pair.n_atoms);
-            for nat in 0..3*pair.n_atoms{
-                for mu in 0..n_orbs_i{
-                    for nu in 0..n_orbs_i{
-                        for la in 0..n_orbs_j{
-                            for sig in 0..n_orbs_j{
-                                cphf_grad_loop[nat] += (cphf_tdm_i_loop[[nat,mu,nu]] * tdm_j[[la,sig]]
-                                    + tdm_i[[mu,nu]] * cphf_tdm_j_loop[[nat,la,sig]]) *
-                                    coulomb_arr[[mu,nu,la,sig]];
-                            }
-                        }
-                    }
-                }
-            }
-            assert!(cphf_grad.abs_diff_eq(&cphf_grad_loop,1e-10),"NOT equal to Loop version!");
-            // gradient = gradient + term_1 + term_2;
+            // let mut cphf_grad_loop:Array1<f64> = Array1::zeros(3*pair.n_atoms);
+            // for nat in 0..3*pair.n_atoms{
+            //     for mu in 0..n_orbs_i{
+            //         for nu in 0..n_orbs_i{
+            //             for la in 0..n_orbs_j{
+            //                 for sig in 0..n_orbs_j{
+            //                     cphf_grad_loop[nat] += (cphf_tdm_i_loop[[nat,mu,nu]] * tdm_j[[la,sig]]
+            //                         + tdm_i[[mu,nu]] * cphf_tdm_j_loop[[nat,la,sig]]) *
+            //                         coulomb_arr[[mu,nu,la,sig]];
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+            // assert!(cphf_grad.abs_diff_eq(&cphf_grad_loop,1e-10),"NOT equal to Loop version!");
+
+            // add cphf term to the gradient
             gradient = gradient + cphf_grad;
 
+            drop(pair);
+            drop(m_i);
+            drop(m_j);
+            let index_i:usize = m_i.index;
+            let index_j:usize = m_j.index;
+            let cpcis_coeff_i:Array3<f64> =
+                self.cpcis_routine(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
+            let cpcis_coeff_j:Array3<f64> =
+                self.cpcis_routine(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
+
+            let pair: &mut Pair = &mut self.pairs[pair_index];
+            // monomers
+            let m_i: &Monomer = &self.monomers[pair.i];
+            let m_j: &Monomer = &self.monomers[pair.j];
+            // reference to the mo coefficients of fragment I
+            let c_mo_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+            // reference to the mo coefficients of fragment J
+            let c_mo_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
+
+            let mut cpcis_tdm_i: Array3<f64> =
+                Array3::zeros([3 * pair.n_atoms, n_orbs_i, n_orbs_i]);
+            let mut cpcis_tdm_j: Array3<f64> =
+                Array3::zeros([3 * pair.n_atoms, n_orbs_j, n_orbs_j]);
+
+            for nat in 0..3 * m_i.n_atoms {
+                cpcis_tdm_i.slice_mut(s![nat, .., ..]).assign(
+                    &(c_mo_i
+                        .slice(s![.., ..nocc_i])
+                        .dot(&cpcis_coeff_i.slice(s![nat,..,..]))
+                        .dot(&c_mo_i.slice(s![.., nocc_i..]).t()))
+                );
+            }
+            for nat in 0..3 * m_j.n_atoms {
+                cpcis_tdm_j.slice_mut(s![3*m_i.n_atoms +nat, .., ..]).assign(
+                    &(c_mo_j
+                        .slice(s![.., ..nocc_j])
+                        .dot(&cpcis_coeff_j.slice(s![nat,..,..]))
+                        .dot(&c_mo_j.slice(s![.., nocc_j..]).t()))
+                );
+            }
+            let cpcis_tdm_i: Array2<f64> = cpcis_tdm_i
+                .into_shape([3 * pair.n_atoms, m_i.n_orbs * m_i.n_orbs])
+                .unwrap();
+            let cpcis_tdm_j: Array2<f64> = cpcis_tdm_j
+                .into_shape([3 * pair.n_atoms, m_j.n_orbs * m_j.n_orbs])
+                .unwrap();
+
+            let mut cpcis_grad = cpcis_tdm_i.dot(&coulomb_arr_1.dot(&tdm_j_1));
+            cpcis_grad = cpcis_grad + tdm_i_1.dot(&coulomb_arr_1).dot(&cpcis_tdm_j.t());
+            println!("cpcis_grad {}",cpcis_grad.slice(s![0..10]));
+            // add the cpcis term to the gradient
+            gradient = gradient + cpcis_grad;
+
+            // remove data from the RAM after the calculation
             pair.properties.reset_gradient();
         } else {
+            println!("ESD Pair");
             // calculate only the coulomb contribution of the gradient
             // calculate F[tdm_j]
             let pair_index: usize = self

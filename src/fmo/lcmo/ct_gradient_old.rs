@@ -571,7 +571,7 @@ impl Monomer {
         println!("Elapsed time calculate A and B matrices: {:>8.6}",timer.elapsed().as_secs_f64());
         drop(timer);
         println!("Start iterative cphf routine");
-        // let u_mat_pople:Array3<f64> = solve_cphf_pople(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        // let u_mat:Array3<f64> = solve_cphf_pople(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
         let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
         // println!(" ");
         // println!("U mat pople {}",u_mat_pople);
