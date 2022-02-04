@@ -10,10 +10,12 @@ use crate::scc::h0_and_s::{h0_and_s_ab, h0_and_s_gradients};
 use ndarray::prelude::*;
 use ndarray_linalg::trace::Trace;
 use std::ops::{AddAssign, SubAssign};
-use ndarray_linalg::{into_row, into_col};
+use ndarray_linalg::{into_row, into_col, Inverse};
 use std::time::Instant;
 use ndarray::parallel::prelude::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
+use ndarray_rand::RandomExt;
+use ndarray_rand::rand_distr::Uniform;
 
 impl SuperSystem{
     pub fn ct_gradient(
@@ -485,29 +487,29 @@ impl Monomer {
             let gradh_mo:Array2<f64> = orbs.t().dot(&grad_h.slice(s![nc,..,..]).dot(&orbs));
             let grads_mo:Array2<f64> = orbs.t().dot(&grad_s.slice(s![nc,..,..]).dot(&orbs));
 
-            b_mat.slice_mut(s![nc,..,..]).assign(&(&gradh_mo - &grads_mo * &orbe_matrix));
-            b_mat.slice_mut(s![nc,..nocc,..nocc]).sub_assign(&integral_oo);
-            b_mat.slice_mut(s![nc,..nocc,nocc..]).sub_assign(&integral_ov);
-            b_mat.slice_mut(s![nc,nocc..,..nocc]).sub_assign(&integral_vo);
-            b_mat.slice_mut(s![nc,nocc..,nocc..]).sub_assign(&integral_vv);
+            // b_mat.slice_mut(s![nc,..,..]).assign(&(&gradh_mo - &grads_mo * &orbe_matrix));
+            // b_mat.slice_mut(s![nc,..nocc,..nocc]).sub_assign(&integral_oo);
+            // b_mat.slice_mut(s![nc,..nocc,nocc..]).sub_assign(&integral_ov);
+            // b_mat.slice_mut(s![nc,nocc..,..nocc]).sub_assign(&integral_vo);
+            // b_mat.slice_mut(s![nc,nocc..,nocc..]).sub_assign(&integral_vv);
 
-            // // loop version
-            // for i in 0..nvirt{
-            //     for j in 0..nocc{
-            //         b_mat[[nc,nocc+i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_vo[[i,j]];
-            //     }
-            //     for j in 0..nvirt{
-            //         b_mat[[nc,nocc+i,nocc+j]] = gradh_mo[[nocc+i,nocc+j]] - grads_mo[[nocc+i,nocc+j]] * orbe[nocc+j] - integral_vv[[i,j]];
-            //     }
-            // }
-            // for i in 0..nocc{
-            //     for j in 0..nocc{
-            //         b_mat[[nc,i,j]] = gradh_mo[[i,j]] - grads_mo[[i,j]] * orbe[j] - integral_oo[[i,j]];
-            //     }
-            //     for j in 0..nvirt{
-            //         b_mat[[nc,i,nocc+j]] = gradh_mo[[i,nocc+j]] - grads_mo[[i,nocc+j]] * orbe[nocc+j] - integral_ov[[i,j]];
-            //     }
-            // }
+            // loop version
+            for i in 0..nvirt{
+                for j in 0..nocc{
+                    b_mat[[nc,nocc+i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_vo[[i,j]];
+                }
+                for j in 0..nvirt{
+                    b_mat[[nc,nocc+i,nocc+j]] = gradh_mo[[nocc+i,nocc+j]] - grads_mo[[nocc+i,nocc+j]] * orbe[nocc+j] - integral_vv[[i,j]];
+                }
+            }
+            for i in 0..nocc{
+                for j in 0..nocc{
+                    b_mat[[nc,i,j]] = gradh_mo[[i,j]] - grads_mo[[i,j]] * orbe[j] - integral_oo[[i,j]];
+                }
+                for j in 0..nvirt{
+                    b_mat[[nc,i,nocc+j]] = gradh_mo[[i,nocc+j]] - grads_mo[[i,nocc+j]] * orbe[nocc+j] - integral_ov[[i,j]];
+                }
+            }
         }
         // assert!(b_mat.abs_diff_eq(&b_mat_2,1.0e-11));
 
@@ -561,23 +563,162 @@ impl Monomer {
         a_mat_vv = a_mat_vv - qvo.t().dot(&g0_lr.dot(&qvv)).into_shape([nvirt,nocc,nvirt,nvirt]).unwrap()
             .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nvirt*nocc]).unwrap();
 
-        let mut a_matrix:Array3<f64> = Array3::zeros([self.n_orbs,self.n_orbs,nvirt*nocc]);
-        a_matrix.slice_mut(s![..nocc,..nocc,..]).assign(&a_mat_oo.into_shape([nocc,nocc,nvirt*nocc]).unwrap());
-        a_matrix.slice_mut(s![..nocc,nocc..,..]).assign(&a_mat_ov.into_shape([nocc,nvirt,nvirt*nocc]).unwrap());
-        a_matrix.slice_mut(s![nocc..,..nocc,..]).assign(&a_mat_vo.into_shape([nvirt,nocc,nvirt*nocc]).unwrap());
-        a_matrix.slice_mut(s![nocc..,nocc..,..]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nvirt*nocc]).unwrap());
-        let a_mat:Array2<f64> = a_matrix.into_shape([self.n_orbs*self.n_orbs,nvirt*nocc]).unwrap();
+        let mut a_matrix:Array4<f64> = Array4::zeros([self.n_orbs,self.n_orbs,self.n_orbs,self.n_orbs]);
+        a_matrix.slice_mut(s![..nocc,..nocc,nocc..,..nocc]).assign(&a_mat_oo.into_shape([nocc,nocc,nvirt,nocc]).unwrap());
+        a_matrix.slice_mut(s![..nocc,nocc..,nocc..,..nocc]).assign(&a_mat_ov.into_shape([nocc,nvirt,nvirt,nocc]).unwrap());
+        a_matrix.slice_mut(s![nocc..,..nocc,nocc..,..nocc]).assign(&a_mat_vo.into_shape([nvirt,nocc,nvirt,nocc]).unwrap());
+        a_matrix.slice_mut(s![nocc..,nocc..,nocc..,..nocc]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nvirt,nocc]).unwrap());
+
+        // let a_mat:Array2<f64> = a_matrix.into_shape([self.n_orbs*self.n_orbs,nvirt*nocc]).unwrap();
+
+        let mut a_mat_vo:Array2<f64> = Array2::zeros([nvirt*nocc,nocc*nocc]);
+        // integral (ij|kl)
+        a_mat_vo = 4.0 * qvo.t().dot(&g0.dot(&qoo));
+        // integral (ik|jl)
+        a_mat_vo = a_mat_vo - qvo.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nocc,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nocc*nocc]).unwrap();
+        // integral (il|jk)
+        a_mat_vo = a_mat_vo - qvo.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nocc,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nocc*nocc]).unwrap();
+
+        let mut a_mat_oo:Array2<f64> = Array2::zeros([nocc*nocc,nocc*nocc]);
+        // integral (ij|kl)
+        a_mat_oo = 4.0 * qoo.t().dot(&g0.dot(&qoo));
+        // integral (ik|jl)
+        a_mat_oo = a_mat_oo - qoo.t().dot(&g0_lr.dot(&qoo)).into_shape([nocc,nocc,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nocc,nocc*nocc]).unwrap();
+        // integral (il|jk)
+        a_mat_oo = a_mat_oo - qoo.t().dot(&g0_lr.dot(&qoo)).into_shape([nocc,nocc,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nocc*nocc,nocc*nocc]).unwrap();
+
+        let mut a_mat_ov:Array2<f64> = Array2::zeros([nocc*nvirt,nocc*nocc]);
+        // integral (ij|kl)
+        a_mat_ov = 4.0 * qov.t().dot(&g0.dot(&qoo));
+        // integral (ik|jl)
+        a_mat_ov = a_mat_ov - qoo.t().dot(&g0_lr.dot(&qvo)).into_shape([nocc,nocc,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nocc*nocc]).unwrap();
+        // integral (il|jk)
+        a_mat_ov = a_mat_ov - qoo.t().dot(&g0_lr.dot(&qvo)).into_shape([nocc,nocc,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nocc*nocc]).unwrap();
+
+        let mut a_mat_vv:Array2<f64> = Array2::zeros([nvirt*nvirt,nocc*nocc]);
+        // integral (ij|kl)
+        a_mat_vv = 4.0 * qvv.t().dot(&g0.dot(&qoo));
+        // integral (ik|jl)
+        a_mat_vv = a_mat_vv - qvo.t().dot(&g0_lr.dot(&qvo)).into_shape([nvirt,nocc,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nocc*nocc]).unwrap();
+        // integral (il|jk)
+        a_mat_vv = a_mat_vv - qvo.t().dot(&g0_lr.dot(&qvo)).into_shape([nvirt,nocc,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nocc*nocc]).unwrap();
+
+        a_matrix.slice_mut(s![..nocc,..nocc,..nocc,..nocc]).assign(&a_mat_oo.into_shape([nocc,nocc,nocc,nocc]).unwrap());
+        a_matrix.slice_mut(s![..nocc,nocc..,..nocc,..nocc]).assign(&a_mat_ov.into_shape([nocc,nvirt,nocc,nocc]).unwrap());
+        a_matrix.slice_mut(s![nocc..,..nocc,..nocc,..nocc]).assign(&a_mat_vo.into_shape([nvirt,nocc,nocc,nocc]).unwrap());
+        a_matrix.slice_mut(s![nocc..,nocc..,..nocc,..nocc]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nocc,nocc]).unwrap());
+
+        let mut a_mat_vo:Array2<f64> = Array2::zeros([nvirt*nocc,nocc*nvirt]);
+        // integral (ij|kl)
+        a_mat_vo = 4.0 * qvo.t().dot(&g0.dot(&qov));
+        // integral (ik|jl)
+        a_mat_vo = a_mat_vo - qvo.t().dot(&g0_lr.dot(&qov)).into_shape([nvirt,nocc,nocc,nvirt]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nocc*nvirt]).unwrap();
+        // integral (il|jk)
+        a_mat_vo = a_mat_vo - qvv.t().dot(&g0_lr.dot(&qoo)).into_shape([nvirt,nvirt,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nocc*nvirt]).unwrap();
+
+        let mut a_mat_oo:Array2<f64> = Array2::zeros([nocc*nocc,nocc*nvirt]);
+        // integral (ij|kl)
+        a_mat_oo = 4.0 * qoo.t().dot(&g0.dot(&qov));
+        // integral (ik|jl)
+        a_mat_oo = a_mat_oo - qoo.t().dot(&g0_lr.dot(&qov)).into_shape([nocc,nocc,nocc,nvirt]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nocc,nocc*nvirt]).unwrap();
+        // integral (il|jk)
+        a_mat_oo = a_mat_oo - qov.t().dot(&g0_lr.dot(&qoo)).into_shape([nocc,nvirt,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nocc*nocc,nocc*nvirt]).unwrap();
+
+        let mut a_mat_ov:Array2<f64> = Array2::zeros([nocc*nvirt,nocc*nvirt]);
+        // integral (ij|kl)
+        a_mat_ov = 4.0 * qov.t().dot(&g0.dot(&qov));
+        // integral (ik|jl)
+        a_mat_ov = a_mat_ov - qoo.t().dot(&g0_lr.dot(&qvv)).into_shape([nocc,nocc,nvirt,nvirt]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nocc*nvirt]).unwrap();
+        // integral (il|jk)
+        a_mat_ov = a_mat_ov - qov.t().dot(&g0_lr.dot(&qvo)).into_shape([nocc,nvirt,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nocc*nvirt]).unwrap();
+
+        let mut a_mat_vv:Array2<f64> = Array2::zeros([nvirt*nvirt,nocc*nvirt]);
+        // integral (ij|kl)
+        a_mat_vv = 4.0 * qvv.t().dot(&g0.dot(&qov));
+        // integral (ik|jl)
+        a_mat_vv = a_mat_vv - qvo.t().dot(&g0_lr.dot(&qvv)).into_shape([nvirt,nocc,nvirt,nvirt]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nocc*nvirt]).unwrap();
+        // integral (il|jk)
+        a_mat_vv = a_mat_vv - qvv.t().dot(&g0_lr.dot(&qvo)).into_shape([nvirt,nvirt,nvirt,nocc]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nocc*nvirt]).unwrap();
+
+        a_matrix.slice_mut(s![..nocc,..nocc,..nocc,nocc..]).assign(&a_mat_oo.into_shape([nocc,nocc,nocc,nvirt]).unwrap());
+        a_matrix.slice_mut(s![..nocc,nocc..,..nocc,nocc..]).assign(&a_mat_ov.into_shape([nocc,nvirt,nocc,nvirt]).unwrap());
+        a_matrix.slice_mut(s![nocc..,..nocc,..nocc,nocc..]).assign(&a_mat_vo.into_shape([nvirt,nocc,nocc,nvirt]).unwrap());
+        a_matrix.slice_mut(s![nocc..,nocc..,..nocc,nocc..]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nocc,nvirt]).unwrap());
+
+        let mut a_mat_vo:Array2<f64> = Array2::zeros([nvirt*nocc,nvirt*nvirt]);
+        // integral (ij|kl)
+        a_mat_vo = 4.0 * qvo.t().dot(&g0.dot(&qvv));
+        // integral (ik|jl)
+        a_mat_vo = a_mat_vo - qvv.t().dot(&g0_lr.dot(&qov)).into_shape([nvirt,nvirt,nocc,nvirt]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nvirt*nvirt]).unwrap();
+        // integral (il|jk)
+        a_mat_vo = a_mat_vo - qvv.t().dot(&g0_lr.dot(&qov)).into_shape([nvirt,nvirt,nocc,nvirt]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nocc,nvirt*nvirt]).unwrap();
+
+        let mut a_mat_oo:Array2<f64> = Array2::zeros([nocc*nocc,nvirt*nvirt]);
+        // integral (ij|kl)
+        a_mat_oo = 4.0 * qoo.t().dot(&g0.dot(&qvv));
+        // integral (ik|jl)
+        a_mat_oo = a_mat_oo - qov.t().dot(&g0_lr.dot(&qov)).into_shape([nocc,nvirt,nocc,nvirt]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nocc,nvirt*nvirt]).unwrap();
+        // integral (il|jk)
+        a_mat_oo = a_mat_oo - qov.t().dot(&g0_lr.dot(&qov)).into_shape([nocc,nvirt,nocc,nvirt]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nocc*nocc,nvirt*nvirt]).unwrap();
+
+        let mut a_mat_ov:Array2<f64> = Array2::zeros([nocc*nvirt,nvirt*nvirt]);
+        // integral (ij|kl)
+        a_mat_ov = 4.0 * qov.t().dot(&g0.dot(&qvv));
+        // integral (ik|jl)
+        a_mat_ov = a_mat_ov - qov.t().dot(&g0_lr.dot(&qvv)).into_shape([nocc,nvirt,nvirt,nvirt]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nvirt*nvirt]).unwrap();
+        // integral (il|jk)
+        a_mat_ov = a_mat_ov - qov.t().dot(&g0_lr.dot(&qvv)).into_shape([nocc,nvirt,nvirt,nvirt]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nocc*nvirt,nvirt*nvirt]).unwrap();
+
+        let mut a_mat_vv:Array2<f64> = Array2::zeros([nvirt*nvirt,nvirt*nvirt]);
+        // integral (ij|kl)
+        a_mat_vv = 4.0 * qvv.t().dot(&g0.dot(&qvv));
+        // integral (ik|jl)
+        a_mat_vv = a_mat_vv - qvv.t().dot(&g0_lr.dot(&qvv)).into_shape([nvirt,nvirt,nvirt,nvirt]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nvirt*nvirt]).unwrap();
+        // integral (il|jk)
+        a_mat_vv = a_mat_vv - qvv.t().dot(&g0_lr.dot(&qvv)).into_shape([nvirt,nvirt,nvirt,nvirt]).unwrap()
+            .permuted_axes([0,2,3,1]).as_standard_layout().to_owned().into_shape([nvirt*nvirt,nvirt*nvirt]).unwrap();
+
+        a_matrix.slice_mut(s![..nocc,..nocc,nocc..,nocc..]).assign(&a_mat_oo.into_shape([nocc,nocc,nvirt,nvirt]).unwrap());
+        a_matrix.slice_mut(s![..nocc,nocc..,nocc..,nocc..]).assign(&a_mat_ov.into_shape([nocc,nvirt,nvirt,nvirt]).unwrap());
+        a_matrix.slice_mut(s![nocc..,..nocc,nocc..,nocc..]).assign(&a_mat_vo.into_shape([nvirt,nocc,nvirt,nvirt]).unwrap());
+        a_matrix.slice_mut(s![nocc..,nocc..,nocc..,nocc..]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nvirt,nvirt]).unwrap());
+
+        let a_mat:Array2<f64> = a_matrix.into_shape([self.n_orbs*self.n_orbs,self.n_orbs*self.n_orbs]).unwrap();
 
         println!("Elapsed time calculate A and B matrices: {:>8.6}",timer.elapsed().as_secs_f64());
         drop(timer);
         println!("Start iterative cphf routine");
-        // let u_mat:Array3<f64> = solve_cphf_pople(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
-        let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        // let u_mat_pople:Array3<f64> = solve_cphf_pople_newest(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        // let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms,grad_s.view(),orbs.view());
+        let u_mat = solve_cphf_iterative_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms,grad_s.view(),orbs.view());
         // println!(" ");
         // println!("U mat pople {}",u_mat_pople);
         // println!(" ");
         // println!("U mat{}",u_mat);
-        // assert!(u_mat.abs_diff_eq(&u_mat_direct,1.0e-7));
+        // assert!(u_mat.abs_diff_eq(&u_mat_pople,1.0e-7));
 
         return u_mat;
     }
@@ -841,7 +982,7 @@ impl Monomer {
         a_matrix.slice_mut(s![nocc..,..nocc,..]).assign(&a_mat_vo.into_shape([nvirt,nocc,nvirt*nocc]).unwrap());
         a_matrix.slice_mut(s![nocc..,nocc..,..]).assign(&a_mat_vv.into_shape([nvirt,nvirt,nvirt*nocc]).unwrap());
         let a_mat:Array2<f64> = a_matrix.into_shape([self.n_orbs*self.n_orbs,nvirt*nocc]).unwrap();
-        let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms,grad_s.view(),orbs.view());
         // println!("umat {}",u_mat);
         //
         // let (u_mat,grad_omega):(Array3<f64>,Array3<f64>) = solve_cphf(
@@ -1353,15 +1494,23 @@ fn solve_cphf_new(
     orbe:ArrayView1<f64>,
     nocc:usize,
     nvirt:usize,
-    nat:usize
+    nat:usize,
+    grad_s:ArrayView3<f64>,
+    orbs:ArrayView2<f64>,
 )->Array3<f64>{
     // let mut u_mat:Array3<f64> = Array3::zeros([3*nat,nvirt,nocc]);
     let n_orbs:usize = nocc + nvirt;
     let mut u_mat:Array3<f64> = Array3::zeros([3*nat,n_orbs,n_orbs]);
+    // let mut u_mat:Array3<f64> = Array::random((3*nat,n_orbs,n_orbs), Uniform::new(0., 1.));
+
+    for nat in 0..3*nat{
+        u_mat.slice_mut(s![nat,..,..]).assign(&orbs.t().dot(&grad_s.slice(s![nat,..,..]).dot(&orbs)));
+    }
+
     let mut iteration:usize = 0;
     println!("Iterations: ");
 
-    'cphf_loop: for it in 0..10000{
+    'cphf_loop: for it in 0..500{
         // let u_prev:Array2<f64> = u_mat.clone().into_shape([3*nat,nvirt*nocc]).unwrap();
         let u_prev:Array3<f64> = u_mat.clone();
 
@@ -1405,6 +1554,79 @@ fn solve_cphf_new(
         // for (nc,arr) in u_vector.iter().enumerate(){
         //     u_mat.slice_mut(s![nc,..,..]).assign(&arr);
         // }
+
+        // check convergence
+        // let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
+        let diff:Array3<f64> = (&u_prev - &u_mat.view()).map(|val| val.abs());
+        let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
+
+        if not_converged.len() == 0{
+            println!("CPHF converged in {} Iterations.",it);
+            break 'cphf_loop;
+        }
+        iteration = it;
+        print!("{}",it);
+    }
+    println!(" ");
+    println!("Number of iterations {}",iteration);
+
+    return u_mat;
+}
+
+fn solve_cphf_iterative_new(
+    a_mat:ArrayView2<f64>,
+    b_mat:ArrayView3<f64>,
+    orbe:ArrayView1<f64>,
+    nocc:usize,
+    nvirt:usize,
+    nat:usize,
+    grad_s:ArrayView3<f64>,
+    orbs:ArrayView2<f64>,
+)->Array3<f64>{
+    // let mut u_mat:Array3<f64> = Array3::zeros([3*nat,nvirt,nocc]);
+    let n_orbs:usize = nocc + nvirt;
+    let mut u_mat:Array3<f64> = Array3::zeros([3*nat,n_orbs,n_orbs]);
+    let a_sliced:Array3<f64> = a_mat.into_shape([n_orbs*n_orbs,n_orbs,n_orbs]).unwrap()
+        .slice(s![..,nocc..,..nocc]).to_owned().into_shape([n_orbs,n_orbs,nvirt*nocc]).unwrap();
+
+    for nat in 0..3*nat{
+        u_mat.slice_mut(s![nat,..,..]).assign(&orbs.t().dot(&grad_s.slice(s![nat,..,..]).dot(&orbs)));
+    }
+    let mut iteration:usize = 0;
+
+    let mut amat_new_3d:Array3<f64> = Array3::zeros([n_orbs,n_orbs,nvirt*nocc]);
+    let mut bmat_new:Array3<f64> = Array3::zeros(b_mat.raw_dim());
+    for i in 0..n_orbs{
+        for j in 0..n_orbs{
+            if i != j{
+                amat_new_3d.slice_mut(s![i,j,..])
+                    .assign(&(&a_sliced.slice(s![i,j,..]) * (1.0/(orbe[j] - orbe[i]))));
+                bmat_new.slice_mut(s![..,i,j])
+                    .assign(&(&b_mat.slice(s![..,i,j])*(1.0/(orbe[j] - orbe[i]))));
+            }
+        }
+    }
+    let a_sliced:Array2<f64> = amat_new_3d.into_shape([n_orbs*n_orbs,nvirt*nocc]).unwrap();
+
+    'cphf_loop: for it in 0..500{
+        let u_prev:Array3<f64> = u_mat.clone();
+
+        for nc in 0..3*nat{
+            let a_term:Array2<f64> = a_sliced.dot(&u_prev.slice(s![nc,nocc..,..nocc]).to_owned()
+                .into_shape(nvirt*nocc).unwrap()).into_shape([n_orbs,n_orbs]).unwrap();
+
+            let dampened:Array2<f64> = &(0.2 *&u_prev.slice(s![nc,..,..])) + &(0.8 * (&a_term + &bmat_new.slice(s![nc,..,..])));
+            u_mat.slice_mut(s![nc,..,..]).assign(&dampened);
+            // u_mat.slice_mut(s![nc,..,..]).assign(&(&a_term + &bmat_new.slice(s![nc,..,..])));
+
+            // for orb_i in 0..n_orbs{
+            //     for orb_j in 0..n_orbs{
+            //         if orb_i != orb_j{
+            //             u_mat[[nc,orb_i,orb_j]] = (1.0/(orbe[orb_j] - orbe[orb_i])) * (a_term[[orb_i,orb_j]] + b_mat[[nc,orb_i,orb_j]]);
+            //         }
+            //     }
+            // }
+        }
 
         // check convergence
         // let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
@@ -1506,5 +1728,104 @@ pub fn solve_cphf_pople(
         // println!("Number of iterations {}",iteration);
         u_matrix.slice_mut(s![nc,..,..]).assign(&u_prev.into_shape([n_orbs,n_orbs]).unwrap());
     }
+    return u_matrix;
+}
+
+pub fn solve_cphf_inversion(
+    a_mat:ArrayView2<f64>,
+    b_mat:ArrayView3<f64>,
+    orbe:ArrayView1<f64>,
+    nocc:usize,
+    nvirt:usize,
+    nat:usize
+)->Array3<f64>{
+    let n_orbs:usize = nocc + nvirt;
+    // create new A matrix
+    // A/(orbe[j] - orbe[i])
+    let a_mat_3d:ArrayView3<f64> = a_mat.into_shape([n_orbs,n_orbs,n_orbs*n_orbs]).unwrap();
+    let mut amat_new_3d:Array3<f64> = Array3::zeros([n_orbs,n_orbs,n_orbs*n_orbs]);
+    let mut bmat_new:Array3<f64> = Array3::zeros(b_mat.raw_dim());
+    for i in 0..n_orbs{
+        for j in 0..n_orbs{
+            if i != j{
+                amat_new_3d.slice_mut(s![i,j,..])
+                    .assign(&(&a_mat_3d.slice(s![i,j,..]) * (1.0/(orbe[j] - orbe[i]))));
+                bmat_new.slice_mut(s![..,i,j])
+                    .assign(&(&b_mat.slice(s![..,i,j])*(1.0/(orbe[j] - orbe[i]))));
+            }
+        }
+    }
+    // let mut amat_new:Array4<f64> = Array4::zeros((n_orbs,n_orbs,n_orbs,n_orbs));
+    // amat_new.slice_mut(s![..,..,nocc..,..nocc])
+    //     .assign(&amat_new_3d.into_shape([n_orbs,n_orbs,nvirt,nocc]).unwrap());
+    // let amat_new:Array2<f64> = amat_new.into_shape([n_orbs*n_orbs,n_orbs*n_orbs]).unwrap();
+    let amat_new:Array2<f64> = amat_new_3d.into_shape([n_orbs*n_orbs,n_orbs*n_orbs]).unwrap();
+    let one_minus_amat:Array2<f64> = Array::eye(n_orbs*n_orbs) - amat_new;
+    let a_inv:Array2<f64> = one_minus_amat.inv().unwrap();
+    let a_sliced:Array2<f64> = a_inv.view().into_shape([n_orbs*n_orbs,n_orbs,n_orbs]).unwrap()
+        .slice(s![..,nocc..,..nocc]).to_owned().into_shape([n_orbs*n_orbs,nvirt*nocc]).unwrap();
+
+    let mut u_matrix:Array3<f64> = Array3::zeros([3*nat,n_orbs,n_orbs]);
+    for nc in 0..3*nat{
+        u_matrix.slice_mut(s![nc,..,..]).assign(&a_sliced
+            .dot(&bmat_new.slice(s![nc,nocc..,..nocc]).to_owned()
+                .into_shape([nvirt*nocc]).unwrap())
+            .into_shape([n_orbs,n_orbs]).unwrap());
+        // u_matrix.slice_mut(s![nc,..,..]).assign(&a_inv
+        //     .dot(&bmat_new.slice(s![nc,..,..]).into_shape([n_orbs*n_orbs]).unwrap())
+        //     .into_shape([n_orbs,n_orbs]).unwrap())
+    }
+    // Iteration over the gradient
+    // for nc in 0..3*nat{
+    //     let b_zero:ArrayView1<f64> = bmat_new.slice(s![nc,..,..]).into_shape([n_orbs*n_orbs]).unwrap();
+    //     let mut saved_b:Vec<Array1<f64>> = Vec::new();
+    //     let mut saved_u_dot_a:Vec<Array1<f64>> = Vec::new();
+    //     let mut b_prev:Array1<f64> = b_zero.to_owned();
+    //     let mut u_prev:Array1<f64> = b_zero.to_owned();
+    //     let mut iteration:usize = 0;
+    //
+    //     saved_b.push(b_zero.to_owned());
+    //
+    //     let mut first_term:Array1<f64> = amat_new.dot(&b_prev.view().into_shape([n_orbs,n_orbs]).unwrap()
+    //         .slice(s![nocc..,..nocc]).to_owned().into_shape([nvirt*nocc]).unwrap());
+    //     saved_u_dot_a.push(first_term.clone());
+    //
+    //     'cphf_loop: for it in 0..50{
+    //         let mut second_term:Array1<f64> = Array1::zeros(n_orbs*n_orbs);
+    //
+    //         // Gram Schmidt Orthogonalization
+    //         for b_arr in saved_b.iter(){
+    //             second_term = second_term + b_arr.dot(&first_term)/(b_arr.dot(b_arr)) * b_arr;
+    //         }
+    //
+    //         b_prev = &first_term - &second_term;
+    //         saved_b.push(b_prev.clone());
+    //
+    //         first_term = amat_new.dot(&b_prev.view().into_shape([n_orbs,n_orbs]).unwrap()
+    //             .slice(s![nocc..,..nocc]).to_owned().into_shape([nvirt*nocc]).unwrap());
+    //         // first_term = amat_new.dot(&b_prev);
+    //         saved_u_dot_a.push(first_term.clone());
+    //
+    //         let mut u_mat_1d:Array1<f64> = Array1::zeros((n_orbs*n_orbs));
+    //         // calcula the factors a_n and the contributions to the u matrix
+    //         // println!("Iteration {}",it);
+    //         for (b_arr,u_dot_a) in saved_b.iter().zip(saved_u_dot_a.iter()){
+    //             let a_factor:f64 = b_arr.dot(&b_zero)/(b_arr.dot(b_arr)-b_arr.dot(u_dot_a));
+    //             // println!("a factor {}",a_factor);
+    //             u_mat_1d = u_mat_1d + a_factor * b_arr;
+    //         }
+    //         let diff:Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
+    //         let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-10 {Some(item)} else {None}).collect();
+    //         u_prev = u_mat_1d;
+    //
+    //         iteration = it;
+    //         if not_converged.len() == 0{
+    //             // println!("CPHF converged in {} Iterations.",it);
+    //             break 'cphf_loop;
+    //         }
+    //     }
+    //     // println!("Number of iterations {}",iteration);
+    //     u_matrix.slice_mut(s![nc,..,..]).assign(&u_prev.into_shape([n_orbs,n_orbs]).unwrap());
+    // }
     return u_matrix;
 }

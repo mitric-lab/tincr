@@ -121,7 +121,7 @@ impl System {
         self.properties.set_tr_dipoles(tr_dipoles);
         self.properties.set_oscillator_strengths(f);
 
-        // println!("{}", states);
+        println!("{}", states);
 
         //print_states(&self, n_roots);
     }

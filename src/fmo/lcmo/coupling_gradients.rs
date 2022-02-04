@@ -427,7 +427,7 @@ impl SuperSystem {
             cpcis_grad = cpcis_grad + tdm_i_1.dot(&coulomb_arr_1).dot(&cpcis_tdm_j.t());
             println!("cpcis_grad {}",cpcis_grad.slice(s![0..10]));
             // add the cpcis term to the gradient
-            gradient = gradient + cpcis_grad;
+            // gradient = gradient + cpcis_grad;
 
             // remove data from the RAM after the calculation
             pair.properties.reset_gradient();
@@ -609,6 +609,17 @@ impl SuperSystem {
             let term_2: Array1<f64> = tdm_i.dot(&coulomb_arr).dot(&cphf_tdm_j.t());
 
             gradient = gradient + term_1 + term_2;
+
+            // // Testing the gradient
+            // let qov_i: ArrayView2<f64> = m_i.properties.q_ov().unwrap();
+            // let qov_j: ArrayView2<f64> = m_j.properties.q_ov().unwrap();
+            // let qtrans_i:Array1<f64> = qov_i.dot(&cis_c_i.into_shape([nocc_i*nvirt_i]).unwrap());
+            // let qtrans_j:Array1<f64> = qov_j.dot(&cis_c_j.into_shape([nocc_j*nvirt_j]).unwrap());
+            // let grad_gamma_pair:ArrayView3<f64> = esd_pair.properties.grad_gamma().unwrap();
+            //
+            // for nc in 0..3*esd_pair.n_atoms{
+            //     gradient[nc] = qtrans_i.dot(&grad_gamma_pair.slice(s![nc,..m_i.n_atoms,m_i.n_atoms..]).dot(&qtrans_j));
+            // }
 
             // reset properties of the esd_pair
             esd_pair.properties.reset();
