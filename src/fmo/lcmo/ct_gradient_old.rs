@@ -1608,40 +1608,57 @@ fn solve_cphf_iterative_new(
     }
     let a_sliced:Array2<f64> = amat_new_3d.into_shape([n_orbs*n_orbs,nvirt*nocc]).unwrap();
 
-    'cphf_loop: for it in 0..500{
-        let u_prev:Array3<f64> = u_mat.clone();
+    // let timer: Instant = Instant::now();
+    // let u_vec:Vec<Array2<f64>> = (0..3*nat).into_par_iter().map(|nc|{
+    //     let mut u_2d:Array2<f64> = u_mat.slice(s![nc,..,..]).to_owned();
+    //     let b_2d:ArrayView2<f64> = bmat_new.slice(s![nc,..,..]);
+    //     'cphf_loop: for it in 0..500{
+    //         let u_prev:Array2<f64> = u_2d.clone();
+    //         let a_term:Array2<f64> = a_sliced.dot(&u_prev.slice(s![nocc..,..nocc]).to_owned()
+    //             .into_shape(nvirt*nocc).unwrap()).into_shape([n_orbs,n_orbs]).unwrap();
+    //         let dampened:Array2<f64> = &(0.2 *&u_prev.slice(s![..,..]))
+    //             + &(0.8 * (&a_term + &b_2d));
+    //         u_2d.slice_mut(s![..,..]).assign(&dampened);
+    //         let diff:Array2<f64> = (&u_prev.view() - &u_2d.view()).map(|val| val.abs());
+    //         let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
+    //         if not_converged.len() == 0{
+    //             println!("CPHF converged in {} Iterations.",it);
+    //             break 'cphf_loop;
+    //         }
+    //     }
+    //     u_2d
+    // }).collect();
+    // for (index,arr) in u_vec.iter().enumerate(){
+    //     u_mat.slice_mut(s![index,..,..]).assign(arr);
+    // }
 
-        for nc in 0..3*nat{
-            let a_term:Array2<f64> = a_sliced.dot(&u_prev.slice(s![nc,nocc..,..nocc]).to_owned()
+    // println!("Elapsed time CPHF loops: {:>8.6}",timer.elapsed().as_secs_f64());
+    // drop(timer);
+
+    for nc in 0..3*nat{
+        let mut u_2d:Array2<f64> = u_mat.slice(s![nc,..,..]).to_owned();
+        let b_2d:ArrayView2<f64> = bmat_new.slice(s![nc,..,..]);
+
+        'cphf_loop: for it in 0..500{
+            let u_prev:Array2<f64> = u_2d.clone();
+
+            let a_term:Array2<f64> = a_sliced.dot(&u_prev.slice(s![nocc..,..nocc]).to_owned()
                 .into_shape(nvirt*nocc).unwrap()).into_shape([n_orbs,n_orbs]).unwrap();
+            let dampened:Array2<f64> = &(0.2 *&u_prev.slice(s![..,..]))
+                + &(0.8 * (&a_term + &b_2d));
 
-            let dampened:Array2<f64> = &(0.2 *&u_prev.slice(s![nc,..,..])) + &(0.8 * (&a_term + &bmat_new.slice(s![nc,..,..])));
-            u_mat.slice_mut(s![nc,..,..]).assign(&dampened);
-            // u_mat.slice_mut(s![nc,..,..]).assign(&(&a_term + &bmat_new.slice(s![nc,..,..])));
+            u_2d.slice_mut(s![..,..]).assign(&dampened);
 
-            // for orb_i in 0..n_orbs{
-            //     for orb_j in 0..n_orbs{
-            //         if orb_i != orb_j{
-            //             u_mat[[nc,orb_i,orb_j]] = (1.0/(orbe[orb_j] - orbe[orb_i])) * (a_term[[orb_i,orb_j]] + b_mat[[nc,orb_i,orb_j]]);
-            //         }
-            //     }
-            // }
+            let diff:Array2<f64> = (&u_prev.view() - &u_2d.view()).map(|val| val.abs());
+            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
+
+            if not_converged.len() == 0{
+                println!("CPHF converged in {} Iterations.",it);
+                break 'cphf_loop;
+            }
         }
-
-        // check convergence
-        // let diff:Array2<f64> = (&u_prev - &u_mat.view().into_shape([3*nat,nvirt*nocc]).unwrap()).map(|val| val.abs());
-        let diff:Array3<f64> = (&u_prev - &u_mat.view()).map(|val| val.abs());
-        let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
-
-        if not_converged.len() == 0{
-            println!("CPHF converged in {} Iterations.",it);
-            break 'cphf_loop;
-        }
-        iteration = it;
-        print!("{}",it);
+        u_mat.slice_mut(s![nc,..,..]).assign(&u_2d);
     }
-    println!(" ");
-    println!("Number of iterations {}",iteration);
 
     return u_mat;
 }
