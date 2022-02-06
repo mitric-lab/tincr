@@ -49,13 +49,13 @@ impl SuperSystem {
         // sum_i,a A^-1_i,a,j,b B_i,a
         let mut cpcis_coefficients_2:Array3<f64> = Array3::zeros([3*m_i.n_atoms,nocc,nvirt]);
         for nc in 0..3*m_i.n_atoms{
-            let tmp:Array1<f64> = bmat.slice(s![nc,..,..]).t().into_shape([nocc*nvirt]).unwrap().dot(&a_inv);
+            let tmp:Array1<f64> = -1.0 * bmat.slice(s![nc,..,..]).t().into_shape([nocc*nvirt]).unwrap().dot(&a_inv);
             // let tmp:Array1<f64> = a_inv.dot(&bmat.slice(s![nc,..,..]).t().into_shape([nocc*nvirt]).unwrap());
             cpcis_coefficients_2.slice_mut(s![nc,..,..]).assign(&tmp.into_shape([nocc,nvirt]).unwrap());
         }
         // let cpcis_coefficients = solve_cpcis_pople(amat_i.view(),bmat_i.view(),nocc,nvirt,m_i.n_atoms);
 
-        return cpcis_coefficients;
+        return cpcis_coefficients_2;
     }
 }
 
@@ -87,6 +87,29 @@ impl Monomer {
         let dc_mo_occs:ArrayView3<f64> = dc_mo.slice(s![..,..,..nocc]);
         let dc_mo_virts:ArrayView3<f64> = dc_mo.slice(s![..,..,nocc..]);
 
+        // get transition charges
+        let qov:ArrayView2<f64> = self.properties.q_ov().unwrap();
+        let qvv:ArrayView2<f64> = self.properties.q_vv().unwrap();
+        let qoo:ArrayView2<f64> = self.properties.q_oo().unwrap();
+        let qvo:Array2<f64> = qov.view().into_shape([self.n_atoms,nocc,nvirt]).unwrap()
+            .to_owned()
+            .permuted_axes([0, 2, 1])
+            .as_standard_layout()
+            .to_owned().into_shape([self.n_atoms,nvirt*nocc]).unwrap();
+
+        // gamma and gamma lr
+        let g0:ArrayView2<f64> = self.properties.gamma().unwrap();
+        let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+
+        // integrals in MO basis
+        // (ai|bj) - (ab|ij) = (vo|vo) - (vv|oo)
+        let coul:Array2<f64> = qvo.t().dot(&g0.dot(&qvo));
+        let exch:Array2<f64> = qvv.t().dot(&g0_lr.dot(&qoo))
+            .into_shape([nvirt,nvirt,nocc,nocc]).unwrap()
+            .permuted_axes([0,2,1,3]).as_standard_layout().to_owned()
+            .into_shape([nvirt*nocc,nvirt*nocc]).unwrap();
+        let integrals_mo:Array2<f64> = 2.0 * coul - exch;
+
         // calculate the two electron integrals
         let integrals: Array4<f64> = coulomb_exchange_integral(
             self.properties.s().unwrap(),
@@ -114,6 +137,26 @@ impl Monomer {
         let cis_coeff:ArrayView2<f64> = cis_coeff.into_shape([nocc,nvirt]).unwrap();
         // CIS coefficients in AO basis
         let cis_coeff_ao:Array2<f64> = orbs_virt.dot(&cis_coeff.t().dot(&orbs_occ.t()));
+
+        let f_cis_coeff_ao:Array3<f64> = f_v(
+            cis_coeff_ao.view(),
+            self.properties.s().unwrap(),
+            self.properties.grad_s().unwrap(),
+            self.properties.gamma_ao().unwrap(),
+            self.properties.grad_gamma_ao().unwrap(),
+            self.n_atoms,
+            self.n_orbs,
+        );
+        let f_lr_cis_coeff_ao:Array3<f64> = f_lr(
+            cis_coeff_ao.t(),
+            self.properties.s().unwrap(),
+            self.properties.grad_s().unwrap(),
+            self.properties.gamma_lr_ao().unwrap(),
+            self.properties.grad_gamma_lr_ao().unwrap(),
+            self.n_atoms,
+            self.n_orbs,
+        );
+        let deriv_integral_cis_ao:Array3<f64> = 2.0 * f_cis_coeff_ao - f_lr_cis_coeff_ao;
 
         // Fock matrix in AO basis
         let fock_mat:ArrayView2<f64> = self.properties.h_coul_x().unwrap();
@@ -152,6 +195,13 @@ impl Monomer {
                     .into_shape([self.n_orbs,self.n_orbs]).unwrap()
                 )).dot(&orbs_occ);
 
+            // let term_4:Array2<f64> = orbs_virt.t().dot(&(
+            //     (integrals_2d.dot(&(orbs_virt.dot(&cis_coeff.t()).dot(&dc_mo_o.t())).into_shape([self.n_orbs*self.n_orbs]).unwrap())
+            //         + integrals_2d.dot(&(dc_mo_v.dot(&cis_coeff.t()).dot(&orbs_occ.t())).into_shape([self.n_orbs*self.n_orbs]).unwrap()))
+            //         .into_shape([self.n_orbs,self.n_orbs]).unwrap()
+            //         + &deriv_integral_cis_ao.slice(s![nc,..,..])
+            // )).dot(&orbs_occ);
+
             // C^x_v [(mu nu||la sig) C_v b_w C_o ] C_o + C_v [(mu nu||la sig) C_v b_w C_o ] C^x_o
             let term_5:Array2<f64> = dc_mo_v.t().dot(&integral_dot_cis_ao).dot(&orbs_occ)
                 + orbs_virt.t().dot(&integral_dot_cis_ao).dot(&dc_mo_o);
@@ -162,28 +212,16 @@ impl Monomer {
         let fock_terms:Array2<f64> = orbs_virt.t().dot(&fock_mat.dot(&orbs_virt)).dot(&cis_coeff.t()) -
             cis_coeff.t().dot(&orbs_occ.t().dot(&fock_mat.dot(&orbs_occ)));
 
-        let cis_der:Array3<f64> = solve_cpcis_iterative(
+        let cis_der:Array3<f64> = solve_cpcis_iterative_new(
             fock_terms.view(),
             l_b.view(),
-            orbs_occ,
-            orbs_virt,
-            integrals_2d.view(),
+            integrals_mo.view(),
             cis_energy,
             self.n_atoms,
             nocc,
             nvirt
         );
-        // let cis_der:Array3<f64> = solve_cpcis_pople(
-        //     fock_terms.view(),
-        //     l_b.view(),
-        //     orbs_occ,
-        //     orbs_virt,
-        //     integrals_2d.view(),
-        //     cis_energy,
-        //     self.n_atoms,
-        //     nocc,
-        //     nvirt
-        // );
+
         return cis_der;
     }
 
@@ -193,8 +231,10 @@ impl Monomer {
         let qov: ArrayView2<f64> = self.properties.q_ov().unwrap();
         // Reference to the unscreened Gamma matrix.
         let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        // Reference to the energy differences of the orbital energies.
+        let omega: ArrayView1<f64> = self.properties.omega().unwrap();
         // The sum of one-electron part and Coulomb part is computed and retzurned.
-        let coulomb: Array2<f64> = 2.0 * qov.t().dot(&gamma.dot(&qov));
+        let coulomb: Array2<f64> = Array2::from_diag(&omega) +2.0 * qov.t().dot(&gamma.dot(&qov));
 
         // Calculate the exchange integral
         // Number of occupied orbitals.
@@ -228,14 +268,13 @@ impl Monomer {
             .into_shape([n_occ, n_virt])
             .unwrap();
 
-        let orbe:ArrayView1<f64> = self.properties.orbe().unwrap();
         let mut coefficient_matrix: Array4<f64> = Array4::zeros((n_occ, n_virt, n_occ, n_virt));
         for i in 0..n_occ {
             for a in 0..n_virt {
                 for j in 0..n_occ {
                     for b in 0..n_virt {
                         let energy_term:f64 = if i==j && a==b{
-                            orbe[a] - orbe[i] - tda_energy
+                            - tda_energy
                         }
                         else{ 0.0};
 
@@ -324,14 +363,6 @@ impl Monomer {
             .to_owned()
             .into_shape([self.n_atoms, nvirt * nocc])
             .unwrap();
-
-        // create orbital energy matrix
-        let mut orbe_matrix: Array2<f64> = Array2::zeros((self.n_orbs, self.n_orbs));
-        for mu in 0..self.n_orbs {
-            for nu in 0..self.n_orbs {
-                orbe_matrix[[mu, nu]] = orbe[nu];
-            }
-        }
 
         // calculate A_matrix ij,kl i = nvirt, j = nocc, k = nvirt, l = nocc
         // for the CPHF iterations
@@ -521,6 +552,22 @@ impl Monomer {
             .unwrap());
 
 
+        // create orbital energy matrix
+        let mut orbe_matrix: Array2<f64> = Array2::zeros((self.n_orbs, self.n_orbs));
+        for mu in 0..self.n_orbs {
+            for nu in 0..self.n_orbs {
+                orbe_matrix[[mu, nu]] = orbe[nu];
+            }
+        }
+
+        // create orbital energy difference matrix
+        let mut orbe_diff_matrix: Array2<f64> = Array2::zeros((self.n_orbs, self.n_orbs));
+        for mu in 0..self.n_orbs {
+            for nu in 0..self.n_orbs {
+                orbe_diff_matrix[[mu, nu]] = orbe[nu] - orbe[mu];
+            }
+        }
+
         // calculate B matrix B_ij with i = nvirt, j = nocc
         // for the CPHF iterations
         let mut b_mat: Array3<f64> = Array3::zeros([3 * self.n_atoms, self.n_orbs, self.n_orbs]);
@@ -565,12 +612,10 @@ impl Monomer {
                 .into_shape([self.n_orbs, self.n_orbs])
                 .unwrap();
 
-            // b_mat
-            //     .slice_mut(s![nc, .., ..])
-            //     .assign(&(&gradh_mo + &a_dot_u));
             b_mat
                 .slice_mut(s![nc, .., ..])
-                .assign(&(&gradh_mo - &grads_mo * &orbe_matrix + &a_dot_u));
+                .assign(&(&gradh_mo -&u_mat.slice(s![nc,..,..])*&orbe_diff_matrix
+                    - &grads_mo * &orbe_matrix + &a_dot_u));
             b_mat
                 .slice_mut(s![nc, ..nocc, ..nocc])
                 .sub_assign(&integral_oo);
@@ -583,45 +628,6 @@ impl Monomer {
             b_mat
                 .slice_mut(s![nc, nocc.., nocc..])
                 .sub_assign(&integral_vv);
-            // loop version
-            // for i in 0..nvirt{
-            //     for j in 0..nocc{
-            //         b_mat[[nc,nocc+i,j]] = gradh_mo[[nocc+i,j]] - grads_mo[[nocc+i,j]] * orbe[j] - integral_vo[[i,j]];
-            //     }
-            //     for j in 0..nvirt{
-            //         b_mat[[nc,nocc+i,nocc+j]] = gradh_mo[[nocc+i,nocc+j]] - grads_mo[[nocc+i,nocc+j]] * orbe[nocc+j] - integral_vv[[i,j]];
-            //     }
-            // }
-            // for i in 0..nocc{
-            //     for j in 0..nocc{
-            //         b_mat[[nc,i,j]] = gradh_mo[[i,j]] - grads_mo[[i,j]] * orbe[j] - integral_oo[[i,j]];
-            //     }
-            //     for j in 0..nvirt{
-            //         b_mat[[nc,i,nocc+j]] = gradh_mo[[i,nocc+j]] - grads_mo[[i,nocc+j]] * orbe[nocc+j] - integral_ov[[i,j]];
-            //     }
-            // }
-            // let u_2d:ArrayView2<f64> = u_mat.slice(s![nc,..,..]);
-            // // loop version
-            // for i in 0..nvirt{
-            //     for j in 0..nocc{
-            //         b_mat[[nc,nocc+i,j]] = gradh_mo[[nocc+i,j]] +a_dot_u[[nocc+i,j]]
-            //             + u_2d[[j,nocc+i]] * orbe[j] + u_2d[[nocc+i,j]] *orbe[nocc+i] - integral_vo[[i,j]];
-            //     }
-            //     for j in 0..nvirt{
-            //         b_mat[[nc,nocc+i,nocc+j]] = gradh_mo[[nocc+i,nocc+j]] +a_dot_u[[nocc+i,nocc+j]]
-            //             + u_2d[[nocc+j,nocc+i]] * orbe[nocc+j] + u_2d[[nocc+i,nocc+j]] *orbe[nocc+i] - integral_vv[[i,j]];
-            //     }
-            // }
-            // for i in 0..nocc{
-            //     for j in 0..nocc{
-            //         b_mat[[nc,i,j]] = gradh_mo[[i,j]] +a_dot_u[[i,j]] +
-            //             u_2d[[j,i]] * orbe[j] + u_2d[[i,j]] *orbe[i] - integral_oo[[i,j]];
-            //     }
-            //     for j in 0..nvirt{
-            //         b_mat[[nc,i,nocc+j]] = gradh_mo[[i,nocc+j]] +a_dot_u[[i,nocc+j]] +
-            //             u_2d[[nocc+j,i]] * orbe[nocc+j] + u_2d[[i,nocc+j]] *orbe[i] - integral_ov[[i,j]];
-            //     }
-            // }
         }
         self.properties.set_grad_s(grad_s);
 
@@ -701,14 +707,6 @@ impl Monomer {
             .to_owned()
             .into_shape([self.n_atoms, nvirt * nocc])
             .unwrap();
-
-        // create orbital energy matrix
-        let mut orbe_matrix: Array2<f64> = Array2::zeros((self.n_orbs, self.n_orbs));
-        for mu in 0..self.n_orbs {
-            for nu in 0..self.n_orbs {
-                orbe_matrix[[mu, nu]] = orbe[nu];
-            }
-        }
 
         // calculate A_matrix ij,kl i = nvirt, j = nocc, k = nvirt, l = nocc
         // for the CPHF iterations
@@ -897,6 +895,21 @@ impl Monomer {
                 .into_shape([nocc * nvirt, nocc * nocc])
                 .unwrap());
 
+        // create orbital energy matrix
+        let mut orbe_matrix: Array2<f64> = Array2::zeros((self.n_orbs, self.n_orbs));
+        for mu in 0..self.n_orbs {
+            for nu in 0..self.n_orbs {
+                orbe_matrix[[mu, nu]] = orbe[nu];
+            }
+        }
+
+        // create orbital energy difference matrix
+        let mut orbe_diff_matrix: Array2<f64> = Array2::zeros((self.n_orbs, self.n_orbs));
+        for mu in 0..self.n_orbs {
+            for nu in 0..self.n_orbs {
+                orbe_diff_matrix[[mu, nu]] = orbe[nu] - orbe[mu];
+            }
+        }
 
         // calculate B matrix B_ij with i = nvirt, j = nocc
         // for the CPHF iterations
@@ -929,7 +942,7 @@ impl Monomer {
                 .unwrap();
 
             let gradh_mo: Array2<f64> = orbs.t().dot(&grad_h.slice(s![nc, .., ..]).dot(&orbs));
-            // let grads_mo: Array2<f64> = orbs.t().dot(&grad_s.slice(s![nc, .., ..]).dot(&orbs));
+            let grads_mo: Array2<f64> = orbs.t().dot(&grad_s.slice(s![nc, .., ..]).dot(&orbs));
 
             let a_dot_u: Array2<f64> = a_mat
                 .dot(
@@ -942,12 +955,10 @@ impl Monomer {
                 .into_shape([self.n_orbs, self.n_orbs])
                 .unwrap();
 
-            // b_mat
-            //     .slice_mut(s![nc, .., ..])
-            //     .assign(&(&gradh_mo - &grads_mo * &orbe_matrix + &a_dot_u));
             b_mat
                 .slice_mut(s![nc, .., ..])
-                .assign(&(&gradh_mo + &a_dot_u));
+                .assign(&(&gradh_mo -&u_mat.slice(s![nc,..,..])*&orbe_diff_matrix
+                    - &grads_mo * &orbe_matrix + &a_dot_u));
             b_mat
                 .slice_mut(s![nc, ..nocc, ..nocc])
                 .sub_assign(&integral_oo);
@@ -960,28 +971,6 @@ impl Monomer {
             b_mat
                 .slice_mut(s![nc, nocc.., nocc..])
                 .sub_assign(&integral_vv);
-            // let u_2d:ArrayView2<f64> = u_mat.slice(s![nc,..,..]);
-            // // loop version
-            // for i in 0..nvirt{
-            //     for j in 0..nocc{
-            //         b_mat[[nc,nocc+i,j]] = gradh_mo[[nocc+i,j]] +a_dot_u[[nocc+i,j]]
-            //             + u_2d[[j,nocc+i]] * orbe[j] + u_2d[[nocc+i,j]] *orbe[nocc+i] - integral_vo[[i,j]];
-            //     }
-            //     for j in 0..nvirt{
-            //         b_mat[[nc,nocc+i,nocc+j]] = gradh_mo[[nocc+i,nocc+j]] +a_dot_u[[nocc+i,nocc+j]]
-            //             + u_2d[[nocc+j,nocc+i]] * orbe[nocc+j] + u_2d[[nocc+i,nocc+j]] *orbe[nocc+i] - integral_vv[[i,j]];
-            //     }
-            // }
-            // for i in 0..nocc{
-            //     for j in 0..nocc{
-            //         b_mat[[nc,i,j]] = gradh_mo[[i,j]] +a_dot_u[[i,j]] +
-            //             u_2d[[j,i]] * orbe[j] + u_2d[[i,j]] *orbe[i] - integral_oo[[i,j]];
-            //     }
-            //     for j in 0..nvirt{
-            //         b_mat[[nc,i,nocc+j]] = gradh_mo[[i,nocc+j]] +a_dot_u[[i,nocc+j]] +
-            //             u_2d[[nocc+j,i]] * orbe[nocc+j] + u_2d[[i,nocc+j]] *orbe[i] - integral_ov[[i,j]];
-            //     }
-            // }
         }
         // calculate the derivative of the two electron integrals
         // First: calculate the derivative of the MO coefficients
@@ -1028,7 +1017,7 @@ impl Monomer {
                             let fock_val_ba = if i == j { b_mat[[nc, b, a]] } else { 0.0 };
                             let fock_val_ji = if a == b { b_mat[[nc, j, i]] } else { 0.0 };
                             let le_grad = if i == j && a == b { tda_grad[nc] } else { 0.0 };
-                            cpcis_mat[[nc, b, j]] += -1.0 *
+                            cpcis_mat[[nc, b, j]] +=
                                 (two_electron_integral_derivative[[nc, b, i, j, a]] + fock_val_ba
                                     - fock_val_ji
                                     - le_grad)
@@ -1480,6 +1469,48 @@ fn solve_cpcis_iterative(
     }
     println!(" ");
     println!("Number of iterations {}",iteration);
+
+    return cis_der;
+}
+
+fn solve_cpcis_iterative_new(
+    fock_terms:ArrayView2<f64>,
+    lb_term:ArrayView3<f64>,
+    integrals_mo:ArrayView2<f64>,
+    energy:f64,
+    n_atoms:usize,
+    nocc:usize,
+    nvirt:usize,
+)->Array3<f64>{
+    let mut cis_der:Array3<f64> = Array3::zeros((3*n_atoms,nvirt,nocc));
+
+    let integrals_mo:Array2<f64> = (1.0/energy) * &integrals_mo;
+    let matrix:Array3<f64> = (&(-1.0*&lb_term)+ &fock_terms)/energy;
+
+    for nc in 0..3*n_atoms{
+        let mut cis_der_2d:Array2<f64> = cis_der.slice(s![nc,..,..]).to_owned();
+        let mat_2d:ArrayView2<f64> = matrix.slice(s![nc,..,..]);
+
+        'cpcis_loop: for it in 0..500{
+            let prev:Array2<f64> = cis_der_2d.clone();
+
+            let integrals_dot_coeff = integrals_mo.dot(&prev.view().into_shape([nvirt*nocc]).unwrap());
+            let term:Array2<f64> = &integrals_dot_coeff.into_shape([nvirt,nocc]).unwrap()
+                +&mat_2d;
+            let new:Array2<f64> = 0.2*&prev + (0.8*term);
+
+            cis_der_2d = new;
+
+            let diff:Array2<f64> = (&prev - &cis_der_2d.view()).map(|val| val.abs());
+            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
+
+            if not_converged.len() == 0{
+                println!("CPCIS converged in {} Iterations.",it);
+                break 'cpcis_loop;
+            }
+        }
+        cis_der.slice_mut(s![nc,..,..]).assign(&cis_der_2d);
+    }
 
     return cis_der;
 }
