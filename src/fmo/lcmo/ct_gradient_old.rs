@@ -711,16 +711,22 @@ impl Monomer {
         println!("Elapsed time calculate A and B matrices: {:>8.6}",timer.elapsed().as_secs_f64());
         drop(timer);
         println!("Start iterative cphf routine");
+        let timer: Instant = Instant::now();
         let u_mat_pople:Array3<f64> = solve_cphf_pople_test(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        println!("Elapsed time CPHF pople: {:>8.6}",timer.elapsed().as_secs_f64());
+        drop(timer);
+        let timer: Instant = Instant::now();
         // let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms,grad_s.view(),orbs.view());
         let u_mat = solve_cphf_iterative_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms,grad_s.view(),orbs.view());
+        println!("Elapsed time CPHF iterative: {:>8.6}",timer.elapsed().as_secs_f64());
+        drop(timer);
         // println!(" ");
         // println!("U mat pople {}",u_mat_pople);
         // println!(" ");
         // println!("U mat{}",u_mat);
         // assert!(u_mat.abs_diff_eq(&u_mat_pople,1.0e-7));
 
-        return u_mat;
+        return u_mat_pople;
     }
 
     pub fn calculate_ct_fock_gradient(
@@ -1650,7 +1656,7 @@ fn solve_cphf_iterative_new(
             u_2d.slice_mut(s![..,..]).assign(&dampened);
 
             let diff:Array2<f64> = (&u_prev.view() - &u_2d.view()).map(|val| val.abs());
-            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
+            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-7 {Some(item)} else {None}).collect();
 
             if not_converged.len() == 0{
                 println!("CPHF converged in {} Iterations.",it);
@@ -1760,39 +1766,40 @@ pub fn solve_cphf_pople_test(
     // create new A matrix
     // A/(orbe[j] - orbe[i])
     let a_mat_3d:ArrayView4<f64> = a_mat.into_shape([n_orbs,n_orbs,n_orbs,n_orbs]).unwrap();
-    let a_mat_3d:Array4<f64> = a_mat_3d.slice(s![nocc..,..nocc,nocc..,..nocc]).to_owned();
-    let a_mat_3d:Array3<f64> = a_mat_3d.into_shape([nvirt,nocc,nvirt*nocc]).unwrap();
-    let mut amat_new_3d:Array3<f64> = Array3::zeros([nvirt,nocc,nvirt*nocc]);
-
-    let bmat_3d:ArrayView3<f64> = b_mat.slice(s![..,nocc..,..nocc]);
-    let mut bmat_new:Array3<f64> = Array3::zeros(bmat_3d.raw_dim());
-    for i in 0..nocc{
-        for j in 0..nvirt{
-            amat_new_3d.slice_mut(s![j,i,..])
-                .assign(&(&a_mat_3d.slice(s![j,i,..]) * (1.0/(orbe[i] - orbe[nocc+j]))));
-            bmat_new.slice_mut(s![..,i,j])
-                .assign(&(&bmat_3d.slice(s![..,j,i])*(1.0/(orbe[i] - orbe[nocc+j]))));
+    let a_mat_3d:Array4<f64> = a_mat_3d.slice(s![..,..,nocc..,..nocc]).to_owned();
+    let a_mat_3d:Array3<f64> = a_mat_3d.into_shape([n_orbs,n_orbs,nvirt*nocc]).unwrap();
+    let mut amat_new_3d:Array3<f64> = Array3::zeros([n_orbs,n_orbs,nvirt*nocc]);
+    let mut bmat_new:Array3<f64> = Array3::zeros(b_mat.raw_dim());
+    for i in 0..n_orbs{
+        for j in 0..n_orbs{
+            if i != j{
+                amat_new_3d.slice_mut(s![i,j,..])
+                    .assign(&(&a_mat_3d.slice(s![i,j,..]) * (1.0/(orbe[j] - orbe[i]))));
+                bmat_new.slice_mut(s![..,i,j])
+                    .assign(&(&b_mat.slice(s![..,i,j])*(1.0/(orbe[j] - orbe[i]))));
+            }
         }
     }
-    let amat_new:Array2<f64> = -1.0 * amat_new_3d.into_shape([nvirt*nocc,nvirt*nocc]).unwrap();
+    let amat_new:Array2<f64> = amat_new_3d.into_shape([n_orbs*n_orbs,nvirt*nocc]).unwrap();
 
-    let mut u_matrix:Array3<f64> = Array3::zeros([3*nat,nvirt,nocc]);
+    let mut u_matrix:Array3<f64> = Array3::zeros([3*nat,n_orbs,n_orbs]);
     // Iteration over the gradient
     for nc in 0..3*nat{
-        let b_zero:ArrayView1<f64> = bmat_new.slice(s![nc,..,..]).into_shape([nvirt*nocc]).unwrap();
+        let b_zero:ArrayView1<f64> = bmat_new.slice(s![nc,..,..]).into_shape([n_orbs*n_orbs]).unwrap();
         let mut saved_b:Vec<Array1<f64>> = Vec::new();
-        let mut saved_u_dot_a:Vec<Array1<f64>> = Vec::new();
+        let mut saved_a_dot_b:Vec<Array1<f64>> = Vec::new();
         let mut b_prev:Array1<f64> = b_zero.to_owned();
         let mut u_prev:Array1<f64> = b_zero.to_owned();
-        let mut iteration:usize = 0;
         saved_b.push(b_zero.to_owned());
 
-        let mut first_term:Array1<f64> = amat_new.dot(&b_prev);
+        let mut first_term:Array1<f64> = amat_new.dot(&b_prev.view().into_shape([n_orbs,n_orbs]).unwrap()
+            .slice(s![nocc..,..nocc]).to_owned().into_shape([nvirt*nocc]).unwrap());
         // let mut first_term:Array1<f64> = amat_new.dot(&b_prev);
-        saved_u_dot_a.push(first_term.clone());
+        saved_a_dot_b.push(first_term.clone());
 
-        'cphf_loop: for it in 0..50{
-            let mut second_term:Array1<f64> = Array1::zeros(nvirt*nocc);
+        let mut converged:bool = false;
+        'cphf_loop: for it in 0..40{
+            let mut second_term:Array1<f64> = Array1::zeros(n_orbs*n_orbs);
 
             // Gram Schmidt Orthogonalization
             for b_arr in saved_b.iter(){
@@ -1802,29 +1809,54 @@ pub fn solve_cphf_pople_test(
             b_prev = &first_term - &second_term;
             saved_b.push(b_prev.clone());
 
-            first_term = amat_new.dot(&b_prev);
+            first_term = amat_new.dot(&b_prev.view().into_shape([n_orbs,n_orbs]).unwrap()
+                .slice(s![nocc..,..nocc]).to_owned().into_shape([nvirt*nocc]).unwrap());
             // first_term = amat_new.dot(&b_prev);
-            saved_u_dot_a.push(first_term.clone());
+            saved_a_dot_b.push(first_term.clone());
 
-            let mut u_mat_1d:Array1<f64> = Array1::zeros((nvirt*nocc));
-            // calcula the factors a_n and the contributions to the u matrix
-            for (b_arr,u_dot_a) in saved_b.iter().zip(saved_u_dot_a.iter()){
-                let a_factor:f64 = b_arr.dot(&b_zero)/(b_arr.dot(b_arr)-b_arr.dot(u_dot_a));
-                println!("a factor {}",a_factor);
-                u_mat_1d = u_mat_1d + a_factor * b_arr;
-            }
-            let diff:Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
-            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-14 {Some(item)} else {None}).collect();
-            u_prev = u_mat_1d;
+            if it >=2{
+                // build matrix A and vector b to solve A x = b -> x = A^-1 b
+                let b_length:usize = saved_b.len();
+                let mut a_matrix:Array2<f64> = Array2::zeros([b_length,b_length]);
+                let mut b_vec:Array1<f64> = Array1::zeros(b_length);
 
-            iteration = it;
-            if not_converged.len() == 0{
-                // println!("CPHF converged in {} Iterations.",it);
-                break 'cphf_loop;
+                // fill matrix and vector
+                for (n, b_n) in saved_b.iter().enumerate(){
+                    b_vec[n] = b_n.dot(&b_zero);
+                    for ((m, b_m),AB_m) in saved_b.iter().enumerate().zip(saved_a_dot_b.iter()){
+                        if n == m{
+                            a_matrix[[n,m]] = b_n.dot(b_m);
+                        }
+                        else{
+                            a_matrix[[n,m]] = - b_n.dot(AB_m);
+                        }
+                    }
+                }
+
+                let a_inv:Array2<f64> = a_matrix.inv().unwrap();
+                let coefficients:Array1<f64> = a_inv.dot(&b_vec);
+
+                let mut u_mat_1d:Array1<f64> = Array1::zeros((n_orbs*n_orbs));
+                for (coeff_n, b_n) in coefficients.iter().zip(saved_b.iter()){
+                    u_mat_1d = u_mat_1d + *coeff_n * b_n
+                }
+
+                let diff:Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
+                let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-7 {Some(item)} else {None}).collect();
+                u_prev = u_mat_1d;
+
+                if not_converged.len() == 0{
+                    converged = true;
+                    println!("Pople converged in {} iterations.", it);
+                    break 'cphf_loop;
+                }
             }
         }
-        // println!("Number of iterations {}",iteration);
-        u_matrix.slice_mut(s![nc,..,..]).assign(&u_prev.into_shape([nvirt,nocc]).unwrap());
+        if converged == false{
+            println!("CPHF did NOT converge for nuclear coordinate {} !",nc);
+        }
+
+        u_matrix.slice_mut(s![nc,..,..]).assign(&u_prev.into_shape([n_orbs,n_orbs]).unwrap());
     }
     return u_matrix;
 }
