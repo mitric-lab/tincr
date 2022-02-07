@@ -245,7 +245,7 @@ impl Monomer {
         // Reference to the energy differences of the orbital energies.
         let omega: ArrayView1<f64> = self.properties.omega().unwrap();
         // The sum of one-electron part and Coulomb part is computed and retzurned.
-        let coulomb: Array2<f64> = Array2::from_diag(&omega) +2.0 * qov.t().dot(&gamma.dot(&qov));
+        let coulomb: Array2<f64> = 2.0 * qov.t().dot(&gamma.dot(&qov));
 
         // Calculate the exchange integral
         // Number of occupied orbitals.
@@ -270,6 +270,27 @@ impl Monomer {
             .unwrap()
             .to_owned();
 
+        let integral:Array2<f64> = coulomb - exchange;
+
+        let qvo:Array2<f64> = qov.clone().into_shape([self.n_atoms,n_occ,n_virt]).unwrap()
+            .permuted_axes([0, 2, 1])
+            .as_standard_layout()
+            .to_owned().into_shape([self.n_atoms,n_virt*n_occ]).unwrap();
+        let coulomb_2: Array2<f64> = 2.0 * qvo.t().dot(&gamma.dot(&qov));
+        let exchange_2:Array2<f64> =
+            qvv.t().dot(&gamma_lr.dot(&qoo))
+                .into_shape([n_virt,n_virt,n_occ,n_occ]).unwrap()
+                .permuted_axes([0,3,2,1])
+                .as_standard_layout().to_owned()
+                .into_shape([n_virt*n_occ,n_occ*n_virt]).unwrap();
+
+        let integral_2:Array2<f64> = coulomb_2 - exchange_2;
+        let integral_2:Array2<f64> = integral_2.into_shape([n_virt,n_occ,n_occ*n_virt]).unwrap()
+            .permuted_axes([1,0,2]).as_standard_layout().to_owned()
+            .into_shape([n_occ * n_virt, n_occ * n_virt]).unwrap();
+
+        assert!(integral.abs_diff_eq(&integral_2,1e-10),"Integrals are NOT equal!!");
+
         // get orbital energy differences - energy of the tda state
         let tda_energy = self.properties.ci_eigenvalue(le_state).unwrap();
         let tda_coeff: ArrayView2<f64> = self
@@ -279,6 +300,7 @@ impl Monomer {
             .into_shape([n_occ, n_virt])
             .unwrap();
 
+        let orbe:ArrayView1<f64> = self.properties.orbe().unwrap();
         let mut coefficient_matrix: Array4<f64> = Array4::zeros((n_occ, n_virt, n_occ, n_virt));
         for i in 0..n_occ {
             for a in 0..n_virt {
@@ -286,6 +308,7 @@ impl Monomer {
                     for b in 0..n_virt {
                         let energy_term:f64 = if i==j && a==b{
                             - tda_energy
+                            //orbe[a] - orbe[i] - tda_energy
                         }
                         else{ 0.0};
 
@@ -296,7 +319,8 @@ impl Monomer {
             }
         }
 
-       coulomb - exchange
+        // integral_2 + coefficient_matrix.into_shape([n_occ * n_virt, n_occ * n_virt]).unwrap()
+        Array2::from_diag(&omega) + integral
             + coefficient_matrix
                 .into_shape([n_occ * n_virt, n_occ * n_virt])
                 .unwrap()
@@ -1029,7 +1053,7 @@ impl Monomer {
                             let fock_val_ji = if a == b { b_mat[[nc, j, i]] } else { 0.0 };
                             let le_grad = if i == j && a == b { tda_grad[nc] } else { 0.0 };
                             cpcis_mat[[nc, b, j]] +=
-                                (two_electron_integral_derivative[[nc, b, i, j, a]] + fock_val_ba
+                                (two_electron_integral_derivative[[nc, b, j, i, a]] + fock_val_ba
                                     - fock_val_ji
                                     - le_grad)
                                     * tda_coeff[[i, a]];
@@ -1058,10 +1082,10 @@ fn two_electron_integral_derivative(
     n_atoms: usize,
 ) -> Array5<f64> {
     // calculate the two electron integrals
-    let two_electron_integrals: Array4<f64> = coulomb_exchange_integral(s, g0, g0_lr, n_orbs);
+    let two_electron_integrals: Array4<f64> = coulomb_exchange_integral_new(s, g0, g0_lr, n_orbs);
     // calculate the derivative of the two electron integrals
     let two_electron_derivative: Array5<f64> =
-        f_monomer_coulomb_exchange_loop(s, ds, g0, g0_lr, dg, dg_lr, n_atoms, n_orbs);
+        f_monomer_coulomb_exchange_loop_new(s, ds, g0, g0_lr, dg, dg_lr, n_atoms, n_orbs);
     // transform the derivative from the AO basis to the MO basis using MO coefficients
     // from [nc,norbs,norbs,norbs,norbs] to [nc,nvirt,nocc,nocc,nvirt]
     let two_electron_mo_basis: Array5<f64> = two_electron_derivative
@@ -1391,6 +1415,92 @@ fn f_monomer_coulomb_exchange_loop(
             }
         }
     }
+    return 2.0 * coulomb_integral - exchange_integral;
+}
+
+fn coulomb_exchange_integral_new(
+    s: ArrayView2<f64>,
+    g0: ArrayView2<f64>,
+    g0_lr: ArrayView2<f64>,
+    n_orbs: usize,
+) -> Array4<f64> {
+    let mut coulomb_integral: Array4<f64> = Array4::zeros((n_orbs, n_orbs, n_orbs, n_orbs));
+    let mut exchange_integral: Array4<f64> = Array4::zeros((n_orbs, n_orbs, n_orbs, n_orbs));
+    for mu in 0..n_orbs {
+        for la in 0..n_orbs {
+            for nu in 0..n_orbs {
+                for sig in 0..n_orbs {
+                    coulomb_integral[[mu, la, nu, sig]] += 0.25
+                        * s[[mu, la]]
+                        * s[[nu, sig]]
+                        * (g0[[mu, nu]]
+                        + g0[[mu, sig]]
+                        + g0[[la, nu]]
+                        + g0[[la, sig]]);
+
+                    exchange_integral[[mu, sig, nu, la]] += 0.25
+                        * s[[mu, sig]]
+                        * s[[nu, la]]
+                        * (g0_lr[[mu, nu]]
+                        + g0_lr[[mu, la]]
+                        + g0_lr[[sig, nu]]
+                        + g0_lr[[sig, la]]);
+                }
+            }
+        }
+    }
+    let exchange_integral:Array4<f64> = exchange_integral.permuted_axes([0,3,2,1]).as_standard_layout().to_owned();
+    return 2.0 * coulomb_integral - exchange_integral;
+}
+
+fn f_monomer_coulomb_exchange_loop_new(
+    s: ArrayView2<f64>,
+    ds: ArrayView3<f64>,
+    g0: ArrayView2<f64>,
+    g0_lr: ArrayView2<f64>,
+    dg: ArrayView3<f64>,
+    dg_lr: ArrayView3<f64>,
+    n_atoms: usize,
+    n_orbs: usize,
+) -> Array5<f64> {
+    let mut coulomb_integral: Array5<f64> =
+        Array5::zeros([3 * n_atoms, n_orbs, n_orbs, n_orbs, n_orbs]);
+    let mut exchange_integral: Array5<f64> =
+        Array5::zeros([3 * n_atoms, n_orbs, n_orbs, n_orbs, n_orbs]);
+
+    for nc in 0..3 * n_atoms {
+        for mu in 0..n_orbs {
+            for la in 0..n_orbs {
+                for nu in 0..n_orbs {
+                    for sig in 0..n_orbs {
+                        coulomb_integral[[nc, mu, la, nu, sig]] += 0.25
+                            * ((ds[[nc, mu, la]] * s[[nu, sig]] + s[[mu, la]] * ds[[nc, nu, sig]])
+                            * (g0[[mu, nu]] + g0[[mu, sig]] + g0[[la, nu]] + g0[[la, sig]])
+                            + s[[mu, la]]
+                            * s[[nu, sig]]
+                            * (dg[[nc, mu, nu]]
+                            + dg[[nc, mu, sig]]
+                            + dg[[nc, la, nu]]
+                            + dg[[nc, la, sig]]));
+
+                        exchange_integral[[nc, mu, sig, nu, la]] += 0.25
+                            * ((ds[[nc, mu, sig]] * s[[nu, la]] + s[[mu, sig]] * ds[[nc, nu, la]])
+                            * (g0_lr[[mu, nu]]
+                            + g0_lr[[mu, la]]
+                            + g0_lr[[sig, nu]]
+                            + g0_lr[[sig, la]])
+                            + s[[mu, sig]]
+                            * s[[nu, la]]
+                            * (dg_lr[[nc, mu, nu]]
+                            + dg_lr[[nc, mu, la]]
+                            + dg_lr[[nc, sig, nu]]
+                            + dg_lr[[nc, sig, la]]));
+                    }
+                }
+            }
+        }
+    }
+    let exchange_integral:Array5<f64> = exchange_integral.permuted_axes([0,1,4,3,2]).as_standard_layout().to_owned();
     return 2.0 * coulomb_integral - exchange_integral;
 }
 
