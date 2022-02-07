@@ -5,7 +5,7 @@ use crate::initialization::{Atom, MO};
 use crate::scc::h0_and_s::h0_and_s_gradients;
 use ndarray::prelude::*;
 use std::ops::SubAssign;
-use ndarray_linalg::Inverse;
+use ndarray_linalg::{Inverse, Solve};
 use ndarray_rand::RandomExt;
 use ndarray_rand::rand_distr::Uniform;
 
@@ -44,13 +44,15 @@ impl SuperSystem {
         // invert the A matrix
         let a_inv:Array2<f64> = amat.inv().unwrap();
         // create b matrix
-        let bmat:Array3<f64> = m_i.cpcis_b_matrix(le_state,atoms,umat);
+        let mut bmat:Array3<f64> = -1.0* m_i.cpcis_b_matrix(le_state,atoms,umat);
         // solve the equation
         // sum_i,a A^-1_i,a,j,b B_i,a
         let mut cpcis_coefficients_2:Array3<f64> = Array3::zeros([3*m_i.n_atoms,nocc,nvirt]);
         for nc in 0..3*m_i.n_atoms{
-            let tmp:Array1<f64> = -1.0 * bmat.slice(s![nc,..,..]).t().into_shape([nocc*nvirt]).unwrap().dot(&a_inv);
+            let tmp:Array1<f64> = bmat.slice(s![nc,..,..]).t().into_shape([nocc*nvirt]).unwrap().dot(&a_inv);
             // let tmp:Array1<f64> = a_inv.dot(&bmat.slice(s![nc,..,..]).t().into_shape([nocc*nvirt]).unwrap());
+            // let tmp:Array1<f64> = amat.solve_into(bmat.slice(s![nc,..,..])
+            //     .to_owned().into_shape([nocc*nvirt]).unwrap()).unwrap();
             cpcis_coefficients_2.slice_mut(s![nc,..,..]).assign(&tmp.into_shape([nocc,nvirt]).unwrap());
         }
         // let cpcis_coefficients = solve_cpcis_pople(amat_i.view(),bmat_i.view(),nocc,nvirt,m_i.n_atoms);
@@ -213,6 +215,15 @@ impl Monomer {
             cis_coeff.t().dot(&orbs_occ.t().dot(&fock_mat.dot(&orbs_occ)));
 
         let cis_der:Array3<f64> = solve_cpcis_iterative_new(
+            fock_terms.view(),
+            l_b.view(),
+            integrals_mo.view(),
+            cis_energy,
+            self.n_atoms,
+            nocc,
+            nvirt
+        );
+        let cis_der_pople:Array3<f64> = solve_cpcis_pople_test(
             fock_terms.view(),
             l_b.view(),
             integrals_mo.view(),
@@ -1502,7 +1513,7 @@ fn solve_cpcis_iterative_new(
             cis_der_2d = new;
 
             let diff:Array2<f64> = (&prev - &cis_der_2d.view()).map(|val| val.abs());
-            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
+            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-7 {Some(item)} else {None}).collect();
 
             if not_converged.len() == 0{
                 println!("CPCIS converged in {} Iterations.",it);
@@ -1510,6 +1521,95 @@ fn solve_cpcis_iterative_new(
             }
         }
         cis_der.slice_mut(s![nc,..,..]).assign(&cis_der_2d);
+    }
+
+    return cis_der;
+}
+
+fn solve_cpcis_pople_test(
+    fock_terms:ArrayView2<f64>,
+    lb_term:ArrayView3<f64>,
+    integrals_mo:ArrayView2<f64>,
+    energy:f64,
+    n_atoms:usize,
+    nocc:usize,
+    nvirt:usize,
+)->Array3<f64>{
+    let mut cis_der:Array3<f64> = Array3::zeros((3*n_atoms,nvirt,nocc));
+
+    let integrals_mo:Array2<f64> = (1.0/energy) * &integrals_mo;
+    let matrix:Array3<f64> = (&(-1.0*&lb_term)+ &fock_terms)/energy;
+
+    for nc in 0..3*n_atoms{
+        let b_zero:ArrayView1<f64> = matrix.slice(s![nc,..,..]).into_shape([nvirt*nocc]).unwrap();
+        let mut saved_b:Vec<Array1<f64>> = Vec::new();
+        let mut saved_a_dot_b:Vec<Array1<f64>> = Vec::new();
+        let mut b_prev:Array1<f64> = b_zero.to_owned();
+        let mut u_prev:Array1<f64> = b_zero.to_owned();
+        saved_b.push(b_zero.to_owned());
+
+        let mut first_term:Array1<f64> = integrals_mo.dot(&b_prev);
+        saved_a_dot_b.push(first_term.clone());
+
+        let mut converged:bool = false;
+        'cphf_loop: for it in 0..40{
+            let mut second_term:Array1<f64> = Array1::zeros(nvirt*nocc);
+
+            // Gram Schmidt Orthogonalization
+            for b_arr in saved_b.iter(){
+                second_term = second_term + b_arr.dot(&first_term)/(b_arr.dot(b_arr)) * b_arr;
+            }
+
+            b_prev = &first_term - &second_term;
+            saved_b.push(b_prev.clone());
+
+            first_term = integrals_mo.dot(&b_prev);
+            // first_term = amat_new.dot(&b_prev);
+            saved_a_dot_b.push(first_term.clone());
+
+            if it >=2{
+                // build matrix A and vector b to solve A x = b -> x = A^-1 b
+                let b_length:usize = saved_b.len();
+                let mut a_matrix:Array2<f64> = Array2::zeros([b_length,b_length]);
+                let mut b_vec:Array1<f64> = Array1::zeros(b_length);
+
+                // fill matrix and vector
+                for (n, b_n) in saved_b.iter().enumerate(){
+                    b_vec[n] = b_n.dot(&b_zero);
+                    for ((m, b_m),AB_m) in saved_b.iter().enumerate().zip(saved_a_dot_b.iter()){
+                        if n == m{
+                            a_matrix[[n,m]] = b_n.dot(b_m);
+                        }
+                        else{
+                            a_matrix[[n,m]] = - b_n.dot(AB_m);
+                        }
+                    }
+                }
+
+                let a_inv:Array2<f64> = a_matrix.inv().unwrap();
+                let coefficients:Array1<f64> = a_inv.dot(&b_vec);
+
+                let mut u_mat_1d:Array1<f64> = Array1::zeros((nvirt*nocc));
+                for (coeff_n, b_n) in coefficients.iter().zip(saved_b.iter()){
+                    u_mat_1d = u_mat_1d + *coeff_n * b_n
+                }
+
+                let diff:Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
+                let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-7 {Some(item)} else {None}).collect();
+                u_prev = u_mat_1d;
+
+                if not_converged.len() == 0{
+                    converged = true;
+                    println!("Pople converged in {} iterations.", it);
+                    break 'cphf_loop;
+                }
+            }
+        }
+        if converged == false{
+            println!("CPCIS did NOT converge for nuclear coordinate {} !",nc);
+        }
+
+        cis_der.slice_mut(s![nc,..,..]).assign(&u_prev.into_shape([nvirt,nocc]).unwrap());
     }
 
     return cis_der;
@@ -1572,116 +1672,5 @@ fn solve_cpcis_inversion(
             .into_shape([nvirt,nocc]).unwrap());
     }
 
-    // for nc in 0..3*n_atoms {
-    //     let b_zero: ArrayView1<f64> = matrix.slice(s![nc,..,..]).into_shape([nvirt * nocc]).unwrap();
-    //     let mut saved_b: Vec<Array1<f64>> = Vec::new();
-    //     let mut saved_u_dot_a: Vec<Array1<f64>> = Vec::new();
-    //     let mut b_prev: Array1<f64> = b_zero.to_owned();
-    //     let mut u_prev: Array1<f64> = b_zero.to_owned();
-    //     let mut iteration: usize = 0;
-    //     saved_b.push(b_zero.to_owned());
-    //
-    //     let mut first_term: Array1<f64> = amat.dot(&b_prev.view());
-    //     // let mut first_term:Array1<f64> = amat_new.dot(&b_prev);
-    //     saved_u_dot_a.push(first_term.clone());
-    //
-    //     'cpcis_loop: for it in 0..50 {
-    //         let mut second_term: Array1<f64> = Array1::zeros(nvirt * nocc);
-    //         // Gram Schmidt Orthogonalization
-    //         for b_arr in saved_b.iter() {
-    //             second_term = second_term + b_arr.dot(&first_term) / (b_arr.dot(b_arr)) * b_arr;
-    //         }
-    //
-    //         b_prev = &first_term - &second_term;
-    //         saved_b.push(b_prev.clone());
-    //
-    //         first_term = amat.dot(&b_prev.view());
-    //         saved_u_dot_a.push(first_term.clone());
-    //
-    //         let mut u_mat_1d: Array1<f64> = Array1::zeros((nvirt*nocc));
-    //         // calcula the factors a_n and the contributions to the u matrix
-    //         println!("iteration {}",it);
-    //         for (b_arr, u_dot_a) in saved_b.iter().zip(saved_u_dot_a.iter()) {
-    //             let a_factor: f64 = b_arr.dot(&b_zero) / (b_arr.dot(b_arr) - b_arr.dot(u_dot_a));
-    //             println!("factor {}", a_factor);
-    //             u_mat_1d = u_mat_1d + a_factor * b_arr;
-    //         }
-    //         let diff: Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
-    //         let not_converged: Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-12 { Some(item) } else { None }).collect();
-    //         u_prev = u_mat_1d;
-    //
-    //         iteration = it;
-    //         if not_converged.len() == 0 {
-    //             println!("CPCIS converged in {} Iterations.", it);
-    //             break 'cpcis_loop;
-    //         }
-    //     }
-    //     // println!("Number of iterations {}",iteration);
-    //     cis_der.slice_mut(s![nc,..,..]).assign(&u_prev.into_shape([nvirt, nocc]).unwrap());
-    // }
-
     return cis_der;
-}
-
-
-fn solve_cpcis_pople_old(
-    amat:ArrayView2<f64>,
-    bmat:ArrayView3<f64>,
-    nocc:usize,
-    nvirt:usize,
-    nat:usize
-)->Array3<f64>{
-    let n_orbs:usize = nocc + nvirt;
-
-    let mut u_matrix:Array3<f64> = Array3::zeros([3*nat,nocc,nvirt]);
-    // Iteration over the gradient
-    for nc in 0..3*nat{
-        let b_zero:ArrayView1<f64> = bmat.slice(s![nc,..,..]).into_shape([nocc*nvirt]).unwrap();
-        let mut saved_b:Vec<Array1<f64>> = Vec::new();
-        let mut saved_u_dot_a:Vec<Array1<f64>> = Vec::new();
-        let mut b_prev:Array1<f64> = b_zero.to_owned();
-        let mut u_prev:Array1<f64> = b_zero.to_owned();
-        let mut iteration:usize = 0;
-        saved_b.push(b_zero.to_owned());
-
-        let mut first_term:Array1<f64> = amat.dot(&b_prev.view());
-        // let mut first_term:Array1<f64> = amat_new.dot(&b_prev);
-        saved_u_dot_a.push(first_term.clone());
-
-        'cphf_loop: for it in 0..50{
-            let mut second_term:Array1<f64> = Array1::zeros(nocc*nvirt);
-
-            // Gram Schmidt Orthogonalization
-            for b_arr in saved_b.iter(){
-                second_term = second_term + b_arr.dot(&first_term)/(b_arr.dot(b_arr)) * b_arr;
-            }
-
-            b_prev = &first_term - &second_term;
-            saved_b.push(b_prev.clone());
-
-            first_term = amat.dot(&b_prev.view());
-            saved_u_dot_a.push(first_term.clone());
-
-            let mut u_mat_1d:Array1<f64> = Array1::zeros((nocc*nvirt));
-            // calcula the factors a_n and the contributions to the u matrix
-            for (b_arr,u_dot_a) in saved_b.iter().zip(saved_u_dot_a.iter()){
-                let a_factor:f64 = b_arr.dot(&b_zero)/(b_arr.dot(b_arr)-b_arr.dot(u_dot_a));
-                println!("factor {}",a_factor);
-                // println!("a factor {}",a_factor);
-                u_mat_1d = u_mat_1d + a_factor * b_arr;
-            }
-            let diff:Array1<f64> = (&u_prev - &u_mat_1d).map(|val| val.abs());
-            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-14 {Some(item)} else {None}).collect();
-            u_prev = u_mat_1d;
-
-            iteration = it;
-            if not_converged.len() == 0{
-                // println!("CPHF converged in {} Iterations.",it);
-                break 'cphf_loop;
-            }
-        }
-        // println!("Number of iterations {}",iteration);
-        u_matrix.slice_mut(s![nc,..,..]).assign(&u_prev.into_shape([nocc,nvirt]).unwrap());
-    }
-    return u_matrix;
 }
