@@ -44,18 +44,18 @@ impl SuperSystem {
         // invert the A matrix
         let a_inv:Array2<f64> = amat.inv().unwrap();
         // create b matrix
-        let mut bmat:Array3<f64> = -1.0* m_i.cpcis_b_matrix(le_state,atoms,umat);
+        // let bmat:Array3<f64> = -1.0* m_i.cpcis_b_matrix(le_state,atoms,umat);
+        let bmat:Array3<f64> = m_i.cpcis_b_matrix(le_state,atoms,umat);
+        let bmat_2d:Array2<f64> = bmat.clone().permuted_axes([0,2,1]).as_standard_layout().to_owned()
+            .into_shape([3*m_i.n_atoms,nocc*nvirt]).unwrap();
         // solve the equation
         // sum_i,a A^-1_i,a,j,b B_i,a
         let mut cpcis_coefficients_2:Array3<f64> = Array3::zeros([3*m_i.n_atoms,nocc,nvirt]);
         for nc in 0..3*m_i.n_atoms{
-            let tmp:Array1<f64> = bmat.slice(s![nc,..,..]).t().into_shape([nocc*nvirt]).unwrap().dot(&a_inv);
-            // let tmp:Array1<f64> = a_inv.dot(&bmat.slice(s![nc,..,..]).t().into_shape([nocc*nvirt]).unwrap());
-            // let tmp:Array1<f64> = amat.solve_into(bmat.slice(s![nc,..,..])
-            //     .to_owned().into_shape([nocc*nvirt]).unwrap()).unwrap();
+            let tmp:Array1<f64> = a_inv.dot(&bmat_2d.slice(s![nc,..]));
+            // let tmp:Array1<f64> = bmat_2d.slice(s![nc,..]).dot(&a_inv);
             cpcis_coefficients_2.slice_mut(s![nc,..,..]).assign(&tmp.into_shape([nocc,nvirt]).unwrap());
         }
-        // let cpcis_coefficients = solve_cpcis_pople(amat_i.view(),bmat_i.view(),nocc,nvirt,m_i.n_atoms);
 
         return cpcis_coefficients_2;
     }
@@ -113,7 +113,7 @@ impl Monomer {
         let integrals_mo:Array2<f64> = 2.0 * coul - exch;
 
         // calculate the two electron integrals
-        let integrals: Array4<f64> = coulomb_exchange_integral(
+        let integrals: Array4<f64> = coulomb_exchange_integral_new(
             self.properties.s().unwrap(),
             self.properties.gamma_ao().unwrap(),
             self.properties.gamma_lr_ao().unwrap(),
@@ -123,7 +123,7 @@ impl Monomer {
             .into_shape([self.n_orbs*self.n_orbs,self.n_orbs*self.n_orbs]).unwrap();
 
         // calculate the derivative of the two electron integrals
-        let integral_derivatives:Array5<f64> = f_monomer_coulomb_exchange_loop(
+        let integral_derivatives:Array5<f64> = f_monomer_coulomb_exchange_loop_new(
             self.properties.s().unwrap(),
             self.properties.grad_s().unwrap(),
             self.properties.gamma_ao().unwrap(),
@@ -223,15 +223,15 @@ impl Monomer {
             nocc,
             nvirt
         );
-        let cis_der_pople:Array3<f64> = solve_cpcis_pople_test(
-            fock_terms.view(),
-            l_b.view(),
-            integrals_mo.view(),
-            cis_energy,
-            self.n_atoms,
-            nocc,
-            nvirt
-        );
+        // let cis_der_pople:Array3<f64> = solve_cpcis_pople_test(
+        //     fock_terms.view(),
+        //     l_b.view(),
+        //     integrals_mo.view(),
+        //     cis_energy,
+        //     self.n_atoms,
+        //     nocc,
+        //     nvirt
+        // );
 
         return cis_der;
     }
@@ -1623,7 +1623,7 @@ fn solve_cpcis_iterative_new(
             cis_der_2d = new;
 
             let diff:Array2<f64> = (&prev - &cis_der_2d.view()).map(|val| val.abs());
-            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-7 {Some(item)} else {None}).collect();
+            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
 
             if not_converged.len() == 0{
                 println!("CPCIS converged in {} Iterations.",it);
