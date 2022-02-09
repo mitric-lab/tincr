@@ -382,7 +382,7 @@ fn f_monomer_coulomb_exchange_loop(
                             * (g0[[mu, la]] + g0[[mu, sig]] + g0[[nu, la]] + g0[[nu, sig]])
                             + s[[mu, nu]]
                             * s[[la, sig]]
-                            * (dg[[nc, mu, nu]]
+                            * (dg[[nc, mu, la]]
                             + dg[[nc, mu, sig]]
                             + dg[[nc, nu, la]]
                             + dg[[nc, nu, sig]]));
