@@ -268,6 +268,15 @@ impl Pair{
                 self.n_orbs,
             );
             self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
+
+            let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                pair_atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_gamma_lr(gamma_lr);
+            self.properties.set_gamma_lr_ao(gamma_lr_ao);
         }
         // prepare gamma and grad gamma AO matrix
         let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(

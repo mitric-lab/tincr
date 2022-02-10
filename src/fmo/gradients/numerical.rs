@@ -12,6 +12,7 @@ use crate::gradients::assert_deriv;
 use crate::initialization::Atom;
 use crate::constants::BOHR_TO_ANGS;
 use std::net::UdpSocket;
+use std::time::Instant;
 
 impl SuperSystem {
     pub fn monomer_orbital_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64{
@@ -105,10 +106,20 @@ impl SuperSystem {
         }
         let monomer_index_i:usize = 0;
         let monomer_index_j:usize = 1;
+        let timer: Instant = Instant::now();
         // calculate the gradient of the charge-transfer energy
         let ct_energy = self.exciton_ct_energy(monomer_index_i,monomer_index_j,0,0,true);
         // let ct_energy = self.exciton_hamiltonian_ct_test();
-        let grad:Array1<f64> = self.ct_gradient_new(monomer_index_i,monomer_index_j,0,0,ct_energy,true);
+        let mut grad:Array1<f64> = self.ct_gradient_new(monomer_index_i,monomer_index_j,0,0,ct_energy,true);
+        // let grad = self.ct_gradient(monomer_index_i,monomer_index_j,0,0);
+        println!("Elapsed time ct energy gradient: {:>8.6}",timer.elapsed().as_secs_f64());
+        drop(timer);
+        println!("Start CPHF");
+        let timer: Instant = Instant::now();
+        grad = grad + self.calculate_cphf_correction(monomer_index_i,monomer_index_j,0,0,true);
+        println!("Elapsed time CPHF correction: {:>8.6}",timer.elapsed().as_secs_f64());
+        drop(timer);
+        // grad = grad + self.ct_gradient(monomer_index_i,monomer_index_j,0,0);
         let mol_i = &self.monomers[monomer_index_i];
         let mol_j = &self.monomers[monomer_index_j];
         let mut full_gradient:Array1<f64> = Array1::zeros(self.atoms.len()*3);
