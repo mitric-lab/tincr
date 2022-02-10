@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use ndarray_npy::write_npy;
 
 fn get_nan_vec() -> Vec<f64> {
     vec![f64::NAN]
@@ -278,7 +279,7 @@ impl RepulsivePotential {
 #[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct RepulsivePotentialTable {
     /// Repulsive energy in Hartree on the grid `d`
-    vrep: Vec<f64>,
+    pub vrep: Vec<f64>,
     /// Atomic number of first element of the pair
     z1: u8,
     /// Atomic number of the second element of the pair
@@ -462,6 +463,7 @@ impl From<&SkfHandler> for RepulsivePotentialTable {
         // read spline values from the skf file
         let mut rs: Array1<f64> = Array1::zeros(n_int);
         let mut cs: Array2<f64> = Array2::zeros((4, n_int));
+        let mut last_coeffs:Array1<f64> = Array1::zeros(6);
         // start from the 4th line after "Spline"
         count = count + 3;
         let mut end: f64 = 0.0;
@@ -469,16 +471,21 @@ impl From<&SkfHandler> for RepulsivePotentialTable {
         for it in (count..(n_int + count)) {
             let next_line: Vec<f64> = process_slako_line(lines[it]);
             rs[iteration_count] = next_line[0];
-            let array: Array1<f64> = array![next_line[2], next_line[3], next_line[4], next_line[5]];
-            cs.slice_mut(s![.., iteration_count]).assign(&array);
+            if it == (n_int + count-1){
+                let array: Array1<f64> = array![next_line[2], next_line[3], next_line[4], next_line[5],next_line[6],next_line[7]];
+                last_coeffs = array;
+            }
+            else{
+                let array: Array1<f64> = array![next_line[2], next_line[3], next_line[4], next_line[5]];
+                cs.slice_mut(s![.., iteration_count]).assign(&array);
+            }
             end = next_line[1];
-
             iteration_count += 1;
         }
         assert!((end - cutoff).abs() < f64::EPSILON);
 
         // Now we evaluate the spline on a equidistant grid
-        let npoints: usize = 100;
+        let npoints: usize = 80;
         let d_arr: Array1<f64> = Array1::linspace(0.0, cutoff, npoints);
         let mut v_rep: Array1<f64> = Array1::zeros(npoints);
 
@@ -488,18 +495,35 @@ impl From<&SkfHandler> for RepulsivePotentialTable {
                 v_rep[i] = (-&a_1 * di + a_2).exp() + a_3;
             } else {
                 // find interval such that r[j] <= di < r[j+1]
-                while di >= &rs[spline_counter + 1] && spline_counter < (n_int - 2) {
+                while spline_counter < (n_int -2) && di >= &rs[spline_counter + 1] {
                     spline_counter += 1;
                 }
-                if spline_counter < (n_int - 2) {
+                if di>= rs.last().unwrap() && di <= &cutoff && spline_counter <(n_int-1){
+                    spline_counter +=1;
+                }
+                if spline_counter < (n_int-1) {
                     assert!(rs[spline_counter] <= *di);
                     assert!(di < &rs[spline_counter + 1]);
                     let c_arr: ArrayView1<f64> = cs.slice(s![.., spline_counter]);
+                    let dx = di - rs[spline_counter];
+                    let val = c_arr[0]
+                        + c_arr[1] * dx
+                        + c_arr[2] * dx.powi(2)
+                        + c_arr[3] * dx.powi(3);
+                    v_rep[i] = val;
+                }
+                else if spline_counter == (n_int-1){
+                    let c_arr: ArrayView1<f64> = last_coeffs.view();
+                    let dx = di - rs[spline_counter];
+
                     v_rep[i] = c_arr[0]
-                        + c_arr[1] * (di - rs[spline_counter])
-                        + c_arr[2] * (di - rs[spline_counter]).powi(2)
-                        + c_arr[3] * (di - rs[spline_counter]).powi(3);
-                } else {
+                        + c_arr[1] * dx
+                        + c_arr[2] * dx.powi(2)
+                        + c_arr[3] * dx.powi(3)
+                        + c_arr[4] * dx.powi(4)
+                        + c_arr[5] * dx.powi(5);
+                }
+                else {
                     v_rep[i] = 0.0;
                 }
             }
