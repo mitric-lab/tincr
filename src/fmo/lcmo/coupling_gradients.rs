@@ -94,8 +94,10 @@ impl SuperSystem {
             // set necessary arrays for the U matrix calculations
             let monomers: &mut Vec<Monomer> = &mut self.monomers;
             let monomer: &mut Monomer = &mut monomers[pair.i];
+            // let m_i_dc_maurice:Array3<f64> = monomer.mo_derivatives_maurice(&pair_atoms[..atoms_i]);
             monomer.prepare_u_matrix(&pair_atoms[..atoms_i]);
             let monomer: &mut Monomer = &mut monomers[pair.j];
+            // let m_j_dc_maurice:Array3<f64> = monomer.mo_derivatives_maurice(&pair_atoms[atoms_i..]);
             monomer.prepare_u_matrix(&pair_atoms[atoms_i..]);
             drop(monomer);
             drop(monomers);
@@ -219,8 +221,8 @@ impl SuperSystem {
                 "LE-LE exchange gradient is wrong!"
             );
 
-            // gradient = 2.0 * coulomb_gradient - exchange_gradient;
-            gradient = 2.0 * coulomb_gradient;
+            gradient = 2.0 * coulomb_gradient - exchange_gradient;
+            // gradient = 2.0 * coulomb_gradient;
 
             // calculate the cphf correction
             // calculate the U matrix of both monomers using the CPHF equations
@@ -254,6 +256,8 @@ impl SuperSystem {
                         .assign(&u_mat_j.slice(s![nat, .., orb]).dot(&c_mo_j.t()));
                 }
             }
+            // println!("dc mo {}",dc_mo_i.slice(s![0,nocc_i,..]));
+            // println!("dc mo {}",m_i_dc_maurice.slice(s![0,..,nocc_i]));
 
             let mut cphf_tdm_i_1: Array3<f64> =
                 Array3::zeros([3 * pair.n_atoms, m_i.n_orbs, m_i.n_orbs]);
@@ -347,8 +351,8 @@ impl SuperSystem {
                 m_i.n_orbs,
                 m_j.n_orbs,
             );
-            // coulomb_arr = 2.0 * coulomb_arr - exchange_arr;
-            coulomb_arr = 2.0 * coulomb_arr;
+            coulomb_arr = 2.0 * coulomb_arr - exchange_arr;
+            // coulomb_arr = 2.0 * coulomb_arr;
             let coulomb_arr_1: ArrayView2<f64> = coulomb_arr.view()
                 .into_shape([m_i.n_orbs * m_i.n_orbs, m_j.n_orbs * m_j.n_orbs])
                 .unwrap();
@@ -425,7 +429,7 @@ impl SuperSystem {
 
             let mut cpcis_grad = cpcis_tdm_i.dot(&coulomb_arr_1.dot(&tdm_j_1));
             cpcis_grad = cpcis_grad + tdm_i_1.dot(&coulomb_arr_1).dot(&cpcis_tdm_j.t());
-            println!("cpcis_grad {}",cpcis_grad.slice(s![0..10]));
+            println!("cpcis_grad {}",cpcis_grad.slice(s![0..30]));
             // add the cpcis term to the gradient
             // gradient = gradient + cpcis_grad;
 
@@ -610,6 +614,59 @@ impl SuperSystem {
 
             gradient = gradient + term_1 + term_2;
 
+            drop(esd_pair);
+            drop(m_i);
+            drop(m_j);
+            let index_i:usize = m_i.index;
+            let index_j:usize = m_j.index;
+            let cpcis_coeff_i:Array3<f64> =
+                self.cpcis_routine(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
+            let cpcis_coeff_j:Array3<f64> =
+                self.cpcis_routine(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
+
+            let pair: &mut ESDPair = &mut self.esd_pairs[pair_index];
+            // monomers
+            let m_i: &Monomer = &self.monomers[pair.i];
+            let m_j: &Monomer = &self.monomers[pair.j];
+            // reference to the mo coefficients of fragment I
+            let c_mo_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+            // reference to the mo coefficients of fragment J
+            let c_mo_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
+
+            let mut cpcis_tdm_i: Array3<f64> =
+                Array3::zeros([3 * pair.n_atoms, n_orbs_i, n_orbs_i]);
+            let mut cpcis_tdm_j: Array3<f64> =
+                Array3::zeros([3 * pair.n_atoms, n_orbs_j, n_orbs_j]);
+
+            for nat in 0..3 * m_i.n_atoms {
+                cpcis_tdm_i.slice_mut(s![nat, .., ..]).assign(
+                    &(c_mo_i
+                        .slice(s![.., ..nocc_i])
+                        .dot(&cpcis_coeff_i.slice(s![nat,..,..]))
+                        .dot(&c_mo_i.slice(s![.., nocc_i..]).t()))
+                );
+            }
+            for nat in 0..3 * m_j.n_atoms {
+                cpcis_tdm_j.slice_mut(s![3*m_i.n_atoms +nat, .., ..]).assign(
+                    &(c_mo_j
+                        .slice(s![.., ..nocc_j])
+                        .dot(&cpcis_coeff_j.slice(s![nat,..,..]))
+                        .dot(&c_mo_j.slice(s![.., nocc_j..]).t()))
+                );
+            }
+            let cpcis_tdm_i: Array2<f64> = cpcis_tdm_i
+                .into_shape([3 * pair.n_atoms, m_i.n_orbs * m_i.n_orbs])
+                .unwrap();
+            let cpcis_tdm_j: Array2<f64> = cpcis_tdm_j
+                .into_shape([3 * pair.n_atoms, m_j.n_orbs * m_j.n_orbs])
+                .unwrap();
+
+            let mut cpcis_grad = cpcis_tdm_i.dot(&coulomb_arr.dot(&tdm_j));
+            cpcis_grad = cpcis_grad + tdm_i.dot(&coulomb_arr).dot(&cpcis_tdm_j.t());
+            println!("cpcis_grad {}",cpcis_grad.slice(s![0..10]));
+            // gradient = gradient + cpcis_grad;
+
+
             // // Testing the gradient
             // let qov_i: ArrayView2<f64> = m_i.properties.q_ov().unwrap();
             // let qov_j: ArrayView2<f64> = m_j.properties.q_ov().unwrap();
@@ -622,7 +679,7 @@ impl SuperSystem {
             // }
 
             // reset properties of the esd_pair
-            esd_pair.properties.reset();
+            pair.properties.reset();
         }
         return gradient;
     }
