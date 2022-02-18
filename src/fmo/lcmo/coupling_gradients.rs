@@ -380,15 +380,15 @@ impl SuperSystem {
             // add cphf term to the gradient
             gradient = gradient + cphf_grad;
 
+            let index_i:usize = m_i.index;
+            let index_j:usize = m_j.index;
             drop(pair);
             drop(m_i);
             drop(m_j);
-            let index_i:usize = m_i.index;
-            let index_j:usize = m_j.index;
             let cpcis_coeff_i:Array3<f64> =
-                self.cpcis_routine(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
+                self.cpcis_routine_inversion(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
             let cpcis_coeff_j:Array3<f64> =
-                self.cpcis_routine(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
+                self.cpcis_routine_inversion(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
 
             let pair: &mut Pair = &mut self.pairs[pair_index];
             // monomers
@@ -620,9 +620,9 @@ impl SuperSystem {
             let index_i:usize = m_i.index;
             let index_j:usize = m_j.index;
             let cpcis_coeff_i:Array3<f64> =
-                self.cpcis_routine(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
+                self.cpcis_routine_inversion(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
             let cpcis_coeff_j:Array3<f64> =
-                self.cpcis_routine(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
+                self.cpcis_routine_inversion(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
 
             let pair: &mut ESDPair = &mut self.esd_pairs[pair_index];
             // monomers
@@ -1180,7 +1180,7 @@ impl SuperSystem {
                     println!(" ");
                     // println!("exchange gradient: {}",exchange_gradient.slice(s![0..10]));
                     // println!("exchange grad loop: {}",exchange_grad.slice(s![0..10]));
-                    // assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-14),"LE-LE exchange gradient is wrong!");
+                    // assert!(exchange_gradient.abs_diff_eq(&exchange_grad,1e-7),"LE-LE exchange gradient is wrong!");
 
                     // let mut gradient: Array1<f64> = 2.0 * coulomb_gradient - exchange_gradient;
                     let mut gradient: Array1<f64> = 2.0 * coulomb_gradient;
@@ -1285,7 +1285,52 @@ impl SuperSystem {
                         )
                         .dot(&dc_mo_j.t());
 
-                    gradient = gradient + term_1 + term_2 + term_3;
+                    let cphf_gradient:Array1<f64> = term_1 + term_2 + term_3;
+                    // add cphf gradient to the Le-CT gradient
+                    gradient = gradient + cphf_gradient;
+
+                    let index_i:usize = m_i.index;
+                    drop(pair);
+                    drop(m_i);
+                    drop(m_j);
+                    let cpcis_coeff_i:Array3<f64> =
+                        self.cpcis_routine_iterative(index_i,i.state_index,u_mat_i.view(),nocc,nvirt);
+
+                    let pair: &mut Pair = &mut self.pairs[pair_index];
+                    // monomers
+                    let m_i: &Monomer = &self.monomers[pair.i];
+                    let m_j: &Monomer = &self.monomers[pair.j];
+                    // reference to the mo coefficients of fragment I
+                    let c_mo_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+                    let c_mo_j:ArrayView2<f64> = m_j.properties.orbs().unwrap();
+
+                    let mut cpcis_tdm: Array3<f64> =
+                        Array3::zeros([3 * pair.n_atoms, n_orbs_i, n_orbs_i]);
+
+                    for nat in 0..3 * m_i.n_atoms {
+                        cpcis_tdm.slice_mut(s![nat, .., ..]).assign(
+                            &(c_mo_i
+                                .slice(s![.., ..nocc])
+                                .dot(&cpcis_coeff_i.slice(s![nat,..,..]))
+                                .dot(&c_mo_i.slice(s![.., nocc..]).t()))
+                        );
+                    }
+                    let cpcis_tdm: Array2<f64> = cpcis_tdm
+                        .into_shape([3 * pair.n_atoms, m_i.n_orbs * m_i.n_orbs])
+                        .unwrap();
+                    let c_i_ind: ArrayView1<f64> = c_mo_i.slice(s![.., j.hole.mo.index]);
+                    let c_j_ind: ArrayView1<f64> = c_mo_j.slice(s![.., j.electron.mo.index]);
+                    let cmat:Array1<f64> = (into_col(c_i_ind.to_owned()).dot(&into_row(c_j_ind.to_owned())))
+                        .into_shape([n_orbs_i * n_orbs_j])
+                        .unwrap();
+
+                    let cpcis_grad: Array1<f64> = cpcis_tdm.dot(
+                        &coulomb_integral.dot(&cmat));
+                    println!("cpcis grad {}",cpcis_grad.slice(s![0..20]));
+                    // add cpcis gradient to LE-CT gradient
+                    gradient = gradient + cpcis_grad;
+                    // reset arrays
+                    pair.properties.reset_gradient();
 
                     gradient
                 } else {
@@ -1427,11 +1472,12 @@ impl SuperSystem {
                         .dot(&dc_mo_i.t());
 
                     gradient = gradient + term_1 + term_2 + term_3;
+                    // reset arrays
+                    pair.properties.reset_gradient();
 
                     gradient
                 };
 
-                pair.properties.reset_gradient();
                 return_gradient = grad;
             }
         }
