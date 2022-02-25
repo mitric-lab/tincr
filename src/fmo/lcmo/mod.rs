@@ -11,6 +11,7 @@ mod coupling_gradients;
 mod helpers;
 mod numerical_coupling_gradient;
 mod cpcis;
+mod alternate_cphf;
 
 pub use basis::*;
 use ndarray::prelude::*;

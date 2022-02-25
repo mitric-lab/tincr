@@ -10,6 +10,8 @@ use ndarray::prelude::*;
 use ndarray_linalg::{Eigh, UPLO};
 use ndarray_npy::write_npy;
 use std::fmt::{Display, Formatter};
+use std::time::Instant;
+use rayon::prelude::*;
 
 impl SuperSystem {
     /// The diabatic basis states are constructed, which will be used for the Exciton-Hamiltonian.
@@ -133,8 +135,11 @@ impl SuperSystem {
     }
 
     pub fn create_exciton_hamiltonian(&mut self) {
+        let timer = Instant::now();
         let hamiltonian = self.build_lcmo_fock_matrix();
         self.properties.set_lcmo_fock(hamiltonian);
+        println!("elapsed time 1 {}",timer.elapsed().as_secs_f64());
+
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
         let max_iter: usize = 50;
@@ -146,26 +151,45 @@ impl SuperSystem {
             mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
             mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le, max_iter, tolerance);
         }
+        println!("elapsed time 2 {}",timer.elapsed().as_secs_f64());
 
         // Construct the diabatic basis states.
         let states: Vec<BasisState> = self.create_diab_basis();
         // Dimension of the basis states.
         let dim: usize = states.len();
+        println!("Dimension of the Hamiltonian: {}", dim);
         // Initialize the Exciton-Hamiltonian.
         let mut h: Array2<f64> = Array2::zeros([dim, dim]);
 
-        for (i, state_i) in states.iter().enumerate() {
-            // Only the upper triangle is calculated!
+        println!("elapsed time 3 {}",timer.elapsed().as_secs_f64());
+
+        let arr:Vec<Array1<f64>> = states.par_iter().enumerate().map(|(i,state_i)|{
+            let mut arr:Array1<f64> = Array1::zeros(dim);
             for (j, state_j) in states[i..].iter().enumerate() {
-                h[[i, j + i]] = self.exciton_coupling(state_i, state_j);
+                arr[j+i] = self.exciton_coupling(state_i, state_j);
             }
+            arr
+        }).collect();
+
+        for (i, arr) in arr.iter().enumerate(){
+            h.slice_mut(s![i,..]).assign(&arr);
         }
-        write_npy("diabatic_hamiltonian.npy", &h);
+
+        // for (i, state_i) in states.iter().enumerate() {
+        //     // Only the upper triangle is calculated!
+        //     for (j, state_j) in states[i..].iter().enumerate() {
+        //         h[[i, j + i]] = self.exciton_coupling(state_i, state_j);
+        //     }
+        // }
+        println!("elapsed time 4 {}",timer.elapsed().as_secs_f64());
+        // write_npy("diabatic_hamiltonian.npy", &h);
 
         // The Hamiltonian is returned. Only the upper triangle is filled, so this has to be
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
-        // let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+        let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+
+        println!("elapsed time 5 {}",timer.elapsed().as_secs_f64());
 
         // let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
         // let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();

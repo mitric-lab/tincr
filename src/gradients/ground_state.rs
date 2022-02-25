@@ -1,6 +1,6 @@
 use crate::defaults;
 use crate::fmo::scc::helpers::atomvec_to_aomat;
-use crate::gradients::helpers::{f_lr, gradient_v_rep};
+use crate::gradients::helpers::{f_lr, gradient_v_rep, f_lr_par};
 use crate::initialization::*;
 use crate::scc::gamma_approximation::{gamma_gradients_ao_wise, gamma_gradients_atomwise};
 use crate::scc::h0_and_s::h0_and_s_gradients;
@@ -103,7 +103,7 @@ impl System {
             );
 
             let diff_p: Array2<f64> = &p - &self.properties.p_ref().unwrap();
-            let flr_dmd0:Array3<f64> = f_lr(
+            let flr_dmd0:Array3<f64> = f_lr_par(
                 diff_p.view(),
                 self.properties.s().unwrap(),
                 grad_s.view(),
