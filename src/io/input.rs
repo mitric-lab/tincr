@@ -48,9 +48,7 @@ pub fn read_dynamic_input(tincr_config:&Configuration)->DynamicConfiguration{
         config_string = toml::to_string(&config).unwrap();
         fs::write(config_file_path, config_string).expect("Unable to write config file");
     }
-    config.nstates = tincr_config.excited.nstates +1;
 
-    // let data_system: SystemData = SystemData::from((frame, config));
     return config;
 }
 
