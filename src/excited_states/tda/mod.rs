@@ -99,6 +99,7 @@ impl System {
         let tdm: Array3<f64> = davidson
             .eigenvectors
             .clone()
+            .as_standard_layout().to_owned()
             .into_shape([n_occ, n_virt, f.len()])
             .unwrap();
 
@@ -112,7 +113,7 @@ impl System {
         };
 
 
-        write_npy("/home/einseler/Downloads/full_energies.npy", &davidson.eigenvalues.view());
+        // write_npy("/home/einseler/Downloads/full_energies.npy", &davidson.eigenvalues.view());
 
         // The eigenvalues are the excitation energies and the eigenvectors are the CI coefficients.
         self.properties.set_ci_eigenvalues(davidson.eigenvalues);

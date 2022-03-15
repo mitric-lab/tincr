@@ -7,7 +7,7 @@ pub(crate) mod gradients;
 pub mod scc;
 mod helpers;
 mod coulomb_integrals;
-mod lcmo;
+pub mod lcmo;
 
 pub use gradients::*;
 pub use monomer::*;

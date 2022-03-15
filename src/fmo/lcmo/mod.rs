@@ -4,7 +4,7 @@ pub mod basis;
 mod integrals;
 mod lcmo_trans_charges;
 mod utils;
-mod cis_gradient;
+pub mod cis_gradient;
 mod ct_gradient_old;
 mod le_gradient;
 mod coupling_gradients;
