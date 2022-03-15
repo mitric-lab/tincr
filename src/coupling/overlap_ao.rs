@@ -161,7 +161,7 @@ pub fn ci_overlap(le_i: &LocallyExcited, le_j: &LocallyExcited, n_states:usize)-
                             s_ab.slice_mut(s![*i,..]).assign(&s_mo.slice(s![*a,..n_occ_i]));
                             s_ab.slice_mut(s![..,*j]).assign(&s_mo.slice(s![..n_occ_j,*b]));
                             s_ab[[*i,*j]] = s_mo[[*a,*b]];
-                            let det_ab:f64 = s_ao.det().unwrap();
+                            let det_ab:f64 = s_ab.det().unwrap();
 
                             let mut s_ib:Array2<f64> = s_ij.to_owned();
                             // <1,...,i,...|1,...,b,...>
