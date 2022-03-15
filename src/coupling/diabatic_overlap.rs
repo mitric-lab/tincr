@@ -64,9 +64,22 @@ impl SuperSystem{
             let cis_i:ArrayView2<f64> = m_i.properties.ci_coefficients().unwrap();
             let cis_j:ArrayView2<f64> = m_j.properties.ci_coefficients().unwrap();
 
-            // call the CI_overlap routine
-        }
+            // reshape the CIS coefficients to 3d arrays
+            let nstates:usize = self.config.lcmo.n_le;
+            let nocc_i:usize = m_i.properties.n_occ().unwrap();
+            let nvirt_i:usize = m_i.properties.n_virt().unwrap();
+            let cis_i_3d:Array3<f64> = cis_i.into_shape([nocc_i,nvirt_i,nstates]).unwrap()
+                .as_standard_layout().to_owned();
 
+            let nocc_j:usize = m_j.properties.n_occ().unwrap();
+            let nvirt_j:usize = m_j.properties.n_virt().unwrap();
+            let cis_j_3d:Array3<f64> = cis_j.into_shape([nocc_j,nvirt_j,nstates]).unwrap()
+                .as_standard_layout().to_owned();
+
+            // call the CI_overlap routine
+            let s_ci:Array2<f64> = diabtic_ci_overlap(s_mo.view(),cis_i_3d.view(),cis_j_3d.view());
+            s_ci
+        }
     }
 
     pub fn diabatic_overlap_le_ct(&self,i: &ReducedLE, j: &ReducedCT)->Array2<f64>{
@@ -115,7 +128,7 @@ impl SuperSystem{
             let nocc:usize = pair_jk.properties.n_occ().unwrap();
             let nvirt:usize = pair_jk.properties.n_virt().unwrap();
             // prepare the empty cis matrix
-            let mut cis_jk:Array2<f64> = Array2::zeros([nocc,nvirt]);
+            let mut cis_jk:Array3<f64> = Array3::zeros([nocc,nvirt,1]);
 
             // get occupied and virtuals orbitals of the monomers of the CT state
             let nocc_j:usize = m_j.properties.occ_indices().unwrap().len();
@@ -139,7 +152,7 @@ impl SuperSystem{
 
                 // transform the CT matrix using the reduced overlap matrices between the monomers
                 // and the dimer
-                cis_jk = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                cis_jk.slice_mut(s![..,..,0]).assign(&s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt)));
             }
             else{
                 // reduce overlap matrices to occupied and virtual blocks
@@ -153,10 +166,19 @@ impl SuperSystem{
 
                 // transform the CT matrix using the reduced overlap matrices between the monomers
                 // and the dimer
-                cis_jk = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                cis_jk.slice_mut(s![..,..,0]).assign(&s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt)));
             }
 
+            // reshape the CIS coefficients to 3d arrays
+            let nstates:usize = self.config.lcmo.n_le;
+            let nocc_i:usize = m_i.properties.n_occ().unwrap();
+            let nvirt_i:usize = m_i.properties.n_virt().unwrap();
+            let cis_i_3d:Array3<f64> = cis_i.into_shape([nocc_i,nvirt_i,nstates]).unwrap()
+                .as_standard_layout().to_owned();
+
             // call the CI_overlap routine
+            let s_ci:Array2<f64> = diabtic_ci_overlap(s_mo.view(),cis_i_3d.view(),cis_jk.view());
+            s_ci
         }
     }
 
@@ -208,9 +230,9 @@ impl SuperSystem{
 
             // fill the AO overlap matrix
             s_ao.slice_mut(s![..m_a.n_orbs,..m_c.n_orbs]).assign(&s_total.slice(s![m_a.slice.orb,m_c.slice.orb]));
-            s_ao.slice_mut(s![..m_a.n_orbs..,m_c.n_orbs..]).assign(&s_total.slice(s![m_a.slice.orb,m_d.slice.orb]));
-            s_ao.slice_mut(s![m_a.n_orbs,..m_c.n_orbs]).assign(&s_total.slice(s![m_b.slice.orb,m_c.slice.orb]));
-            s_ao.slice_mut(s![m_a.n_orbs,m_c.n_orbs..]).assign(&s_total.slice(s![m_b.slice.orb,m_d.slice.orb]));
+            s_ao.slice_mut(s![..m_a.n_orbs,m_c.n_orbs..]).assign(&s_total.slice(s![m_a.slice.orb,m_d.slice.orb]));
+            s_ao.slice_mut(s![m_a.n_orbs..,..m_c.n_orbs]).assign(&s_total.slice(s![m_b.slice.orb,m_c.slice.orb]));
+            s_ao.slice_mut(s![m_a.n_orbs..,m_c.n_orbs..]).assign(&s_total.slice(s![m_b.slice.orb,m_d.slice.orb]));
 
             // get views of the MO coefficients for the pairs
             let orbs_ij:ArrayView2<f64> = pair_ij.properties.orbs().unwrap();
@@ -222,7 +244,7 @@ impl SuperSystem{
             let nocc:usize = pair_ij.properties.n_occ().unwrap();
             let nvirt:usize = pair_ij.properties.n_virt().unwrap();
             // prepare the empty cis matrix
-            let mut cis_ij:Array2<f64> = Array2::zeros([nocc,nvirt]);
+            let mut cis_ij:Array3<f64> = Array3::zeros([nocc,nvirt,1]);
 
             // get occupied and virtuals orbitals of the monomers of the CT state
             let nocc_a:usize = m_a.properties.occ_indices().unwrap().len();
@@ -246,7 +268,7 @@ impl SuperSystem{
 
                 // transform the CT matrix using the reduced overlap matrices between the monomers
                 // and the dimer
-                cis_ij = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                cis_ij.slice_mut(s![..,..,0]).assign(&s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt)));
             }
             else{
                 // reduce overlap matrices to occupied and virtual blocks
@@ -256,18 +278,18 @@ impl SuperSystem{
                 // Create matrix for the CT. Only the matrix element, which corresponds to the charge
                 // transfer is set to the value 1.0. Everything else is set to null.
                 let mut ct_coefficients:Array2<f64> = Array2::zeros([nocc_b,nvirt_a]);
-                ct_coefficients[[nocc_k-1-state_i.hole.ct_index,state_i.electron.ct_index]] = 1.0;
+                ct_coefficients[[nocc_b-1-state_i.hole.ct_index,state_i.electron.ct_index]] = 1.0;
 
                 // transform the CT matrix using the reduced overlap matrices between the monomers
                 // and the dimer
-                cis_ij = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                cis_ij.slice_mut(s![..,..,0]).assign(&s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt)));
             }
 
             // get the CI coefficients of the CT state I
             let nocc:usize = pair_ij.properties.n_occ().unwrap();
             let nvirt:usize = pair_ij.properties.n_virt().unwrap();
             // prepare the empty cis matrix
-            let mut cis_kl:Array2<f64> = Array2::zeros([nocc,nvirt]);
+            let mut cis_kl:Array3<f64> = Array3::zeros([nocc,nvirt,1]);
 
             // get occupied and virtuals orbitals of the monomers of the CT state
             let nocc_c:usize = m_c.properties.occ_indices().unwrap().len();
@@ -291,7 +313,7 @@ impl SuperSystem{
 
                 // transform the CT matrix using the reduced overlap matrices between the monomers
                 // and the dimer
-                cis_kl = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                cis_kl.slice_mut(s![..,..,0]).assign(&s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt)));
             }
             else{
                 // reduce overlap matrices to occupied and virtual blocks
@@ -301,24 +323,125 @@ impl SuperSystem{
                 // Create matrix for the CT. Only the matrix element, which corresponds to the charge
                 // transfer is set to the value 1.0. Everything else is set to null.
                 let mut ct_coefficients:Array2<f64> = Array2::zeros([nocc_d,nvirt_c]);
-                ct_coefficients[[nocc_k-1-state_j.hole.ct_index,state_j.electron.ct_index]] = 1.0;
+                ct_coefficients[[nocc_d-1-state_j.hole.ct_index,state_j.electron.ct_index]] = 1.0;
 
                 // transform the CT matrix using the reduced overlap matrices between the monomers
                 // and the dimer
-                cis_kl = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                cis_kl.slice_mut(s![..,..,0]).assign(&s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt)));
             }
 
             // call the CI_overlap routine
+            let s_ci:Array2<f64> = diabtic_ci_overlap(s_mo.view(),cis_ij.view(),cis_kl.view());
+            s_ci
         }
     }
 }
 
-pub fn diabtic_ci_overlap(s_mo:ArrayView2<f64>,cis_i:ArrayView3<f64>,cis_j:ArrayView3<f64>){
+pub fn diabtic_ci_overlap(s_mo:ArrayView2<f64>,cis_i:ArrayView3<f64>,cis_j:ArrayView3<f64>)->Array2<f64>{
     // Compute the overlap between diabatic CI wavefunctions
     // Excitations i->a with coefficients |C_ia| < threshold will be neglected
     let threshold:f64 = 0.01;
 
     // get n_occ and n_virt from the shapes of the CIS coefficients
+    let nocc_i:usize = cis_i.dim().0;
+    let nvirt_i:usize = cis_i.dim().1;
+    let norb_i:usize = nocc_i + nvirt_i;
+    let n_states_i:usize = cis_i.dim().2 + 1;
 
+    let nocc_j:usize = cis_j.dim().0;
+    let nvirt_j:usize = cis_j.dim().1;
+    let n_states_j:usize = cis_j.dim().2 + 1;
+    let norb_j:usize = nocc_j + nvirt_j;
 
+    // slice s_mo to get the occupied part and calculate the determinant
+    let s_ij:ArrayView2<f64> = s_mo.slice(s![..nocc_i,..nocc_j]);
+    let det_ij:f64 = s_ij.det().unwrap();
+
+    // scalar coupling array
+    let mut s_ci:Array2<f64> = Array2::zeros((n_states_j,n_states_i));
+
+    // overlap between ground states <Psi0|Psi0'>
+    s_ci[[0,0]] = det_ij;
+
+    // calculate the overlap between the excited states
+    // iterate over the CI coefficients of the diabatic state J
+    for i in 0..nocc_j{
+        for a in nocc_j..norb_j{
+            // slice the CI coefficients of the diabatic state J at the indicies i and a
+            let coeffs_j = cis_j.slice(s![i,a,..]);
+            let max_coeff_j = coeffs_j.map(|val| val.abs()).max().unwrap().to_owned();
+
+            // slice the CI coefficients of the diabtic state I at the indicies i and a
+            let coeffs_i = cis_i.slice(s![i,a,..]);
+            let max_coeff_i = coeffs_i.map(|val| val.abs()).max().unwrap().to_owned();
+
+            // if the value of the coefficient is smaller than the threshold,
+            // exclude the excited state
+            if max_coeff_i > threshold{
+                let mut s_ia: Array2<f64> = s_ij.to_owned();
+                // overlap <Psi0|PsiJ'>
+                s_ia.slice_mut(s![..,i]).assign(&s_mo.slice(s![..nocc_j,a]));
+                let det_ia:f64 = s_ia.det().unwrap();
+
+                // overlaps between ground state <Psi0|PsiJ'> and excited states
+                for state_j in (1..n_states_i){
+                    let c0:f64 = coeffs_i[state_j-1];
+                    s_ci[[0,state_j]] += c0 * 2.0_f64.sqrt() * (det_ia * det_ij);
+                }
+
+            }
+
+            // if the value of the coefficient is smaller than the threshold,
+            // exclude the excited state
+            if max_coeff_j > threshold {
+                let mut s_aj: Array2<f64> = s_ij.to_owned();
+                // occupied orbitals in the configuration state function |Psi_ia>
+                // oveerlap <1,...,a,...|1,...,j,...>
+                s_aj.slice_mut(s![i,..]).assign(&s_mo.slice(s![a,..nocc_i]));
+                let det_aj: f64 = s_aj.det().unwrap();
+
+                // overlaps between ground state <PsiI|Psi0'> and excited states
+                for state_i in (1..n_states_j) {
+                    let c0: f64 = coeffs_j[state_i - 1];
+                    s_ci[[state_i, 0]] += c0 * 2.0_f64.sqrt() * (det_aj * det_ij);
+                }
+
+                // iterate over the CI coefficients of the diabatic state I
+                for j in 0..nocc_i{
+                    for b in nocc_i..norb_i{
+                        // slice the CI coefficients of the diabtic state I at the indicies j and b
+                        let coeffs_i_2 = cis_i.slice(s![j,a,..]);
+                        let max_coeff_i_2 = coeffs_i_2.map(|val| val.abs()).max().unwrap().to_owned();
+
+                        if max_coeff_i_2 > threshold{
+                            let mut s_ab:Array2<f64> = s_ij.to_owned();
+                            // select part of overlap matrix for orbitals
+                            // in |Psi_ia> and |Psi_jb>
+                            // <1,...,a,...|1,...,b,...>
+                            s_ab.slice_mut(s![i,..]).assign(&s_mo.slice(s![a,..nocc_i]));
+                            s_ab.slice_mut(s![..,j]).assign(&s_mo.slice(s![..nocc_j,b]));
+                            s_ab[[i,j]] = s_mo[[a,b]];
+                            let det_ab:f64 = s_ab.det().unwrap();
+
+                            let mut s_ib:Array2<f64> = s_ij.to_owned();
+                            // <1,...,i,...|1,...,b,...>
+                            s_ib.slice_mut(s![..,j]).assign(&s_mo.slice(s![..nocc_j,b]));
+                            let det_ib:f64 = s_ib.det().unwrap();
+
+                            // loop over excited states
+                            for state_i in (1..n_states_j){
+                                for state_j in (1..n_states_i){
+                                    let cc:f64 = coeffs_j[state_i-1] * coeffs_i_2[state_j-1];
+                                    // see eqn. (9.39) in A. Humeniuk, PhD thesis (2018)
+                                    s_ci[[state_i,state_j]] += cc * (det_ab * det_ij + det_aj * det_ib);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return s_ci;
 }
