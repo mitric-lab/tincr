@@ -136,7 +136,7 @@ impl SuperSystem{
                 // Create matrix for the CT. Only the matrix element, which corresponds to the charge
                 // transfer is set to the value 1.0. Everything else is set to null.
                 let mut ct_coefficients:Array2<f64> = Array2::zeros([nocc_j,nvirt_k]);
-                ct_coefficients[[nocc_i-1-j.hole.ct_index,j.electron.ct_index]] = 1.0;
+                ct_coefficients[[nocc_j-1-j.hole.ct_index,j.electron.ct_index]] = 1.0;
 
                 // transform the CT matrix using the reduced overlap matrices between the monomers
                 // and the dimer
