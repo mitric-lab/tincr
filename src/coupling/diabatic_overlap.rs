@@ -618,59 +618,66 @@ fn diabtic_ci_overlap(
     let s_ij: ArrayView2<f64> = s_occ.view;
     let det_ij: f64 = s_ij.det().unwrap();
 
+    // get s_mo_occ
+    let s_mo_occ:ArrayView2<f64> = s_mo.slice(s![nocc_i,nvirt_j]);
+
     // scalar coupling array
     let mut s_ci: f64 = 0.0;
 
-    // // calculate the overlap between the excited states
-    // // iterate over the CI coefficients of the diabatic state J
-    // for i in 0..nocc_j {
-    //     for (a_idx, a) in (nocc_j..norb_j).into_iter().enumerate() {
-    //         // slice the CI coefficients of the diabatic state J at the indicies i and a
-    //         let coeff_j = cis_j[[i, a_idx]];
-    //
-    //         // if the value of the coefficient is smaller than the threshold,
-    //         // exclude the excited state
-    //         if coeff_j > threshold {
-    //             let mut s_aj: Array2<f64> = s_ij.to_owned();
-    //             // occupied orbitals in the configuration state function |Psi_ia>
-    //             // oveerlap <1,...,a,...|1,...,j,...>
-    //             s_aj.slice_mut(s![i, ..])
-    //                 .assign(&s_mo.slice(s![a, ..nocc_i]));
-    //             let det_aj: f64 = s_aj.det().unwrap();
-    //
-    //             // iterate over the CI coefficients of the diabatic state I
-    //             for j in 0..nocc_i {
-    //                 for (b_idx, b) in (nocc_i..norb_i).into_iter().enumerate() {
-    //                     // slice the CI coefficients of the diabtic state I at the indicies j and b
-    //                     let coeff_i = cis_i[[j, b_idx]];
-    //
-    //                     if coeff_i > threshold {
-    //                         let mut s_ab: Array2<f64> = s_ij.to_owned();
-    //                         // select part of overlap matrix for orbitals
-    //                         // in |Psi_ia> and |Psi_jb>
-    //                         // <1,...,a,...|1,...,b,...>
-    //                         s_ab.slice_mut(s![i, ..])
-    //                             .assign(&s_mo.slice(s![a, ..nocc_i]));
-    //                         s_ab.slice_mut(s![.., j])
-    //                             .assign(&s_mo.slice(s![..nocc_j, b]));
-    //                         s_ab[[i, j]] = s_mo[[a, b]];
-    //                         let det_ab: f64 = s_ab.det().unwrap();
-    //
-    //                         let mut s_ib: Array2<f64> = s_ij.to_owned();
-    //                         // <1,...,i,...|1,...,b,...>
-    //                         s_ib.slice_mut(s![.., j])
-    //                             .assign(&s_mo.slice(s![..nocc_j, b]));
-    //                         let det_ib: f64 = s_ib.det().unwrap();
-    //
-    //                         let cc: f64 = coeff_j * coeff_i;
-    //                         // see eqn. (9.39) in A. Humeniuk, PhD thesis (2018)
-    //                         s_ci += cc * (det_ab * det_ij + det_aj * det_ib);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
+    // calculate the overlap between the excited states
+    // iterate over the CI coefficients of the diabatic state J
+    for i in 0..nocc_j {
+        for (a_idx, a) in (nocc_j..norb_j).into_iter().enumerate() {
+            // slice the CI coefficients of the diabatic state J at the indicies i and a
+            let coeff_j = cis_j[[i, a_idx]];
+
+            // if the value of the coefficient is smaller than the threshold,
+            // exclude the excited state
+            if coeff_j > threshold {
+                let mut s_aj: Array2<f64> = s_mo_occ.to_owned();
+                // occupied orbitals in the configuration state function |Psi_ia>
+                // overlap <1,...,a,...|1,...,j,...>
+                s_aj.slice_mut(s![i, ..])
+                    .assign(&s_mo.slice(s![a, ..nocc_i]));
+
+                // TODO: switch the part of the overlap matrix with s_aj
+                let det_aj: f64 = s_aj.det().unwrap();
+
+                // iterate over the CI coefficients of the diabatic state I
+                for j in 0..nocc_i {
+                    for (b_idx, b) in (nocc_i..norb_i).into_iter().enumerate() {
+                        // slice the CI coefficients of the diabtic state I at the indicies j and b
+                        let coeff_i = cis_i[[j, b_idx]];
+
+                        if coeff_i > threshold {
+                            let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
+                            // select part of overlap matrix for orbitals
+                            // in |Psi_ia> and |Psi_jb>
+                            // <1,...,a,...|1,...,b,...>
+                            s_ab.slice_mut(s![i, ..])
+                                .assign(&s_mo.slice(s![a, ..nocc_i]));
+                            s_ab.slice_mut(s![.., j])
+                                .assign(&s_mo.slice(s![..nocc_j, b]));
+                            s_ab[[i, j]] = s_mo[[a, b]];
+                            // TODO: switch the part of the overlap matrix with s_ab
+                            let det_ab: f64 = s_ab.det().unwrap();
+
+                            let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
+                            // <1,...,i,...|1,...,b,...>
+                            s_ib.slice_mut(s![.., j])
+                                .assign(&s_mo.slice(s![..nocc_j, b]));
+                            // TODO: switch the part of the overlap matrix with s_ib
+                            let det_ib: f64 = s_ib.det().unwrap();
+
+                            let cc: f64 = coeff_j * coeff_i;
+                            // see eqn. (9.39) in A. Humeniuk, PhD thesis (2018)
+                            s_ci += cc * (det_ab * det_ij + det_aj * det_ib);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     return s_ci;
 }
