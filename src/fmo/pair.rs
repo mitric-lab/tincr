@@ -145,6 +145,28 @@ impl<'a> Add for &Monomer {
     }
 }
 
+impl Pair {
+    pub fn set_mo_indices(&mut self, n_elec:usize) {
+        // get the indices of the occupied and virtual orbitals
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        (0..self.n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
+        self.properties.set_occ_indices(occ_indices);
+        self.properties.set_virt_indices(virt_indices);
+    }
+}
+
+impl ESDPair{
+    pub fn set_mo_indices(&mut self,n_elec:usize) {
+        // get the indices of the occupied and virtual orbitals
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        (0..self.n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
+        self.properties.set_occ_indices(occ_indices);
+        self.properties.set_virt_indices(virt_indices);
+    }
+}
+
 
 
 

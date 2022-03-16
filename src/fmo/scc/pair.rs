@@ -321,6 +321,7 @@ impl ESDPair {
 
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
+        self.set_mo_indices(n_elec);
 
         // occupation is determined by Aufbau principle and no electronic temperature is considered
         let f: Vec<f64> = (0..self.n_orbs)
