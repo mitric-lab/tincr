@@ -653,7 +653,9 @@ fn diabtic_ci_overlap(
                     .assign(&s_mo.slice(s![a, ..nocc_i]));
 
                 // TODO: switch the part of the overlap matrix with s_aj
-                let det_aj: f64 = s_aj.det().unwrap();
+                let mut s_aj_full = s_ij.to_owned();
+                change_occ_overlap_matrix(&mut s_aj_full,s_aj.view(),&diabatic_state);
+                let det_aj: f64 = s_aj_full.det().unwrap();
 
                 // iterate over the CI coefficients of the diabatic state I
                 for j in 0..nocc_i {
@@ -672,13 +674,17 @@ fn diabtic_ci_overlap(
                                 .assign(&s_mo.slice(s![..nocc_j, b]));
                             s_ab[[i, j]] = s_mo[[a, b]];
                             // TODO: switch the part of the overlap matrix with s_ab
-                            let det_ab: f64 = s_ab.det().unwrap();
+                            let mut s_ab_full = s_ij.to_owned();
+                            change_occ_overlap_matrix(&mut s_ab_full,s_ab.view(),&diabatic_state);
+                            let det_ab: f64 = s_ab_full.det().unwrap();
 
                             let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                             // <1,...,i,...|1,...,b,...>
                             s_ib.slice_mut(s![.., j])
                                 .assign(&s_mo.slice(s![..nocc_j, b]));
                             // TODO: switch the part of the overlap matrix with s_ib
+                            let mut s_ib_full = s_ij.to_owned();
+                            change_occ_overlap_matrix(&mut s_ib_full,s_ib.view(),&diabatic_state);
                             let det_ib: f64 = s_ib.det().unwrap();
 
                             let cc: f64 = coeff_j * coeff_i;
