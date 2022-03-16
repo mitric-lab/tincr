@@ -1,108 +1,114 @@
 use crate::fmo::lcmo::cis_gradient::{
     ReducedBasisState, ReducedCT, ReducedLE, ReducedMO, ReducedParticle,
 };
+use crate::fmo::{BasisState, Monomer, SuperSystem};
 use crate::initialization::{Atom, MO};
-use crate::fmo::{Monomer, SuperSystem, BasisState};
-use ndarray::prelude::*;
 use crate::scc::scc_routine::RestrictedSCC;
+use ndarray::prelude::*;
 
-impl SuperSystem{
-
-    pub fn test_diabatic_overlap(&mut self){
+impl SuperSystem {
+    pub fn test_diabatic_overlap(&mut self) {
         // scc routine
         self.prepare_scc();
         self.run_scc();
+        let (s_full, s_occ, occ_vec) = self.build_occ_overlap();
 
-        // excited state preparation
-        let hamiltonian = self.build_lcmo_fock_matrix();
-        self.properties.set_lcmo_fock(hamiltonian);
+        // // excited state preparation
+        // let hamiltonian = self.build_lcmo_fock_matrix();
+        // self.properties.set_lcmo_fock(hamiltonian);
+        //
+        // // Reference to the atoms of the total system.
+        // let atoms: &[Atom] = &self.atoms[..];
+        // let max_iter: usize = 50;
+        // let tolerance: f64 = 1e-4;
+        // // Number of LE states per monomer.
+        // let n_le: usize = self.config.lcmo.n_le;
+        // // Compute the n_le excited states for each monomer.
+        // for mol in self.monomers.iter_mut() {
+        //     mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
+        //     mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le, max_iter, tolerance);
+        // }
+        //
+        // // Construct the diabatic basis states.
+        // let states: Vec<BasisState> = self.create_diab_basis();
+        // // Construct Reduced dibatic basis states
+        // let mut reduced_states:Vec<ReducedBasisState> = Vec::new();
+        // for state in states{
+        //     match state {
+        //         BasisState::LE(ref a) => {
+        //             // get index and the Atom vector of the monomer
+        //             let new_state = ReducedLE{
+        //                 energy: 0.0,
+        //                 monomer_index: a.monomer.index,
+        //                 state_index: a.n,
+        //                 state_coefficient: 0.0,
+        //                 homo: a.monomer.properties.homo().unwrap(),
+        //             };
+        //
+        //             reduced_states.push(ReducedBasisState::LE(new_state));
+        //             // (vec![le_state], vec![monomer_ind])
+        //         }
+        //         BasisState::CT(ref a) => {
+        //             // get indices
+        //             let index_i: usize = a.hole.idx;
+        //             let index_j: usize = a.electron.idx;
+        //
+        //             // get Atom vector and nocc of the monomer I
+        //             let mol_i: &Monomer = &self.monomers[index_i];
+        //             let nocc_i: usize = mol_i.properties.occ_indices().unwrap().len();
+        //             drop(mol_i);
+        //
+        //             // get Atom vector and nocc of the monomer J
+        //             let mol_j: &Monomer = &self.monomers[index_j];
+        //             let nocc_j: usize = mol_j.properties.occ_indices().unwrap().len();
+        //             drop(mol_j);
+        //
+        //             // get ct indices of the MOs
+        //             let mo_i: usize =
+        //                 (a.hole.mo.idx as i32 - (nocc_i - 1) as i32).abs() as usize;
+        //             let mo_j: usize = a.electron.mo.idx - nocc_j;
+        //
+        //             reduced_states.push(ReducedBasisState::CT(ReducedCT{
+        //                 energy: 0.0,
+        //                 hole:ReducedParticle{
+        //                     m_index:a.hole.idx,
+        //                     ct_index:mo_i,
+        //                     mo:ReducedMO{
+        //                         c:a.hole.mo.c.to_owned(),
+        //                         index:a.hole.mo.idx,
+        //                     }
+        //                 },
+        //                 electron:ReducedParticle{
+        //                     m_index:a.electron.idx,
+        //                     ct_index:mo_j,
+        //                     mo:ReducedMO{
+        //                         c:a.electron.mo.c.to_owned(),
+        //                         index:a.electron.mo.idx,
+        //                     }
+        //                 },
+        //                 state_coefficient: 0.0,
+        //             }));
+        //         }
+        //     };
+        // }
 
-        // Reference to the atoms of the total system.
-        let atoms: &[Atom] = &self.atoms[..];
-        let max_iter: usize = 50;
-        let tolerance: f64 = 1e-4;
-        // Number of LE states per monomer.
-        let n_le: usize = self.config.lcmo.n_le;
-        // Compute the n_le excited states for each monomer.
-        for mol in self.monomers.iter_mut() {
-        mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
-        mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le, max_iter, tolerance);
-        }
+        // let state_number:usize = reduced_states.len();
+        // let mut overlap_matrix:Array2<f64> = Array2::zeros([state_number,state_number]);
+        // // calculate the diabatic overlap of all states
+        // for (i, state_i) in reduced_states.iter().enumerate() {
+        //     // Only the upper triangle is calculated!
+        //     for (j, state_j) in reduced_states[i..].iter().enumerate() {
+        //         overlap_matrix[[i, j + i]] = self.diabatic_overlap(state_i, state_j);
+        //         // if i == (j+i) {
+        //         //     overlap_matrix[[i,j+i]] = 1.0;
+        //         // }
+        //         // else{
+        //         //     overlap_matrix[[i, j + i]] = self.diabatic_overlap(state_i, state_j);
+        //         // }
+        //     }
+        // }
 
-        // Construct the diabatic basis states.
-        let states: Vec<BasisState> = self.create_diab_basis();
-        // Construct Reduced dibatic basis states
-        let mut reduced_states:Vec<ReducedBasisState> = Vec::new();
-        for state in states{
-            match state {
-                BasisState::LE(ref a) => {
-                    // get index and the Atom vector of the monomer
-                    let new_state = ReducedLE{
-                        energy: 0.0,
-                        monomer_index: a.monomer.index,
-                        state_index: a.n,
-                        state_coefficient: 0.0,
-                        homo: a.monomer.properties.homo().unwrap(),
-                    };
-
-                    reduced_states.push(ReducedBasisState::LE(new_state));
-                    // (vec![le_state], vec![monomer_ind])
-                }
-                BasisState::CT(ref a) => {
-                    // get indices
-                    let index_i: usize = a.hole.idx;
-                    let index_j: usize = a.electron.idx;
-
-                    // get Atom vector and nocc of the monomer I
-                    let mol_i: &Monomer = &self.monomers[index_i];
-                    let nocc_i: usize = mol_i.properties.occ_indices().unwrap().len();
-                    drop(mol_i);
-
-                    // get Atom vector and nocc of the monomer J
-                    let mol_j: &Monomer = &self.monomers[index_j];
-                    let nocc_j: usize = mol_j.properties.occ_indices().unwrap().len();
-                    drop(mol_j);
-
-                    // get ct indices of the MOs
-                    let mo_i: usize =
-                        (a.hole.mo.idx as i32 - (nocc_i - 1) as i32).abs() as usize;
-                    let mo_j: usize = a.electron.mo.idx - nocc_j;
-
-                    reduced_states.push(ReducedBasisState::CT(ReducedCT{
-                        energy: 0.0,
-                        hole:ReducedParticle{
-                            m_index:a.hole.idx,
-                            ct_index:mo_i,
-                            mo:ReducedMO{
-                                c:a.hole.mo.c.to_owned(),
-                                index:a.hole.mo.idx,
-                            }
-                        },
-                        electron:ReducedParticle{
-                            m_index:a.electron.idx,
-                            ct_index:mo_j,
-                            mo:ReducedMO{
-                                c:a.electron.mo.c.to_owned(),
-                                index:a.electron.mo.idx,
-                            }
-                        },
-                        state_coefficient: 0.0,
-                    }));
-                }
-            };
-        }
-
-        let state_number:usize = reduced_states.len();
-        let mut overlap_matrix:Array2<f64> = Array2::zeros([state_number,state_number]);
-        // calculate the diabatic overlap of all states
-        for (i, state_i) in reduced_states.iter().enumerate() {
-            // Only the upper triangle is calculated!
-            for (j, state_j) in reduced_states[i..].iter().enumerate() {
-                overlap_matrix[[i, j + i]] = self.diabatic_overlap(state_i, state_j);
-            }
-        }
-
-        println!("overlap matrix {}",overlap_matrix);
+        // println!("overlap matrix {}",overlap_matrix);
     }
 
     pub fn test_diabatic_le_le_overlap(
@@ -111,9 +117,9 @@ impl SuperSystem{
         ind_b: usize,
         state_a: usize,
         state_b: usize,
-    )->f64{
+    ) -> f64 {
         // Number of states per monomer.
-        let n_states:usize = self.config.excited.nstates;
+        let n_states: usize = self.config.excited.nstates;
 
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms;
@@ -172,7 +178,14 @@ impl SuperSystem{
             homo: homo,
         });
 
-        let overlap: f64 = self.diabatic_overlap(&le_state_a, &le_state_b);
+        let (mut s_full, mut s_occ, mut occ_vec) = self.build_occ_overlap();
+        let overlap: f64 = self.diabatic_overlap(
+            &le_state_a,
+            &le_state_b,
+            &mut s_full.view(),
+            &mut s_occ.view(),
+            occ_vec,
+        );
         return overlap;
     }
 
@@ -185,7 +198,7 @@ impl SuperSystem{
         ct_ind_i: usize,
         ct_ind_j: usize,
         hole_i: bool,
-    )->f64 {
+    ) -> f64 {
         // Number of states per monomer.
         let n_states: usize = self.config.excited.nstates;
 
@@ -293,7 +306,14 @@ impl SuperSystem{
             })
         };
 
-        let overlap: f64 = self.diabatic_overlap(&le_state_a, &ct_state);
+        let (mut s_full, mut s_occ, mut occ_vec) = self.build_occ_overlap();
+        let overlap: f64 = self.diabatic_overlap(
+            &le_state_a,
+            &ct_state,
+            &mut s_full.view(),
+            &mut s_occ.view(),
+            occ_vec,
+        );
         return overlap;
     }
 
@@ -446,8 +466,15 @@ impl SuperSystem{
                 state_coefficient: 0.0,
             })
         };
-        let overlap: f64 = self.diabatic_overlap(&state_1, &state_2);
+
+        let (mut s_full, mut s_occ, mut occ_vec) = self.build_occ_overlap();
+        let overlap: f64 = self.diabatic_overlap(
+            &state_1,
+            &state_2,
+            &mut s_full.view(),
+            &mut s_occ.view(),
+            occ_vec,
+        );
         return overlap;
     }
-
 }
