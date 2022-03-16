@@ -1,7 +1,8 @@
-use crate::fmo::SuperSystem;
 use crate::fmo::lcmo::cis_gradient::{
     ReducedBasisState, ReducedCT, ReducedLE, ReducedMO, ReducedParticle,
 };
+use crate::initialization::{Atom, MO};
+use crate::fmo::{Monomer,SuperSystem};
 
 impl SuperSystem{
     pub fn test_diabatic_le_le_overlap(
@@ -196,7 +197,7 @@ impl SuperSystem{
         return overlap;
     }
 
-    pub fn exciton_ct_ct_coupling_gradient(
+    pub fn test_diabatic_ct_ct_overlap(
         &mut self,
         ind_i: usize,
         ind_j: usize,

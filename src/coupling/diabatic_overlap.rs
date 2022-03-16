@@ -29,7 +29,7 @@ impl SuperSystem{
         }
     }
 
-    pub fn diabatic_overlap_le_le(&self,i: &ReducedLE, j: &ReducedLE)->f64{
+    fn diabatic_overlap_le_le(&self,i: &ReducedLE, j: &ReducedLE)->f64{
         // check if the PAIR of the two monomers is an ESD pair
         let type_pair: PairType = self
             .properties
@@ -84,7 +84,7 @@ impl SuperSystem{
         }
     }
 
-    pub fn diabatic_overlap_le_ct(&self,i: &ReducedLE, j: &ReducedCT)->f64{
+    fn diabatic_overlap_le_ct(&self,i: &ReducedLE, j: &ReducedCT)->f64{
         // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
         let type_ij: PairType = self
             .properties
@@ -185,7 +185,7 @@ impl SuperSystem{
         }
     }
 
-    pub fn diabatic_overlap_ct_ct(&self,state_i: &ReducedCT, state_j: &ReducedCT)->f64{
+    fn diabatic_overlap_ct_ct(&self,state_i: &ReducedCT, state_j: &ReducedCT)->f64{
         let (i, j):(&ReducedParticle,&ReducedParticle) = (&state_i.hole,&state_i.electron);
         let (k, l):(&ReducedParticle,&ReducedParticle) = (&state_j.hole,&state_j.electron);
 
@@ -340,7 +340,7 @@ impl SuperSystem{
     }
 }
 
-pub fn diabtic_ci_overlap(s_mo:ArrayView2<f64>,cis_i:ArrayView2<f64>,cis_j:ArrayView2<f64>)->f64{
+fn diabtic_ci_overlap(s_mo:ArrayView2<f64>,cis_i:ArrayView2<f64>,cis_j:ArrayView2<f64>)->f64{
     // Compute the overlap between diabatic CI wavefunctions
     // Excitations i->a with coefficients |C_ia| < threshold will be neglected
     let threshold:f64 = 0.01;
