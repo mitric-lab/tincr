@@ -751,16 +751,16 @@ fn change_occ_overlap_matrix(s_occ:&mut Array2<f64>,new_s:ArrayView2<f64>,diabat
                 .assign(&new_s.slice(s![p_i.nocc.., p_k.nocc..]));
             s_occ
                 .slice_mut(s![p_k.start..p_k.end, p_i.start..p_i.end])
-                .assign(&new_s.slice(s![..p_i.nocc, ..p_k.nocc]));
+                .assign(&new_s.slice(s![..p_i.nocc, ..p_k.nocc]).t());
             s_occ
                 .slice_mut(s![p_l.start..p_l.end, p_i.start..p_i.end])
-                .assign(&new_s.slice(s![..p_i.nocc, p_k.nocc..]));
+                .assign(&new_s.slice(s![..p_i.nocc, p_k.nocc..]).t());
             s_occ
                 .slice_mut(s![p_k.start..p_k.end, p_j.start..p_j.end])
-                .assign(&new_s.slice(s![p_i.nocc.., ..p_k.nocc]));
+                .assign(&new_s.slice(s![p_i.nocc.., ..p_k.nocc]).t());
             s_occ
                 .slice_mut(s![p_l.start..p_l.end, p_j.start..p_j.end])
-                .assign(&new_s.slice(s![p_i.nocc.., p_k.nocc..]));
+                .assign(&new_s.slice(s![p_i.nocc.., p_k.nocc..]).t());
         },
     }
 }
