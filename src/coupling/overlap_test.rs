@@ -182,8 +182,8 @@ impl SuperSystem {
         let overlap: f64 = self.diabatic_overlap(
             &le_state_a,
             &le_state_b,
-            &mut s_full.view(),
-            &mut s_occ.view(),
+            &mut s_full,
+            &mut s_occ,
             occ_vec,
         );
         return overlap;
@@ -310,8 +310,8 @@ impl SuperSystem {
         let overlap: f64 = self.diabatic_overlap(
             &le_state_a,
             &ct_state,
-            &mut s_full.view(),
-            &mut s_occ.view(),
+            &mut s_full,
+            &mut s_occ,
             occ_vec,
         );
         return overlap;
@@ -471,8 +471,8 @@ impl SuperSystem {
         let overlap: f64 = self.diabatic_overlap(
             &state_1,
             &state_2,
-            &mut s_full.view(),
-            &mut s_occ.view(),
+            &mut s_full,
+            &mut s_occ,
             occ_vec,
         );
         return overlap;

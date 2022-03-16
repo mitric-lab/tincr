@@ -158,32 +158,41 @@ impl SuperSystem {
             let cis_j_2d: ArrayView2<f64> = cis_j_3d.slice(s![.., .., j.state_index]);
 
             // change s_full and s_occ
+            // s_full
+            //     .slice_mut(s![m_i.slice.orb, m_j.slice.orb])
+            //     .assign(&s_mo);
+            // s_full
+            //     .slice_mut(s![m_j.slice.orb, m_i.slice.orb])
+            //     .assign(&s_mo.t());
+
+            // create diabatic state
+            let le_le_ovelap = Overlap_LE_LE {
+                particle_i: OverlapParticle {
+                    index: m_i.index,
+                    start: occ_vec[m_i.index].0,
+                    end: occ_vec[m_i.index].1,
+                    nocc:nocc_i,
+                },
+                particle_j: OverlapParticle {
+                    index: m_j.index,
+                    start: occ_vec[m_j.index].0,
+                    end: occ_vec[m_j.index].1,
+                    nocc:nocc_j,
+                },
+            };
+            let diabatic_state = DiabaticOverlap::LE_LE(le_le_ovelap);
+
+            // switch a part of the occupied overlap matrix
             let s_mo_occ: ArrayView2<f64> = s_mo.slice(s![..nocc_i, ..nocc_j]);
-            s_full
-                .slice_mut(s![m_i.slice.orb, m_j.slice.orb])
-                .assign(&s_mo);
-            s_full
-                .slice_mut(s![m_j.slice.orb, m_i.slice.orb])
-                .assign(&s_mo.t());
-            let start_i: usize = occ_vec[m_i.index].0;
-            let end_i: usize = occ_vec[m_i.index].1;
-            let start_j: usize = occ_vec[m_j.index].0;
-            let end_j: usize = occ_vec[m_j.index].1;
-            s_occ
-                .slice_mut(s![start_i..end_i, start_j..end_j])
-                .assign(&s_mo_occ);
-            s_occ
-                .slice_mut(s![start_j..end_j, start_i..end_i])
-                .assign(&s_mo_occ.t());
+            change_occ_overlap_matrix(s_occ,s_mo_occ.view(),&diabatic_state);
 
             // call the CI_overlap routine
             let s_ci: f64 = diabtic_ci_overlap(
                 s_mo.view(),
-                s_full.view(),
                 s_occ.view(),
-                occ_vec,
                 cis_i_2d,
                 cis_j_2d,
+                diabatic_state,
             );
             s_ci
         }
@@ -294,49 +303,55 @@ impl SuperSystem {
                 .to_owned();
             let cis_i_2d: ArrayView2<f64> = cis_i_3d.slice(s![.., .., i.state_index]);
 
-            // change s_full
-            s_full
-                .slice_mut(s![m_i.slice.orb, m_j.slice.orb])
-                .assign(&s_mo.slice(s![.., ..m_j.n_orbs]));
-            s_full
-                .slice_mut(s![m_i.slice.orb, m_k.slice.orb])
-                .assign(&s_mo.slice(s![.., m_j.n_orbs..]));
-            s_full
-                .slice_mut(s![m_j.slice.orb, m_i.slice.orb])
-                .assign(&s_mo.slice(s![.., ..m_j.n_orbs]).t());
-            s_full
-                .slice_mut(s![m_k.slice.orb, m_i.slice.orb])
-                .assign(&s_mo.slice(s![.., m_j.n_orbs..]).t());
+            // // change s_full
+            // s_full
+            //     .slice_mut(s![m_i.slice.orb, m_j.slice.orb])
+            //     .assign(&s_mo.slice(s![.., ..m_j.n_orbs]));
+            // s_full
+            //     .slice_mut(s![m_i.slice.orb, m_k.slice.orb])
+            //     .assign(&s_mo.slice(s![.., m_j.n_orbs..]));
+            // s_full
+            //     .slice_mut(s![m_j.slice.orb, m_i.slice.orb])
+            //     .assign(&s_mo.slice(s![.., ..m_j.n_orbs]).t());
+            // s_full
+            //     .slice_mut(s![m_k.slice.orb, m_i.slice.orb])
+            //     .assign(&s_mo.slice(s![.., m_j.n_orbs..]).t());
 
-            // change s_occ
+            // slice the MO overlap matrix
             let s_mo_occ: ArrayView2<f64> = s_mo.slice(s![..nocc_i, ..nocc]);
-            let start_i: usize = occ_vec[m_i.index].0;
-            let end_i: usize = occ_vec[m_i.index].1;
-            let start_j: usize = occ_vec[m_j.index].0;
-            let end_j: usize = occ_vec[m_j.index].1;
-            let start_k: usize = occ_vec[m_k.index].0;
-            let end_k: usize = occ_vec[m_k.index].1;
-            s_occ
-                .slice_mut(s![start_i..end_i, start_j..end_j])
-                .assign(&s_mo_occ.slice(s![..nocc_i, ..nocc_j]));
-            s_occ
-                .slice_mut(s![start_i..end_i, start_k..end_k])
-                .assign(&s_mo_occ.slice(s![..nocc_i, nocc_j..]));
-            s_occ
-                .slice_mut(s![start_j..end_j, start_i..end_i])
-                .assign(&s_mo_occ.slice(s![..nocc_i, ..nocc_j]).t());
-            s_occ
-                .slice_mut(s![start_k..end_k, start_i..end_i])
-                .assign(&s_mo_occ.slice(s![..nocc_i, nocc_j..]).t());
+
+            // create diabatic state
+            let le_ct_overlap = Overlap_LE_CT {
+                particle_i: OverlapParticle {
+                    index: m_i.index,
+                    start: occ_vec[m_i.index].0,
+                    end: occ_vec[m_i.index].1,
+                    nocc:nocc_i,
+                },
+                particle_j: OverlapParticle {
+                    index: m_j.index,
+                    start: occ_vec[m_j.index].0,
+                    end: occ_vec[m_j.index].1,
+                    nocc:nocc_j,
+                },
+                particle_k: OverlapParticle {
+                    index: m_k.index,
+                    start: occ_vec[m_k.index].0,
+                    end: occ_vec[m_k.index].1,
+                    nocc:nocc_k,
+                },
+            };
+            let diabatic_state = DiabaticOverlap::LE_CT(le_ct_overlap);
+            // modify s_occ
+            change_occ_overlap_matrix(s_occ,s_mo_occ.view(),&diabatic_state);
 
             // call the CI_overlap routine
             let s_ci: f64 = diabtic_ci_overlap(
                 s_mo.view(),
-                s_full.view(),
                 s_occ.view(),
-                occ_vec,
                 cis_i_2d,
                 cis_jk.view(),
+                diabatic_state,
             );
             s_ci
         }
@@ -513,76 +528,74 @@ impl SuperSystem {
                 cis_kl = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
             }
 
-            // change s_full
-            s_full
-                .slice_mut(s![m_a.slice.orb, m_c.slice.orb])
-                .assign(&s_mo.slice(s![..m_a.n_orbs, ..m_c.n_orbs]));
-            s_full
-                .slice_mut(s![m_a.slice.orb, m_d.slice.orb])
-                .assign(&s_mo.slice(s![..m_a.n_orbs, m_c.n_orbs..]));
-            s_full
-                .slice_mut(s![m_b.slice.orb, m_c.slice.orb])
-                .assign(&s_mo.slice(s![m_a.n_orbs.., ..m_c.n_orbs]));
-            s_full
-                .slice_mut(s![m_b.slice.orb, m_d.slice.orb])
-                .assign(&s_mo.slice(s![m_a.n_orbs.., m_c.n_orbs..]));
-            s_full
-                .slice_mut(s![m_c.slice.orb, m_a.slice.orb])
-                .assign(&s_mo.slice(s![..m_a.n_orbs, ..m_c.n_orbs]).t());
-            s_full
-                .slice_mut(s![m_d.slice.orb, m_a.slice.orb])
-                .assign(&s_mo.slice(s![..m_a.n_orbs, m_c.n_orbs..]).t());
-            s_full
-                .slice_mut(s![m_c.slice.orb, m_b.slice.orb])
-                .assign(&s_mo.slice(s![m_a.n_orbs.., ..m_c.n_orbs]).t());
-            s_full
-                .slice_mut(s![m_d.slice.orb, m_c.slice.orb])
-                .assign(&s_mo.slice(s![m_a.n_orbs.., m_c.n_orbs..]).t());
+            // // change s_full
+            // s_full
+            //     .slice_mut(s![m_a.slice.orb, m_c.slice.orb])
+            //     .assign(&s_mo.slice(s![..m_a.n_orbs, ..m_c.n_orbs]));
+            // s_full
+            //     .slice_mut(s![m_a.slice.orb, m_d.slice.orb])
+            //     .assign(&s_mo.slice(s![..m_a.n_orbs, m_c.n_orbs..]));
+            // s_full
+            //     .slice_mut(s![m_b.slice.orb, m_c.slice.orb])
+            //     .assign(&s_mo.slice(s![m_a.n_orbs.., ..m_c.n_orbs]));
+            // s_full
+            //     .slice_mut(s![m_b.slice.orb, m_d.slice.orb])
+            //     .assign(&s_mo.slice(s![m_a.n_orbs.., m_c.n_orbs..]));
+            // s_full
+            //     .slice_mut(s![m_c.slice.orb, m_a.slice.orb])
+            //     .assign(&s_mo.slice(s![..m_a.n_orbs, ..m_c.n_orbs]).t());
+            // s_full
+            //     .slice_mut(s![m_d.slice.orb, m_a.slice.orb])
+            //     .assign(&s_mo.slice(s![..m_a.n_orbs, m_c.n_orbs..]).t());
+            // s_full
+            //     .slice_mut(s![m_c.slice.orb, m_b.slice.orb])
+            //     .assign(&s_mo.slice(s![m_a.n_orbs.., ..m_c.n_orbs]).t());
+            // s_full
+            //     .slice_mut(s![m_d.slice.orb, m_c.slice.orb])
+            //     .assign(&s_mo.slice(s![m_a.n_orbs.., m_c.n_orbs..]).t());
 
-            // change s_occ
+            // slice the MO overlap matrix
             let s_mo_occ: ArrayView2<f64> = s_mo.slice(s![..nocc_1, ..nocc_2]);
-            let start_a: usize = occ_vec[m_a.index].0;
-            let end_a: usize = occ_vec[m_a.index].1;
-            let start_b: usize = occ_vec[m_b.index].0;
-            let end_b: usize = occ_vec[m_b.index].1;
-            let start_c: usize = occ_vec[m_c.index].0;
-            let end_c: usize = occ_vec[m_c.index].1;
-            let start_d: usize = occ_vec[m_d.index].0;
-            let end_d: usize = occ_vec[m_d.index].1;
 
-            s_occ
-                .slice_mut(s![start_a..end_a, start_c..end_c])
-                .assign(&s_mo_occ.slice(s![..nocc_a, ..nocc_c]));
-            s_occ
-                .slice_mut(s![start_a..end_a, start_d..end_d])
-                .assign(&s_mo_occ.slice(s![..nocc_a, nocc_c..]));
-            s_occ
-                .slice_mut(s![start_b..end_b, start_c..end_c])
-                .assign(&s_mo_occ.slice(s![nocc_a.., ..nocc_c]));
-            s_occ
-                .slice_mut(s![start_b..end_b, start_d..end_d])
-                .assign(&s_mo_occ.slice(s![nocc_a.., nocc_c..]));
-            s_occ
-                .slice_mut(s![start_c..end_c, start_a..end_a])
-                .assign(&s_mo_occ.slice(s![..nocc_a, ..nocc_c]));
-            s_occ
-                .slice_mut(s![start_d..end_d, start_a..end_a])
-                .assign(&s_mo_occ.slice(s![..nocc_a, nocc_c..]));
-            s_occ
-                .slice_mut(s![start_c..end_c, start_b..end_b])
-                .assign(&s_mo_occ.slice(s![nocc_a.., ..nocc_c]));
-            s_occ
-                .slice_mut(s![start_d..end_d, start_b..end_b])
-                .assign(&s_mo_occ.slice(s![nocc_a.., nocc_c..]));
+            // create diabatic state
+            let ct_ct_overlap = Overlap_CT_CT {
+                particle_i: OverlapParticle {
+                    index: m_a.index,
+                    start: occ_vec[m_a.index].0,
+                    end: occ_vec[m_a.index].1,
+                    nocc:nocc_a,
+                },
+                particle_j: OverlapParticle {
+                    index: m_b.index,
+                    start: occ_vec[m_b.index].0,
+                    end: occ_vec[m_b.index].1,
+                    nocc:nocc_b,
+                },
+                particle_k: OverlapParticle {
+                    index: m_c.index,
+                    start: occ_vec[m_c.index].0,
+                    end: occ_vec[m_c.index].1,
+                    nocc:nocc_c,
+                },
+                particle_l: OverlapParticle {
+                    index: m_d.index,
+                    start: occ_vec[m_d.index].0,
+                    end: occ_vec[m_d.index].1,
+                    nocc:nocc_d,
+                },
+            };
+            let diabatic_state = DiabaticOverlap::CT_CT(ct_ct_overlap);
+
+            // modify s_occ
+            change_occ_overlap_matrix(s_occ,s_mo_occ.view(),&diabatic_state);
 
             // call the CI_overlap routine
             let s_ci: f64 = diabtic_ci_overlap(
                 s_mo.view(),
-                s_full.view(),
                 s_occ.view(),
-                occ_vec,
                 cis_ij.view(),
                 cis_kl.view(),
+                diabatic_state
             );
             s_ci
         }
@@ -595,11 +608,10 @@ impl SuperSystem {
 
 fn diabtic_ci_overlap(
     s_mo: ArrayView2<f64>,
-    s_full: ArrayView2<f64>,
     s_occ: ArrayView2<f64>,
-    occ_vec: Vec<(usize, usize)>,
     cis_i: ArrayView2<f64>,
     cis_j: ArrayView2<f64>,
+    diabatic_state: DiabaticOverlap,
 ) -> f64 {
     // Compute the overlap between diabatic CI wavefunctions
     // Excitations i->a with coefficients |C_ia| < threshold will be neglected
@@ -615,11 +627,11 @@ fn diabtic_ci_overlap(
     let norb_j: usize = nocc_j + nvirt_j;
 
     // change s_full and s_occ using s_mo
-    let s_ij: ArrayView2<f64> = s_occ.view;
+    let s_ij: ArrayView2<f64> = s_occ.view();
     let det_ij: f64 = s_ij.det().unwrap();
 
     // get s_mo_occ
-    let s_mo_occ:ArrayView2<f64> = s_mo.slice(s![nocc_i,nvirt_j]);
+    let s_mo_occ: ArrayView2<f64> = s_mo.slice(s![..nocc_i, ..nocc_j]);
 
     // scalar coupling array
     let mut s_ci: f64 = 0.0;
@@ -680,4 +692,106 @@ fn diabtic_ci_overlap(
     }
 
     return s_ci;
+}
+
+fn change_occ_overlap_matrix(s_occ:&mut Array2<f64>,new_s:ArrayView2<f64>,diabatic_state:&DiabaticOverlap){
+    match diabatic_state{
+        DiabaticOverlap::LE_LE(ref state) => {
+            // create references to the overlap particles
+            let p_i:&OverlapParticle = &state.particle_i;
+            let p_j:&OverlapParticle = &state.particle_j;
+
+            // slice the overlap matrix
+            s_occ
+                .slice_mut(s![p_i.start..p_i.end, p_j.start..p_j.end])
+                .assign(&new_s);
+            s_occ
+                .slice_mut(s![p_j.start..p_j.end, p_i.start..p_i.end])
+                .assign(&new_s.t());
+        },
+        DiabaticOverlap::LE_CT(ref state) => {
+            // create references to the overlap particles
+            let p_i:&OverlapParticle = &state.particle_i;
+            let p_j:&OverlapParticle = &state.particle_j;
+            let p_k:&OverlapParticle = &state.particle_k;
+
+            // slice the overlap matrix
+            s_occ
+                .slice_mut(s![p_i.start..p_i.end, p_j.start..p_j.end])
+                .assign(&new_s.slice(s![..p_i.nocc, ..p_j.nocc]));
+            s_occ
+                .slice_mut(s![p_i.start..p_i.end, p_k.start..p_k.end])
+                .assign(&new_s.slice(s![..p_i.nocc, p_j.nocc..]));
+            s_occ
+                .slice_mut(s![p_j.start..p_j.end, p_i.start..p_i.end])
+                .assign(&new_s.slice(s![..p_i.nocc, ..p_j.nocc]).t());
+            s_occ
+                .slice_mut(s![p_k.start..p_k.end, p_i.start..p_i.end])
+                .assign(&new_s.slice(s![..p_i.nocc, p_j.nocc..]).t());
+        },
+        DiabaticOverlap::CT_CT(ref state) => {
+            // create references to the overlap particles
+            let p_i:&OverlapParticle = &state.particle_i;
+            let p_j:&OverlapParticle = &state.particle_j;
+            let p_k:&OverlapParticle = &state.particle_k;
+            let p_l:&OverlapParticle = &state.particle_l;
+
+            // slice the overlap matrix
+            s_occ
+                .slice_mut(s![p_i.start..p_i.end, p_k.start..p_k.end])
+                .assign(&new_s.slice(s![..p_i.nocc, ..p_k.nocc]));
+            s_occ
+                .slice_mut(s![p_i.start..p_i.end, p_l.start..p_l.end])
+                .assign(&new_s.slice(s![..p_i.nocc, p_k.nocc..]));
+            s_occ
+                .slice_mut(s![p_j.start..p_j.end, p_k.start..p_k.end])
+                .assign(&new_s.slice(s![p_i.nocc.., ..p_k.nocc]));
+            s_occ
+                .slice_mut(s![p_j.start..p_j.end, p_l.start..p_l.end])
+                .assign(&new_s.slice(s![p_i.nocc.., p_k.nocc..]));
+            s_occ
+                .slice_mut(s![p_k.start..p_k.end, p_i.start..p_i.end])
+                .assign(&new_s.slice(s![..p_i.nocc, ..p_k.nocc]));
+            s_occ
+                .slice_mut(s![p_l.start..p_l.end, p_i.start..p_i.end])
+                .assign(&new_s.slice(s![..p_i.nocc, p_k.nocc..]));
+            s_occ
+                .slice_mut(s![p_k.start..p_k.end, p_j.start..p_j.end])
+                .assign(&new_s.slice(s![p_i.nocc.., ..p_k.nocc]));
+            s_occ
+                .slice_mut(s![p_l.start..p_l.end, p_j.start..p_j.end])
+                .assign(&new_s.slice(s![p_i.nocc.., p_k.nocc..]));
+        },
+    }
+}
+
+enum DiabaticOverlap {
+    LE_LE(Overlap_LE_LE),
+    LE_CT(Overlap_LE_CT),
+    CT_CT(Overlap_CT_CT),
+}
+
+struct Overlap_LE_LE {
+    pub particle_i: OverlapParticle,
+    pub particle_j: OverlapParticle,
+}
+
+struct Overlap_LE_CT {
+    pub particle_i: OverlapParticle,
+    pub particle_j: OverlapParticle,
+    pub particle_k: OverlapParticle,
+}
+
+struct Overlap_CT_CT {
+    pub particle_i: OverlapParticle,
+    pub particle_j: OverlapParticle,
+    pub particle_k: OverlapParticle,
+    pub particle_l: OverlapParticle,
+}
+
+struct OverlapParticle {
+    index: usize,
+    start: usize,
+    end: usize,
+    nocc:usize,
 }
