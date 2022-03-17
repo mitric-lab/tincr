@@ -128,8 +128,17 @@ impl Properties {
     pub fn tdm(&self, idx:usize) -> Option<ArrayView2<f64>> {
         let n_occ: usize = self.occ_indices().unwrap().len();
         let n_virt: usize = self.virt_indices().unwrap().len();
+        let n_states:usize = self.ci_eigenvalues().unwrap().len();
         match self.get("ci_coefficients") {
-            Some(value) => Some(value.as_array2().unwrap().column(idx).into_shape([n_occ, n_virt]).unwrap()),
+            Some(value) => Some(
+                value
+                    .as_array2()
+                    .unwrap()
+                    .view()
+                    .into_shape([n_occ,n_virt,n_states])
+                    .unwrap()
+                    .slice_move(s![.., .., idx]),
+            ),
             _ => None,
         }
     }

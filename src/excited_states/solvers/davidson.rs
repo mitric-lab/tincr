@@ -190,9 +190,11 @@ impl Davidson {
         ritz_vectors: ArrayView2<f64>,
         nvalues: usize,
     ) -> Davidson {
+        let eigenvectors:Array2<f64> = ritz_vectors.slice(s![.., 0..nvalues]).as_standard_layout().to_owned();
+
         Davidson {
             eigenvalues: subspace_eigenvalues.slice(s![0..nvalues]).to_owned(),
-            eigenvectors: ritz_vectors.slice(s![.., 0..nvalues]).to_owned(),
+            eigenvectors: eigenvectors,
         }
     }
 }
