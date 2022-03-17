@@ -68,30 +68,29 @@ impl SuperSystem {
         &self,
         lhs: &ReducedBasisState,
         rhs: &ReducedBasisState,
-        s_full: &mut Array2<f64>,
         s_occ: &mut Array2<f64>,
-        occ_vec: Vec<(usize, usize)>,
+        occ_vec: &Vec<(usize, usize)>,
     ) -> f64 {
         match (lhs, rhs) {
             // Overlap between two LE states.
             (ReducedBasisState::LE(ref a), ReducedBasisState::LE(ref b)) => {
                 println!("LE LE overlap");
-                self.diabatic_overlap_le_le(a, b, s_full, s_occ, occ_vec)
+                self.diabatic_overlap_le_le(a, b, s_occ, occ_vec)
             }
             // Overlap between LE and CT state.
             (ReducedBasisState::LE(ref a), ReducedBasisState::CT(ref b)) => {
                 println!("LE CT overlap");
-                self.diabatic_overlap_le_ct(a, b, s_full, s_occ, occ_vec)
+                self.diabatic_overlap_le_ct(a, b, s_occ, occ_vec)
             }
             // Overlap between CT and LE state.
             (ReducedBasisState::CT(ref a), ReducedBasisState::LE(ref b)) => {
                 println!("CT LE overlap");
-                self.diabatic_overlap_le_ct(b, a, s_full, s_occ, occ_vec)
+                self.diabatic_overlap_le_ct(b, a, s_occ, occ_vec)
             }
             // Overlap between CT and CT
             (ReducedBasisState::CT(ref a), ReducedBasisState::CT(ref b)) => {
                 println!("CT CT overlap");
-                self.diabatic_overlap_ct_ct(a, b, s_full, s_occ, occ_vec)
+                self.diabatic_overlap_ct_ct(a, b, s_occ, occ_vec)
             }
         }
     }
@@ -100,9 +99,8 @@ impl SuperSystem {
         &self,
         i: &ReducedLE,
         j: &ReducedLE,
-        s_full: &mut Array2<f64>,
         s_occ: &mut Array2<f64>,
-        occ_vec: Vec<(usize, usize)>,
+        occ_vec: &Vec<(usize, usize)>,
     ) -> f64 {
         // check if the PAIR of the two monomers is an ESD pair
         let type_pair: PairType = self
@@ -114,7 +112,7 @@ impl SuperSystem {
             0.0
         }
         // check if LE states are on the same monomer
-        else if i.monomer_index == j.monomer_index {
+        else if i.monomer_index == j.monomer_index && i.state_index != j.state_index {
             // LE states on the same monomer are orthogonal
             // the overlap between the diabatic states is zero
             0.0
@@ -144,18 +142,20 @@ impl SuperSystem {
             let cis_i_3d: Array3<f64> = cis_i
                 .into_shape([nocc_i, nvirt_i, nstates])
                 .unwrap()
+                .permuted_axes([2,0,1])
                 .as_standard_layout()
                 .to_owned();
-            let cis_i_2d: ArrayView2<f64> = cis_i_3d.slice(s![.., .., i.state_index]);
+            let cis_i_2d: ArrayView2<f64> = cis_i_3d.slice(s![i.state_index,.., ..]);
 
             let nocc_j: usize = m_j.properties.n_occ().unwrap();
             let nvirt_j: usize = m_j.properties.n_virt().unwrap();
             let cis_j_3d: Array3<f64> = cis_j
                 .into_shape([nocc_j, nvirt_j, nstates])
                 .unwrap()
+                .permuted_axes([2,0,1])
                 .as_standard_layout()
-                .to_owned();
-            let cis_j_2d: ArrayView2<f64> = cis_j_3d.slice(s![.., .., j.state_index]);
+                .to_owned();;
+            let cis_j_2d: ArrayView2<f64> = cis_j_3d.slice(s![j.state_index,..,..]);
 
             // change s_full and s_occ
             // s_full
@@ -197,9 +197,8 @@ impl SuperSystem {
         &self,
         i: &ReducedLE,
         j: &ReducedCT,
-        s_full: &mut Array2<f64>,
         s_occ: &mut Array2<f64>,
-        occ_vec: Vec<(usize, usize)>,
+        occ_vec: &Vec<(usize, usize)>,
     ) -> f64 {
         // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
         let type_ij: PairType = self
@@ -351,9 +350,8 @@ impl SuperSystem {
         &self,
         state_i: &ReducedCT,
         state_j: &ReducedCT,
-        s_full: &mut Array2<f64>,
         s_occ: &mut Array2<f64>,
-        occ_vec: Vec<(usize, usize)>,
+        occ_vec: &Vec<(usize, usize)>,
     ) -> f64 {
         let (i, j): (&ReducedParticle, &ReducedParticle) = (&state_i.hole, &state_i.electron);
         let (k, l): (&ReducedParticle, &ReducedParticle) = (&state_j.hole, &state_j.electron);
@@ -605,7 +603,7 @@ fn diabtic_ci_overlap(
 ) -> f64 {
     // Compute the overlap between diabatic CI wavefunctions
     // Excitations i->a with coefficients |C_ia| < threshold will be neglected
-    let threshold: f64 = 0.01;
+    let threshold: f64 = 0.001;
 
     // get n_occ and n_virt from the shapes of the CIS coefficients
     let nocc_i: usize = cis_i.dim().0;
@@ -634,7 +632,7 @@ fn diabtic_ci_overlap(
 
             // if the value of the coefficient is smaller than the threshold,
             // exclude the excited state
-            if coeff_i > threshold {
+            if coeff_i.abs() > threshold {
                 let mut s_aj: Array2<f64> = s_mo_occ.to_owned();
                 // occupied orbitals in the configuration state function |Psi_ia>
                 // overlap <1,...,a,...|1,...,j,...>
@@ -656,7 +654,7 @@ fn diabtic_ci_overlap(
                         // slice the CI coefficients of the diabtic state I at the indicies j and b
                         let coeff_j = cis_j[[j, b_idx]];
 
-                        if coeff_j > threshold {
+                        if coeff_j.abs() > threshold {
                             let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                             // select part of overlap matrix for orbitals
                             // in |Psi_ia> and |Psi_jb>
@@ -689,8 +687,10 @@ fn diabtic_ci_overlap(
                             let det_ib: f64 = s_occ.det().unwrap();
 
                             let cc: f64 = coeff_j * coeff_i;
+                            let det_sum:f64 = (det_ab * det_ij + det_aj * det_ib);
+
                             // see eqn. (9.39) in A. Humeniuk, PhD thesis (2018)
-                            s_ci += cc * (det_ab * det_ij + det_aj * det_ib);
+                            s_ci += cc * det_sum;
                         }
                     }
                 }
