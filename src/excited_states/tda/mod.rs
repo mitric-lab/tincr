@@ -63,7 +63,7 @@ impl Monomer {
         self.properties.set_tr_dipoles(tr_dipoles);
         self.properties.set_oscillator_strengths(f);
 
-        // println!("{}", states);
+        println!("{}", states);
         // states.ntos_to_molden(&atoms, 0, "/Users/hochej/Downloads/s1.molden");
     }
 }
