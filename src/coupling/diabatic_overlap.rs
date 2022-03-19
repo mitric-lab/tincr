@@ -359,9 +359,9 @@ impl SuperSystem {
             // slice the MO overlap matrix
             let mut s_mo_occ:Array2<f64> = Array2::zeros([nocc_i+nocc,nocc_i+nocc]);
             s_mo_occ.slice_mut(s![..nocc_i,..nocc_i]).assign(&s_mo.slice(s![..nocc_i,..nocc_i]));
-            s_mo_occ.slice_mut(s![nocc_i..,nocc_i..]).assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs..nocc,m_i.n_orbs..m_i.n_orbs..nocc]));
-            s_mo_occ.slice_mut(s![..nocc_i,nocc_i..]).assign(&s_mo.slice(s![..nocc_i,m_i.n_orbs..m_i.n_orbs..nocc]));
-            s_mo_occ.slice_mut(s![nocc_i..,..nocc_i]).assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs..nocc,..nocc_i]));
+            s_mo_occ.slice_mut(s![nocc_i..,nocc_i..]).assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs+nocc,m_i.n_orbs..m_i.n_orbs+nocc]));
+            s_mo_occ.slice_mut(s![..nocc_i,nocc_i..]).assign(&s_mo.slice(s![..nocc_i,m_i.n_orbs..m_i.n_orbs+nocc]));
+            s_mo_occ.slice_mut(s![nocc_i..,..nocc_i]).assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs+nocc,..nocc_i]));
 
             // call the CI_overlap routine
             let s_ci: f64 =
