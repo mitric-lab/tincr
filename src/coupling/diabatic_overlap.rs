@@ -261,41 +261,69 @@ impl SuperSystem {
 
             // slice the overlap matrix of the supersystem
             let s_total: ArrayView2<f64> = self.properties.s().unwrap();
-            let mut s_ao: Array2<f64> = Array2::zeros([m_i.n_orbs+pair_jk.n_orbs, pair_jk.n_orbs+pair_jk.n_orbs]);
+            let mut s_ao: Array2<f64> =
+                Array2::zeros([m_i.n_orbs + pair_jk.n_orbs, pair_jk.n_orbs + pair_jk.n_orbs]);
             // get overlap I-I, J-J and K-K
             s_ao.slice_mut(s![..m_i.n_orbs, ..m_i.n_orbs])
                 .assign(&s_total.slice(s![m_i.slice.orb, m_i.slice.orb]));
-            s_ao.slice_mut(s![m_i.n_orbs..m_i.n_orbs+m_j.n_orbs, m_i.n_orbs..m_i.n_orbs+m_j.n_orbs])
-                .assign(&s_total.slice(s![m_j.slice.orb, m_j.slice.orb]));
-            s_ao.slice_mut(s![m_i.n_orbs+m_j.n_orbs.., m_i.n_orbs+m_j.n_orbs..])
+            s_ao.slice_mut(s![
+                m_i.n_orbs..m_i.n_orbs + m_j.n_orbs,
+                m_i.n_orbs..m_i.n_orbs + m_j.n_orbs
+            ])
+            .assign(&s_total.slice(s![m_j.slice.orb, m_j.slice.orb]));
+            s_ao.slice_mut(s![m_i.n_orbs + m_j.n_orbs.., m_i.n_orbs + m_j.n_orbs..])
                 .assign(&s_total.slice(s![m_k.slice.orb, m_k.slice.orb]));
             // overlap between I-J and I-K
-            let s_ij:ArrayView2<f64> = s_total.slice(s![m_i.slice.orb, m_j.slice.orb]);
-            let s_ik:ArrayView2<f64> = s_total.slice(s![m_i.slice.orb, m_k.slice.orb]);
-            s_ao.slice_mut(s![..m_i.n_orbs, m_i.n_orbs..m_i.n_orbs+m_j.n_orbs])
+            let s_ij: ArrayView2<f64> = s_total.slice(s![m_i.slice.orb, m_j.slice.orb]);
+            let s_ik: ArrayView2<f64> = s_total.slice(s![m_i.slice.orb, m_k.slice.orb]);
+            s_ao.slice_mut(s![..m_i.n_orbs, m_i.n_orbs..m_i.n_orbs + m_j.n_orbs])
                 .assign(&s_ij);
-            s_ao.slice_mut(s![m_i.n_orbs..m_i.n_orbs+m_j.n_orbs,..m_i.n_orbs])
+            s_ao.slice_mut(s![m_i.n_orbs..m_i.n_orbs + m_j.n_orbs, ..m_i.n_orbs])
                 .assign(&s_ij.t());
-            s_ao.slice_mut(s![..m_i.n_orbs, m_i.n_orbs+m_j.n_orbs..])
+            s_ao.slice_mut(s![..m_i.n_orbs, m_i.n_orbs + m_j.n_orbs..])
                 .assign(&s_ik);
-            s_ao.slice_mut(s![m_i.n_orbs+m_j.n_orbs..,..m_i.n_orbs])
+            s_ao.slice_mut(s![m_i.n_orbs + m_j.n_orbs.., ..m_i.n_orbs])
                 .assign(&s_ik.t());
             // overlap between J-K
-            let s_jk:ArrayView2<f64> = s_total.slice(s![m_j.slice.orb, m_k.slice.orb]);
-            s_ao.slice_mut(s![m_i.n_orbs..m_i.n_orbs+m_j.n_orbs,m_i.n_orbs+m_j.n_orbs..])
-                .assign(&s_jk);
-            s_ao.slice_mut(s![m_i.n_orbs+m_j.n_orbs..,m_i.n_orbs..m_i.n_orbs+m_j.n_orbs])
-                .assign(&s_jk.t());
+            let s_jk: ArrayView2<f64> = s_total.slice(s![m_j.slice.orb, m_k.slice.orb]);
+            s_ao.slice_mut(s![
+                m_i.n_orbs..m_i.n_orbs + m_j.n_orbs,
+                m_i.n_orbs + m_j.n_orbs..
+            ])
+            .assign(&s_jk);
+            s_ao.slice_mut(s![
+                m_i.n_orbs + m_j.n_orbs..,
+                m_i.n_orbs..m_i.n_orbs + m_j.n_orbs
+            ])
+            .assign(&s_jk.t());
 
             // transform the AO overlap matrix to the MO basis
-            let mut s_mo: Array2<f64> = Array2::zeros([m_i.n_orbs+pair_jk.n_orbs, pair_jk.n_orbs+pair_jk.n_orbs]);
+            let mut s_mo: Array2<f64> =
+                Array2::zeros([m_i.n_orbs + pair_jk.n_orbs, pair_jk.n_orbs + pair_jk.n_orbs]);
             let orbs_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
             let orbs_jk: ArrayView2<f64> = pair_jk.properties.orbs().unwrap();
 
-            s_mo.slice_mut(s![..m_i.n_orbs, ..m_i.n_orbs]).assign(&orbs_i.t().dot(&s_ao.slice(s![..m_i.n_orbs, ..m_i.n_orbs]).dot(&orbs_i)));
-            s_mo.slice_mut(s![m_i.n_orbs.., m_i.n_orbs..]).assign(&orbs_jk.t().dot(&s_ao.slice(s![m_i.n_orbs.., m_i.n_orbs..]).dot(&orbs_jk)));
-            s_mo.slice_mut(s![..m_i.n_orbs, m_i.n_orbs..]).assign(&orbs_i.t().dot(&s_ao.slice(s![..m_i.n_orbs, m_i.n_orbs..]).dot(&orbs_jk)));
-            s_mo.slice_mut(s![m_i.n_orbs.., ..m_i.n_orbs]).assign(&orbs_i.t().dot(&s_ao.slice(s![..m_i.n_orbs, m_i.n_orbs..]).dot(&orbs_jk)).t());
+            s_mo.slice_mut(s![..m_i.n_orbs, ..m_i.n_orbs]).assign(
+                &orbs_i
+                    .t()
+                    .dot(&s_ao.slice(s![..m_i.n_orbs, ..m_i.n_orbs]).dot(&orbs_i)),
+            );
+            s_mo.slice_mut(s![m_i.n_orbs.., m_i.n_orbs..]).assign(
+                &orbs_jk
+                    .t()
+                    .dot(&s_ao.slice(s![m_i.n_orbs.., m_i.n_orbs..]).dot(&orbs_jk)),
+            );
+            s_mo.slice_mut(s![..m_i.n_orbs, m_i.n_orbs..]).assign(
+                &orbs_i
+                    .t()
+                    .dot(&s_ao.slice(s![..m_i.n_orbs, m_i.n_orbs..]).dot(&orbs_jk)),
+            );
+            s_mo.slice_mut(s![m_i.n_orbs.., ..m_i.n_orbs]).assign(
+                &orbs_i
+                    .t()
+                    .dot(&s_ao.slice(s![..m_i.n_orbs, m_i.n_orbs..]).dot(&orbs_jk))
+                    .t(),
+            );
 
             // get the CIS coefficients of the LE
             let cis_i: ArrayView2<f64> = m_i.properties.ci_coefficients().unwrap();
@@ -357,11 +385,22 @@ impl SuperSystem {
             let cis_i_2d: ArrayView2<f64> = cis_i_3d.slice(s![i.state_index, .., ..,]);
 
             // slice the MO overlap matrix
-            let mut s_mo_occ:Array2<f64> = Array2::zeros([nocc_i+nocc,nocc_i+nocc]);
-            s_mo_occ.slice_mut(s![..nocc_i,..nocc_i]).assign(&s_mo.slice(s![..nocc_i,..nocc_i]));
-            s_mo_occ.slice_mut(s![nocc_i..,nocc_i..]).assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs+nocc,m_i.n_orbs..m_i.n_orbs+nocc]));
-            s_mo_occ.slice_mut(s![..nocc_i,nocc_i..]).assign(&s_mo.slice(s![..nocc_i,m_i.n_orbs..m_i.n_orbs+nocc]));
-            s_mo_occ.slice_mut(s![nocc_i..,..nocc_i]).assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs+nocc,..nocc_i]));
+            let mut s_mo_occ: Array2<f64> = Array2::zeros([nocc_i + nocc, nocc_i + nocc]);
+            s_mo_occ
+                .slice_mut(s![..nocc_i, ..nocc_i])
+                .assign(&s_mo.slice(s![..nocc_i, ..nocc_i]));
+            s_mo_occ
+                .slice_mut(s![nocc_i.., nocc_i..])
+                .assign(&s_mo.slice(s![
+                    m_i.n_orbs..m_i.n_orbs + nocc,
+                    m_i.n_orbs..m_i.n_orbs + nocc
+                ]));
+            s_mo_occ
+                .slice_mut(s![..nocc_i, nocc_i..])
+                .assign(&s_mo.slice(s![..nocc_i, m_i.n_orbs..m_i.n_orbs + nocc]));
+            s_mo_occ
+                .slice_mut(s![nocc_i.., ..nocc_i])
+                .assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs + nocc, ..nocc_i]));
 
             // call the CI_overlap routine
             let s_ci: f64 =
@@ -543,22 +582,95 @@ impl SuperSystem {
                 let m_d: &Monomer = &self.monomers[pair_kl.j];
 
                 // prepare the AO overlap matrix
-                let mut s_ao: Array2<f64> = Array2::zeros([pair_ij.n_orbs, pair_kl.n_orbs]);
+                let mut s_ao: Array2<f64> = Array2::zeros([
+                    pair_ij.n_orbs + pair_kl.n_orbs,
+                    pair_ij.n_orbs + pair_kl.n_orbs,
+                ]);
                 // fill the AO overlap matrix
-                s_ao.slice_mut(s![..m_a.n_orbs, ..m_c.n_orbs])
-                    .assign(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]));
-                s_ao.slice_mut(s![..m_a.n_orbs, m_c.n_orbs..])
+                // diagonal blocks of pairs IJ and KL
+                s_ao.slice_mut(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                    .assign(&pair_ij.properties.s().unwrap());
+                s_ao.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                    .assign(&pair_kl.properties.s().unwrap());
+
+                // outer diagonal block of I-k, I-L and J-K, J-L
+                s_ao.slice_mut(s![
+                    ..m_a.n_orbs,
+                    pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs
+                ])
+                .assign(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]));
+                s_ao.slice_mut(s![..m_a.n_orbs, pair_ij.n_orbs + m_c.n_orbs..])
                     .assign(&s_total.slice(s![m_a.slice.orb, m_d.slice.orb]));
-                s_ao.slice_mut(s![m_a.n_orbs.., ..m_c.n_orbs])
-                    .assign(&s_total.slice(s![m_b.slice.orb, m_c.slice.orb]));
-                s_ao.slice_mut(s![m_a.n_orbs.., m_c.n_orbs..])
-                    .assign(&s_total.slice(s![m_b.slice.orb, m_d.slice.orb]));
+                s_ao.slice_mut(s![
+                    m_a.n_orbs..pair_ij.n_orbs,
+                    pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs
+                ])
+                .assign(&s_total.slice(s![m_b.slice.orb, m_c.slice.orb]));
+                s_ao.slice_mut(s![
+                    m_a.n_orbs..pair_ij.n_orbs,
+                    pair_ij.n_orbs + m_c.n_orbs..
+                ])
+                .assign(&s_total.slice(s![m_b.slice.orb, m_d.slice.orb]));
+
+                // outer diagonal block k-I, K-J and L-I, L-J
+                s_ao.slice_mut(s![
+                    pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs,
+                    ..m_a.n_orbs
+                ])
+                .assign(&s_total.slice(s![m_c.slice.orb, m_a.slice.orb]));
+                s_ao.slice_mut(s![pair_ij.n_orbs + m_c.n_orbs.., ..m_a.n_orbs])
+                    .assign(&s_total.slice(s![m_d.slice.orb, m_a.slice.orb]));
+                s_ao.slice_mut(s![
+                    pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs,
+                    m_a.n_orbs..pair_ij.n_orbs
+                ])
+                .assign(&s_total.slice(s![m_c.slice.orb, m_b.slice.orb]));
+                s_ao.slice_mut(s![
+                    pair_ij.n_orbs + m_c.n_orbs..,
+                    m_a.n_orbs..pair_ij.n_orbs
+                ])
+                .assign(&s_total.slice(s![m_d.slice.orb, m_b.slice.orb]));
 
                 // get views of the MO coefficients for the pairs
                 let orbs_ij: ArrayView2<f64> = pair_ij.properties.orbs().unwrap();
                 let orbs_kl: ArrayView2<f64> = pair_kl.properties.orbs().unwrap();
                 // transform the AO overlap matrix into the MO basis
-                let s_mo: Array2<f64> = orbs_ij.t().dot(&s_ao.dot(&orbs_kl));
+                let mut s_mo: Array2<f64> = Array2::zeros([
+                    pair_ij.n_orbs + pair_kl.n_orbs,
+                    pair_ij.n_orbs + pair_kl.n_orbs,
+                ]);
+                s_mo.slice_mut(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                    .assign(
+                        &orbs_ij.t().dot(
+                            &s_ao
+                                .slice(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                                .dot(&orbs_ij),
+                        ),
+                    );
+                s_mo.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                    .assign(
+                        &orbs_kl.t().dot(
+                            &s_ao
+                                .slice(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                                .dot(&orbs_kl),
+                        ),
+                    );
+                s_mo.slice_mut(s![..pair_ij.n_orbs, pair_ij.n_orbs..])
+                    .assign(
+                        &orbs_ij.t().dot(
+                            &s_ao
+                                .slice(s![..pair_ij.n_orbs, pair_ij.n_orbs..])
+                                .dot(&orbs_kl),
+                        ),
+                    );
+                s_mo.slice_mut(s![pair_ij.n_orbs.., ..pair_ij.n_orbs])
+                    .assign(
+                        &orbs_kl.t().dot(
+                            &s_ao
+                                .slice(s![pair_ij.n_orbs.., ..pair_ij.n_orbs])
+                                .dot(&orbs_ij),
+                        ),
+                    );
 
                 // get the CI coefficients of the CT state I
                 let nocc_1: usize = pair_ij.properties.occ_indices().unwrap().len();
@@ -660,15 +772,32 @@ impl SuperSystem {
                     cis_kl = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
                 }
 
+                // get occopied MO overlap matrix
+                let mut s_mo_occ: Array2<f64> = Array2::zeros([nocc_1 + nocc_2, nocc_1 + nocc_2]);
+                s_mo_occ
+                    .slice_mut(s![..nocc_1, ..nocc_1])
+                    .assign(&s_mo.slice(s![..nocc_1, ..nocc_1]));
+                s_mo_occ
+                    .slice_mut(s![nocc_1.., nocc_1..])
+                    .assign(&s_mo.slice(s![
+                        pair_ij.n_orbs..pair_ij.n_orbs + nocc_2,
+                        pair_ij.n_orbs..pair_ij.n_orbs + nocc_2
+                    ]));
+                s_mo_occ
+                    .slice_mut(s![..nocc_1, nocc_1..])
+                    .assign(&s_mo.slice(s![..nocc_1, pair_ij.n_orbs..pair_ij.n_orbs + nocc_2]));
+                s_mo_occ
+                    .slice_mut(s![nocc_1, ..nocc_1])
+                    .assign(&s_mo.slice(s![pair_ij.n_orbs..pair_ij.n_orbs + nocc_2, ..nocc_1]));
+
                 // call the CI_overlap routine
-                // let s_ci: f64 = diabtic_ci_overlap(
-                //     s_mo.view(),
-                //     s_occ,
-                //     cis_ij.view(),
-                //     cis_kl.view(),
-                // );
-                // s_ci
-                0.0
+                let s_ci: f64 = diabtic_ci_overlap(
+                    s_mo.view(),
+                    s_mo_occ.view(),
+                    cis_ij.view(),
+                    cis_kl.view(),
+                );
+                s_ci
             }
         }
         // Placeholder
