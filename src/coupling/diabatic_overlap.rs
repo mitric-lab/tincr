@@ -212,6 +212,7 @@ impl SuperSystem {
         }
         // check if the LE state and the CT state share the monomer
         else if i.monomer_index == j.hole.m_index || i.monomer_index == j.electron.m_index {
+            println!("Test");
             // references to the monomer and the pair
             let m_i: &Monomer = &self.monomers[i.monomer_index];
             // get the index of the pair
@@ -325,17 +326,17 @@ impl SuperSystem {
             // slice the overlap matrix of the supersystem
             let s_total: ArrayView2<f64> = self.properties.s().unwrap();
             let mut s_ao: Array2<f64> =
-                Array2::zeros([m_i.n_orbs + pair_jk.n_orbs, pair_jk.n_orbs + pair_jk.n_orbs]);
+                Array2::zeros([m_i.n_orbs + pair_jk.n_orbs, m_i.n_orbs + pair_jk.n_orbs]);
             // get overlap I-I, J-J and K-K
             s_ao.slice_mut(s![..m_i.n_orbs, ..m_i.n_orbs])
-                .assign(&s_total.slice(s![m_i.slice.orb, m_i.slice.orb]));
+                .assign(&m_i.properties.s().unwrap());
             s_ao.slice_mut(s![
                 m_i.n_orbs..m_i.n_orbs + m_j.n_orbs,
                 m_i.n_orbs..m_i.n_orbs + m_j.n_orbs
             ])
-            .assign(&s_total.slice(s![m_j.slice.orb, m_j.slice.orb]));
+            .assign(&m_j.properties.s().unwrap());
             s_ao.slice_mut(s![m_i.n_orbs + m_j.n_orbs.., m_i.n_orbs + m_j.n_orbs..])
-                .assign(&s_total.slice(s![m_k.slice.orb, m_k.slice.orb]));
+                .assign(&m_k.properties.s().unwrap());
             // overlap between I-J and I-K
             let s_ij: ArrayView2<f64> = s_total.slice(s![m_i.slice.orb, m_j.slice.orb]);
             let s_ik: ArrayView2<f64> = s_total.slice(s![m_i.slice.orb, m_k.slice.orb]);
@@ -362,7 +363,7 @@ impl SuperSystem {
 
             // transform the AO overlap matrix to the MO basis
             let mut s_mo: Array2<f64> =
-                Array2::zeros([m_i.n_orbs + pair_jk.n_orbs, pair_jk.n_orbs + pair_jk.n_orbs]);
+                Array2::zeros([m_i.n_orbs + pair_jk.n_orbs, m_i.n_orbs + pair_jk.n_orbs]);
             let orbs_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
             let orbs_jk: ArrayView2<f64> = pair_jk.properties.orbs().unwrap();
 
