@@ -190,7 +190,7 @@ impl SuperSystem {
                 ]));
 
             // call the CI_overlap routine
-            let s_ci: f64 = diabtic_ci_overlap(s_mo.view(), s_mo_occ.view(), cis_i_2d, cis_j_2d);
+            let s_ci: f64 = diabatic_ci_overlap(s_mo.view(), s_mo_occ.view(), cis_i_2d, cis_j_2d);
             s_ci
         }
     }
@@ -299,7 +299,7 @@ impl SuperSystem {
                 .slice_mut(s![nocc_i.., ..nocc_i])
                 .assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs + nocc_j, ..nocc_i]));
 
-            let s_ci: f64 = diabtic_ci_overlap_le_ct_ij(
+            let s_ci: f64 = diabatic_ci_overlap_le_ct_ij(
                 s_mo.view(),
                 s_mo_occ.view(),
                 cis_i_2d.view(),
@@ -467,7 +467,7 @@ impl SuperSystem {
 
             // call the CI_overlap routine
             let s_ci: f64 =
-                diabtic_ci_overlap(s_mo.view(), s_mo_occ.view(), cis_i_2d, cis_jk.view());
+                diabatic_ci_overlap(s_mo.view(), s_mo_occ.view(), cis_i_2d, cis_jk.view());
             s_ci
         }
     }
@@ -624,7 +624,7 @@ impl SuperSystem {
                 let s_mo_occ: ArrayView2<f64> = s_mo.slice(s![..nocc, ..nocc]);
 
                 // call the CI_overlap routine
-                let s_ci: f64 = diabtic_ci_overlap_intra_monomer(
+                let s_ci: f64 = diabatic_ci_overlap_intra_monomer(
                     s_mo.view(),
                     s_mo_occ,
                     cis_1.view(),
@@ -851,7 +851,7 @@ impl SuperSystem {
                             ]));
 
                         let s_ci: f64 =
-                            diabtic_ci_overlap_ct_ct_ijk(s_mo.view(), s_mo_occ.view(), ct_states);
+                            diabatic_ci_overlap_ct_ct_ijk(s_mo.view(), s_mo_occ.view(), ct_states);
                         s_ci
                     } else {
                         let m_c: &Monomer = &self.monomers[pair_kl.i];
@@ -1060,7 +1060,7 @@ impl SuperSystem {
                             ]));
 
                         let s_ci: f64 =
-                            diabtic_ci_overlap_ct_ct_ijk(s_mo.view(), s_mo_occ.view(), ct_states);
+                            diabatic_ci_overlap_ct_ct_ijk(s_mo.view(), s_mo_occ.view(), ct_states);
                         s_ci
                     };
                 s_ci
@@ -1282,7 +1282,7 @@ impl SuperSystem {
 
                 // call the CI_overlap routine
                 let s_ci: f64 =
-                    diabtic_ci_overlap(s_mo.view(), s_mo_occ.view(), cis_ij.view(), cis_kl.view());
+                    diabatic_ci_overlap(s_mo.view(), s_mo_occ.view(), cis_ij.view(), cis_kl.view());
                 s_ci
             }
         }
@@ -1293,7 +1293,7 @@ impl SuperSystem {
     }
 }
 
-fn diabtic_ci_overlap_intra_monomer(
+fn diabatic_ci_overlap_intra_monomer(
     s_mo: ArrayView2<f64>,
     s_mo_occ: ArrayView2<f64>,
     cis_i: ArrayView2<f64>,
@@ -1334,7 +1334,7 @@ fn diabtic_ci_overlap_intra_monomer(
                 // iterate over the CI coefficients of the diabatic state I
                 for j in 0..nocc {
                     for (b_idx, b) in (nocc..norb).into_iter().enumerate() {
-                        // slice the CI coefficients of the diabtic state I at the indicies j and b
+                        // slice the CI coefficients of the diabatic state I at the indicies j and b
                         let coeff_j = cis_j[[j, b_idx]];
 
                         if coeff_j.abs() > threshold {
@@ -1365,7 +1365,7 @@ fn diabtic_ci_overlap_intra_monomer(
     return s_ci;
 }
 
-fn diabtic_ci_overlap_le_ct_ij(
+fn diabatic_ci_overlap_le_ct_ij(
     s_mo: ArrayView2<f64>,
     s_mo_occ: ArrayView2<f64>,
     cis_i: ArrayView2<f64>,
@@ -1415,7 +1415,7 @@ fn diabtic_ci_overlap_le_ct_ij(
                     for j in 0..nocc_i {
                         for (b_idx, b) in (norb_i + nocc_j..norb_i + norb_j).into_iter().enumerate()
                         {
-                            // slice the CI coefficients of the diabtic state I at the indicies j and b
+                            // slice the CI coefficients of the diabatic state I at the indicies j and b
                             let coeff_j = cis_j[[j, b_idx]];
 
                             if coeff_j.abs() > threshold {
@@ -1452,7 +1452,7 @@ fn diabtic_ci_overlap_le_ct_ij(
                 } else {
                     for (j_idx, j) in (nocc_i..nocc_i + nocc_j).into_iter().enumerate() {
                         for (b_idx, b) in (nocc_i..norb_i).into_iter().enumerate() {
-                            // slice the CI coefficients of the diabtic state I at the indicies j and b
+                            // slice the CI coefficients of the diabatic state I at the indicies j and b
                             let coeff_j = cis_j[[j_idx, b_idx]];
 
                             if coeff_j.abs() > threshold {
@@ -1494,7 +1494,7 @@ fn diabtic_ci_overlap_le_ct_ij(
     if hole_i {
         for j in 0..nocc_i {
             for (b_idx, b) in (norb_i + nocc_j..norb_i + norb_j).into_iter().enumerate() {
-                // slice the CI coefficients of the diabtic state I at the indicies j and b
+                // slice the CI coefficients of the diabatic state I at the indicies j and b
                 let coeff_j = cis_j[[j, b_idx]];
 
                 if coeff_j.abs() > threshold {
@@ -1513,7 +1513,7 @@ fn diabtic_ci_overlap_le_ct_ij(
     } else {
         for (j_idx, j) in (nocc_i..nocc_i + nocc_j).into_iter().enumerate() {
             for (b_idx, b) in (nocc_i..norb_i).into_iter().enumerate() {
-                // slice the CI coefficients of the diabtic state I at the indicies j and b
+                // slice the CI coefficients of the diabatic state I at the indicies j and b
                 let coeff_j = cis_j[[j_idx, b_idx]];
 
                 if coeff_j.abs() > threshold {
@@ -1536,7 +1536,7 @@ fn diabtic_ci_overlap_le_ct_ij(
     return s_ci;
 }
 
-fn diabtic_ci_overlap_ct_ct_ijk(
+fn diabatic_ci_overlap_ct_ct_ijk(
     s_mo: ArrayView2<f64>,
     s_mo_occ: ArrayView2<f64>,
     ct: CtCtOverlapABC,
@@ -1567,21 +1567,9 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                 // if the value of the coefficient is smaller than the threshold,
                 // exclude the excited state
                 if coeff_i.abs() > threshold {
-                    let mut s_aj: Array2<f64> = s_mo_occ.to_owned();
                     // occupied orbitals in the configuration state function |Psi_ia>
                     // overlap <1,...,a,...|1,...,j,...>
-                    s_aj.slice_mut(s![i, ..ct.nocc_a])
-                        .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                    s_aj.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                        .assign(&s_mo.slice(s![a, ct.norbs_a..ct.norbs_a + ct.nocc_b]));
-                    s_aj.slice_mut(s![
-                        i,
-                        ct.nocc_a + ct.nocc_b..ct.nocc_a + ct.nocc_b + ct.nocc_c
-                    ])
-                    .assign(&s_mo.slice(s![
-                        a,
-                        ct.norbs_a + ct.norbs_b..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                    ]));
+                    let s_aj = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
                     let det_aj: f64 = s_aj.det().unwrap();
 
                     // ground state overlap
@@ -1594,58 +1582,20 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                                 .into_iter()
                                 .enumerate()
                             {
-                                // slice the CI coefficients of the diabtic state I at the indicies j and b
+                                // slice the CI coefficients of the diabatic state I at the indicies j and b
                                 let coeff_j = ct.coeff_2[[j, b_idx]];
 
                                 if coeff_j.abs() > threshold {
-                                    let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                                     // select part of overlap matrix for orbitals
                                     // in |Psi_ia> and |Psi_jb>
                                     // <1,...,a,...|1,...,b,...>
-                                    s_ab.slice_mut(s![i, ..ct.nocc_a])
-                                        .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                                    s_ab.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                                        .assign(
-                                            &s_mo.slice(s![a, ct.norbs_a..ct.norbs_a + ct.nocc_b]),
-                                        );
-                                    s_ab.slice_mut(s![i, ct.nocc_a + ct.nocc_b..]).assign(
-                                        &s_mo.slice(s![
-                                            a,
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                                        ]),
-                                    );
-                                    s_ab.slice_mut(s![..ct.nocc_a, j])
-                                        .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                    s_ab.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                        .assign(
-                                            &s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, b]),
-                                        );
-                                    s_ab.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                        &s_mo.slice(s![
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                            b
-                                        ]),
-                                    );
+                                    let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                                    let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
                                     s_ab[[i, j]] = s_mo[[a, b]];
                                     let det_ab: f64 = s_ab.det().unwrap();
 
-                                    let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                                     // <1,...,i,...|1,...,b,...>
-                                    s_ib.slice_mut(s![..ct.nocc_a, j])
-                                        .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                    s_ib.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                        .assign(
-                                            &s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, b]),
-                                        );
-                                    s_ib.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                        &s_mo.slice(s![
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                            b
-                                        ]),
-                                    );
+                                    let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
                                     let det_ib: f64 = s_ib.det().unwrap();
 
                                     let cc: f64 = coeff_j * coeff_i;
@@ -1666,58 +1616,20 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                                 .into_iter()
                                 .enumerate()
                             {
-                                // slice the CI coefficients of the diabtic state I at the indicies j and b
+                                // slice the CI coefficients of the diabatic state I at the indicies j and b
                                 let coeff_j = ct.coeff_2[[j_idx, b_idx]];
 
                                 if coeff_j.abs() > threshold {
-                                    let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                                     // select part of overlap matrix for orbitals
                                     // in |Psi_ia> and |Psi_jb>
                                     // <1,...,a,...|1,...,b,...>
-                                    s_ab.slice_mut(s![i, ..ct.nocc_a])
-                                        .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                                    s_ab.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                                        .assign(
-                                            &s_mo.slice(s![a, ct.norbs_a..ct.norbs_a + ct.nocc_b]),
-                                        );
-                                    s_ab.slice_mut(s![i, ct.nocc_a + ct.nocc_b..]).assign(
-                                        &s_mo.slice(s![
-                                            a,
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                                        ]),
-                                    );
-                                    s_ab.slice_mut(s![..ct.nocc_a, j])
-                                        .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                    s_ab.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                        .assign(
-                                            &s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, b]),
-                                        );
-                                    s_ab.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                        &s_mo.slice(s![
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                            b
-                                        ]),
-                                    );
+                                    let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                                    let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
                                     s_ab[[i, j]] = s_mo[[a, b]];
                                     let det_ab: f64 = s_ab.det().unwrap();
 
-                                    let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                                     // <1,...,i,...|1,...,b,...>
-                                    s_ib.slice_mut(s![..ct.nocc_a, j])
-                                        .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                    s_ib.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                        .assign(
-                                            &s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, b]),
-                                        );
-                                    s_ib.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                        &s_mo.slice(s![
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                            b
-                                        ]),
-                                    );
+                                    let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
                                     let det_ib: f64 = s_ib.det().unwrap();
 
                                     let cc: f64 = coeff_j * coeff_i;
@@ -1737,67 +1649,20 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                         {
                             if ct.hole_2.1 == 0 {
                                 for (b_idx, b) in (ct.nocc_a..ct.norbs_a).into_iter().enumerate() {
-                                    // slice the CI coefficients of the diabtic state I at the indicies j and b
+                                    // slice the CI coefficients of the diabatic state I at the indicies j and b
                                     let coeff_j = ct.coeff_2[[j_idx, b_idx]];
 
                                     if coeff_j.abs() > threshold {
-                                        let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                                         // select part of overlap matrix for orbitals
                                         // in |Psi_ia> and |Psi_jb>
                                         // <1,...,a,...|1,...,b,...>
-                                        s_ab.slice_mut(s![i, ..ct.nocc_a])
-                                            .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                                        s_ab.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    a,
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b
-                                                ]),
-                                            );
-                                        s_ab.slice_mut(s![i, ct.nocc_a + ct.nocc_b..]).assign(
-                                            &s_mo.slice(s![
-                                                a,
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                                            ]),
-                                        );
-                                        s_ab.slice_mut(s![..ct.nocc_a, j])
-                                            .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                        s_ab.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b,
-                                                    b
-                                                ]),
-                                            );
-                                        s_ab.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                            &s_mo.slice(s![
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                                b
-                                            ]),
-                                        );
+                                        let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                                        let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
                                         s_ab[[i, j]] = s_mo[[a, b]];
                                         let det_ab: f64 = s_ab.det().unwrap();
 
-                                        let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                                         // <1,...,i,...|1,...,b,...>
-                                        s_ib.slice_mut(s![..ct.nocc_a, j])
-                                            .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                        s_ib.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b,
-                                                    b
-                                                ]),
-                                            );
-                                        s_ib.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                            &s_mo.slice(s![
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                                b
-                                            ]),
-                                        );
+                                        let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
                                         let det_ib: f64 = s_ib.det().unwrap();
 
                                         let cc: f64 = coeff_j * coeff_i;
@@ -1814,67 +1679,20 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                                     .into_iter()
                                     .enumerate()
                                 {
-                                    // slice the CI coefficients of the diabtic state I at the indicies j and b
+                                    // slice the CI coefficients of the diabatic state I at the indicies j and b
                                     let coeff_j = ct.coeff_2[[j_idx, b_idx]];
 
                                     if coeff_j.abs() > threshold {
-                                        let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                                         // select part of overlap matrix for orbitals
                                         // in |Psi_ia> and |Psi_jb>
                                         // <1,...,a,...|1,...,b,...>
-                                        s_ab.slice_mut(s![i, ..ct.nocc_a])
-                                            .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                                        s_ab.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    a,
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b
-                                                ]),
-                                            );
-                                        s_ab.slice_mut(s![i, ct.nocc_a + ct.nocc_b..]).assign(
-                                            &s_mo.slice(s![
-                                                a,
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                                            ]),
-                                        );
-                                        s_ab.slice_mut(s![..ct.nocc_a, j])
-                                            .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                        s_ab.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b,
-                                                    b
-                                                ]),
-                                            );
-                                        s_ab.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                            &s_mo.slice(s![
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                                b
-                                            ]),
-                                        );
+                                        let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                                        let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
                                         s_ab[[i, j]] = s_mo[[a, b]];
                                         let det_ab: f64 = s_ab.det().unwrap();
 
-                                        let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                                         // <1,...,i,...|1,...,b,...>
-                                        s_ib.slice_mut(s![..ct.nocc_a, j])
-                                            .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                        s_ib.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b,
-                                                    b
-                                                ]),
-                                            );
-                                        s_ib.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                            &s_mo.slice(s![
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                                b
-                                            ]),
-                                        );
+                                        let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
                                         let det_ib: f64 = s_ib.det().unwrap();
 
                                         let cc: f64 = coeff_j * coeff_i;
@@ -1903,18 +1721,7 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                     let mut s_aj: Array2<f64> = s_mo_occ.to_owned();
                     // occupied orbitals in the configuration state function |Psi_ia>
                     // overlap <1,...,a,...|1,...,j,...>
-                    s_aj.slice_mut(s![i, ..ct.nocc_a])
-                        .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                    s_aj.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                        .assign(&s_mo.slice(s![a, ct.norbs_a..ct.norbs_a + ct.nocc_b]));
-                    s_aj.slice_mut(s![
-                        i,
-                        ct.nocc_a + ct.nocc_b..ct.nocc_a + ct.nocc_b + ct.nocc_c
-                    ])
-                    .assign(&s_mo.slice(s![
-                        a,
-                        ct.norbs_a + ct.norbs_b..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                    ]));
+                    let s_aj = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
                     let det_aj: f64 = s_aj.det().unwrap();
 
                     // ground state overlap
@@ -1927,58 +1734,20 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                                 .into_iter()
                                 .enumerate()
                             {
-                                // slice the CI coefficients of the diabtic state I at the indicies j and b
+                                // slice the CI coefficients of the diabatic state I at the indicies j and b
                                 let coeff_j = ct.coeff_2[[j, b_idx]];
 
                                 if coeff_j.abs() > threshold {
-                                    let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                                     // select part of overlap matrix for orbitals
                                     // in |Psi_ia> and |Psi_jb>
                                     // <1,...,a,...|1,...,b,...>
-                                    s_ab.slice_mut(s![i, ..ct.nocc_a])
-                                        .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                                    s_ab.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                                        .assign(
-                                            &s_mo.slice(s![a, ct.norbs_a..ct.norbs_a + ct.nocc_b]),
-                                        );
-                                    s_ab.slice_mut(s![i, ct.nocc_a + ct.nocc_b..]).assign(
-                                        &s_mo.slice(s![
-                                            a,
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                                        ]),
-                                    );
-                                    s_ab.slice_mut(s![..ct.nocc_a, j])
-                                        .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                    s_ab.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                        .assign(
-                                            &s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, b]),
-                                        );
-                                    s_ab.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                        &s_mo.slice(s![
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                            b
-                                        ]),
-                                    );
+                                    let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                                    let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
                                     s_ab[[i, j]] = s_mo[[a, b]];
                                     let det_ab: f64 = s_ab.det().unwrap();
 
-                                    let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                                     // <1,...,i,...|1,...,b,...>
-                                    s_ib.slice_mut(s![..ct.nocc_a, j])
-                                        .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                    s_ib.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                        .assign(
-                                            &s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, b]),
-                                        );
-                                    s_ib.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                        &s_mo.slice(s![
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                            b
-                                        ]),
-                                    );
+                                    let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
                                     let det_ib: f64 = s_ib.det().unwrap();
 
                                     let cc: f64 = coeff_j * coeff_i;
@@ -1999,58 +1768,20 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                                 .into_iter()
                                 .enumerate()
                             {
-                                // slice the CI coefficients of the diabtic state I at the indicies j and b
+                                // slice the CI coefficients of the diabatic state I at the indicies j and b
                                 let coeff_j = ct.coeff_2[[j_idx, b_idx]];
 
                                 if coeff_j.abs() > threshold {
-                                    let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                                     // select part of overlap matrix for orbitals
                                     // in |Psi_ia> and |Psi_jb>
                                     // <1,...,a,...|1,...,b,...>
-                                    s_ab.slice_mut(s![i, ..ct.nocc_a])
-                                        .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                                    s_ab.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                                        .assign(
-                                            &s_mo.slice(s![a, ct.norbs_a..ct.norbs_a + ct.nocc_b]),
-                                        );
-                                    s_ab.slice_mut(s![i, ct.nocc_a + ct.nocc_b..]).assign(
-                                        &s_mo.slice(s![
-                                            a,
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                                        ]),
-                                    );
-                                    s_ab.slice_mut(s![..ct.nocc_a, j])
-                                        .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                    s_ab.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                        .assign(
-                                            &s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, b]),
-                                        );
-                                    s_ab.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                        &s_mo.slice(s![
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                            b
-                                        ]),
-                                    );
+                                    let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                                    let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
                                     s_ab[[i, j]] = s_mo[[a, b]];
                                     let det_ab: f64 = s_ab.det().unwrap();
 
-                                    let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                                     // <1,...,i,...|1,...,b,...>
-                                    s_ib.slice_mut(s![..ct.nocc_a, j])
-                                        .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                    s_ib.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                        .assign(
-                                            &s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, b]),
-                                        );
-                                    s_ib.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                        &s_mo.slice(s![
-                                            ct.norbs_a + ct.norbs_b
-                                                ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                            b
-                                        ]),
-                                    );
+                                    let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
                                     let det_ib: f64 = s_ib.det().unwrap();
 
                                     let cc: f64 = coeff_j * coeff_i;
@@ -2070,67 +1801,20 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                         {
                             if ct.hole_2.1 == 0 {
                                 for (b_idx, b) in (ct.nocc_a..ct.norbs_a).into_iter().enumerate() {
-                                    // slice the CI coefficients of the diabtic state I at the indicies j and b
+                                    // slice the CI coefficients of the diabatic state I at the indicies j and b
                                     let coeff_j = ct.coeff_2[[j_idx, b_idx]];
 
                                     if coeff_j.abs() > threshold {
-                                        let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                                         // select part of overlap matrix for orbitals
                                         // in |Psi_ia> and |Psi_jb>
                                         // <1,...,a,...|1,...,b,...>
-                                        s_ab.slice_mut(s![i, ..ct.nocc_a])
-                                            .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                                        s_ab.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    a,
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b
-                                                ]),
-                                            );
-                                        s_ab.slice_mut(s![i, ct.nocc_a + ct.nocc_b..]).assign(
-                                            &s_mo.slice(s![
-                                                a,
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                                            ]),
-                                        );
-                                        s_ab.slice_mut(s![..ct.nocc_a, j])
-                                            .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                        s_ab.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b,
-                                                    b
-                                                ]),
-                                            );
-                                        s_ab.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                            &s_mo.slice(s![
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                                b
-                                            ]),
-                                        );
+                                        let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                                        let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
                                         s_ab[[i, j]] = s_mo[[a, b]];
                                         let det_ab: f64 = s_ab.det().unwrap();
 
-                                        let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                                         // <1,...,i,...|1,...,b,...>
-                                        s_ib.slice_mut(s![..ct.nocc_a, j])
-                                            .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                        s_ib.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b,
-                                                    b
-                                                ]),
-                                            );
-                                        s_ib.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                            &s_mo.slice(s![
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                                b
-                                            ]),
-                                        );
+                                        let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
                                         let det_ib: f64 = s_ib.det().unwrap();
 
                                         let cc: f64 = coeff_j * coeff_i;
@@ -2147,67 +1831,20 @@ fn diabtic_ci_overlap_ct_ct_ijk(
                                     .into_iter()
                                     .enumerate()
                                 {
-                                    // slice the CI coefficients of the diabtic state I at the indicies j and b
+                                    // slice the CI coefficients of the diabatic state I at the indicies j and b
                                     let coeff_j = ct.coeff_2[[j_idx, b_idx]];
 
                                     if coeff_j.abs() > threshold {
-                                        let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
                                         // select part of overlap matrix for orbitals
                                         // in |Psi_ia> and |Psi_jb>
                                         // <1,...,a,...|1,...,b,...>
-                                        s_ab.slice_mut(s![i, ..ct.nocc_a])
-                                            .assign(&s_mo.slice(s![a, ..ct.nocc_a]));
-                                        s_ab.slice_mut(s![i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    a,
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b
-                                                ]),
-                                            );
-                                        s_ab.slice_mut(s![i, ct.nocc_a + ct.nocc_b..]).assign(
-                                            &s_mo.slice(s![
-                                                a,
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c
-                                            ]),
-                                        );
-                                        s_ab.slice_mut(s![..ct.nocc_a, j])
-                                            .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                        s_ab.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b,
-                                                    b
-                                                ]),
-                                            );
-                                        s_ab.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                            &s_mo.slice(s![
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                                b
-                                            ]),
-                                        );
+                                        let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                                        let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
                                         s_ab[[i, j]] = s_mo[[a, b]];
                                         let det_ab: f64 = s_ab.det().unwrap();
 
-                                        let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
                                         // <1,...,i,...|1,...,b,...>
-                                        s_ib.slice_mut(s![..ct.nocc_a, j])
-                                            .assign(&s_mo.slice(s![..ct.nocc_a, b]));
-                                        s_ib.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, j])
-                                            .assign(
-                                                &s_mo.slice(s![
-                                                    ct.norbs_a..ct.norbs_a + ct.nocc_b,
-                                                    b
-                                                ]),
-                                            );
-                                        s_ib.slice_mut(s![ct.nocc_a + ct.nocc_b.., j]).assign(
-                                            &s_mo.slice(s![
-                                                ct.norbs_a + ct.norbs_b
-                                                    ..ct.norbs_a + ct.norbs_b + ct.nocc_c,
-                                                b
-                                            ]),
-                                        );
+                                        let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
                                         let det_ib: f64 = s_ib.det().unwrap();
 
                                         let cc: f64 = coeff_j * coeff_i;
@@ -2230,7 +1867,43 @@ fn diabtic_ci_overlap_ct_ct_ijk(
     return s_ci;
 }
 
-fn diabtic_ci_overlap(
+fn slice_ct_ct_trimer(
+    s_mat: ArrayView2<f64>,
+    s_mo: ArrayView2<f64>,
+    index_i: usize,
+    index_a: usize,
+    axis_0: bool,
+    ct: &CtCtOverlapABC,
+) ->Array2<f64>{
+    let mut s_mat: Array2<f64> = s_mat.to_owned();
+    if axis_0 {
+        s_mat.slice_mut(s![index_i, ..ct.nocc_a])
+            .assign(&s_mo.slice(s![index_a, ..ct.nocc_a]));
+        s_mat.slice_mut(s![index_i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
+            .assign(&s_mo.slice(s![index_a, ct.norbs_a..ct.norbs_a + ct.nocc_b]));
+        s_mat.slice_mut(s![
+            index_i,
+            ct.nocc_a + ct.nocc_b..ct.nocc_a + ct.nocc_b + ct.nocc_c
+        ])
+            .assign(&s_mo.slice(s![
+            index_a,
+            ct.norbs_a + ct.norbs_b..ct.norbs_a + ct.norbs_b + ct.nocc_c
+        ]));
+    } else {
+        s_mat.slice_mut(s![..ct.nocc_a, index_i])
+            .assign(&s_mo.slice(s![..ct.nocc_a, index_a]));
+        s_mat.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, index_i])
+            .assign(&s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, index_a]));
+        s_mat.slice_mut(s![ct.nocc_a + ct.nocc_b.., index_i])
+            .assign(&s_mo.slice(s![
+                ct.norbs_a + ct.norbs_b..ct.norbs_a + ct.norbs_b + ct.nocc_c,
+                index_a
+            ]));
+    }
+    return s_mat;
+}
+
+fn diabatic_ci_overlap(
     s_mo: ArrayView2<f64>,
     s_mo_occ: ArrayView2<f64>,
     cis_i: ArrayView2<f64>,
@@ -2287,7 +1960,7 @@ fn diabtic_ci_overlap(
                 // iterate over the CI coefficients of the diabatic state I
                 for (j_idx, j) in (nocc_i..nocc_i + nocc_j).into_iter().enumerate() {
                     for (b_idx, b) in (norb_i + nocc_j..norb_i + norb_j).into_iter().enumerate() {
-                        // slice the CI coefficients of the diabtic state I at the indicies j and b
+                        // slice the CI coefficients of the diabatic state I at the indicies j and b
                         let coeff_j = cis_j[[j_idx, b_idx]];
 
                         if coeff_j.abs() > threshold {
@@ -2327,7 +2000,7 @@ fn diabtic_ci_overlap(
 
     for (j_idx, j) in (nocc_i..nocc_i + nocc_j).into_iter().enumerate() {
         for (b_idx, b) in (norb_i + nocc_j..norb_i + norb_j).into_iter().enumerate() {
-            // slice the CI coefficients of the diabtic state I at the indicies j and b
+            // slice the CI coefficients of the diabatic state I at the indicies j and b
             let coeff_j = cis_j[[j_idx, b_idx]];
 
             if coeff_j.abs() > threshold {
