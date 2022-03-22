@@ -6,6 +6,7 @@ use crate::initialization::{Atom, MO};
 use crate::scc::scc_routine::RestrictedSCC;
 use ndarray::prelude::*;
 use ndarray_npy::write_npy;
+use rayon::prelude::*;
 
 impl SuperSystem {
     pub fn test_diabatic_overlap(&mut self) {
@@ -34,7 +35,7 @@ impl SuperSystem {
         let states: Vec<BasisState> = self.create_diab_basis();
         // Construct Reduced dibatic basis states
         let mut reduced_states:Vec<ReducedBasisState> = Vec::new();
-        for state in states{
+        for state in &states{
             match state {
                 BasisState::LE(ref a) => {
                     // get index and the Atom vector of the monomer
@@ -95,33 +96,62 @@ impl SuperSystem {
 
         let state_number:usize = reduced_states.len();
         let mut overlap_matrix:Array2<f64> = Array2::zeros([state_number,state_number]);
-        // calculate the diabatic overlap of all states
-        for (i, state_i) in reduced_states.iter().enumerate() {
-            // Only the upper triangle is calculated!
+        let arr:Vec<Array1<f64>> = reduced_states.par_iter().enumerate().map(|(i,state_i)|{
+            let mut arr:Array1<f64> = Array1::zeros(state_number);
             for (j, state_j) in reduced_states[i..].iter().enumerate() {
-                let mut socc_mut:Array2<f64> = s_occ.clone();
-                overlap_matrix[[i, j + i]] = self.diabatic_overlap(state_i, state_j);
+                if i == (j+i) {
+                    arr[j+i] = 1.0;
+                }
+                else{
+                    arr[j+i] =  self.diabatic_overlap(state_i, state_j);
+                }
+                // arr[j+i] =  self.diabatic_overlap(state_i, state_j);
                 println!(" ");
-                // if i == (j+i) {
-                //     overlap_matrix[[i,j+i]] = 1.0;
-                // }
-                // else{
-                //     overlap_matrix[[i, j + i]] = self.diabatic_overlap(state_i, state_j);
-                // }
             }
+            arr
+        }).collect();
+
+        for (i, arr) in arr.iter().enumerate(){
+            overlap_matrix.slice_mut(s![i,..]).assign(&arr);
         }
-        for (i, state_i) in reduced_states.iter().enumerate() {
-            match state_i{
-                ReducedBasisState::LE(ref state) =>{
-                    println!("Monomer {}",state.monomer_index);
-                    println!("state {}",state.state_index);
-                },
-                _ => {},
+
+        // let state_number:usize = reduced_states.len();
+        // let mut overlap_matrix:Array2<f64> = Array2::zeros([state_number,state_number]);
+        // // calculate the diabatic overlap of all states
+        // for (i, state_i) in reduced_states.iter().enumerate() {
+        //     // Only the upper triangle is calculated!
+        //     for (j, state_j) in reduced_states[i..].iter().enumerate() {
+        //         // overlap_matrix[[i, j + i]] = self.diabatic_overlap(state_i, state_j);
+        //         // println!(" ");
+        //         if i == (j+i) {
+        //             overlap_matrix[[i,j+i]] = 1.0;
+        //         }
+        //         else{
+        //             println!("State: ");
+        //             println!("{}",&states[i]);
+        //             println!("{}",&states[j+i]);
+        //             overlap_matrix[[i, j + i]] = self.diabatic_overlap(state_i, state_j);
+        //             println!("After calculation");
+        //             println!(" ");
+        //         }
+        //     }
+        // }
+
+        println!("########################################");
+        println!("States with relevant contributions:");
+        for (idx_a,arr) in overlap_matrix.outer_iter().enumerate(){
+            for (idx_b, val) in arr.iter().enumerate(){
+                if val.abs() > 1.0e-8 && idx_a != idx_b{
+                    println!("State: ");
+                    println!("{}",&states[idx_a]);
+                    println!("{}",&states[idx_b]);
+                    println!(" ");
+                }
             }
         }
 
-        println!("overlap matrix");
-        println!("{}",overlap_matrix);
+        // println!("overlap matrix");
+        // println!("{}",overlap_matrix);
         write_npy("diabatic_overlap_matrix.npy",&overlap_matrix);
     }
     //
