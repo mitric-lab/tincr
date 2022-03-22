@@ -1,6 +1,7 @@
 use crate::fmo::basis::LocallyExcited;
+use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::lcmo::cis_gradient::{ReducedBasisState, ReducedCT, ReducedLE, ReducedParticle};
-use crate::fmo::{Monomer, Pair, PairType, SuperSystem};
+use crate::fmo::{ESDPair, Monomer, Pair, PairType, SuperSystem};
 use crate::initialization::{Atom, System};
 use ndarray::prelude::*;
 use ndarray_linalg::Determinant;
@@ -64,7 +65,7 @@ impl SuperSystem {
         return (s_transformed, s_transformed_occ, occ_vec);
     }
 
-    pub fn diabatic_overlap(&self, lhs: &ReducedBasisState, rhs: &ReducedBasisState) -> f64 {
+    pub fn diabatic_overlap(&mut self, lhs: &ReducedBasisState, rhs: &ReducedBasisState) -> f64 {
         match (lhs, rhs) {
             // Overlap between two LE states.
             (ReducedBasisState::LE(ref a), ReducedBasisState::LE(ref b)) => {
@@ -195,7 +196,7 @@ impl SuperSystem {
         }
     }
 
-    fn diabatic_overlap_le_ct(&self, i: &ReducedLE, j: &ReducedCT) -> f64 {
+    fn diabatic_overlap_le_ct(&mut self, i: &ReducedLE, j: &ReducedCT) -> f64 {
         // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
         let type_ij: PairType = self
             .properties
@@ -204,6 +205,10 @@ impl SuperSystem {
         let type_ik: PairType = self
             .properties
             .type_of_pair(i.monomer_index, j.electron.m_index);
+        // type of JK
+        let type_jk: PairType = self
+            .properties
+            .type_of_pair(j.hole.m_index, j.electron.m_index);
 
         if type_ij == PairType::ESD && type_ik == PairType::ESD {
             // the overlap between the LE state and both monomers of the CT state is zero
@@ -212,15 +217,8 @@ impl SuperSystem {
         }
         // check if the LE state and the CT state share the monomer
         else if i.monomer_index == j.hole.m_index || i.monomer_index == j.electron.m_index {
-            println!("Test");
             // references to the monomer and the pair
             let m_i: &Monomer = &self.monomers[i.monomer_index];
-            // get the index of the pair
-            let pair_index: usize = self
-                .properties
-                .index_of_pair(j.hole.m_index, j.electron.m_index);
-            // get the pair from pairs vector
-            let pair: &Pair = &self.pairs[pair_index];
             // the overlap matrix of the supersystem
             let s_total: ArrayView2<f64> = self.properties.s().unwrap();
 
@@ -238,13 +236,17 @@ impl SuperSystem {
                 .to_owned();
             let cis_i_2d: ArrayView2<f64> = cis_i_3d.slice(s![i.state_index, .., ..,]);
 
-            // if pair.i == i.monomer_index {
-            let m_j: &Monomer = &self.monomers[pair.j];
+            let m_j: &Monomer = if i.monomer_index == j.hole.m_index {
+                &self.monomers[j.electron.m_index]
+            } else {
+                &self.monomers[j.hole.m_index]
+            };
             // get MO coefficients
             let orbs_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
             let orbs_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
 
-            let mut s_mo: Array2<f64> = Array2::zeros([pair.n_orbs, pair.n_orbs]);
+            let mut s_mo: Array2<f64> =
+                Array2::zeros([m_i.n_orbs + m_j.n_orbs, m_i.n_orbs + m_j.n_orbs]);
             // diagonal blocks of the monomer I and J
             s_mo.slice_mut(s![..m_i.n_orbs, ..m_i.n_orbs])
                 .assign(&orbs_i.t().dot(&m_i.properties.s().unwrap().dot(&orbs_i)));
@@ -268,7 +270,7 @@ impl SuperSystem {
 
             // Create matrix for the CT. Only the matrix element, which corresponds to the charge
             // transfer is set to the value 1.0. Everything else is set to null.
-            let ct_coefficients: Array2<f64> = if pair.i == j.hole.m_index {
+            let ct_coefficients: Array2<f64> = if i.monomer_index == j.hole.m_index {
                 let mut coefficients: Array2<f64> = Array2::zeros([nocc_i, nvirt_j]);
                 coefficients[[nocc_i - 1 - j.hole.ct_index, j.electron.ct_index]] = 1.0;
                 hole_i = true;
@@ -310,7 +312,7 @@ impl SuperSystem {
                 nvirt_j,
             );
             s_ci
-        } else {
+        } else if type_jk == PairType::Pair {
             // get the AO overlap matrix between the different diabatic states
             // references to the monomer and the pair
             let m_i: &Monomer = &self.monomers[i.monomer_index];
@@ -471,9 +473,186 @@ impl SuperSystem {
                 diabatic_ci_overlap(s_mo.view(), s_mo_occ.view(), cis_i_2d, cis_jk.view());
             s_ci
         }
+        // If pairtype of JK is ESD
+        else if type_jk == PairType::ESD {
+            // get the AO overlap matrix between the different diabatic states
+            // references to the monomer and the pair
+            let m_i: &Monomer = &self.monomers[i.monomer_index];
+            // get the index of the pair
+            let pair_index: usize = self
+                .properties
+                .index_of_esd_pair(j.hole.m_index, j.electron.m_index);
+            // get the pair from pairs vector
+            let pair_jk: &mut ESDPair = &mut self.esd_pairs[pair_index];
+            // reference to the monomers
+            let m_j: &Monomer = &self.monomers[pair_jk.i];
+            let m_k: &Monomer = &self.monomers[pair_jk.j];
+            // get pair atoms
+            let pair_atoms: Vec<Atom> = get_pair_slice(
+                &self.atoms,
+                self.monomers[pair_jk.i].slice.atom_as_range(),
+                self.monomers[pair_jk.j].slice.atom_as_range(),
+            );
+            // do a scc calculation of the ESD pair
+            pair_jk.prepare_scc(&pair_atoms, m_i, m_j);
+            pair_jk.run_scc(&pair_atoms, self.config.scf);
+
+            // new unmutable reference to the ESD pair
+            let pair_jk: &ESDPair = &self.esd_pairs[pair_index];
+
+            // slice the overlap matrix of the supersystem
+            let s_total: ArrayView2<f64> = self.properties.s().unwrap();
+            let mut s_ao: Array2<f64> =
+                Array2::zeros([m_i.n_orbs + pair_jk.n_orbs, m_i.n_orbs + pair_jk.n_orbs]);
+            // get overlap I-I, J-J and K-K
+            s_ao.slice_mut(s![..m_i.n_orbs, ..m_i.n_orbs])
+                .assign(&m_i.properties.s().unwrap());
+            s_ao.slice_mut(s![
+                m_i.n_orbs..m_i.n_orbs + m_j.n_orbs,
+                m_i.n_orbs..m_i.n_orbs + m_j.n_orbs
+            ])
+            .assign(&m_j.properties.s().unwrap());
+            s_ao.slice_mut(s![m_i.n_orbs + m_j.n_orbs.., m_i.n_orbs + m_j.n_orbs..])
+                .assign(&m_k.properties.s().unwrap());
+            // overlap between I-J and I-K
+            let s_ij: ArrayView2<f64> = s_total.slice(s![m_i.slice.orb, m_j.slice.orb]);
+            let s_ik: ArrayView2<f64> = s_total.slice(s![m_i.slice.orb, m_k.slice.orb]);
+            s_ao.slice_mut(s![..m_i.n_orbs, m_i.n_orbs..m_i.n_orbs + m_j.n_orbs])
+                .assign(&s_ij);
+            s_ao.slice_mut(s![m_i.n_orbs..m_i.n_orbs + m_j.n_orbs, ..m_i.n_orbs])
+                .assign(&s_ij.t());
+            s_ao.slice_mut(s![..m_i.n_orbs, m_i.n_orbs + m_j.n_orbs..])
+                .assign(&s_ik);
+            s_ao.slice_mut(s![m_i.n_orbs + m_j.n_orbs.., ..m_i.n_orbs])
+                .assign(&s_ik.t());
+            // overlap between J-K
+            let s_jk: ArrayView2<f64> = s_total.slice(s![m_j.slice.orb, m_k.slice.orb]);
+            s_ao.slice_mut(s![
+                m_i.n_orbs..m_i.n_orbs + m_j.n_orbs,
+                m_i.n_orbs + m_j.n_orbs..
+            ])
+            .assign(&s_jk);
+            s_ao.slice_mut(s![
+                m_i.n_orbs + m_j.n_orbs..,
+                m_i.n_orbs..m_i.n_orbs + m_j.n_orbs
+            ])
+            .assign(&s_jk.t());
+
+            // transform the AO overlap matrix to the MO basis
+            let mut s_mo: Array2<f64> =
+                Array2::zeros([m_i.n_orbs + pair_jk.n_orbs, m_i.n_orbs + pair_jk.n_orbs]);
+            let orbs_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+            let orbs_jk: ArrayView2<f64> = pair_jk.properties.orbs().unwrap();
+
+            s_mo.slice_mut(s![..m_i.n_orbs, ..m_i.n_orbs]).assign(
+                &orbs_i
+                    .t()
+                    .dot(&s_ao.slice(s![..m_i.n_orbs, ..m_i.n_orbs]).dot(&orbs_i)),
+            );
+            s_mo.slice_mut(s![m_i.n_orbs.., m_i.n_orbs..]).assign(
+                &orbs_jk
+                    .t()
+                    .dot(&s_ao.slice(s![m_i.n_orbs.., m_i.n_orbs..]).dot(&orbs_jk)),
+            );
+            s_mo.slice_mut(s![..m_i.n_orbs, m_i.n_orbs..]).assign(
+                &orbs_i
+                    .t()
+                    .dot(&s_ao.slice(s![..m_i.n_orbs, m_i.n_orbs..]).dot(&orbs_jk)),
+            );
+            s_mo.slice_mut(s![m_i.n_orbs.., ..m_i.n_orbs]).assign(
+                &orbs_i
+                    .t()
+                    .dot(&s_ao.slice(s![..m_i.n_orbs, m_i.n_orbs..]).dot(&orbs_jk))
+                    .t(),
+            );
+
+            // get the CIS coefficients of the LE
+            let cis_i: ArrayView2<f64> = m_i.properties.ci_coefficients().unwrap();
+
+            // get the CIS coefficients of the CT
+            let nocc: usize = pair_jk.properties.occ_indices().unwrap().len();
+            let nvirt: usize = pair_jk.properties.virt_indices().unwrap().len();
+            // prepare the empty cis matrix
+            let mut cis_jk: Array2<f64> = Array2::zeros([nocc, nvirt]);
+
+            // get occupied and virtuals orbitals of the monomers of the CT state
+            let nocc_j: usize = m_j.properties.occ_indices().unwrap().len();
+            let nocc_k: usize = m_k.properties.occ_indices().unwrap().len();
+            let nvirt_j: usize = m_j.properties.virt_indices().unwrap().len();
+            let nvirt_k: usize = m_k.properties.virt_indices().unwrap().len();
+
+            // get the overlap matrices between the monomers and the dimer
+            let s_i_ij: ArrayView2<f64> = pair_jk.properties.s_i_ij().unwrap();
+            let s_j_ij: ArrayView2<f64> = pair_jk.properties.s_j_ij().unwrap();
+
+            if pair_jk.i == j.hole.m_index {
+                // reduce overlap matrices to occupied and virtual blocks
+                let s_i_ij_occ: ArrayView2<f64> = s_i_ij.slice(s![..nocc_j, ..nocc]);
+                let s_j_ij_virt: ArrayView2<f64> = s_j_ij.slice(s![nocc_k.., nocc..]);
+
+                // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                // transfer is set to the value 1.0. Everything else is set to null.
+                let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_j, nvirt_k]);
+                ct_coefficients[[nocc_j - 1 - j.hole.ct_index, j.electron.ct_index]] = 1.0;
+
+                // transform the CT matrix using the reduced overlap matrices between the monomers
+                // and the dimer
+                cis_jk = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+            } else {
+                // reduce overlap matrices to occupied and virtual blocks
+                let s_i_ij_virt: ArrayView2<f64> = s_i_ij.slice(s![nocc_j.., nocc..]);
+                let s_j_ij_occ: ArrayView2<f64> = s_j_ij.slice(s![..nocc_k, ..nocc]);
+
+                // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                // transfer is set to the value 1.0. Everything else is set to null.
+                let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_k, nvirt_j]);
+                ct_coefficients[[nocc_k - 1 - j.hole.ct_index, j.electron.ct_index]] = 1.0;
+
+                // transform the CT matrix using the reduced overlap matrices between the monomers
+                // and the dimer
+                cis_jk = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+            }
+
+            // reshape the CIS coefficients to 3d arrays
+            let nstates: usize = self.config.lcmo.n_le;
+            let nocc_i: usize = m_i.properties.n_occ().unwrap();
+            let nvirt_i: usize = m_i.properties.n_virt().unwrap();
+            let cis_i_3d: Array3<f64> = cis_i
+                .into_shape([nocc_i, nvirt_i, nstates])
+                .unwrap()
+                .permuted_axes([2, 0, 1])
+                .as_standard_layout()
+                .to_owned();
+            let cis_i_2d: ArrayView2<f64> = cis_i_3d.slice(s![i.state_index, .., ..,]);
+
+            // slice the MO overlap matrix
+            let mut s_mo_occ: Array2<f64> = Array2::zeros([nocc_i + nocc, nocc_i + nocc]);
+            s_mo_occ
+                .slice_mut(s![..nocc_i, ..nocc_i])
+                .assign(&s_mo.slice(s![..nocc_i, ..nocc_i]));
+            s_mo_occ
+                .slice_mut(s![nocc_i.., nocc_i..])
+                .assign(&s_mo.slice(s![
+                    m_i.n_orbs..m_i.n_orbs + nocc,
+                    m_i.n_orbs..m_i.n_orbs + nocc
+                ]));
+            s_mo_occ
+                .slice_mut(s![..nocc_i, nocc_i..])
+                .assign(&s_mo.slice(s![..nocc_i, m_i.n_orbs..m_i.n_orbs + nocc]));
+            s_mo_occ
+                .slice_mut(s![nocc_i.., ..nocc_i])
+                .assign(&s_mo.slice(s![m_i.n_orbs..m_i.n_orbs + nocc, ..nocc_i]));
+
+            // call the CI_overlap routine
+            let s_ci: f64 =
+                diabatic_ci_overlap(s_mo.view(), s_mo_occ.view(), cis_i_2d, cis_jk.view());
+            s_ci
+        } else {
+            0.0
+        }
     }
 
-    fn diabatic_overlap_ct_ct(&self, state_i: &ReducedCT, state_j: &ReducedCT) -> f64 {
+    fn diabatic_overlap_ct_ct(&mut self, state_i: &ReducedCT, state_j: &ReducedCT) -> f64 {
         let (i, j): (&ReducedParticle, &ReducedParticle) = (&state_i.hole, &state_i.electron);
         let (k, l): (&ReducedParticle, &ReducedParticle) = (&state_j.hole, &state_j.electron);
 
@@ -632,439 +811,12 @@ impl SuperSystem {
                     cis_2.view(),
                 );
                 s_ci
-            }
-            // Check if the CT states share one monomer
-            else if (pair_ij.i == pair_kl.i || pair_ij.i == pair_kl.j)
+            } else if (pair_ij.i == pair_kl.i || pair_ij.i == pair_kl.j)
                 || (pair_ij.j == pair_kl.i || pair_ij.j == pair_kl.j)
             {
-                // get the references to the monomers
-                let m_a: &Monomer = &self.monomers[pair_ij.i];
-                let m_b: &Monomer = &self.monomers[pair_ij.j];
-
-                // view of the overlap matrix of the Supersystem
-                let s_total: ArrayView2<f64> = self.properties.s().unwrap();
-
-                let s_ci: f64 =
-                    if pair_ij.i == pair_kl.i || pair_ij.j == pair_kl.i {
-                        let m_c: &Monomer = &self.monomers[pair_kl.j];
-
-                        // get MO coefficients as a view
-                        let orbs_a: ArrayView2<f64> = m_a.properties.orbs().unwrap();
-                        let orbs_b: ArrayView2<f64> = m_b.properties.orbs().unwrap();
-                        let orbs_c: ArrayView2<f64> = m_c.properties.orbs().unwrap();
-
-                        // prepare the AO overlap matrix
-                        let mut s_mo: Array2<f64> = Array2::zeros([
-                            m_a.n_orbs + m_b.n_orbs + m_c.n_orbs,
-                            m_a.n_orbs + m_b.n_orbs + m_c.n_orbs,
-                        ]);
-                        // diagonal blocks
-                        s_mo.slice_mut(s![..m_a.n_orbs, ..m_a.n_orbs])
-                            .assign(&orbs_a.t().dot(&m_a.properties.s().unwrap().dot(&orbs_a)));
-                        s_mo.slice_mut(s![m_a.n_orbs..pair_ij.n_orbs, m_a.n_orbs..pair_ij.n_orbs])
-                            .assign(&orbs_b.t().dot(&m_b.properties.s().unwrap().dot(&orbs_b)));
-                        s_mo.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
-                            .assign(&orbs_c.t().dot(&m_c.properties.s().unwrap().dot(&orbs_c)));
-
-                        // outer diagonal blocks
-                        // A-B. A-C
-                        s_mo.slice_mut(s![..m_a.n_orbs, m_a.n_orbs..pair_ij.n_orbs])
-                            .assign(&orbs_a.t().dot(
-                                &s_total.slice(s![m_a.slice.orb, m_b.slice.orb]).dot(&orbs_b),
-                            ));
-                        s_mo.slice_mut(s![..m_a.n_orbs, pair_ij.n_orbs..]).assign(
-                            &orbs_a
-                                .t()
-                                .dot(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]).dot(&orbs_c)),
-                        );
-                        // B-A, B-C
-                        s_mo.slice_mut(s![m_a.n_orbs..pair_ij.n_orbs, ..m_a.n_orbs])
-                            .assign(&orbs_b.t().dot(
-                                &s_total.slice(s![m_b.slice.orb, m_a.slice.orb]).dot(&orbs_a),
-                            ));
-                        s_mo.slice_mut(s![m_a.n_orbs..pair_ij.n_orbs, pair_ij.n_orbs..])
-                            .assign(&orbs_b.t().dot(
-                                &s_total.slice(s![m_b.slice.orb, m_c.slice.orb]).dot(&orbs_c),
-                            ));
-                        // C-A, C-B
-                        s_mo.slice_mut(s![pair_ij.n_orbs.., ..m_a.n_orbs]).assign(
-                            &orbs_c
-                                .t()
-                                .dot(&s_total.slice(s![m_c.slice.orb, m_a.slice.orb]).dot(&orbs_a)),
-                        );
-                        s_mo.slice_mut(s![pair_ij.n_orbs.., m_a.n_orbs..pair_ij.n_orbs])
-                            .assign(&orbs_c.t().dot(
-                                &s_total.slice(s![m_c.slice.orb, m_b.slice.orb]).dot(&orbs_b),
-                            ));
-
-                        // get number of occupied and virtuals orbitals
-                        let nocc_a: usize = m_a.properties.occ_indices().unwrap().len();
-                        let nvirt_a: usize = m_a.properties.virt_indices().unwrap().len();
-                        let nocc_b: usize = m_b.properties.occ_indices().unwrap().len();
-                        let nvirt_b: usize = m_b.properties.virt_indices().unwrap().len();
-                        let nocc_c: usize = m_c.properties.occ_indices().unwrap().len();
-                        let nvirt_c: usize = m_c.properties.virt_indices().unwrap().len();
-                        // usize to locate the hole for the first CT
-                        let mut hole_1: usize = 0;
-                        let mut hole_2: usize = 0;
-                        let mut electron_2: usize = 0;
-                        // create the CI matrix for the first CT state
-                        let ct_1_coefficients: Array2<f64> = if state_i.hole.m_index == pair_ij.i {
-                            let mut coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_b]);
-                            coefficients[[
-                                nocc_a - 1 - state_i.hole.ct_index,
-                                state_i.electron.ct_index,
-                            ]] = 1.0;
-
-                            coefficients
-                        } else {
-                            let mut coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_a]);
-                            coefficients[[
-                                nocc_b - 1 - state_i.hole.ct_index,
-                                state_i.electron.ct_index,
-                            ]] = 1.0;
-                            hole_1 = 1;
-
-                            coefficients
-                        };
-
-                        // CT's are A-B and A-C
-                        let ct_2_coefficients: Array2<f64> = if pair_ij.i == pair_kl.i {
-                            let coeff: Array2<f64> = if state_j.hole.m_index == m_a.index {
-                                let mut coefficients: Array2<f64> =
-                                    Array2::zeros([nocc_a, nvirt_c]);
-                                coefficients[[
-                                    nocc_a - 1 - state_j.hole.ct_index,
-                                    state_j.electron.ct_index,
-                                ]] = 1.0;
-                                hole_2 = 0;
-                                electron_2 = 2;
-
-                                coefficients
-                            } else {
-                                let mut coefficients: Array2<f64> =
-                                    Array2::zeros([nocc_c, nvirt_a]);
-                                coefficients[[
-                                    nocc_c - 1 - state_j.hole.ct_index,
-                                    state_j.electron.ct_index,
-                                ]] = 1.0;
-                                hole_2 = 2;
-                                electron_2 = 0;
-
-                                coefficients
-                            };
-                            coeff
-                        }
-                        // CT's are A-B and B-C
-                        else {
-                            let coeff: Array2<f64> = if state_j.hole.m_index == m_b.index {
-                                let mut coefficients: Array2<f64> =
-                                    Array2::zeros([nocc_b, nvirt_c]);
-                                coefficients[[
-                                    nocc_b - 1 - state_j.hole.ct_index,
-                                    state_j.electron.ct_index,
-                                ]] = 1.0;
-                                hole_2 = 1;
-                                electron_2 = 2;
-
-                                coefficients
-                            } else {
-                                let mut coefficients: Array2<f64> =
-                                    Array2::zeros([nocc_c, nvirt_b]);
-                                coefficients[[
-                                    nocc_c - 1 - state_j.hole.ct_index,
-                                    state_j.electron.ct_index,
-                                ]] = 1.0;
-                                hole_2 = 2;
-                                electron_2 = 1;
-
-                                coefficients
-                            };
-                            coeff
-                        };
-
-                        let ct_states = CtCtOverlapABC {
-                            nocc_a: nocc_a,
-                            nocc_b: nocc_b,
-                            nocc_c: nocc_c,
-                            nvirt_a: nvirt_a,
-                            nvirt_b: nvirt_b,
-                            nvirt_c: nvirt_c,
-                            norbs_a: nocc_a + nvirt_a,
-                            norbs_b: nocc_b + nvirt_b,
-                            norbs_c: nocc_c + nvirt_c,
-                            coeff_1: ct_1_coefficients,
-                            coeff_2: ct_2_coefficients,
-                            hole_1: hole_1,
-                            hole_2: (hole_2, electron_2),
-                        };
-
-                        // occupied MO overlap matrix
-                        let mut s_mo_occ: Array2<f64> =
-                            Array2::zeros([nocc_a + nocc_b + nocc_c, nocc_a + nocc_b + nocc_c]);
-                        // diagonal blocks
-                        s_mo_occ
-                            .slice_mut(s![..nocc_a, ..nocc_a])
-                            .assign(&s_mo.slice(s![..nocc_a, ..nocc_a]));
-                        s_mo_occ
-                            .slice_mut(s![nocc_a..nocc_a + nocc_b, nocc_a..nocc_a + nocc_b])
-                            .assign(&s_mo.slice(s![
-                                m_a.n_orbs..m_a.n_orbs + nocc_b,
-                                m_a.n_orbs..m_a.n_orbs + nocc_b
-                            ]));
-                        s_mo_occ
-                            .slice_mut(s![nocc_a + nocc_b.., nocc_a + nocc_b..])
-                            .assign(&s_mo.slice(s![
-                                pair_ij.n_orbs..pair_ij.n_orbs + nocc_c,
-                                pair_ij.n_orbs..pair_ij.n_orbs + nocc_c
-                            ]));
-
-                        // off-diagonal blocks
-                        // A-B
-                        s_mo_occ
-                            .slice_mut(s![..nocc_a, nocc_a..nocc_a + nocc_b])
-                            .assign(&s_mo.slice(s![..nocc_a, m_a.n_orbs..m_a.n_orbs + nocc_b]));
-                        // A-C
-                        s_mo_occ.slice_mut(s![..nocc_a, nocc_a + nocc_b..]).assign(
-                            &s_mo.slice(s![..nocc_a, pair_ij.n_orbs..pair_ij.n_orbs + nocc_c]),
-                        );
-                        // B-A
-                        s_mo_occ
-                            .slice_mut(s![nocc_a..nocc_a + nocc_b, ..nocc_a])
-                            .assign(&s_mo.slice(s![m_a.n_orbs..m_a.n_orbs + nocc_b, ..nocc_a]));
-                        // B-C
-                        s_mo_occ
-                            .slice_mut(s![nocc_a..nocc_a + nocc_b, nocc_a + nocc_b..])
-                            .assign(&s_mo.slice(s![
-                                m_a.n_orbs..m_a.n_orbs + nocc_b,
-                                pair_ij.n_orbs..pair_ij.n_orbs + nocc_c
-                            ]));
-                        // C-A
-                        s_mo_occ.slice_mut(s![nocc_a + nocc_b.., ..nocc_a]).assign(
-                            &s_mo.slice(s![pair_ij.n_orbs..pair_ij.n_orbs + nocc_c, ..nocc_a]),
-                        );
-                        // C-B
-                        s_mo_occ
-                            .slice_mut(s![nocc_a + nocc_b.., nocc_a..nocc_a + nocc_b])
-                            .assign(&s_mo.slice(s![
-                                pair_ij.n_orbs..pair_ij.n_orbs + nocc_c,
-                                m_a.n_orbs..m_a.n_orbs + nocc_b
-                            ]));
-
-                        let s_ci: f64 =
-                            diabatic_ci_overlap_ct_ct_ijk(s_mo.view(), s_mo_occ.view(), ct_states);
-                        s_ci
-                    } else {
-                        let m_c: &Monomer = &self.monomers[pair_kl.i];
-
-                        // get MO coefficients as a view
-                        let orbs_a: ArrayView2<f64> = m_a.properties.orbs().unwrap();
-                        let orbs_b: ArrayView2<f64> = m_b.properties.orbs().unwrap();
-                        let orbs_c: ArrayView2<f64> = m_c.properties.orbs().unwrap();
-
-                        // prepare the AO overlap matrix
-                        let mut s_mo: Array2<f64> = Array2::zeros([
-                            m_a.n_orbs + m_b.n_orbs + m_c.n_orbs,
-                            m_a.n_orbs + m_b.n_orbs + m_c.n_orbs,
-                        ]);
-                        // diagonal blocks
-                        s_mo.slice_mut(s![..m_a.n_orbs, ..m_a.n_orbs])
-                            .assign(&orbs_a.t().dot(&m_a.properties.s().unwrap().dot(&orbs_a)));
-                        s_mo.slice_mut(s![m_a.n_orbs..pair_ij.n_orbs, m_a.n_orbs..pair_ij.n_orbs])
-                            .assign(&orbs_b.t().dot(&m_b.properties.s().unwrap().dot(&orbs_b)));
-                        s_mo.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
-                            .assign(&orbs_c.t().dot(&m_c.properties.s().unwrap().dot(&orbs_c)));
-
-                        // outer diagonal blocks
-                        // A-B. A-C
-                        s_mo.slice_mut(s![..m_a.n_orbs, m_a.n_orbs..pair_ij.n_orbs])
-                            .assign(&orbs_a.t().dot(
-                                &s_total.slice(s![m_a.slice.orb, m_b.slice.orb]).dot(&orbs_b),
-                            ));
-                        s_mo.slice_mut(s![..m_a.n_orbs, pair_ij.n_orbs..]).assign(
-                            &orbs_a
-                                .t()
-                                .dot(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]).dot(&orbs_c)),
-                        );
-                        // B-A, B-C
-                        s_mo.slice_mut(s![m_a.n_orbs..pair_ij.n_orbs, ..m_a.n_orbs])
-                            .assign(&orbs_b.t().dot(
-                                &s_total.slice(s![m_b.slice.orb, m_a.slice.orb]).dot(&orbs_a),
-                            ));
-                        s_mo.slice_mut(s![m_a.n_orbs..pair_ij.n_orbs, pair_ij.n_orbs..])
-                            .assign(&orbs_b.t().dot(
-                                &s_total.slice(s![m_b.slice.orb, m_c.slice.orb]).dot(&orbs_c),
-                            ));
-                        // C-A, C-B
-                        s_mo.slice_mut(s![pair_ij.n_orbs.., ..m_a.n_orbs]).assign(
-                            &orbs_c
-                                .t()
-                                .dot(&s_total.slice(s![m_c.slice.orb, m_a.slice.orb]).dot(&orbs_a)),
-                        );
-                        s_mo.slice_mut(s![pair_ij.n_orbs.., m_a.n_orbs..pair_ij.n_orbs])
-                            .assign(&orbs_c.t().dot(
-                                &s_total.slice(s![m_c.slice.orb, m_b.slice.orb]).dot(&orbs_b),
-                            ));
-
-                        // get number of occupied and virtuals orbitals
-                        let nocc_a: usize = m_a.properties.occ_indices().unwrap().len();
-                        let nvirt_a: usize = m_a.properties.virt_indices().unwrap().len();
-                        let nocc_b: usize = m_b.properties.occ_indices().unwrap().len();
-                        let nvirt_b: usize = m_b.properties.virt_indices().unwrap().len();
-                        let nocc_c: usize = m_c.properties.occ_indices().unwrap().len();
-                        let nvirt_c: usize = m_c.properties.virt_indices().unwrap().len();
-                        // usize to locate the hole for the first CT
-                        let mut hole_1: usize = 0;
-                        let mut hole_2: usize = 0;
-                        let mut electron_2: usize = 0;
-                        // create the CI matrix for the first CT state
-                        let ct_1_coefficients: Array2<f64> = if state_i.hole.m_index == pair_ij.i {
-                            let mut coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_b]);
-                            coefficients[[
-                                nocc_a - 1 - state_i.hole.ct_index,
-                                state_i.electron.ct_index,
-                            ]] = 1.0;
-
-                            coefficients
-                        } else {
-                            let mut coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_a]);
-                            coefficients[[
-                                nocc_b - 1 - state_i.hole.ct_index,
-                                state_i.electron.ct_index,
-                            ]] = 1.0;
-                            hole_1 = 1;
-
-                            coefficients
-                        };
-
-                        // CT's are A-B and A-C
-                        let ct_2_coefficients: Array2<f64> = if pair_ij.i == pair_kl.i {
-                            let coeff: Array2<f64> = if state_j.hole.m_index == m_a.index {
-                                let mut coefficients: Array2<f64> =
-                                    Array2::zeros([nocc_a, nvirt_c]);
-                                coefficients[[
-                                    nocc_a - 1 - state_j.hole.ct_index,
-                                    state_j.electron.ct_index,
-                                ]] = 1.0;
-                                hole_2 = 0;
-                                electron_2 = 2;
-
-                                coefficients
-                            } else {
-                                let mut coefficients: Array2<f64> =
-                                    Array2::zeros([nocc_c, nvirt_a]);
-                                coefficients[[
-                                    nocc_c - 1 - state_j.hole.ct_index,
-                                    state_j.electron.ct_index,
-                                ]] = 1.0;
-                                hole_2 = 2;
-                                electron_2 = 0;
-
-                                coefficients
-                            };
-                            coeff
-                        }
-                        // CT's are A-B and B-C
-                        else {
-                            let coeff: Array2<f64> = if state_j.hole.m_index == m_b.index {
-                                let mut coefficients: Array2<f64> =
-                                    Array2::zeros([nocc_b, nvirt_c]);
-                                coefficients[[
-                                    nocc_b - 1 - state_j.hole.ct_index,
-                                    state_j.electron.ct_index,
-                                ]] = 1.0;
-                                hole_2 = 1;
-                                electron_2 = 2;
-
-                                coefficients
-                            } else {
-                                let mut coefficients: Array2<f64> =
-                                    Array2::zeros([nocc_c, nvirt_b]);
-                                coefficients[[
-                                    nocc_c - 1 - state_j.hole.ct_index,
-                                    state_j.electron.ct_index,
-                                ]] = 1.0;
-                                hole_2 = 2;
-                                electron_2 = 1;
-
-                                coefficients
-                            };
-                            coeff
-                        };
-
-                        let ct_states = CtCtOverlapABC {
-                            nocc_a: nocc_a,
-                            nocc_b: nocc_b,
-                            nocc_c: nocc_c,
-                            nvirt_a: nvirt_a,
-                            nvirt_b: nvirt_b,
-                            nvirt_c: nvirt_c,
-                            norbs_a: nocc_a + nvirt_a,
-                            norbs_b: nocc_b + nvirt_b,
-                            norbs_c: nocc_c + nvirt_c,
-                            coeff_1: ct_1_coefficients,
-                            coeff_2: ct_2_coefficients,
-                            hole_1: hole_1,
-                            hole_2: (hole_2, electron_2),
-                        };
-
-                        // occupied MO overlap matrix
-                        let mut s_mo_occ: Array2<f64> =
-                            Array2::zeros([nocc_a + nocc_b + nocc_c, nocc_a + nocc_b + nocc_c]);
-                        // diagonal blocks
-                        s_mo_occ
-                            .slice_mut(s![..nocc_a, ..nocc_a])
-                            .assign(&s_mo.slice(s![..nocc_a, ..nocc_a]));
-                        s_mo_occ
-                            .slice_mut(s![nocc_a..nocc_a + nocc_b, nocc_a..nocc_a + nocc_b])
-                            .assign(&s_mo.slice(s![
-                                m_a.n_orbs..m_a.n_orbs + nocc_b,
-                                m_a.n_orbs..m_a.n_orbs + nocc_b
-                            ]));
-                        s_mo_occ
-                            .slice_mut(s![nocc_a + nocc_b.., nocc_a + nocc_b..])
-                            .assign(&s_mo.slice(s![
-                                pair_ij.n_orbs..pair_ij.n_orbs + nocc_c,
-                                pair_ij.n_orbs..pair_ij.n_orbs + nocc_c
-                            ]));
-
-                        // off-diagonal blocks
-                        // A-B
-                        s_mo_occ
-                            .slice_mut(s![..nocc_a, nocc_a..nocc_a + nocc_b])
-                            .assign(&s_mo.slice(s![..nocc_a, m_a.n_orbs..m_a.n_orbs + nocc_b]));
-                        // A-C
-                        s_mo_occ.slice_mut(s![..nocc_a, nocc_a + nocc_b..]).assign(
-                            &s_mo.slice(s![..nocc_a, pair_ij.n_orbs..pair_ij.n_orbs + nocc_c]),
-                        );
-                        // B-A
-                        s_mo_occ
-                            .slice_mut(s![nocc_a..nocc_a + nocc_b, ..nocc_a])
-                            .assign(&s_mo.slice(s![m_a.n_orbs..m_a.n_orbs + nocc_b, ..nocc_a]));
-                        // B-C
-                        s_mo_occ
-                            .slice_mut(s![nocc_a..nocc_a + nocc_b, nocc_a + nocc_b..])
-                            .assign(&s_mo.slice(s![
-                                m_a.n_orbs..m_a.n_orbs + nocc_b,
-                                pair_ij.n_orbs..pair_ij.n_orbs + nocc_c
-                            ]));
-                        // C-A
-                        s_mo_occ.slice_mut(s![nocc_a + nocc_b.., ..nocc_a]).assign(
-                            &s_mo.slice(s![pair_ij.n_orbs..pair_ij.n_orbs + nocc_c, ..nocc_a]),
-                        );
-                        // C-B
-                        s_mo_occ
-                            .slice_mut(s![nocc_a + nocc_b.., nocc_a..nocc_a + nocc_b])
-                            .assign(&s_mo.slice(s![
-                                pair_ij.n_orbs..pair_ij.n_orbs + nocc_c,
-                                m_a.n_orbs..m_a.n_orbs + nocc_b
-                            ]));
-
-                        let s_ci: f64 =
-                            diabatic_ci_overlap_ct_ct_ijk(s_mo.view(), s_mo_occ.view(), ct_states);
-                        s_ci
-                    };
-                s_ci
+                self.diabatic_overlap_ctct_trimer(
+                    state_i, state_j, pair_ij.i, pair_ij.j, pair_kl.i, pair_kl.j,
+                )
             } else {
                 // get the references to the monomers
                 let m_a: &Monomer = &self.monomers[pair_ij.i];
@@ -1278,7 +1030,7 @@ impl SuperSystem {
                     .slice_mut(s![..nocc_1, nocc_1..])
                     .assign(&s_mo.slice(s![..nocc_1, pair_ij.n_orbs..pair_ij.n_orbs + nocc_2]));
                 s_mo_occ
-                    .slice_mut(s![nocc_1, ..nocc_1])
+                    .slice_mut(s![nocc_1.., ..nocc_1])
                     .assign(&s_mo.slice(s![pair_ij.n_orbs..pair_ij.n_orbs + nocc_2, ..nocc_1]));
 
                 // call the CI_overlap routine
@@ -1287,10 +1039,1272 @@ impl SuperSystem {
                 s_ci
             }
         }
-        // Placeholder
+        // Possibilities for ESD pairs
         else {
-            0.0
+            let s_total: ArrayView2<f64> = self.properties.s().unwrap();
+            if type_ij == PairType::Pair && type_kl == PairType::ESD {
+                // get the indices of the pairs
+                let pair_index_ij: usize = self
+                    .properties
+                    .index_of_pair(state_i.hole.m_index, state_i.electron.m_index);
+                let pair_index_kl: usize = self
+                    .properties
+                    .index_of_esd_pair(state_j.hole.m_index, state_j.electron.m_index);
+
+                // get reference to the pairs
+                let pair_ij: &Pair = &self.pairs[pair_index_ij];
+                let pair_kl: &ESDPair = &self.esd_pairs[pair_index_kl];
+
+                if (pair_ij.i == pair_kl.i || pair_ij.i == pair_kl.j)
+                    || (pair_ij.j == pair_kl.i || pair_ij.j == pair_kl.j)
+                {
+                    self.diabatic_overlap_ctct_trimer(
+                        state_i, state_j, pair_ij.i, pair_ij.j, pair_kl.i, pair_kl.j,
+                    )
+                } else {
+                    // get the pair from pairs vector
+                    let pair_kl: &mut ESDPair = &mut self.esd_pairs[pair_index_kl];
+                    // reference to the monomers
+                    let m_k: &Monomer = &self.monomers[pair_kl.i];
+                    let m_l: &Monomer = &self.monomers[pair_kl.j];
+                    // get pair atoms
+                    let pair_atoms: Vec<Atom> = get_pair_slice(
+                        &self.atoms,
+                        self.monomers[pair_kl.i].slice.atom_as_range(),
+                        self.monomers[pair_kl.j].slice.atom_as_range(),
+                    );
+                    // do a scc calculation of the ESD pair
+                    pair_kl.prepare_scc(&pair_atoms, m_k, m_l);
+                    pair_kl.run_scc(&pair_atoms, self.config.scf);
+
+                    // new unmutable reference to the ESD pair
+                    let pair_kl: &ESDPair = &self.esd_pairs[pair_index_kl];
+
+                    // get the references to the monomers
+                    let m_a: &Monomer = &self.monomers[pair_ij.i];
+                    let m_b: &Monomer = &self.monomers[pair_ij.j];
+                    let m_c: &Monomer = &self.monomers[pair_kl.i];
+                    let m_d: &Monomer = &self.monomers[pair_kl.j];
+
+                    // prepare the AO overlap matrix
+                    let mut s_ao: Array2<f64> = Array2::zeros([
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                    ]);
+                    // fill the AO overlap matrix
+                    // diagonal blocks of pairs IJ and KL
+                    s_ao.slice_mut(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                        .assign(&pair_ij.properties.s().unwrap());
+                    s_ao.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                        .assign(&pair_kl.properties.s().unwrap());
+
+                    // outer diagonal block of I-k, I-L and J-K, J-L
+                    s_ao.slice_mut(s![
+                        ..m_a.n_orbs,
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]));
+                    s_ao.slice_mut(s![..m_a.n_orbs, pair_ij.n_orbs + m_c.n_orbs..])
+                        .assign(&s_total.slice(s![m_a.slice.orb, m_d.slice.orb]));
+                    s_ao.slice_mut(s![
+                        m_a.n_orbs..pair_ij.n_orbs,
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_b.slice.orb, m_c.slice.orb]));
+                    s_ao.slice_mut(s![
+                        m_a.n_orbs..pair_ij.n_orbs,
+                        pair_ij.n_orbs + m_c.n_orbs..
+                    ])
+                    .assign(&s_total.slice(s![m_b.slice.orb, m_d.slice.orb]));
+
+                    // outer diagonal block k-I, K-J and L-I, L-J
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs,
+                        ..m_a.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_c.slice.orb, m_a.slice.orb]));
+                    s_ao.slice_mut(s![pair_ij.n_orbs + m_c.n_orbs.., ..m_a.n_orbs])
+                        .assign(&s_total.slice(s![m_d.slice.orb, m_a.slice.orb]));
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs,
+                        m_a.n_orbs..pair_ij.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_c.slice.orb, m_b.slice.orb]));
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs + m_c.n_orbs..,
+                        m_a.n_orbs..pair_ij.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_d.slice.orb, m_b.slice.orb]));
+
+                    // get views of the MO coefficients for the pairs
+                    let orbs_ij: ArrayView2<f64> = pair_ij.properties.orbs().unwrap();
+                    let orbs_kl: ArrayView2<f64> = pair_kl.properties.orbs().unwrap();
+                    // transform the AO overlap matrix into the MO basis
+                    let mut s_mo: Array2<f64> = Array2::zeros([
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                    ]);
+                    s_mo.slice_mut(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                        .assign(
+                            &orbs_ij.t().dot(
+                                &s_ao
+                                    .slice(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                                    .dot(&orbs_ij),
+                            ),
+                        );
+                    s_mo.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                        .assign(
+                            &orbs_kl.t().dot(
+                                &s_ao
+                                    .slice(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                                    .dot(&orbs_kl),
+                            ),
+                        );
+                    s_mo.slice_mut(s![..pair_ij.n_orbs, pair_ij.n_orbs..])
+                        .assign(
+                            &orbs_ij.t().dot(
+                                &s_ao
+                                    .slice(s![..pair_ij.n_orbs, pair_ij.n_orbs..])
+                                    .dot(&orbs_kl),
+                            ),
+                        );
+                    s_mo.slice_mut(s![pair_ij.n_orbs.., ..pair_ij.n_orbs])
+                        .assign(
+                            &orbs_kl.t().dot(
+                                &s_ao
+                                    .slice(s![pair_ij.n_orbs.., ..pair_ij.n_orbs])
+                                    .dot(&orbs_ij),
+                            ),
+                        );
+
+                    // get the CI coefficients of the CT state I
+                    let nocc_1: usize = pair_ij.properties.occ_indices().unwrap().len();
+                    let nvirt_1: usize = pair_ij.properties.virt_indices().unwrap().len();
+                    // prepare the empty cis matrix
+                    let mut cis_ij: Array2<f64> = Array2::zeros([nocc_1, nvirt_1]);
+
+                    // get occupied and virtuals orbitals of the monomers of the CT state
+                    let nocc_a: usize = m_a.properties.occ_indices().unwrap().len();
+                    let nocc_b: usize = m_b.properties.occ_indices().unwrap().len();
+                    let nvirt_a: usize = m_a.properties.virt_indices().unwrap().len();
+                    let nvirt_b: usize = m_b.properties.virt_indices().unwrap().len();
+
+                    // get the overlap matrices between the monomers and the dimer
+                    let s_i_ij: ArrayView2<f64> = pair_ij.properties.s_i_ij().unwrap();
+                    let s_j_ij: ArrayView2<f64> = pair_ij.properties.s_j_ij().unwrap();
+
+                    if pair_ij.i == state_i.hole.m_index {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_occ: ArrayView2<f64> = s_i_ij.slice(s![..nocc_a, ..nocc_1]);
+                        let s_j_ij_virt: ArrayView2<f64> = s_j_ij.slice(s![nocc_b.., nocc_1..]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_b]);
+                        ct_coefficients[[
+                            nocc_a - 1 - state_i.hole.ct_index,
+                            state_i.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_ij = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                    } else {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_virt: ArrayView2<f64> = s_i_ij.slice(s![nocc_a.., nocc_1..]);
+                        let s_j_ij_occ: ArrayView2<f64> = s_j_ij.slice(s![..nocc_b, ..nocc_1]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_a]);
+                        ct_coefficients[[
+                            nocc_b - 1 - state_i.hole.ct_index,
+                            state_i.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_ij = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                    }
+
+                    // get the CI coefficients of the CT state I
+                    let nocc_2: usize = pair_ij.properties.occ_indices().unwrap().len();
+                    let nvirt_2: usize = pair_ij.properties.virt_indices().unwrap().len();
+                    // prepare the empty cis matrix
+                    let mut cis_kl: Array2<f64> = Array2::zeros([nocc_2, nvirt_2]);
+
+                    // get occupied and virtuals orbitals of the monomers of the CT state
+                    let nocc_c: usize = m_c.properties.occ_indices().unwrap().len();
+                    let nocc_d: usize = m_d.properties.occ_indices().unwrap().len();
+                    let nvirt_c: usize = m_c.properties.virt_indices().unwrap().len();
+                    let nvirt_d: usize = m_d.properties.virt_indices().unwrap().len();
+
+                    // get the overlap matrices between the monomers and the dimer
+                    let s_i_ij: ArrayView2<f64> = pair_kl.properties.s_i_ij().unwrap();
+                    let s_j_ij: ArrayView2<f64> = pair_kl.properties.s_j_ij().unwrap();
+
+                    if pair_kl.i == state_j.hole.m_index {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_occ: ArrayView2<f64> = s_i_ij.slice(s![..nocc_c, ..nocc_2]);
+                        let s_j_ij_virt: ArrayView2<f64> = s_j_ij.slice(s![nocc_d.., nocc_2..]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_c, nvirt_d]);
+                        ct_coefficients[[
+                            nocc_a - 1 - state_j.hole.ct_index,
+                            state_j.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_kl = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                    } else {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_virt: ArrayView2<f64> = s_i_ij.slice(s![nocc_c.., nocc_2..]);
+                        let s_j_ij_occ: ArrayView2<f64> = s_j_ij.slice(s![..nocc_d, ..nocc_2]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_d, nvirt_c]);
+                        ct_coefficients[[
+                            nocc_d - 1 - state_j.hole.ct_index,
+                            state_j.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_kl = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                    }
+
+                    // get occopied MO overlap matrix
+                    let mut s_mo_occ: Array2<f64> =
+                        Array2::zeros([nocc_1 + nocc_2, nocc_1 + nocc_2]);
+                    s_mo_occ
+                        .slice_mut(s![..nocc_1, ..nocc_1])
+                        .assign(&s_mo.slice(s![..nocc_1, ..nocc_1]));
+                    s_mo_occ
+                        .slice_mut(s![nocc_1.., nocc_1..])
+                        .assign(&s_mo.slice(s![
+                            pair_ij.n_orbs..pair_ij.n_orbs + nocc_2,
+                            pair_ij.n_orbs..pair_ij.n_orbs + nocc_2
+                        ]));
+                    s_mo_occ
+                        .slice_mut(s![..nocc_1, nocc_1..])
+                        .assign(&s_mo.slice(s![..nocc_1, pair_ij.n_orbs..pair_ij.n_orbs + nocc_2]));
+                    s_mo_occ
+                        .slice_mut(s![nocc_1.., ..nocc_1])
+                        .assign(&s_mo.slice(s![pair_ij.n_orbs..pair_ij.n_orbs + nocc_2, ..nocc_1]));
+
+                    // call the CI_overlap routine
+                    let s_ci: f64 = diabatic_ci_overlap(
+                        s_mo.view(),
+                        s_mo_occ.view(),
+                        cis_ij.view(),
+                        cis_kl.view(),
+                    );
+                    s_ci
+                }
+            } else if type_ij == PairType::ESD && type_kl == PairType::Pair {
+                // get the indices of the pairs
+                let pair_index_ij: usize = self
+                    .properties
+                    .index_of_esd_pair(state_i.hole.m_index, state_i.electron.m_index);
+                let pair_index_kl: usize = self
+                    .properties
+                    .index_of_pair(state_j.hole.m_index, state_j.electron.m_index);
+
+                // get reference to the pairs
+                let pair_ij: &ESDPair = &self.esd_pairs[pair_index_ij];
+                let pair_kl: &Pair = &self.pairs[pair_index_kl];
+
+                if (pair_ij.i == pair_kl.i || pair_ij.i == pair_kl.j)
+                    || (pair_ij.j == pair_kl.i || pair_ij.j == pair_kl.j)
+                {
+                    self.diabatic_overlap_ctct_trimer(
+                        state_i, state_j, pair_ij.i, pair_ij.j, pair_kl.i, pair_kl.j,
+                    )
+                } else {
+                    // get the pair from pairs vector
+                    let pair_ij: &mut ESDPair = &mut self.esd_pairs[pair_index_ij];
+                    // reference to the monomers
+                    let m_i: &Monomer = &self.monomers[pair_ij.i];
+                    let m_j: &Monomer = &self.monomers[pair_ij.j];
+                    // get pair atoms
+                    let pair_atoms: Vec<Atom> = get_pair_slice(
+                        &self.atoms,
+                        self.monomers[pair_ij.i].slice.atom_as_range(),
+                        self.monomers[pair_ij.j].slice.atom_as_range(),
+                    );
+                    // do a scc calculation of the ESD pair
+                    pair_ij.prepare_scc(&pair_atoms, m_i, m_j);
+                    pair_ij.run_scc(&pair_atoms, self.config.scf);
+
+                    // new unmutable reference to the ESD pair
+                    let pair_ij: &ESDPair = &self.esd_pairs[pair_index_ij];
+
+                    // get the references to the monomers
+                    let m_a: &Monomer = &self.monomers[pair_ij.i];
+                    let m_b: &Monomer = &self.monomers[pair_ij.j];
+                    let m_c: &Monomer = &self.monomers[pair_kl.i];
+                    let m_d: &Monomer = &self.monomers[pair_kl.j];
+
+                    // prepare the AO overlap matrix
+                    let mut s_ao: Array2<f64> = Array2::zeros([
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                    ]);
+                    // fill the AO overlap matrix
+                    // diagonal blocks of pairs IJ and KL
+                    s_ao.slice_mut(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                        .assign(&pair_ij.properties.s().unwrap());
+                    s_ao.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                        .assign(&pair_kl.properties.s().unwrap());
+
+                    // outer diagonal block of I-k, I-L and J-K, J-L
+                    s_ao.slice_mut(s![
+                        ..m_a.n_orbs,
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]));
+                    s_ao.slice_mut(s![..m_a.n_orbs, pair_ij.n_orbs + m_c.n_orbs..])
+                        .assign(&s_total.slice(s![m_a.slice.orb, m_d.slice.orb]));
+                    s_ao.slice_mut(s![
+                        m_a.n_orbs..pair_ij.n_orbs,
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_b.slice.orb, m_c.slice.orb]));
+                    s_ao.slice_mut(s![
+                        m_a.n_orbs..pair_ij.n_orbs,
+                        pair_ij.n_orbs + m_c.n_orbs..
+                    ])
+                    .assign(&s_total.slice(s![m_b.slice.orb, m_d.slice.orb]));
+
+                    // outer diagonal block k-I, K-J and L-I, L-J
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs,
+                        ..m_a.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_c.slice.orb, m_a.slice.orb]));
+                    s_ao.slice_mut(s![pair_ij.n_orbs + m_c.n_orbs.., ..m_a.n_orbs])
+                        .assign(&s_total.slice(s![m_d.slice.orb, m_a.slice.orb]));
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs,
+                        m_a.n_orbs..pair_ij.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_c.slice.orb, m_b.slice.orb]));
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs + m_c.n_orbs..,
+                        m_a.n_orbs..pair_ij.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_d.slice.orb, m_b.slice.orb]));
+
+                    // get views of the MO coefficients for the pairs
+                    let orbs_ij: ArrayView2<f64> = pair_ij.properties.orbs().unwrap();
+                    let orbs_kl: ArrayView2<f64> = pair_kl.properties.orbs().unwrap();
+                    // transform the AO overlap matrix into the MO basis
+                    let mut s_mo: Array2<f64> = Array2::zeros([
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                    ]);
+                    s_mo.slice_mut(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                        .assign(
+                            &orbs_ij.t().dot(
+                                &s_ao
+                                    .slice(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                                    .dot(&orbs_ij),
+                            ),
+                        );
+                    s_mo.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                        .assign(
+                            &orbs_kl.t().dot(
+                                &s_ao
+                                    .slice(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                                    .dot(&orbs_kl),
+                            ),
+                        );
+                    s_mo.slice_mut(s![..pair_ij.n_orbs, pair_ij.n_orbs..])
+                        .assign(
+                            &orbs_ij.t().dot(
+                                &s_ao
+                                    .slice(s![..pair_ij.n_orbs, pair_ij.n_orbs..])
+                                    .dot(&orbs_kl),
+                            ),
+                        );
+                    s_mo.slice_mut(s![pair_ij.n_orbs.., ..pair_ij.n_orbs])
+                        .assign(
+                            &orbs_kl.t().dot(
+                                &s_ao
+                                    .slice(s![pair_ij.n_orbs.., ..pair_ij.n_orbs])
+                                    .dot(&orbs_ij),
+                            ),
+                        );
+
+                    // get the CI coefficients of the CT state I
+                    let nocc_1: usize = pair_ij.properties.occ_indices().unwrap().len();
+                    let nvirt_1: usize = pair_ij.properties.virt_indices().unwrap().len();
+                    // prepare the empty cis matrix
+                    let mut cis_ij: Array2<f64> = Array2::zeros([nocc_1, nvirt_1]);
+
+                    // get occupied and virtuals orbitals of the monomers of the CT state
+                    let nocc_a: usize = m_a.properties.occ_indices().unwrap().len();
+                    let nocc_b: usize = m_b.properties.occ_indices().unwrap().len();
+                    let nvirt_a: usize = m_a.properties.virt_indices().unwrap().len();
+                    let nvirt_b: usize = m_b.properties.virt_indices().unwrap().len();
+
+                    // get the overlap matrices between the monomers and the dimer
+                    let s_i_ij: ArrayView2<f64> = pair_ij.properties.s_i_ij().unwrap();
+                    let s_j_ij: ArrayView2<f64> = pair_ij.properties.s_j_ij().unwrap();
+
+                    if pair_ij.i == state_i.hole.m_index {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_occ: ArrayView2<f64> = s_i_ij.slice(s![..nocc_a, ..nocc_1]);
+                        let s_j_ij_virt: ArrayView2<f64> = s_j_ij.slice(s![nocc_b.., nocc_1..]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_b]);
+                        ct_coefficients[[
+                            nocc_a - 1 - state_i.hole.ct_index,
+                            state_i.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_ij = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                    } else {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_virt: ArrayView2<f64> = s_i_ij.slice(s![nocc_a.., nocc_1..]);
+                        let s_j_ij_occ: ArrayView2<f64> = s_j_ij.slice(s![..nocc_b, ..nocc_1]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_a]);
+                        ct_coefficients[[
+                            nocc_b - 1 - state_i.hole.ct_index,
+                            state_i.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_ij = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                    }
+
+                    // get the CI coefficients of the CT state I
+                    let nocc_2: usize = pair_ij.properties.occ_indices().unwrap().len();
+                    let nvirt_2: usize = pair_ij.properties.virt_indices().unwrap().len();
+                    // prepare the empty cis matrix
+                    let mut cis_kl: Array2<f64> = Array2::zeros([nocc_2, nvirt_2]);
+
+                    // get occupied and virtuals orbitals of the monomers of the CT state
+                    let nocc_c: usize = m_c.properties.occ_indices().unwrap().len();
+                    let nocc_d: usize = m_d.properties.occ_indices().unwrap().len();
+                    let nvirt_c: usize = m_c.properties.virt_indices().unwrap().len();
+                    let nvirt_d: usize = m_d.properties.virt_indices().unwrap().len();
+
+                    // get the overlap matrices between the monomers and the dimer
+                    let s_i_ij: ArrayView2<f64> = pair_kl.properties.s_i_ij().unwrap();
+                    let s_j_ij: ArrayView2<f64> = pair_kl.properties.s_j_ij().unwrap();
+
+                    if pair_kl.i == state_j.hole.m_index {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_occ: ArrayView2<f64> = s_i_ij.slice(s![..nocc_c, ..nocc_2]);
+                        let s_j_ij_virt: ArrayView2<f64> = s_j_ij.slice(s![nocc_d.., nocc_2..]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_c, nvirt_d]);
+                        ct_coefficients[[
+                            nocc_a - 1 - state_j.hole.ct_index,
+                            state_j.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_kl = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                    } else {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_virt: ArrayView2<f64> = s_i_ij.slice(s![nocc_c.., nocc_2..]);
+                        let s_j_ij_occ: ArrayView2<f64> = s_j_ij.slice(s![..nocc_d, ..nocc_2]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_d, nvirt_c]);
+                        ct_coefficients[[
+                            nocc_d - 1 - state_j.hole.ct_index,
+                            state_j.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_kl = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                    }
+
+                    // get occopied MO overlap matrix
+                    let mut s_mo_occ: Array2<f64> =
+                        Array2::zeros([nocc_1 + nocc_2, nocc_1 + nocc_2]);
+                    s_mo_occ
+                        .slice_mut(s![..nocc_1, ..nocc_1])
+                        .assign(&s_mo.slice(s![..nocc_1, ..nocc_1]));
+                    s_mo_occ
+                        .slice_mut(s![nocc_1.., nocc_1..])
+                        .assign(&s_mo.slice(s![
+                            pair_ij.n_orbs..pair_ij.n_orbs + nocc_2,
+                            pair_ij.n_orbs..pair_ij.n_orbs + nocc_2
+                        ]));
+                    s_mo_occ
+                        .slice_mut(s![..nocc_1, nocc_1..])
+                        .assign(&s_mo.slice(s![..nocc_1, pair_ij.n_orbs..pair_ij.n_orbs + nocc_2]));
+                    s_mo_occ
+                        .slice_mut(s![nocc_1.., ..nocc_1])
+                        .assign(&s_mo.slice(s![pair_ij.n_orbs..pair_ij.n_orbs + nocc_2, ..nocc_1]));
+
+                    // call the CI_overlap routine
+                    let s_ci: f64 = diabatic_ci_overlap(
+                        s_mo.view(),
+                        s_mo_occ.view(),
+                        cis_ij.view(),
+                        cis_kl.view(),
+                    );
+                    s_ci
+                }
+            } else if type_ij == PairType::ESD && type_kl == PairType::ESD {
+                // get the indices of the pairs
+                let pair_index_ij: usize = self
+                    .properties
+                    .index_of_esd_pair(state_i.hole.m_index, state_i.electron.m_index);
+                let pair_index_kl: usize = self
+                    .properties
+                    .index_of_esd_pair(state_j.hole.m_index, state_j.electron.m_index);
+
+                // get reference to the pairs
+                let pair_ij: &ESDPair = &self.esd_pairs[pair_index_ij];
+                let pair_kl: &ESDPair = &self.esd_pairs[pair_index_kl];
+
+                if (pair_ij.i == pair_kl.i || pair_ij.i == pair_kl.j)
+                    || (pair_ij.j == pair_kl.i || pair_ij.j == pair_kl.j)
+                {
+                    self.diabatic_overlap_ctct_trimer(
+                        state_i, state_j, pair_ij.i, pair_ij.j, pair_kl.i, pair_kl.j,
+                    )
+                } else {
+                    // get the pair from pairs vector
+                    let pair_ij: &mut ESDPair = &mut self.esd_pairs[pair_index_ij];
+                    // reference to the monomers
+                    let m_i: &Monomer = &self.monomers[pair_ij.i];
+                    let m_j: &Monomer = &self.monomers[pair_ij.j];
+                    // get pair atoms
+                    let pair_atoms: Vec<Atom> = get_pair_slice(
+                        &self.atoms,
+                        self.monomers[pair_ij.i].slice.atom_as_range(),
+                        self.monomers[pair_ij.j].slice.atom_as_range(),
+                    );
+                    // do a scc calculation of the ESD pair
+                    pair_ij.prepare_scc(&pair_atoms, m_i, m_j);
+                    pair_ij.run_scc(&pair_atoms, self.config.scf);
+
+                    // get the pair from pairs vector
+                    let pair_kl: &mut ESDPair = &mut self.esd_pairs[pair_index_kl];
+                    // reference to the monomers
+                    let m_k: &Monomer = &self.monomers[pair_kl.i];
+                    let m_l: &Monomer = &self.monomers[pair_kl.j];
+                    // get pair atoms
+                    let pair_atoms: Vec<Atom> = get_pair_slice(
+                        &self.atoms,
+                        self.monomers[pair_kl.i].slice.atom_as_range(),
+                        self.monomers[pair_kl.j].slice.atom_as_range(),
+                    );
+                    // do a scc calculation of the ESD pair
+                    pair_kl.prepare_scc(&pair_atoms, m_k, m_l);
+                    pair_kl.run_scc(&pair_atoms, self.config.scf);
+
+                    // new unmutable reference to the ESD pairs
+                    let pair_ij: &ESDPair = &self.esd_pairs[pair_index_ij];
+                    let pair_kl: &ESDPair = &self.esd_pairs[pair_index_kl];
+
+                    // get the references to the monomers
+                    let m_a: &Monomer = &self.monomers[pair_ij.i];
+                    let m_b: &Monomer = &self.monomers[pair_ij.j];
+                    let m_c: &Monomer = &self.monomers[pair_kl.i];
+                    let m_d: &Monomer = &self.monomers[pair_kl.j];
+
+                    // prepare the AO overlap matrix
+                    let mut s_ao: Array2<f64> = Array2::zeros([
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                    ]);
+                    // fill the AO overlap matrix
+                    // diagonal blocks of pairs IJ and KL
+                    s_ao.slice_mut(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                        .assign(&pair_ij.properties.s().unwrap());
+                    s_ao.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                        .assign(&pair_kl.properties.s().unwrap());
+
+                    // outer diagonal block of I-k, I-L and J-K, J-L
+                    s_ao.slice_mut(s![
+                        ..m_a.n_orbs,
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]));
+                    s_ao.slice_mut(s![..m_a.n_orbs, pair_ij.n_orbs + m_c.n_orbs..])
+                        .assign(&s_total.slice(s![m_a.slice.orb, m_d.slice.orb]));
+                    s_ao.slice_mut(s![
+                        m_a.n_orbs..pair_ij.n_orbs,
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_b.slice.orb, m_c.slice.orb]));
+                    s_ao.slice_mut(s![
+                        m_a.n_orbs..pair_ij.n_orbs,
+                        pair_ij.n_orbs + m_c.n_orbs..
+                    ])
+                    .assign(&s_total.slice(s![m_b.slice.orb, m_d.slice.orb]));
+
+                    // outer diagonal block k-I, K-J and L-I, L-J
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs,
+                        ..m_a.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_c.slice.orb, m_a.slice.orb]));
+                    s_ao.slice_mut(s![pair_ij.n_orbs + m_c.n_orbs.., ..m_a.n_orbs])
+                        .assign(&s_total.slice(s![m_d.slice.orb, m_a.slice.orb]));
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs..pair_ij.n_orbs + m_c.n_orbs,
+                        m_a.n_orbs..pair_ij.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_c.slice.orb, m_b.slice.orb]));
+                    s_ao.slice_mut(s![
+                        pair_ij.n_orbs + m_c.n_orbs..,
+                        m_a.n_orbs..pair_ij.n_orbs
+                    ])
+                    .assign(&s_total.slice(s![m_d.slice.orb, m_b.slice.orb]));
+
+                    // get views of the MO coefficients for the pairs
+                    let orbs_ij: ArrayView2<f64> = pair_ij.properties.orbs().unwrap();
+                    let orbs_kl: ArrayView2<f64> = pair_kl.properties.orbs().unwrap();
+                    // transform the AO overlap matrix into the MO basis
+                    let mut s_mo: Array2<f64> = Array2::zeros([
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                        pair_ij.n_orbs + pair_kl.n_orbs,
+                    ]);
+                    s_mo.slice_mut(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                        .assign(
+                            &orbs_ij.t().dot(
+                                &s_ao
+                                    .slice(s![..pair_ij.n_orbs, ..pair_ij.n_orbs])
+                                    .dot(&orbs_ij),
+                            ),
+                        );
+                    s_mo.slice_mut(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                        .assign(
+                            &orbs_kl.t().dot(
+                                &s_ao
+                                    .slice(s![pair_ij.n_orbs.., pair_ij.n_orbs..])
+                                    .dot(&orbs_kl),
+                            ),
+                        );
+                    s_mo.slice_mut(s![..pair_ij.n_orbs, pair_ij.n_orbs..])
+                        .assign(
+                            &orbs_ij.t().dot(
+                                &s_ao
+                                    .slice(s![..pair_ij.n_orbs, pair_ij.n_orbs..])
+                                    .dot(&orbs_kl),
+                            ),
+                        );
+                    s_mo.slice_mut(s![pair_ij.n_orbs.., ..pair_ij.n_orbs])
+                        .assign(
+                            &orbs_kl.t().dot(
+                                &s_ao
+                                    .slice(s![pair_ij.n_orbs.., ..pair_ij.n_orbs])
+                                    .dot(&orbs_ij),
+                            ),
+                        );
+
+                    // get the CI coefficients of the CT state I
+                    let nocc_1: usize = pair_ij.properties.occ_indices().unwrap().len();
+                    let nvirt_1: usize = pair_ij.properties.virt_indices().unwrap().len();
+                    // prepare the empty cis matrix
+                    let mut cis_ij: Array2<f64> = Array2::zeros([nocc_1, nvirt_1]);
+
+                    // get occupied and virtuals orbitals of the monomers of the CT state
+                    let nocc_a: usize = m_a.properties.occ_indices().unwrap().len();
+                    let nocc_b: usize = m_b.properties.occ_indices().unwrap().len();
+                    let nvirt_a: usize = m_a.properties.virt_indices().unwrap().len();
+                    let nvirt_b: usize = m_b.properties.virt_indices().unwrap().len();
+
+                    // get the overlap matrices between the monomers and the dimer
+                    let s_i_ij: ArrayView2<f64> = pair_ij.properties.s_i_ij().unwrap();
+                    let s_j_ij: ArrayView2<f64> = pair_ij.properties.s_j_ij().unwrap();
+
+                    if pair_ij.i == state_i.hole.m_index {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_occ: ArrayView2<f64> = s_i_ij.slice(s![..nocc_a, ..nocc_1]);
+                        let s_j_ij_virt: ArrayView2<f64> = s_j_ij.slice(s![nocc_b.., nocc_1..]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_b]);
+                        ct_coefficients[[
+                            nocc_a - 1 - state_i.hole.ct_index,
+                            state_i.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_ij = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                    } else {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_virt: ArrayView2<f64> = s_i_ij.slice(s![nocc_a.., nocc_1..]);
+                        let s_j_ij_occ: ArrayView2<f64> = s_j_ij.slice(s![..nocc_b, ..nocc_1]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_a]);
+                        ct_coefficients[[
+                            nocc_b - 1 - state_i.hole.ct_index,
+                            state_i.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_ij = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                    }
+
+                    // get the CI coefficients of the CT state I
+                    let nocc_2: usize = pair_ij.properties.occ_indices().unwrap().len();
+                    let nvirt_2: usize = pair_ij.properties.virt_indices().unwrap().len();
+                    // prepare the empty cis matrix
+                    let mut cis_kl: Array2<f64> = Array2::zeros([nocc_2, nvirt_2]);
+
+                    // get occupied and virtuals orbitals of the monomers of the CT state
+                    let nocc_c: usize = m_c.properties.occ_indices().unwrap().len();
+                    let nocc_d: usize = m_d.properties.occ_indices().unwrap().len();
+                    let nvirt_c: usize = m_c.properties.virt_indices().unwrap().len();
+                    let nvirt_d: usize = m_d.properties.virt_indices().unwrap().len();
+
+                    // get the overlap matrices between the monomers and the dimer
+                    let s_i_ij: ArrayView2<f64> = pair_kl.properties.s_i_ij().unwrap();
+                    let s_j_ij: ArrayView2<f64> = pair_kl.properties.s_j_ij().unwrap();
+
+                    if pair_kl.i == state_j.hole.m_index {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_occ: ArrayView2<f64> = s_i_ij.slice(s![..nocc_c, ..nocc_2]);
+                        let s_j_ij_virt: ArrayView2<f64> = s_j_ij.slice(s![nocc_d.., nocc_2..]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_c, nvirt_d]);
+                        ct_coefficients[[
+                            nocc_a - 1 - state_j.hole.ct_index,
+                            state_j.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_kl = s_i_ij_occ.t().dot(&ct_coefficients.dot(&s_j_ij_virt));
+                    } else {
+                        // reduce overlap matrices to occupied and virtual blocks
+                        let s_i_ij_virt: ArrayView2<f64> = s_i_ij.slice(s![nocc_c.., nocc_2..]);
+                        let s_j_ij_occ: ArrayView2<f64> = s_j_ij.slice(s![..nocc_d, ..nocc_2]);
+
+                        // Create matrix for the CT. Only the matrix element, which corresponds to the charge
+                        // transfer is set to the value 1.0. Everything else is set to null.
+                        let mut ct_coefficients: Array2<f64> = Array2::zeros([nocc_d, nvirt_c]);
+                        ct_coefficients[[
+                            nocc_d - 1 - state_j.hole.ct_index,
+                            state_j.electron.ct_index,
+                        ]] = 1.0;
+
+                        // transform the CT matrix using the reduced overlap matrices between the monomers
+                        // and the dimer
+                        cis_kl = s_j_ij_occ.t().dot(&ct_coefficients.dot(&s_i_ij_virt));
+                    }
+
+                    // get occopied MO overlap matrix
+                    let mut s_mo_occ: Array2<f64> =
+                        Array2::zeros([nocc_1 + nocc_2, nocc_1 + nocc_2]);
+                    s_mo_occ
+                        .slice_mut(s![..nocc_1, ..nocc_1])
+                        .assign(&s_mo.slice(s![..nocc_1, ..nocc_1]));
+                    s_mo_occ
+                        .slice_mut(s![nocc_1.., nocc_1..])
+                        .assign(&s_mo.slice(s![
+                            pair_ij.n_orbs..pair_ij.n_orbs + nocc_2,
+                            pair_ij.n_orbs..pair_ij.n_orbs + nocc_2
+                        ]));
+                    s_mo_occ
+                        .slice_mut(s![..nocc_1, nocc_1..])
+                        .assign(&s_mo.slice(s![..nocc_1, pair_ij.n_orbs..pair_ij.n_orbs + nocc_2]));
+                    s_mo_occ
+                        .slice_mut(s![nocc_1.., ..nocc_1])
+                        .assign(&s_mo.slice(s![pair_ij.n_orbs..pair_ij.n_orbs + nocc_2, ..nocc_1]));
+
+                    // call the CI_overlap routine
+                    let s_ci: f64 = diabatic_ci_overlap(
+                        s_mo.view(),
+                        s_mo_occ.view(),
+                        cis_ij.view(),
+                        cis_kl.view(),
+                    );
+                    s_ci
+                }
+            }
+            else{
+                0.0
+            }
         }
+    }
+
+    pub fn diabatic_overlap_ctct_trimer(
+        &self,
+        state_i: &ReducedCT,
+        state_j: &ReducedCT,
+        ind_i: usize,
+        ind_j: usize,
+        ind_k: usize,
+        ind_l: usize,
+    ) -> f64 {
+        // get the references to the monomers
+        let m_a: &Monomer = &self.monomers[ind_i];
+        let m_b: &Monomer = &self.monomers[ind_j];
+        let pair_ab_norbs: usize = m_a.n_orbs + m_b.n_orbs;
+
+        // view of the overlap matrix of the Supersystem
+        let s_total: ArrayView2<f64> = self.properties.s().unwrap();
+
+        let s_ci: f64 = if ind_i == ind_k || ind_j == ind_k {
+            let m_c: &Monomer = &self.monomers[ind_l];
+
+            // get MO coefficients as a view
+            let orbs_a: ArrayView2<f64> = m_a.properties.orbs().unwrap();
+            let orbs_b: ArrayView2<f64> = m_b.properties.orbs().unwrap();
+            let orbs_c: ArrayView2<f64> = m_c.properties.orbs().unwrap();
+
+            // prepare the AO overlap matrix
+            let mut s_mo: Array2<f64> = Array2::zeros([
+                m_a.n_orbs + m_b.n_orbs + m_c.n_orbs,
+                m_a.n_orbs + m_b.n_orbs + m_c.n_orbs,
+            ]);
+            // diagonal blocks
+            s_mo.slice_mut(s![..m_a.n_orbs, ..m_a.n_orbs])
+                .assign(&orbs_a.t().dot(&m_a.properties.s().unwrap().dot(&orbs_a)));
+            s_mo.slice_mut(s![m_a.n_orbs..pair_ab_norbs, m_a.n_orbs..pair_ab_norbs])
+                .assign(&orbs_b.t().dot(&m_b.properties.s().unwrap().dot(&orbs_b)));
+            s_mo.slice_mut(s![pair_ab_norbs.., pair_ab_norbs..])
+                .assign(&orbs_c.t().dot(&m_c.properties.s().unwrap().dot(&orbs_c)));
+
+            // outer diagonal blocks
+            // A-B. A-C
+            s_mo.slice_mut(s![..m_a.n_orbs, m_a.n_orbs..pair_ab_norbs])
+                .assign(
+                    &orbs_a
+                        .t()
+                        .dot(&s_total.slice(s![m_a.slice.orb, m_b.slice.orb]).dot(&orbs_b)),
+                );
+            s_mo.slice_mut(s![..m_a.n_orbs, pair_ab_norbs..]).assign(
+                &orbs_a
+                    .t()
+                    .dot(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]).dot(&orbs_c)),
+            );
+            // B-A, B-C
+            s_mo.slice_mut(s![m_a.n_orbs..pair_ab_norbs, ..m_a.n_orbs])
+                .assign(
+                    &orbs_b
+                        .t()
+                        .dot(&s_total.slice(s![m_b.slice.orb, m_a.slice.orb]).dot(&orbs_a)),
+                );
+            s_mo.slice_mut(s![m_a.n_orbs..pair_ab_norbs, pair_ab_norbs..])
+                .assign(
+                    &orbs_b
+                        .t()
+                        .dot(&s_total.slice(s![m_b.slice.orb, m_c.slice.orb]).dot(&orbs_c)),
+                );
+            // C-A, C-B
+            s_mo.slice_mut(s![pair_ab_norbs.., ..m_a.n_orbs]).assign(
+                &orbs_c
+                    .t()
+                    .dot(&s_total.slice(s![m_c.slice.orb, m_a.slice.orb]).dot(&orbs_a)),
+            );
+            s_mo.slice_mut(s![pair_ab_norbs.., m_a.n_orbs..pair_ab_norbs])
+                .assign(
+                    &orbs_c
+                        .t()
+                        .dot(&s_total.slice(s![m_c.slice.orb, m_b.slice.orb]).dot(&orbs_b)),
+                );
+
+            // get number of occupied and virtuals orbitals
+            let nocc_a: usize = m_a.properties.occ_indices().unwrap().len();
+            let nvirt_a: usize = m_a.properties.virt_indices().unwrap().len();
+            let nocc_b: usize = m_b.properties.occ_indices().unwrap().len();
+            let nvirt_b: usize = m_b.properties.virt_indices().unwrap().len();
+            let nocc_c: usize = m_c.properties.occ_indices().unwrap().len();
+            let nvirt_c: usize = m_c.properties.virt_indices().unwrap().len();
+            // usize to locate the hole for the first CT
+            let mut hole_1: usize = 0;
+            let mut hole_2: usize = 0;
+            let mut electron_2: usize = 0;
+            // create the CI matrix for the first CT state
+            // if state_i.hole.m_index == pair_ij.i
+            let ct_1_coefficients: Array2<f64> = if state_i.hole.m_index == ind_i {
+                let mut coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_b]);
+                coefficients[[
+                    nocc_a - 1 - state_i.hole.ct_index,
+                    state_i.electron.ct_index,
+                ]] = 1.0;
+
+                coefficients
+            } else {
+                let mut coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_a]);
+                coefficients[[
+                    nocc_b - 1 - state_i.hole.ct_index,
+                    state_i.electron.ct_index,
+                ]] = 1.0;
+                hole_1 = 1;
+
+                coefficients
+            };
+
+            // CT's are A-B and A-C
+            // if pair_ij.i == pair_kl.i
+            let ct_2_coefficients: Array2<f64> = if ind_i == ind_k {
+                let coeff: Array2<f64> = if state_j.hole.m_index == m_a.index {
+                    let mut coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_c]);
+                    coefficients[[
+                        nocc_a - 1 - state_j.hole.ct_index,
+                        state_j.electron.ct_index,
+                    ]] = 1.0;
+                    hole_2 = 0;
+                    electron_2 = 2;
+
+                    coefficients
+                } else {
+                    let mut coefficients: Array2<f64> = Array2::zeros([nocc_c, nvirt_a]);
+                    coefficients[[
+                        nocc_c - 1 - state_j.hole.ct_index,
+                        state_j.electron.ct_index,
+                    ]] = 1.0;
+                    hole_2 = 2;
+                    electron_2 = 0;
+
+                    coefficients
+                };
+                coeff
+            }
+            // CT's are A-B and B-C
+            else {
+                let coeff: Array2<f64> = if state_j.hole.m_index == m_b.index {
+                    let mut coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_c]);
+                    coefficients[[
+                        nocc_b - 1 - state_j.hole.ct_index,
+                        state_j.electron.ct_index,
+                    ]] = 1.0;
+                    hole_2 = 1;
+                    electron_2 = 2;
+
+                    coefficients
+                } else {
+                    let mut coefficients: Array2<f64> = Array2::zeros([nocc_c, nvirt_b]);
+                    coefficients[[
+                        nocc_c - 1 - state_j.hole.ct_index,
+                        state_j.electron.ct_index,
+                    ]] = 1.0;
+                    hole_2 = 2;
+                    electron_2 = 1;
+
+                    coefficients
+                };
+                coeff
+            };
+
+            let ct_states = CtCtOverlapABC {
+                nocc_a: nocc_a,
+                nocc_b: nocc_b,
+                nocc_c: nocc_c,
+                nvirt_a: nvirt_a,
+                nvirt_b: nvirt_b,
+                nvirt_c: nvirt_c,
+                norbs_a: nocc_a + nvirt_a,
+                norbs_b: nocc_b + nvirt_b,
+                norbs_c: nocc_c + nvirt_c,
+                coeff_1: ct_1_coefficients,
+                coeff_2: ct_2_coefficients,
+                hole_1: hole_1,
+                hole_2: (hole_2, electron_2),
+            };
+
+            // occupied MO overlap matrix
+            let mut s_mo_occ: Array2<f64> =
+                Array2::zeros([nocc_a + nocc_b + nocc_c, nocc_a + nocc_b + nocc_c]);
+            // diagonal blocks
+            s_mo_occ
+                .slice_mut(s![..nocc_a, ..nocc_a])
+                .assign(&s_mo.slice(s![..nocc_a, ..nocc_a]));
+            s_mo_occ
+                .slice_mut(s![nocc_a..nocc_a + nocc_b, nocc_a..nocc_a + nocc_b])
+                .assign(&s_mo.slice(s![
+                    m_a.n_orbs..m_a.n_orbs + nocc_b,
+                    m_a.n_orbs..m_a.n_orbs + nocc_b
+                ]));
+            s_mo_occ
+                .slice_mut(s![nocc_a + nocc_b.., nocc_a + nocc_b..])
+                .assign(&s_mo.slice(s![
+                    pair_ab_norbs..pair_ab_norbs + nocc_c,
+                    pair_ab_norbs..pair_ab_norbs + nocc_c
+                ]));
+
+            // off-diagonal blocks
+            // A-B
+            s_mo_occ
+                .slice_mut(s![..nocc_a, nocc_a..nocc_a + nocc_b])
+                .assign(&s_mo.slice(s![..nocc_a, m_a.n_orbs..m_a.n_orbs + nocc_b]));
+            // A-C
+            s_mo_occ
+                .slice_mut(s![..nocc_a, nocc_a + nocc_b..])
+                .assign(&s_mo.slice(s![..nocc_a, pair_ab_norbs..pair_ab_norbs + nocc_c]));
+            // B-A
+            s_mo_occ
+                .slice_mut(s![nocc_a..nocc_a + nocc_b, ..nocc_a])
+                .assign(&s_mo.slice(s![m_a.n_orbs..m_a.n_orbs + nocc_b, ..nocc_a]));
+            // B-C
+            s_mo_occ
+                .slice_mut(s![nocc_a..nocc_a + nocc_b, nocc_a + nocc_b..])
+                .assign(&s_mo.slice(s![
+                    m_a.n_orbs..m_a.n_orbs + nocc_b,
+                    pair_ab_norbs..pair_ab_norbs + nocc_c
+                ]));
+            // C-A
+            s_mo_occ
+                .slice_mut(s![nocc_a + nocc_b.., ..nocc_a])
+                .assign(&s_mo.slice(s![pair_ab_norbs..pair_ab_norbs + nocc_c, ..nocc_a]));
+            // C-B
+            s_mo_occ
+                .slice_mut(s![nocc_a + nocc_b.., nocc_a..nocc_a + nocc_b])
+                .assign(&s_mo.slice(s![
+                    pair_ab_norbs..pair_ab_norbs + nocc_c,
+                    m_a.n_orbs..m_a.n_orbs + nocc_b
+                ]));
+
+            let s_ci: f64 = diabatic_ci_overlap_ct_ct_ijk(s_mo.view(), s_mo_occ.view(), ct_states);
+            s_ci
+        }
+        // ind_i == ind_l || ind_j == ind_l
+        // The third monomer has the index K
+        else {
+            let m_c: &Monomer = &self.monomers[ind_k];
+
+            // get MO coefficients as a view
+            let orbs_a: ArrayView2<f64> = m_a.properties.orbs().unwrap();
+            let orbs_b: ArrayView2<f64> = m_b.properties.orbs().unwrap();
+            let orbs_c: ArrayView2<f64> = m_c.properties.orbs().unwrap();
+
+            // prepare the AO overlap matrix
+            let mut s_mo: Array2<f64> = Array2::zeros([
+                m_a.n_orbs + m_b.n_orbs + m_c.n_orbs,
+                m_a.n_orbs + m_b.n_orbs + m_c.n_orbs,
+            ]);
+            // diagonal blocks
+            s_mo.slice_mut(s![..m_a.n_orbs, ..m_a.n_orbs])
+                .assign(&orbs_a.t().dot(&m_a.properties.s().unwrap().dot(&orbs_a)));
+            s_mo.slice_mut(s![m_a.n_orbs..pair_ab_norbs, m_a.n_orbs..pair_ab_norbs])
+                .assign(&orbs_b.t().dot(&m_b.properties.s().unwrap().dot(&orbs_b)));
+            s_mo.slice_mut(s![pair_ab_norbs.., pair_ab_norbs..])
+                .assign(&orbs_c.t().dot(&m_c.properties.s().unwrap().dot(&orbs_c)));
+
+            // outer diagonal blocks
+            // A-B. A-C
+            s_mo.slice_mut(s![..m_a.n_orbs, m_a.n_orbs..pair_ab_norbs])
+                .assign(
+                    &orbs_a
+                        .t()
+                        .dot(&s_total.slice(s![m_a.slice.orb, m_b.slice.orb]).dot(&orbs_b)),
+                );
+            s_mo.slice_mut(s![..m_a.n_orbs, pair_ab_norbs..]).assign(
+                &orbs_a
+                    .t()
+                    .dot(&s_total.slice(s![m_a.slice.orb, m_c.slice.orb]).dot(&orbs_c)),
+            );
+            // B-A, B-C
+            s_mo.slice_mut(s![m_a.n_orbs..pair_ab_norbs, ..m_a.n_orbs])
+                .assign(
+                    &orbs_b
+                        .t()
+                        .dot(&s_total.slice(s![m_b.slice.orb, m_a.slice.orb]).dot(&orbs_a)),
+                );
+            s_mo.slice_mut(s![m_a.n_orbs..pair_ab_norbs, pair_ab_norbs..])
+                .assign(
+                    &orbs_b
+                        .t()
+                        .dot(&s_total.slice(s![m_b.slice.orb, m_c.slice.orb]).dot(&orbs_c)),
+                );
+            // C-A, C-B
+            s_mo.slice_mut(s![pair_ab_norbs.., ..m_a.n_orbs]).assign(
+                &orbs_c
+                    .t()
+                    .dot(&s_total.slice(s![m_c.slice.orb, m_a.slice.orb]).dot(&orbs_a)),
+            );
+            s_mo.slice_mut(s![pair_ab_norbs.., m_a.n_orbs..pair_ab_norbs])
+                .assign(
+                    &orbs_c
+                        .t()
+                        .dot(&s_total.slice(s![m_c.slice.orb, m_b.slice.orb]).dot(&orbs_b)),
+                );
+
+            // get number of occupied and virtuals orbitals
+            let nocc_a: usize = m_a.properties.occ_indices().unwrap().len();
+            let nvirt_a: usize = m_a.properties.virt_indices().unwrap().len();
+            let nocc_b: usize = m_b.properties.occ_indices().unwrap().len();
+            let nvirt_b: usize = m_b.properties.virt_indices().unwrap().len();
+            let nocc_c: usize = m_c.properties.occ_indices().unwrap().len();
+            let nvirt_c: usize = m_c.properties.virt_indices().unwrap().len();
+            // usize to locate the hole for the first CT
+            let mut hole_1: usize = 0;
+            let mut hole_2: usize = 0;
+            let mut electron_2: usize = 0;
+            // create the CI matrix for the first CT state
+            // if state_i.hole.m_index == pair_ij.i
+            let ct_1_coefficients: Array2<f64> = if state_i.hole.m_index == ind_i {
+                let mut coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_b]);
+                coefficients[[
+                    nocc_a - 1 - state_i.hole.ct_index,
+                    state_i.electron.ct_index,
+                ]] = 1.0;
+
+                coefficients
+            } else {
+                let mut coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_a]);
+                coefficients[[
+                    nocc_b - 1 - state_i.hole.ct_index,
+                    state_i.electron.ct_index,
+                ]] = 1.0;
+                hole_1 = 1;
+
+                coefficients
+            };
+
+            // CT's are A-B and A-C
+            // if pair_ij.i == pair_kl.j
+            let ct_2_coefficients: Array2<f64> = if ind_i == ind_l {
+                let coeff: Array2<f64> = if state_j.hole.m_index == m_a.index {
+                    let mut coefficients: Array2<f64> = Array2::zeros([nocc_a, nvirt_c]);
+                    coefficients[[
+                        nocc_a - 1 - state_j.hole.ct_index,
+                        state_j.electron.ct_index,
+                    ]] = 1.0;
+                    hole_2 = 0;
+                    electron_2 = 2;
+
+                    coefficients
+                } else {
+                    let mut coefficients: Array2<f64> = Array2::zeros([nocc_c, nvirt_a]);
+                    coefficients[[
+                        nocc_c - 1 - state_j.hole.ct_index,
+                        state_j.electron.ct_index,
+                    ]] = 1.0;
+                    hole_2 = 2;
+                    electron_2 = 0;
+
+                    coefficients
+                };
+                coeff
+            }
+            // CT's are A-B and B-C
+            // pair_ij.j == pair_kl.j
+            else {
+                let coeff: Array2<f64> = if state_j.hole.m_index == m_b.index {
+                    let mut coefficients: Array2<f64> = Array2::zeros([nocc_b, nvirt_c]);
+                    coefficients[[
+                        nocc_b - 1 - state_j.hole.ct_index,
+                        state_j.electron.ct_index,
+                    ]] = 1.0;
+                    hole_2 = 1;
+                    electron_2 = 2;
+
+                    coefficients
+                } else {
+                    let mut coefficients: Array2<f64> = Array2::zeros([nocc_c, nvirt_b]);
+                    coefficients[[
+                        nocc_c - 1 - state_j.hole.ct_index,
+                        state_j.electron.ct_index,
+                    ]] = 1.0;
+                    hole_2 = 2;
+                    electron_2 = 1;
+
+                    coefficients
+                };
+                coeff
+            };
+
+            let ct_states = CtCtOverlapABC {
+                nocc_a: nocc_a,
+                nocc_b: nocc_b,
+                nocc_c: nocc_c,
+                nvirt_a: nvirt_a,
+                nvirt_b: nvirt_b,
+                nvirt_c: nvirt_c,
+                norbs_a: nocc_a + nvirt_a,
+                norbs_b: nocc_b + nvirt_b,
+                norbs_c: nocc_c + nvirt_c,
+                coeff_1: ct_1_coefficients,
+                coeff_2: ct_2_coefficients,
+                hole_1: hole_1,
+                hole_2: (hole_2, electron_2),
+            };
+
+            // occupied MO overlap matrix
+            let mut s_mo_occ: Array2<f64> =
+                Array2::zeros([nocc_a + nocc_b + nocc_c, nocc_a + nocc_b + nocc_c]);
+            // diagonal blocks
+            s_mo_occ
+                .slice_mut(s![..nocc_a, ..nocc_a])
+                .assign(&s_mo.slice(s![..nocc_a, ..nocc_a]));
+            s_mo_occ
+                .slice_mut(s![nocc_a..nocc_a + nocc_b, nocc_a..nocc_a + nocc_b])
+                .assign(&s_mo.slice(s![
+                    m_a.n_orbs..m_a.n_orbs + nocc_b,
+                    m_a.n_orbs..m_a.n_orbs + nocc_b
+                ]));
+            s_mo_occ
+                .slice_mut(s![nocc_a + nocc_b.., nocc_a + nocc_b..])
+                .assign(&s_mo.slice(s![
+                    pair_ab_norbs..pair_ab_norbs + nocc_c,
+                    pair_ab_norbs..pair_ab_norbs + nocc_c
+                ]));
+
+            // off-diagonal blocks
+            // A-B
+            s_mo_occ
+                .slice_mut(s![..nocc_a, nocc_a..nocc_a + nocc_b])
+                .assign(&s_mo.slice(s![..nocc_a, m_a.n_orbs..m_a.n_orbs + nocc_b]));
+            // A-C
+            s_mo_occ
+                .slice_mut(s![..nocc_a, nocc_a + nocc_b..])
+                .assign(&s_mo.slice(s![..nocc_a, pair_ab_norbs..pair_ab_norbs + nocc_c]));
+            // B-A
+            s_mo_occ
+                .slice_mut(s![nocc_a..nocc_a + nocc_b, ..nocc_a])
+                .assign(&s_mo.slice(s![m_a.n_orbs..m_a.n_orbs + nocc_b, ..nocc_a]));
+            // B-C
+            s_mo_occ
+                .slice_mut(s![nocc_a..nocc_a + nocc_b, nocc_a + nocc_b..])
+                .assign(&s_mo.slice(s![
+                    m_a.n_orbs..m_a.n_orbs + nocc_b,
+                    pair_ab_norbs..pair_ab_norbs + nocc_c
+                ]));
+            // C-A
+            s_mo_occ
+                .slice_mut(s![nocc_a + nocc_b.., ..nocc_a])
+                .assign(&s_mo.slice(s![pair_ab_norbs..pair_ab_norbs + nocc_c, ..nocc_a]));
+            // C-B
+            s_mo_occ
+                .slice_mut(s![nocc_a + nocc_b.., nocc_a..nocc_a + nocc_b])
+                .assign(&s_mo.slice(s![
+                    pair_ab_norbs..pair_ab_norbs + nocc_c,
+                    m_a.n_orbs..m_a.n_orbs + nocc_b
+                ]));
+
+            let s_ci: f64 = diabatic_ci_overlap_ct_ct_ijk(s_mo.view(), s_mo_occ.view(), ct_states);
+            s_ci
+        };
+        s_ci
     }
 }
 
@@ -1570,7 +2584,7 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                 if coeff_i.abs() > threshold {
                     // occupied orbitals in the configuration state function |Psi_ia>
                     // overlap <1,...,a,...|1,...,j,...>
-                    let s_aj = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                    let s_aj = slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
                     let det_aj: f64 = s_aj.det().unwrap();
 
                     // ground state overlap
@@ -1590,13 +2604,14 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                                     // select part of overlap matrix for orbitals
                                     // in |Psi_ia> and |Psi_jb>
                                     // <1,...,a,...|1,...,b,...>
-                                    let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
-                                    let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
+                                    let s_ab = slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
+                                    let mut s_ab =
+                                        slice_ct_ct_trimer(s_ab.view(), s_mo, j, b, false, &ct);
                                     s_ab[[i, j]] = s_mo[[a, b]];
                                     let det_ab: f64 = s_ab.det().unwrap();
 
                                     // <1,...,i,...|1,...,b,...>
-                                    let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
+                                    let s_ib = slice_ct_ct_trimer(s_mo_occ, s_mo, j, b, false, &ct);
                                     let det_ib: f64 = s_ib.det().unwrap();
 
                                     let cc: f64 = coeff_j * coeff_i;
@@ -1624,13 +2639,14 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                                     // select part of overlap matrix for orbitals
                                     // in |Psi_ia> and |Psi_jb>
                                     // <1,...,a,...|1,...,b,...>
-                                    let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
-                                    let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
+                                    let s_ab = slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
+                                    let mut s_ab =
+                                        slice_ct_ct_trimer(s_ab.view(), s_mo, j, b, false, &ct);
                                     s_ab[[i, j]] = s_mo[[a, b]];
                                     let det_ab: f64 = s_ab.det().unwrap();
 
                                     // <1,...,i,...|1,...,b,...>
-                                    let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
+                                    let s_ib = slice_ct_ct_trimer(s_mo_occ, s_mo, j, b, false, &ct);
                                     let det_ib: f64 = s_ib.det().unwrap();
 
                                     let cc: f64 = coeff_j * coeff_i;
@@ -1657,13 +2673,16 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                                         // select part of overlap matrix for orbitals
                                         // in |Psi_ia> and |Psi_jb>
                                         // <1,...,a,...|1,...,b,...>
-                                        let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
-                                        let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
+                                        let s_ab =
+                                            slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
+                                        let mut s_ab =
+                                            slice_ct_ct_trimer(s_ab.view(), s_mo, j, b, false, &ct);
                                         s_ab[[i, j]] = s_mo[[a, b]];
                                         let det_ab: f64 = s_ab.det().unwrap();
 
                                         // <1,...,i,...|1,...,b,...>
-                                        let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
+                                        let s_ib =
+                                            slice_ct_ct_trimer(s_mo_occ, s_mo, j, b, false, &ct);
                                         let det_ib: f64 = s_ib.det().unwrap();
 
                                         let cc: f64 = coeff_j * coeff_i;
@@ -1687,13 +2706,16 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                                         // select part of overlap matrix for orbitals
                                         // in |Psi_ia> and |Psi_jb>
                                         // <1,...,a,...|1,...,b,...>
-                                        let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
-                                        let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
+                                        let s_ab =
+                                            slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
+                                        let mut s_ab =
+                                            slice_ct_ct_trimer(s_ab.view(), s_mo, j, b, false, &ct);
                                         s_ab[[i, j]] = s_mo[[a, b]];
                                         let det_ab: f64 = s_ab.det().unwrap();
 
                                         // <1,...,i,...|1,...,b,...>
-                                        let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
+                                        let s_ib =
+                                            slice_ct_ct_trimer(s_mo_occ, s_mo, j, b, false, &ct);
                                         let det_ib: f64 = s_ib.det().unwrap();
 
                                         let cc: f64 = coeff_j * coeff_i;
@@ -1722,7 +2744,7 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                     let mut s_aj: Array2<f64> = s_mo_occ.to_owned();
                     // occupied orbitals in the configuration state function |Psi_ia>
                     // overlap <1,...,a,...|1,...,j,...>
-                    let s_aj = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
+                    let s_aj = slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
                     let det_aj: f64 = s_aj.det().unwrap();
 
                     // ground state overlap
@@ -1742,13 +2764,14 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                                     // select part of overlap matrix for orbitals
                                     // in |Psi_ia> and |Psi_jb>
                                     // <1,...,a,...|1,...,b,...>
-                                    let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
-                                    let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
+                                    let s_ab = slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
+                                    let mut s_ab =
+                                        slice_ct_ct_trimer(s_ab.view(), s_mo, j, b, false, &ct);
                                     s_ab[[i, j]] = s_mo[[a, b]];
                                     let det_ab: f64 = s_ab.det().unwrap();
 
                                     // <1,...,i,...|1,...,b,...>
-                                    let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
+                                    let s_ib = slice_ct_ct_trimer(s_mo_occ, s_mo, j, b, false, &ct);
                                     let det_ib: f64 = s_ib.det().unwrap();
 
                                     let cc: f64 = coeff_j * coeff_i;
@@ -1776,13 +2799,14 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                                     // select part of overlap matrix for orbitals
                                     // in |Psi_ia> and |Psi_jb>
                                     // <1,...,a,...|1,...,b,...>
-                                    let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
-                                    let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
+                                    let s_ab = slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
+                                    let mut s_ab =
+                                        slice_ct_ct_trimer(s_ab.view(), s_mo, j, b, false, &ct);
                                     s_ab[[i, j]] = s_mo[[a, b]];
                                     let det_ab: f64 = s_ab.det().unwrap();
 
                                     // <1,...,i,...|1,...,b,...>
-                                    let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
+                                    let s_ib = slice_ct_ct_trimer(s_mo_occ, s_mo, j, b, false, &ct);
                                     let det_ib: f64 = s_ib.det().unwrap();
 
                                     let cc: f64 = coeff_j * coeff_i;
@@ -1809,13 +2833,16 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                                         // select part of overlap matrix for orbitals
                                         // in |Psi_ia> and |Psi_jb>
                                         // <1,...,a,...|1,...,b,...>
-                                        let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
-                                        let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
+                                        let s_ab =
+                                            slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
+                                        let mut s_ab =
+                                            slice_ct_ct_trimer(s_ab.view(), s_mo, j, b, false, &ct);
                                         s_ab[[i, j]] = s_mo[[a, b]];
                                         let det_ab: f64 = s_ab.det().unwrap();
 
                                         // <1,...,i,...|1,...,b,...>
-                                        let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
+                                        let s_ib =
+                                            slice_ct_ct_trimer(s_mo_occ, s_mo, j, b, false, &ct);
                                         let det_ib: f64 = s_ib.det().unwrap();
 
                                         let cc: f64 = coeff_j * coeff_i;
@@ -1839,13 +2866,16 @@ fn diabatic_ci_overlap_ct_ct_ijk(
                                         // select part of overlap matrix for orbitals
                                         // in |Psi_ia> and |Psi_jb>
                                         // <1,...,a,...|1,...,b,...>
-                                        let s_ab = slice_ct_ct_trimer(s_mo_occ,s_mo,i,a,true,&ct);
-                                        let mut s_ab = slice_ct_ct_trimer(s_ab.view(),s_mo,j,b,false,&ct);
+                                        let s_ab =
+                                            slice_ct_ct_trimer(s_mo_occ, s_mo, i, a, true, &ct);
+                                        let mut s_ab =
+                                            slice_ct_ct_trimer(s_ab.view(), s_mo, j, b, false, &ct);
                                         s_ab[[i, j]] = s_mo[[a, b]];
                                         let det_ab: f64 = s_ab.det().unwrap();
 
                                         // <1,...,i,...|1,...,b,...>
-                                        let s_ib = slice_ct_ct_trimer(s_mo_occ,s_mo,j,b,false,&ct);
+                                        let s_ib =
+                                            slice_ct_ct_trimer(s_mo_occ, s_mo, j, b, false, &ct);
                                         let det_ib: f64 = s_ib.det().unwrap();
 
                                         let cc: f64 = coeff_j * coeff_i;
@@ -1875,27 +2905,33 @@ fn slice_ct_ct_trimer(
     index_a: usize,
     axis_0: bool,
     ct: &CtCtOverlapABC,
-) ->Array2<f64>{
+) -> Array2<f64> {
     let mut s_mat: Array2<f64> = s_mat.to_owned();
     if axis_0 {
-        s_mat.slice_mut(s![index_i, ..ct.nocc_a])
+        s_mat
+            .slice_mut(s![index_i, ..ct.nocc_a])
             .assign(&s_mo.slice(s![index_a, ..ct.nocc_a]));
-        s_mat.slice_mut(s![index_i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
+        s_mat
+            .slice_mut(s![index_i, ct.nocc_a..ct.nocc_a + ct.nocc_b])
             .assign(&s_mo.slice(s![index_a, ct.norbs_a..ct.norbs_a + ct.nocc_b]));
-        s_mat.slice_mut(s![
-            index_i,
-            ct.nocc_a + ct.nocc_b..ct.nocc_a + ct.nocc_b + ct.nocc_c
-        ])
+        s_mat
+            .slice_mut(s![
+                index_i,
+                ct.nocc_a + ct.nocc_b..ct.nocc_a + ct.nocc_b + ct.nocc_c
+            ])
             .assign(&s_mo.slice(s![
-            index_a,
-            ct.norbs_a + ct.norbs_b..ct.norbs_a + ct.norbs_b + ct.nocc_c
-        ]));
+                index_a,
+                ct.norbs_a + ct.norbs_b..ct.norbs_a + ct.norbs_b + ct.nocc_c
+            ]));
     } else {
-        s_mat.slice_mut(s![..ct.nocc_a, index_i])
+        s_mat
+            .slice_mut(s![..ct.nocc_a, index_i])
             .assign(&s_mo.slice(s![..ct.nocc_a, index_a]));
-        s_mat.slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, index_i])
+        s_mat
+            .slice_mut(s![ct.nocc_a..ct.nocc_a + ct.nocc_b, index_i])
             .assign(&s_mo.slice(s![ct.norbs_a..ct.norbs_a + ct.nocc_b, index_a]));
-        s_mat.slice_mut(s![ct.nocc_a + ct.nocc_b.., index_i])
+        s_mat
+            .slice_mut(s![ct.nocc_a + ct.nocc_b.., index_i])
             .assign(&s_mo.slice(s![
                 ct.norbs_a + ct.norbs_b..ct.norbs_a + ct.norbs_b + ct.nocc_c,
                 index_a
