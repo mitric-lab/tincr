@@ -401,7 +401,7 @@ impl ESDPair {
             let delta_dq_max: f64 = *delta_dq.map(|x| x.abs()).max().unwrap();
 
             // Broyden mixing of partial charges # changed new_dq to dq
-            q_ao = mixer.next(q_ao, delta_dq);
+            q_ao = q_ao +&delta_dq * defaults::BROYDEN_MIXING_PARAMETER;
             // The density matrix is updated in accordance with the Mulliken charges.
             p = p * &(&q_ao / &q_ao_n);
             let dp: Array2<f64> = &p - &p0;
@@ -434,6 +434,11 @@ impl ESDPair {
                 self.properties.set_orbs(orbs);
                 self.properties.set_orbe(orbe);
                 break 'scf_loop;
+            }
+            if !converged && iter == max_iter-1{
+                println!("Iteration {}",iter);
+                println!("Monomer indices: {},{}",self.i,self.j);
+                panic!("ESD Pair scc routine does not converge!");
             }
         }
         // only remove the large arrays not the energy or charges

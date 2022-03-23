@@ -1,7 +1,8 @@
 use crate::initialization::System;
 use ndarray::prelude::*;
 use crate::scc::scc_routine::RestrictedSCC;
-use crate::fmo::SuperSystem;
+use crate::fmo::{SuperSystem, Monomer};
+use crate::fmo::cis_gradient::ReducedBasisState;
 
 impl System{
     pub fn calculate_energies_and_gradient(&mut self, state:usize)->(Array1<f64>,Array1<f64>){
@@ -97,4 +98,76 @@ impl SuperSystem{
 
         return (energies,gradient);
     }
+
+    pub fn calculate_ehrenfest_gradient(&mut self, state_coefficients:ArrayView1<f64>,thresh:f64)->(Array2<f64>,Array1<f64>){
+        // ground state energy and gradient
+        self.prepare_scc();
+        let gs_energy = self.run_scc().unwrap();
+        let gs_gradient = self.ground_state_gradient();
+
+        // mutable gradient
+        let mut gradient:Array1<f64> = gs_gradient;
+
+        // calculate excited states
+        let (diabatic_hamiltonian,states):(Array2<f64>,Vec<ReducedBasisState>) = self.create_diabatic_hamiltonian();
+
+        // iterate over states
+        for (idx,state) in states.iter().enumerate(){
+            if state_coefficients[idx] > thresh{
+                match state{
+                    ReducedBasisState::LE(ref a) => {
+                        let grad:Array1<f64> = self.exciton_le_gradient_without_davidson(a.monomer_index,a.state_index);
+                        let mol:&Monomer = &self.monomers[a.monomer_index];
+                        gradient.slice_mut(s![mol.slice.grad]).assign(&grad);
+                    },
+                    ReducedBasisState::CT(ref a) => {
+                        let mut hole_i:bool = true;
+                        let mut monomer_i:usize = 0;
+                        let mut monomer_j:usize = 1;
+                        let mut ct_i:usize = 0;
+                        let mut ct_j:usize = 0;
+
+                        if a.hole.m_index < a.electron.m_index{
+                            monomer_i = a.hole.m_index;
+                            ct_i = a.hole.ct_index;
+                            monomer_j = a.electron.m_index;
+                            ct_j = a.electron.ct_index;
+                        }
+                        else{
+                            hole_i = false;
+                            monomer_i = a.electron.m_index;
+                            ct_i = a.electron.ct_index;
+                            monomer_j = a.hole.m_index;
+                            ct_j = a.hole.ct_index;
+                        }
+
+                        let mut grad:Array1<f64> =
+                            self.ct_gradient_new(
+                                monomer_i,
+                                monomer_j,
+                                ct_i,
+                                ct_j,
+                                a.energy,hole_i
+                            );
+
+                        grad = grad +
+                            self.calculate_cphf_correction(
+                                monomer_i,
+                                monomer_j,
+                                ct_i,
+                                ct_j,
+                                hole_i
+                            );
+
+                        let mol_i = &self.monomers[monomer_i];
+                        let mol_j = &self.monomers[monomer_j];
+                        gradient.slice_mut(s![mol_i.slice.grad]).assign(&grad.slice(s![..mol_i.n_atoms*3]));
+                        gradient.slice_mut(s![mol_j.slice.grad]).assign(&grad.slice(s![mol_i.n_atoms*3..]));
+                    },
+                }
+            }
+        }
+        return (diabatic_hamiltonian,gradient);
+    }
+
 }

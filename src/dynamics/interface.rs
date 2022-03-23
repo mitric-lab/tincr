@@ -27,6 +27,14 @@ impl QuantumChemistryInterface for System{
 
         return (energies,gradient,tmp_1,tmp_2);
     }
+
+    fn compute_ehrenfest(
+        &mut self, coordinates: ArrayView2<f64>,
+        state_coefficients: ArrayView1<f64>,
+        thresh:f64
+    ) -> (Array2<f64>, Array2<f64>) {
+        todo!()
+    }
 }
 
 impl QuantumChemistryInterface for SuperSystem{
@@ -53,5 +61,25 @@ impl QuantumChemistryInterface for SuperSystem{
         let tmp_2:Array3<f64> = Array3::zeros((1,1,1));
 
         return (energies,gradient,tmp_1,tmp_2);
+    }
+
+    fn compute_ehrenfest(
+        &mut self,
+        coordinates: ArrayView2<f64>,
+        state_coefficients: ArrayView1<f64>,
+        thresh:f64
+    ) -> (Array2<f64>, Array2<f64>) {
+        //Return enegies, forces, non-adiabtic coupling and the transition dipole#
+        let n_atoms:usize = self.atoms.len();
+        // update the coordinats of the system
+        self.update_xyz(coordinates.into_shape(3*n_atoms).unwrap().to_owned());
+
+        // calculate diabatic coupling and the gradient
+        let (diabatic_hamiltonian,gradient):(Array2<f64>,Array1<f64>) =
+            self.calculate_ehrenfest_gradient(state_coefficients,thresh);
+        // reshape the gradient
+        let gradient:Array2<f64> = gradient.into_shape([n_atoms,3]).unwrap();
+
+        return(diabatic_hamiltonian,gradient);
     }
 }

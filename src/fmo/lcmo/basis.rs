@@ -12,6 +12,9 @@ use ndarray_npy::write_npy;
 use std::fmt::{Display, Formatter};
 use std::time::Instant;
 use rayon::prelude::*;
+use crate::fmo::lcmo::cis_gradient::{
+    ReducedBasisState, ReducedCT, ReducedLE, ReducedMO, ReducedParticle,
+};
 
 impl SuperSystem {
     /// The diabatic basis states are constructed, which will be used for the Exciton-Hamiltonian.
@@ -132,6 +135,102 @@ impl SuperSystem {
         }
 
         states
+    }
+
+    pub fn create_diabatic_hamiltonian(&mut self)->(Array2<f64>,Vec<ReducedBasisState>){
+        let hamiltonian = self.build_lcmo_fock_matrix();
+        self.properties.set_lcmo_fock(hamiltonian);
+        // Reference to the atoms of the total system.
+        let atoms: &[Atom] = &self.atoms[..];
+        let max_iter: usize = 50;
+        let tolerance: f64 = 1e-4;
+        // Number of LE states per monomer.
+        let n_le: usize = self.config.lcmo.n_le;
+        // Compute the n_le excited states for each monomer.
+        for mol in self.monomers.iter_mut() {
+            mol.prepare_tda(&atoms[mol.slice.atom_as_range()]);
+            mol.run_tda(&atoms[mol.slice.atom_as_range()], n_le, max_iter, tolerance);
+        }
+        // Construct the diabatic basis states.
+        let states: Vec<BasisState> = self.create_diab_basis();
+        // Dimension of the basis states.
+        let dim: usize = states.len();
+        let mut h: Array2<f64> = Array2::zeros([dim, dim]);
+
+        let arr:Vec<Array1<f64>> = states.par_iter().enumerate().map(|(i,state_i)|{
+            let mut arr:Array1<f64> = Array1::zeros(dim);
+            for (j, state_j) in states[i..].iter().enumerate() {
+                arr[j+i] = self.exciton_coupling(state_i, state_j);
+            }
+            arr
+        }).collect();
+
+        for (i, arr) in arr.iter().enumerate(){
+            h.slice_mut(s![i,..]).assign(&arr);
+        }
+
+        // Construct Reduced dibatic basis states
+        let mut reduced_states:Vec<ReducedBasisState> = Vec::new();
+        for (idx,state) in states.iter().enumerate(){
+            match state {
+                BasisState::LE(ref a) => {
+                    // get index and the Atom vector of the monomer
+                    let new_state = ReducedLE{
+                        energy: h[[idx,idx]],
+                        monomer_index: a.monomer.index,
+                        state_index: a.n,
+                        state_coefficient: 0.0,
+                        homo: a.monomer.properties.homo().unwrap(),
+                    };
+
+                    reduced_states.push(ReducedBasisState::LE(new_state));
+                    // (vec![le_state], vec![monomer_ind])
+                }
+                BasisState::CT(ref a) => {
+                    // get indices
+                    let index_i: usize = a.hole.idx;
+                    let index_j: usize = a.electron.idx;
+
+                    // get Atom vector and nocc of the monomer I
+                    let mol_i: &Monomer = &self.monomers[index_i];
+                    let nocc_i: usize = mol_i.properties.occ_indices().unwrap().len();
+                    drop(mol_i);
+
+                    // get Atom vector and nocc of the monomer J
+                    let mol_j: &Monomer = &self.monomers[index_j];
+                    let nocc_j: usize = mol_j.properties.occ_indices().unwrap().len();
+                    drop(mol_j);
+
+                    // get ct indices of the MOs
+                    let mo_i: usize =
+                        (a.hole.mo.idx as i32 - (nocc_i - 1) as i32).abs() as usize;
+                    let mo_j: usize = a.electron.mo.idx - nocc_j;
+
+                    reduced_states.push(ReducedBasisState::CT(ReducedCT{
+                        energy: h[[idx,idx]],
+                        hole:ReducedParticle{
+                            m_index:a.hole.idx,
+                            ct_index:mo_i,
+                            mo:ReducedMO{
+                                c:a.hole.mo.c.to_owned(),
+                                index:a.hole.mo.idx,
+                            }
+                        },
+                        electron:ReducedParticle{
+                            m_index:a.electron.idx,
+                            ct_index:mo_j,
+                            mo:ReducedMO{
+                                c:a.electron.mo.c.to_owned(),
+                                index:a.electron.mo.idx,
+                            }
+                        },
+                        state_coefficient: 0.0,
+                    }));
+                }
+            };
+        }
+
+        return (h,reduced_states);
     }
 
     pub fn create_exciton_hamiltonian(&mut self) {
