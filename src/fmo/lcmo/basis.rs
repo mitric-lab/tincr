@@ -5,7 +5,7 @@ use crate::initialization::{Atom, MO};
 use crate::io::settings::LcmoConfig;
 use crate::utils::Timer;
 use nalgebra::{max, Vector3};
-use ndarray::concatenate;
+use ndarray::{concatenate, AssignElem};
 use ndarray::prelude::*;
 use ndarray_linalg::{Eigh, UPLO};
 use ndarray_npy::write_npy;
@@ -142,8 +142,8 @@ impl SuperSystem {
         self.properties.set_lcmo_fock(hamiltonian);
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
-        let max_iter: usize = 50;
-        let tolerance: f64 = 1e-4;
+        let max_iter: usize = 100;
+        let tolerance: f64 = 1e-5;
         // Number of LE states per monomer.
         let n_le: usize = self.config.lcmo.n_le;
         // Compute the n_le excited states for each monomer.
@@ -168,6 +168,9 @@ impl SuperSystem {
         for (i, arr) in arr.iter().enumerate(){
             h.slice_mut(s![i,..]).assign(&arr);
         }
+
+        // fill the lower triagonal block of the matrix
+        h = &h +&h.t() - Array::from_diag(&h.diag());
 
         // Construct Reduced dibatic basis states
         let mut reduced_states:Vec<ReducedBasisState> = Vec::new();
