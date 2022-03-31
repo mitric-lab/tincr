@@ -99,7 +99,11 @@ impl SuperSystem{
         return (energies,gradient);
     }
 
-    pub fn calculate_ehrenfest_gradient(&mut self, state_coefficients:ArrayView1<f64>,thresh:f64)->(f64,Array2<f64>,Array1<f64>,Vec<Array2<f64>>){
+    pub fn calculate_ehrenfest_gradient(
+        &mut self,
+        state_coefficients:ArrayView1<f64>,
+        thresh:f64
+    )->(f64,Array2<f64>,Array1<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>){
         // ground state energy and gradient
         self.prepare_scc();
         let gs_energy = self.run_scc().unwrap();
@@ -113,13 +117,17 @@ impl SuperSystem{
 
         // get cis matrices
         let mut cis_vec:Vec<Array2<f64>> = Vec::new();
+        let mut qtrans_vec:Vec<Array1<f64>> = Vec::new();
 
         // iterate over states
         for (idx,state) in states.iter().enumerate(){
             match state{
                 ReducedBasisState::LE(ref a) => {
                     let tdm:ArrayView2<f64> = self.monomers[a.monomer_index].properties.tdm(a.state_index).unwrap();
+                    let ci_coeff:ArrayView1<f64> = self.monomers[a.monomer_index].properties.ci_coefficient(a.state_index).unwrap();
+                    let q_ov: ArrayView2<f64> = self.monomers[a.monomer_index].properties.q_ov().unwrap();
                     cis_vec.push(tdm.to_owned());
+                    qtrans_vec.push(q_ov.dot(&ci_coeff));
                 },
                 ReducedBasisState::CT(ref a) => {
                 },
@@ -193,7 +201,7 @@ impl SuperSystem{
         }
         self.properties.reset();
 
-        return (gs_energy,diabatic_hamiltonian,gradient,cis_vec);
+        return (gs_energy,diabatic_hamiltonian,gradient,cis_vec,qtrans_vec);
     }
 
 }

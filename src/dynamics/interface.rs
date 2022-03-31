@@ -32,7 +32,7 @@ impl QuantumChemistryInterface for System{
         &mut self, coordinates: ArrayView2<f64>,
         state_coefficients: ArrayView1<f64>,
         thresh:f64
-    ) -> (f64,Array2<f64>, Array2<f64>,Vec<Array2<f64>>) {
+    ) -> (f64,Array2<f64>, Array2<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>) {
         todo!()
     }
 }
@@ -68,18 +68,18 @@ impl QuantumChemistryInterface for SuperSystem{
         coordinates: ArrayView2<f64>,
         state_coefficients: ArrayView1<f64>,
         thresh:f64
-    ) -> (f64,Array2<f64>, Array2<f64>,Vec<Array2<f64>>) {
+    ) -> (f64,Array2<f64>, Array2<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>) {
         // Return energies, forces, non-adiabtic coupling and the transition dipole#
         let n_atoms:usize = self.atoms.len();
         // update the coordinats of the system
         self.update_xyz(coordinates.into_shape(3*n_atoms).unwrap().to_owned());
 
         // calculate diabatic coupling and the gradient
-        let (gs_energy,diabatic_hamiltonian,gradient,cis_vec):(f64,Array2<f64>,Array1<f64>,Vec<Array2<f64>>) =
+        let (gs_energy,diabatic_hamiltonian,gradient,cis_vec,qtrans_vec):(f64,Array2<f64>,Array1<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>) =
             self.calculate_ehrenfest_gradient(state_coefficients,thresh);
         // reshape the gradient
         let gradient:Array2<f64> = gradient.into_shape([n_atoms,3]).unwrap();
 
-        return(gs_energy,gradient,diabatic_hamiltonian,cis_vec);
+        return(gs_energy,gradient,diabatic_hamiltonian,cis_vec,qtrans_vec);
     }
 }
