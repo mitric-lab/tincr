@@ -310,6 +310,14 @@ impl Properties {
         )
     }
 
+    /// Set the transformed Hamiltonian, which is required for the ground state gradient
+    pub fn set_h_coul_transformed(&mut self,h:Array2<f64>){
+        self.set(
+            "h_coul_transformed",
+            Property::from(h),
+        )
+    }
+
     /// set the sum of the excitation vectors x and y
     pub fn set_xpy(&mut self, xpy:Array3<f64>){
         self.set(

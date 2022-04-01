@@ -2,6 +2,7 @@ use ndarray::prelude::*;
 use ndarray_linalg::*;
 use ndarray::stack;
 use ndarray_stats::{QuantileExt, DeviationExt};
+use rust_decimal::prelude::*;
 use crate::fmo::scc::helpers::*;
 use crate::fmo::{Pair, Monomer, Fragment};
 use crate::scc::h0_and_s::*;
@@ -11,6 +12,7 @@ use crate::scc::mixer::{BroydenMixer, Mixer};
 use crate::scc::mulliken::mulliken;
 use crate::initialization::Atom;
 use crate::io::SccConfig;
+use ndarray_npy::write_npy;
 
 impl Fragment for Monomer {}
 
@@ -109,9 +111,11 @@ impl Monomer {
 
         // H' = X^t.H.X
         h = x.t().dot(&h).dot(&x);
-        let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
+        write_npy(format!("h_{}_{}_.npy",self.properties.n_virt().unwrap(),self.index),&h);
+        let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
         let orbe: Array1<f64> = tmp.0;
         // C = X.C'
+        write_npy(format!("orbs_{}_{}_.npy",self.properties.n_virt().unwrap(),self.index),&tmp.1);
         let orbs: Array2<f64> = x.dot(&tmp.1);
 
         // calculate the density matrix
@@ -157,6 +161,7 @@ impl Monomer {
         self.properties.set_last_energy(scf_energy);
         self.properties.set_q_ao(q_ao);
         self.properties.set_h_coul_x(h_save);
+        self.properties.set_h_coul_transformed(h);
 
         // scc (for one fragment) is converged if both criteria are passed
         conv_charge && conv_energy

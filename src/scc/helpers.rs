@@ -117,11 +117,18 @@ pub fn lc_exact_exchange(
     g0_lr_ao: ArrayView2<f64>,
     dp: ArrayView2<f64>,
 ) -> Array2<f64> {
-    let mut hx: Array2<f64> = (&g0_lr_ao * &s.dot(&dp)).dot(&s);
-    hx = hx + &g0_lr_ao * &(s.dot(&dp)).dot(&s);
+    // let mut hx: Array2<f64> = (&g0_lr_ao * &s.dot(&dp)).dot(&s);
+    // hx = hx + &g0_lr_ao * &(s.dot(&dp)).dot(&s);
+    // hx = hx + (s.dot(&(&dp * &g0_lr_ao))).dot(&s);
+    // hx = hx + s.dot(&(&g0_lr_ao * &dp.dot(&s)));
+    // hx = hx * -0.125;
+
+    let s_dot_dp = s.dot(&dp);
+    let tmp = (&g0_lr_ao * &s_dot_dp).dot(&s);
+    let mut hx: Array2<f64> = &tmp + &tmp.t();
+    hx = hx + &g0_lr_ao * &s_dot_dp.dot(&s);
     hx = hx + (s.dot(&(&dp * &g0_lr_ao))).dot(&s);
-    hx = hx + s.dot(&(&g0_lr_ao * &dp.dot(&s)));
-    hx = hx * -0.125;
+    hx *= -0.125;
     return hx;
 }
 

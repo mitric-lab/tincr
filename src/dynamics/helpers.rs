@@ -1,18 +1,18 @@
-use crate::initialization::System;
-use ndarray::prelude::*;
-use crate::scc::scc_routine::RestrictedSCC;
-use crate::fmo::{SuperSystem, Monomer};
 use crate::fmo::cis_gradient::ReducedBasisState;
+use crate::fmo::{Monomer, SuperSystem};
+use crate::initialization::System;
+use crate::scc::scc_routine::RestrictedSCC;
+use ndarray::prelude::*;
 
-impl System{
-    pub fn calculate_energies_and_gradient(&mut self, state:usize)->(Array1<f64>,Array1<f64>){
+impl System {
+    pub fn calculate_energies_and_gradient(&mut self, state: usize) -> (Array1<f64>, Array1<f64>) {
         let mut gradient: Array1<f64> = Array::zeros(3 * self.n_atoms);
-        let mut energies:Array1<f64> = Array1::zeros(self.config.excited.nstates+1);
+        let mut energies: Array1<f64> = Array1::zeros(self.config.excited.nstates + 1);
 
-        if state == 0{
+        if state == 0 {
             // ground state energy
             self.prepare_scc();
-            let gs_energy:f64 = self.run_scc().unwrap();
+            let gs_energy: f64 = self.run_scc().unwrap();
             energies[0] = gs_energy;
 
             // // calculate excited states
@@ -22,45 +22,45 @@ impl System{
             // energies.slice_mut(s![1..]).assign(&(gs_energy +&ci_energies));
 
             gradient = self.ground_state_gradient(true);
-        }
-        else{
+        } else {
             // ground state energy
-            let excited_state:usize = state -1;
+            let excited_state: usize = state - 1;
             self.prepare_scc();
-            let gs_energy:f64 = self.run_scc().unwrap();
+            let gs_energy: f64 = self.run_scc().unwrap();
             energies[0] = gs_energy;
 
             // calculate excited states
             self.prepare_tda();
             self.run_tda(self.config.excited.nstates, 200, 1e-4);
-            let ci_energies:ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
-            energies.slice_mut(s![1..]).assign(&(gs_energy +&ci_energies));
+            let ci_energies: ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
+            energies
+                .slice_mut(s![1..])
+                .assign(&(gs_energy + &ci_energies));
 
             gradient = self.ground_state_gradient(true);
 
             self.prepare_excited_grad();
 
-            if self.config.lc.long_range_correction{
+            if self.config.lc.long_range_correction {
                 gradient = gradient + self.tda_gradient_lc(excited_state);
-            }
-            else{
+            } else {
                 gradient = gradient + self.tda_gradient_nolc(excited_state);
             }
         }
         self.properties.reset();
 
-        return (energies,gradient);
+        return (energies, gradient);
     }
 }
 
-impl SuperSystem{
-    pub fn calculate_energies_and_gradient(&mut self, state:usize)->(Array1<f64>,Array1<f64>){
-        let n_atoms:usize = self.atoms.len();
+impl SuperSystem {
+    pub fn calculate_energies_and_gradient(&mut self, state: usize) -> (Array1<f64>, Array1<f64>) {
+        let n_atoms: usize = self.atoms.len();
         let mut gradient: Array1<f64> = Array::zeros(3 * n_atoms);
-        let n_states:usize = self.config.excited.nstates+1;
-        let mut energies:Array1<f64> = Array1::zeros(n_states);
+        let n_states: usize = self.config.excited.nstates + 1;
+        let mut energies: Array1<f64> = Array1::zeros(n_states);
 
-        if state == 0{
+        if state == 0 {
             // ground state energy and gradient
             self.prepare_scc();
             let gs_energy = self.run_scc().unwrap();
@@ -71,8 +71,7 @@ impl SuperSystem{
             // self.create_exciton_hamiltonian();
             // let ex_energies:ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
             // energies.slice_mut(s![1..]).assign(&(gs_energy +&ex_energies));
-        }
-        else{
+        } else {
             // ground state energy and gradient
             self.prepare_scc();
             let gs_energy = self.run_scc().unwrap();
@@ -81,14 +80,16 @@ impl SuperSystem{
 
             // calculate excited states
             self.create_exciton_hamiltonian();
-            let ex_energies:ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
-            energies.slice_mut(s![1..]).assign(&(gs_energy +&ex_energies.slice(s![..n_states-1])));
+            let ex_energies: ArrayView1<f64> = self.properties.ci_eigenvalues().unwrap();
+            energies
+                .slice_mut(s![1..])
+                .assign(&(gs_energy + &ex_energies.slice(s![..n_states - 1])));
 
-            let excited_state:usize = state -1;
+            let excited_state: usize = state - 1;
             gradient = gradient + self.fmo_cis_gradient(excited_state);
         }
 
-        for monomer in self.monomers.iter_mut(){
+        for monomer in self.monomers.iter_mut() {
             monomer.properties.reset();
         }
         for pair in self.pairs.iter_mut() {
@@ -96,41 +97,77 @@ impl SuperSystem{
         }
         self.properties.reset();
 
-        return (energies,gradient);
+        return (energies, gradient);
     }
 
     pub fn calculate_ehrenfest_gradient(
         &mut self,
-        state_coefficients:ArrayView1<f64>,
-        thresh:f64
-    )->(f64,Array2<f64>,Array1<f64>,Vec<Array2<f64>>,Vec<Array1<f64>>){
+        state_coefficients: ArrayView1<f64>,
+        thresh: f64,
+    ) -> (
+        f64,
+        Array2<f64>,
+        Array1<f64>,
+        Vec<Array2<f64>>,
+        Vec<Array1<f64>>,
+        Vec<Array2<f64>>,
+        Vec<Array2<f64>>,
+        Vec<Array2<f64>>,
+    ) {
         // ground state energy and gradient
         self.prepare_scc();
         let gs_energy = self.run_scc().unwrap();
         let gs_gradient = self.ground_state_gradient();
 
         // mutable gradient
-        let mut gradient:Array1<f64> = gs_gradient;
+        let mut gradient: Array1<f64> = gs_gradient;
 
         // calculate excited states
-        let (diabatic_hamiltonian,states):(Array2<f64>,Vec<ReducedBasisState>) = self.create_diabatic_hamiltonian();
+        let (diabatic_hamiltonian, states): (Array2<f64>, Vec<ReducedBasisState>) =
+            self.create_diabatic_hamiltonian();
 
         // get cis matrices
-        let mut cis_vec:Vec<Array2<f64>> = Vec::new();
-        let mut qtrans_vec:Vec<Array1<f64>> = Vec::new();
+        let mut cis_vec: Vec<Array2<f64>> = Vec::new();
+        let mut qtrans_vec: Vec<Array1<f64>> = Vec::new();
+        let mut mo_vec: Vec<Array2<f64>> = Vec::new();
+        let mut h_vec:Vec<Array2<f64>> = Vec::new();
+        let mut x_vec:Vec<Array2<f64>> = Vec::new();
 
         // iterate over states
-        for (idx,state) in states.iter().enumerate(){
-            match state{
+        for (idx, state) in states.iter().enumerate() {
+            match state {
                 ReducedBasisState::LE(ref a) => {
-                    let tdm:ArrayView2<f64> = self.monomers[a.monomer_index].properties.tdm(a.state_index).unwrap();
-                    let ci_coeff:ArrayView1<f64> = self.monomers[a.monomer_index].properties.ci_coefficient(a.state_index).unwrap();
-                    let q_ov: ArrayView2<f64> = self.monomers[a.monomer_index].properties.q_ov().unwrap();
+                    let tdm: ArrayView2<f64> = self.monomers[a.monomer_index]
+                        .properties
+                        .tdm(a.state_index)
+                        .unwrap();
+                    let ci_coeff: ArrayView1<f64> = self.monomers[a.monomer_index]
+                        .properties
+                        .ci_coefficient(a.state_index)
+                        .unwrap();
+                    let q_ov: ArrayView2<f64> =
+                        self.monomers[a.monomer_index].properties.q_ov().unwrap();
                     cis_vec.push(tdm.to_owned());
                     qtrans_vec.push(q_ov.dot(&ci_coeff));
-                },
-                ReducedBasisState::CT(ref a) => {
-                },
+                    mo_vec.push(
+                        self.monomers[a.monomer_index]
+                            .properties
+                            .orbs()
+                            .unwrap()
+                            .to_owned(),
+                    );
+                    h_vec.push(self.monomers[a.monomer_index]
+                                   .properties
+                                   .h_coul_transformed()
+                                   .unwrap()
+                                   .to_owned());
+                    x_vec.push(self.monomers[a.monomer_index]
+                        .properties
+                        .x()
+                        .unwrap()
+                        .to_owned());
+                }
+                ReducedBasisState::CT(ref a) => {}
             }
         }
 
@@ -190,18 +227,26 @@ impl SuperSystem{
         //         }
         //     }
         // }
-        for monomer in self.monomers.iter_mut(){
+        for monomer in self.monomers.iter_mut() {
             monomer.properties.reset();
         }
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
         }
-        for esd_pair in self.esd_pairs.iter_mut(){
+        for esd_pair in self.esd_pairs.iter_mut() {
             esd_pair.properties.reset();
         }
         self.properties.reset();
 
-        return (gs_energy,diabatic_hamiltonian,gradient,cis_vec,qtrans_vec);
+        return (
+            gs_energy,
+            diabatic_hamiltonian,
+            gradient,
+            cis_vec,
+            qtrans_vec,
+            mo_vec,
+            h_vec,
+            x_vec
+        );
     }
-
 }

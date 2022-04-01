@@ -76,31 +76,31 @@ impl RestrictedSCC for SuperSystem {
         // println!("Time monomers {}",timer);
 
         // Do the SCC-calculation for each pair individually
-        let mut pair_energies: f64 = self.pair_scc(dq.view());
+        // let mut pair_energies: f64 = self.pair_scc(dq.view());
 
         // println!("time pairs {}",timer);
 
         // Compute the embedding energy from all pairs
-        let mut embedding: f64 = self.embedding_energy();
+        // let mut embedding: f64 = self.embedding_energy();
 
         // println!("time embedding {}",timer);
 
         // Compute the energy from pairs that are far apart. The electrostatic dimer approximation
         // is used in this case.
-        let mut esd_pair_energies: f64 = self.esd_pair_energy();
+        // let mut esd_pair_energies: f64 = self.esd_pair_energy();
 
         // println!("time esd {}",timer);
 
         // Sum up all the individual energies
-        let total_energy: f64 = monomer_energies + pair_energies + embedding + esd_pair_energies;
+        let total_energy: f64 = monomer_energies;// + pair_energies + embedding + esd_pair_energies;
 
         // Save the charge differences of all monomers in the SuperSystem
-        self.properties.set_dq(dq);
+        // self.properties.set_dq(dq);
 
         // Print information of the SCC-routine
-        logging::fmo_scc_end(timer, monomer_energies, pair_energies, embedding, esd_pair_energies);
+        // logging::fmo_scc_end(timer, monomer_energies, pair_energies, embedding, esd_pair_energies);
 
-        self.properties.set_last_energy(total_energy);
+        // self.properties.set_last_energy(total_energy);
         // Return the energy
         Ok(total_energy)
     }
