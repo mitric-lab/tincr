@@ -9,7 +9,78 @@ use ndarray::prelude::*;
 use ndarray_linalg::Determinant;
 
 impl SuperSystem {
-    pub fn nonadiabatic_coupling(&self, other: &Self) {
+    pub fn nonadiabatic_scalar_coupling(
+        &self,
+        other: Option<&Self>,
+        last_coupling: Option<Array2<f64>>,
+        excitonic_coupling: ArrayView2<f64>,
+        dt: f64,
+    )->(Array2<f64>,Array2<f64>,Array2<f64>) {
+        // get the old supersystem
+        let old_system: &SuperSystem = if other.is_some() {
+            other.unwrap()
+        }
+        // if the dynamic is at it's first step, calculate the coupling between the
+        // starting geometry
+        else {
+            self
+        };
+        // calculate the overlap of the wavefunctions
+        let sci_overlap: Array2<f64> = self.scalar_coupling_ci_overlaps(old_system);
+        let dim: usize = sci_overlap.dim().0;
+
+        // align phases
+        // The eigenvalue solver produces vectors with arbitrary global phases
+        // (+1 or -1). The orbitals of the ground state can also change their signs.
+        // Eigen states from neighbouring geometries should change continuously.
+        let diag = sci_overlap.diag();
+        // get signs of the diagonal
+        let sign: Array1<f64> = get_sign_of_array(diag);
+        // create 2D matrix from the sign array
+        let p: Array2<f64> = Array::from_diag(&sign);
+        // align the new CI coefficients with the old coefficients
+        let p_exclude_gs: ArrayView2<f64> = p.slice(s![1.., 1..]);
+        // align the excitonic coupling matrix using the p matrix
+        let excitonic_coupling: Array2<f64> = p_exclude_gs.dot(&excitonic_coupling).dot(&p_exclude_gs);
+
+        // align overlap matrix
+        let mut s_ci = sci_overlap.dot(&p);
+
+        // The relative signs for the overlap between the ground and excited states at different geometries
+        // cannot be deduced from the diagonal elements of Sci. The phases are chosen such that the coupling
+        // between S0 and S1-SN changes smoothly for most of the states.
+        if last_coupling.is_some() {
+            let old_s_ci: Array2<f64> = last_coupling.unwrap();
+            let s: Array1<f64> =
+                get_sign_of_array((&old_s_ci.slice(s![0, 1..]) / &s_ci.slice(s![0, 1..])).view());
+            let w: Array1<f64> =
+                (&old_s_ci.slice(s![0, 1..]) - &s_ci.slice(s![0, 1..])).map(|val| val.abs());
+            let mean_sign: f64 = ((&w * &s).sum() / w.sum()).signum();
+            for i in (1..dim) {
+                s_ci[[0, i]] *= mean_sign;
+                s_ci[[i, 0]] *= mean_sign;
+            }
+        }
+
+        // set diagonal elements of coupl to zero
+        let mut coupling: Array2<f64> = s_ci.clone();
+        coupling = coupling - Array::from_diag(&s_ci.diag());
+        // coupl[A,B] = <Psi_A(t)|Psi_B(t+dt)> - delta_AB
+        //            ~ <Psi_A(t)|d/dR Psi_B(t)>*dR/dt dt
+        // Because of the finite time-step it will not be completely antisymmetric,
+        // so antisymmetrize it
+        coupling = 0.5 * (&coupling - &coupling.t());
+
+        // save the last coupling matrix
+        let last_coupling: Array2<f64> = coupling.clone();
+
+        // coupl = <Psi_A|d/dR Psi_B>*dR/dt * dt
+        coupling = coupling / dt;
+
+        return (coupling,excitonic_coupling,last_coupling)
+    }
+
+    pub fn scalar_coupling_ci_overlaps(&self, other: &Self) -> Array2<f64> {
         let basis_states = self.properties.basis_states().unwrap();
         let old_basis = other.properties.basis_states().unwrap();
 
@@ -39,6 +110,7 @@ impl SuperSystem {
             coupling[[0, idx_j + 1]] =
                 self.scalar_coupling_diabatic_gs(other, state_j, s.view(), false);
         }
+        coupling
     }
 
     pub fn scalar_coupling_diabatic_gs(
