@@ -105,8 +105,8 @@ impl System{
 
         // set defaults
         let maxiter: usize = 5000;
-        let gtol: f64 = 1.0e-6;
-        let ftol: f64 = 1.0e-8;
+        let gtol: f64 = 1.0e-5;
+        let ftol: f64 = 1.0e-7;
         let method: String = String::from("BFGS");
         let line_search: String = String::from("largest");
 

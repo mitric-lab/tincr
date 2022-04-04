@@ -7,6 +7,7 @@ use hashbrown::HashMap;
 use crate::excited_states::ProductCache;
 use nalgebra::Vector3;
 use crate::initialization::Atom;
+use crate::fmo::cis_gradient::ReducedBasisState;
 
 impl Properties {
     pub fn old_atoms(&self) -> Option<&[Atom]> {
@@ -620,6 +621,14 @@ impl Properties {
         }
     }
 
+    /// Get the transformed-Hamiltonian, which is required for the ground state gradient
+    pub fn h_coul_transformed(&self) ->Option<ArrayView2<f64>>{
+        match self.get("h_coul_transformed"){
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference to the difference of the excitation vectors
     pub fn xmy(&self) -> Option<ArrayView3<f64>> {
         match self.get("xmy") {
@@ -657,6 +666,13 @@ impl Properties {
     pub fn s_j_ij(&self)->Option<ArrayView2<f64>>{
         match self.get("s_j_ij"){
             Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    pub fn basis_states(&self)->Option<&[ReducedBasisState]>{
+        match self.get("basis_states"){
+            Some(value) => Some(value.as_vec_basis().unwrap()),
             _ => None,
         }
     }

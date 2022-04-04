@@ -6,6 +6,7 @@ use crate::scc::mixer::BroydenMixer;
 use crate::properties::Properties;
 use crate::excited_states::ProductCache;
 use crate::initialization::{MO, Atom};
+use crate::fmo::cis_gradient::ReducedBasisState;
 
 
 impl Properties {
@@ -355,6 +356,13 @@ impl Properties {
         self.set(
             "s_j_ij",
             Property::from(s_j_ij),
+        )
+    }
+
+    pub fn set_basis_states(&mut self, basis:Vec<ReducedBasisState>){
+        self.set(
+            "basis_states",
+            Property::from(basis),
         )
     }
 }

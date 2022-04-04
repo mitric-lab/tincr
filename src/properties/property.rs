@@ -5,6 +5,7 @@ use crate::excited_states::ProductCache;
 use hashbrown::HashMap;
 use crate::fmo::PairType;
 use crate::initialization::Atom;
+use crate::fmo::lcmo::cis_gradient::ReducedBasisState;
 
 /// A `Property` is a piece of data that can be associated with an `Molecule` or
 /// `ElectronicData`. The idea of this enum is taken from Guillaume Fraux's (@Luthaf) Chemfiles
@@ -50,6 +51,7 @@ pub enum Property {
     /// Vector property of f64 type
     VecF64(Vec<f64>),
     VecAtom(Vec<Atom>),
+    VecBasis(Vec<ReducedBasisState>),
     /// Arraybase<f64, Ix1> property
     Array1(Array1<f64>),
     /// Arraybase<f64, Ix2> property
@@ -109,6 +111,10 @@ impl From<Vec<usize>> for Property {
 
 impl From<Vec<f64>> for Property {
     fn from(value: Vec<f64>) -> Self {Property::VecF64(value)}
+}
+
+impl From<Vec<ReducedBasisState>> for Property {
+    fn from(value: Vec<ReducedBasisState>) -> Self {Property::VecBasis(value)}
 }
 
 impl<'a> From<&'_ str> for Property {

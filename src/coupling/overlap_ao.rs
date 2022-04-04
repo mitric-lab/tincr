@@ -55,7 +55,7 @@ pub fn overlap_between_timesteps(le_i: &LocallyExcited, le_j: &LocallyExcited)->
                     nu += 1;
                 }
             }
-            nu += 1;
+            mu += 1;
         }
     }
     return s;
