@@ -2,6 +2,8 @@ use crate::fmo::SuperSystem;
 use crate::initialization::System;
 use ndarray::prelude::*;
 use rusty_fish::interface::QuantumChemistryInterface;
+use std::panic::resume_unwind;
+use std::time::Instant;
 
 impl QuantumChemistryInterface for System {
     fn compute_data(
@@ -29,8 +31,10 @@ impl QuantumChemistryInterface for System {
         coordinates: ArrayView2<f64>,
         state_coefficients: ArrayView1<f64>,
         thresh: f64,
+        dt:f64,
     ) -> (
         f64,
+        Array2<f64>,
         Array2<f64>,
         Array2<f64>,
         Vec<Array2<f64>>,
@@ -70,11 +74,10 @@ impl QuantumChemistryInterface for SuperSystem {
         coordinates: ArrayView2<f64>,
         state_coefficients: ArrayView1<f64>,
         thresh: f64,
-        // other:Option<&Self>,
-        // last_coupling:Array2<f64>,
-        // dt:f64,
+        dt:f64,
     ) -> (
         f64,
+        Array2<f64>,
         Array2<f64>,
         Array2<f64>,
         Vec<Array2<f64>>,
@@ -99,16 +102,22 @@ impl QuantumChemistryInterface for SuperSystem {
             Vec<Array2<f64>>,
             Vec<Array2<f64>>,
         ) = self.calculate_ehrenfest_gradient(state_coefficients, thresh);
+
         // reshape the gradient
         let gradient: Array2<f64> = gradient.into_shape([n_atoms, 3]).unwrap();
 
-        // // calculate the nonadiabatic coupling
-        // self.nonadiabatic_scalar_coupling(other,last_coupling,diabatic_hamiltonian.view(),dt);
+        // calculate the nonadiabatic coupling
+        let (coupling,diabatic_hamiltonian):(Array2<f64>,Array2<f64>)
+            = self.nonadiabatic_scalar_coupling(diabatic_hamiltonian.view(),dt);
+
+        // reset the old supersystem
+        self.properties.reset_supersystem();
 
         return (
             gs_energy,
             gradient,
             diabatic_hamiltonian,
+            coupling,
             cis_vec,
             qtrans_vec,
             mo_vec,

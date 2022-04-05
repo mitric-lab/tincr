@@ -6,6 +6,7 @@ use hashbrown::HashMap;
 use crate::fmo::PairType;
 use crate::initialization::Atom;
 use crate::fmo::lcmo::cis_gradient::ReducedBasisState;
+use crate::fmo::SuperSystem;
 
 /// A `Property` is a piece of data that can be associated with an `Molecule` or
 /// `ElectronicData`. The idea of this enum is taken from Guillaume Fraux's (@Luthaf) Chemfiles
@@ -64,6 +65,7 @@ pub enum Property {
     Mixer(BroydenMixer),
     /// Excited state product cache
     Cache(ProductCache),
+    SuperSystem(SuperSystem),
 }
 
 impl Default for Property {
@@ -180,4 +182,8 @@ impl From<BroydenMixer> for Property {
 
 impl From<ProductCache> for Property {
     fn from(value: ProductCache) -> Self {Property::Cache(value)}
+}
+
+impl From<SuperSystem> for Property {
+    fn from(value: SuperSystem) -> Self {Property::SuperSystem(value)}
 }

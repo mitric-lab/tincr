@@ -6,24 +6,25 @@ use crate::initialization::parameters::SlaterKoster;
 use crate::initialization::{Atom, System};
 use crate::param::slako_transformations::{directional_cosines, slako_transformation};
 use ndarray::prelude::*;
+use rayon::prelude::*;
 use ndarray_linalg::Determinant;
 
 impl SuperSystem {
     pub fn nonadiabatic_scalar_coupling(
-        &self,
-        other: Option<&Self>,
-        last_coupling: Option<Array2<f64>>,
+        &mut self,
         excitonic_coupling: ArrayView2<f64>,
         dt: f64,
-    )->(Array2<f64>,Array2<f64>,Array2<f64>) {
+    )->(Array2<f64>,Array2<f64>) {
+        // get old supersystem from properties
+        let old_supersystem = self.properties.old_supersystem();
         // get the old supersystem
-        let old_system: &SuperSystem = if other.is_some() {
-            other.unwrap()
+        let old_system: &SuperSystem = if old_supersystem.is_some() {
+            old_supersystem.unwrap()
         }
         // if the dynamic is at it's first step, calculate the coupling between the
         // starting geometry
         else {
-            self
+            &self
         };
         // calculate the overlap of the wavefunctions
         let sci_overlap: Array2<f64> = self.scalar_coupling_ci_overlaps(old_system);
@@ -36,6 +37,7 @@ impl SuperSystem {
         let diag = sci_overlap.diag();
         // get signs of the diagonal
         let sign: Array1<f64> = get_sign_of_array(diag);
+        println!("{}",sign);
         // create 2D matrix from the sign array
         let p: Array2<f64> = Array::from_diag(&sign);
         // align the new CI coefficients with the old coefficients
@@ -49,8 +51,9 @@ impl SuperSystem {
         // The relative signs for the overlap between the ground and excited states at different geometries
         // cannot be deduced from the diagonal elements of Sci. The phases are chosen such that the coupling
         // between S0 and S1-SN changes smoothly for most of the states.
+        let last_coupling:Option<ArrayView2<f64>> = old_system.properties.last_scalar_coupling();
         if last_coupling.is_some() {
-            let old_s_ci: Array2<f64> = last_coupling.unwrap();
+            let old_s_ci: ArrayView2<f64> = last_coupling.unwrap();
             let s: Array1<f64> =
                 get_sign_of_array((&old_s_ci.slice(s![0, 1..]) / &s_ci.slice(s![0, 1..])).view());
             let w: Array1<f64> =
@@ -73,11 +76,12 @@ impl SuperSystem {
 
         // save the last coupling matrix
         let last_coupling: Array2<f64> = coupling.clone();
+        self.properties.set_last_scalar_coupling(last_coupling);
 
         // coupl = <Psi_A|d/dR Psi_B>*dR/dt * dt
         coupling = coupling / dt;
 
-        return (coupling,excitonic_coupling,last_coupling)
+        return (coupling,excitonic_coupling)
     }
 
     pub fn scalar_coupling_ci_overlaps(&self, other: &Self) -> Array2<f64> {
@@ -99,10 +103,9 @@ impl SuperSystem {
 
             for (idx_j, state_j) in old_basis.iter().enumerate() {
                 // coupling between the diabatic states
-                if idx_i != idx_j {
-                    coupling[[idx_i + 1, idx_j + 1]] =
-                        self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
-                }
+                coupling[[idx_i + 1, idx_j + 1]] =
+                    self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
+
             }
         }
         // cooupling between the ground state and the diabatic state
@@ -110,6 +113,33 @@ impl SuperSystem {
             coupling[[0, idx_j + 1]] =
                 self.scalar_coupling_diabatic_gs(other, state_j, s.view(), false);
         }
+
+        // let coupling_vec:Vec<Array1<f64>> = basis_states.par_iter().map(|state_i|{
+        //     let mut arr:Array1<f64> = Array1::zeros(basis_states.len());
+        //     for (idx_j, state_j) in old_basis.iter().enumerate() {
+        //         // coupling between the diabatic states
+        //         arr[idx_j] = self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
+        //     }
+        //     arr
+        // }).collect();
+        //
+        // // slice the coupling matrix elements
+        // for (idx,arr) in coupling_vec.iter().enumerate(){
+        //     coupling.slice_mut(s![idx+1,1..]).assign(arr);
+        // }
+        // // parallel calculation
+        // let diabatic_gs:Vec<f64> = basis_states.par_iter().map(|state|{
+        //     // coupling between the ground state and the diabatic states
+        //     self.scalar_coupling_diabatic_gs(other, state, s.view(), true)
+        // }).collect();
+        // // cooupling between the ground state and the diabatic state
+        // let gs_diabatic:Vec<f64> = old_basis.par_iter().map(|state|{
+        //     self.scalar_coupling_diabatic_gs(other, state, s.view(), false)
+        // }).collect();
+        // // slice coupling matrix
+        // coupling.slice_mut(s![0,1..]).assign(&Array::from(gs_diabatic));
+        // coupling.slice_mut(s![1..,0]).assign(&Array::from(diabatic_gs));
+
         coupling
     }
 
@@ -169,7 +199,7 @@ impl SuperSystem {
         gs_old: bool,
     ) -> f64 {
         // Excitations i->a with coefficients |C_ia| < threshold will be neglected
-        let threshold: f64 = 0.005;
+        let threshold: f64 = 0.001;
         // get nocc and nvirt
         let nocc: usize = ci.dim().0;
         let nvirt: usize = ci.dim().1;
@@ -545,7 +575,7 @@ impl SuperSystem {
         ci_old: ArrayView2<f64>,
     ) -> f64 {
         // Excitations i->a with coefficients |C_ia| < threshold will be neglected
-        let threshold: f64 = 0.005;
+        let threshold: f64 = 0.001;
         // get nocc and nvirt
         let nocc: usize = ci_new.dim().0;
         let nvirt: usize = ci_new.dim().1;

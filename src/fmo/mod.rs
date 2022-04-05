@@ -1,4 +1,4 @@
-mod supersystem;
+pub mod supersystem;
 mod pair;
 mod monomer;
 mod fragmentation;

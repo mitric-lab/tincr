@@ -81,6 +81,10 @@ impl Properties {
         }
     }
 
+    pub fn reset_supersystem(&mut self) {
+        self.map.remove("old_supersystem");
+    }
+
     pub fn get(&self, name: &'static str) -> Option<&Property> {
         self.map.get(name)
     }

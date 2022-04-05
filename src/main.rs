@@ -149,7 +149,8 @@ fn main() {
             &mut npz_h,
             &mut npz_x,
         );
-        let mut old_system = system.clone();
+        let old_system = system.clone();
+        system.properties.set_old_supersystem(old_system);
         for step in 1..dynamic.config.nstep{
             dynamic.ehrenfest_step(
                 &mut system,
@@ -161,8 +162,8 @@ fn main() {
                 &mut npz_h,
                 &mut npz_x,
             );
-
-            old_system = system.clone();
+            let old_system = system.clone();
+            system.properties.set_old_supersystem(old_system);
         }
         npz.finish();
         npz_c.finish();

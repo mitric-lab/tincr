@@ -114,6 +114,17 @@ impl SuperSystem {
         Vec<Array2<f64>>,
         Vec<Array2<f64>>,
     ) {
+        // reset old data
+        for monomer in self.monomers.iter_mut() {
+            monomer.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        for esd_pair in self.esd_pairs.iter_mut() {
+            esd_pair.properties.reset();
+        }
+        self.properties.reset();
         // ground state energy and gradient
         self.prepare_scc();
         let gs_energy = self.run_scc().unwrap();
@@ -123,8 +134,10 @@ impl SuperSystem {
         let mut gradient: Array1<f64> = gs_gradient;
 
         // calculate excited states
-        let (diabatic_hamiltonian, states): (Array2<f64>, Vec<ReducedBasisState>) =
+        let (diabatic_hamiltonian): (Array2<f64>) =
             self.create_diabatic_hamiltonian();
+        // get the basis states
+        let states = self.properties.basis_states().unwrap();
 
         // get cis matrices
         let mut cis_vec: Vec<Array2<f64>> = Vec::new();
@@ -227,16 +240,6 @@ impl SuperSystem {
         //         }
         //     }
         // }
-        for monomer in self.monomers.iter_mut() {
-            monomer.properties.reset();
-        }
-        for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
-        }
-        for esd_pair in self.esd_pairs.iter_mut() {
-            esd_pair.properties.reset();
-        }
-        self.properties.reset();
 
         return (
             gs_energy,

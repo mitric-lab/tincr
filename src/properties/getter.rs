@@ -8,6 +8,7 @@ use crate::excited_states::ProductCache;
 use nalgebra::Vector3;
 use crate::initialization::Atom;
 use crate::fmo::cis_gradient::ReducedBasisState;
+use crate::fmo::SuperSystem;
 
 impl Properties {
     pub fn old_atoms(&self) -> Option<&[Atom]> {
@@ -674,6 +675,20 @@ impl Properties {
         match self.get("basis_states"){
             Some(value) => Some(value.as_vec_basis().unwrap()),
             _ => None,
+        }
+    }
+
+    pub fn last_scalar_coupling(&self)->Option<ArrayView2<f64>>{
+        match self.get("last_scalar_coupling"){
+            Some(value) =>Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    pub fn old_supersystem(&self)->Option<&SuperSystem>{
+        match self.get("old_supersystem"){
+            Some(value) =>Some(value.as_super_system().unwrap()),
+            _ =>None,
         }
     }
 }

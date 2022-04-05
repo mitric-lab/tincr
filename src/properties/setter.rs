@@ -7,6 +7,7 @@ use crate::properties::Properties;
 use crate::excited_states::ProductCache;
 use crate::initialization::{MO, Atom};
 use crate::fmo::cis_gradient::ReducedBasisState;
+use crate::fmo::SuperSystem;
 
 
 impl Properties {
@@ -363,6 +364,20 @@ impl Properties {
         self.set(
             "basis_states",
             Property::from(basis),
+        )
+    }
+
+    pub fn set_last_scalar_coupling(&mut self,sci:Array2<f64>){
+        self.set(
+            "last_scalar_coupling",
+            Property::from(sci),
+        )
+    }
+
+    pub fn set_old_supersystem(&mut self, supersystem:SuperSystem){
+        self.set(
+            "old_supersystem",
+            Property::from(supersystem),
         )
     }
 }

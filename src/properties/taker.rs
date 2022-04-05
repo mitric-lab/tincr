@@ -3,6 +3,7 @@ use crate::scc::mixer::BroydenMixer;
 use ndarray::prelude::*;
 use crate::properties::property::Property;
 use crate::excited_states::ProductCache;
+use crate::fmo::SuperSystem;
 
 impl Properties {
     // Takes the scc mixer
@@ -194,6 +195,13 @@ impl Properties {
         match self.take("gamma_lr_ao_wise_gradient") {
             Some(value) => value.into_array3(),
             _ => Err(Property::default()),
+        }
+    }
+
+    pub fn take_old_supersystem(&mut self) -> Result<SuperSystem,Property>{
+        match self.take("old_supersystem"){
+            Some(value) =>value.into_super_system(),
+            _ =>Err(Property::default()),
         }
     }
 }

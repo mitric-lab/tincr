@@ -137,7 +137,7 @@ impl SuperSystem {
         states
     }
 
-    pub fn create_diabatic_hamiltonian(&mut self)->(Array2<f64>,Vec<ReducedBasisState>){
+    pub fn create_diabatic_hamiltonian(&mut self)->(Array2<f64>){
         let hamiltonian = self.build_lcmo_fock_matrix();
         self.properties.set_lcmo_fock(hamiltonian);
         // Reference to the atoms of the total system.
@@ -232,8 +232,10 @@ impl SuperSystem {
                 }
             };
         }
+        // save the basis in the properties
+        self.properties.set_basis_states(reduced_states);
 
-        return (h,reduced_states);
+        return (h);
     }
 
     pub fn create_exciton_hamiltonian(&mut self) {
