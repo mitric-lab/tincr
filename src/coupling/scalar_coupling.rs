@@ -8,6 +8,7 @@ use crate::param::slako_transformations::{directional_cosines, slako_transformat
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use ndarray_linalg::Determinant;
+use ndarray_npy::write_npy;
 
 impl SuperSystem {
     pub fn nonadiabatic_scalar_coupling(
@@ -35,9 +36,10 @@ impl SuperSystem {
         // (+1 or -1). The orbitals of the ground state can also change their signs.
         // Eigen states from neighbouring geometries should change continuously.
         let diag = sci_overlap.diag();
+        println!("diag: {}",diag);
         // get signs of the diagonal
         let sign: Array1<f64> = get_sign_of_array(diag);
-        println!("{}",sign);
+        println!("signs: {}",sign);
         // create 2D matrix from the sign array
         let p: Array2<f64> = Array::from_diag(&sign);
         // align the new CI coefficients with the old coefficients
@@ -929,38 +931,34 @@ impl SuperSystem {
                     // iterate over the orbitals on atom J
                     for orbj in atom_j.valorbs.iter() {
                         if (atom_i - atom_j).norm() < defaults::PROXIMITY_CUTOFF {
-                            if mu < nu {
-                                if atom_i <= atom_j {
-                                    let (r, x, y, z): (f64, f64, f64, f64) =
-                                        directional_cosines(&atom_i.xyz, &atom_j.xyz);
-                                    s[[mu, nu]] = slako_transformation(
-                                        r,
-                                        x,
-                                        y,
-                                        z,
-                                        &skt.get(atom_i.kind, atom_j.kind).s_spline,
-                                        orbi.l,
-                                        orbi.m,
-                                        orbj.l,
-                                        orbj.m,
-                                    );
-                                } else {
-                                    let (r, x, y, z): (f64, f64, f64, f64) =
-                                        directional_cosines(&atom_j.xyz, &atom_i.xyz);
-                                    s[[mu, nu]] = slako_transformation(
-                                        r,
-                                        x,
-                                        y,
-                                        z,
-                                        &skt.get(atom_j.kind, atom_i.kind).s_spline,
-                                        orbj.l,
-                                        orbj.m,
-                                        orbi.l,
-                                        orbi.m,
-                                    );
-                                }
+                            if atom_i <= atom_j {
+                                let (r, x, y, z): (f64, f64, f64, f64) =
+                                    directional_cosines(&atom_i.xyz, &atom_j.xyz);
+                                s[[mu, nu]] = slako_transformation(
+                                    r,
+                                    x,
+                                    y,
+                                    z,
+                                    &skt.get(atom_i.kind, atom_j.kind).s_spline,
+                                    orbi.l,
+                                    orbi.m,
+                                    orbj.l,
+                                    orbj.m,
+                                );
                             } else {
-                                s[[mu, nu]] = s[[nu, mu]];
+                                let (r, x, y, z): (f64, f64, f64, f64) =
+                                    directional_cosines(&atom_j.xyz, &atom_i.xyz);
+                                s[[mu, nu]] = slako_transformation(
+                                    r,
+                                    x,
+                                    y,
+                                    z,
+                                    &skt.get(atom_j.kind, atom_i.kind).s_spline,
+                                    orbj.l,
+                                    orbj.m,
+                                    orbi.l,
+                                    orbi.m,
+                                );
                             }
                         }
                         nu += 1;
