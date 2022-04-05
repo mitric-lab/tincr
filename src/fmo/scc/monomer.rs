@@ -1,18 +1,22 @@
-use ndarray::prelude::*;
-use ndarray_linalg::*;
-use ndarray::stack;
-use ndarray_stats::{QuantileExt, DeviationExt};
-use rust_decimal::prelude::*;
+use crate::defaults;
 use crate::fmo::scc::helpers::*;
-use crate::fmo::{Pair, Monomer, Fragment};
-use crate::scc::h0_and_s::*;
-use crate::scc::gamma_approximation::*;
-use crate::scc::{density_matrix_ref, lc_exact_exchange, density_matrix, get_repulsive_energy, get_electronic_energy};
-use crate::scc::mixer::{BroydenMixer, Mixer};
-use crate::scc::mulliken::mulliken;
+use crate::fmo::{Fragment, Monomer, Pair};
 use crate::initialization::Atom;
 use crate::io::SccConfig;
+use crate::scc::gamma_approximation::*;
+use crate::scc::h0_and_s::*;
+use crate::scc::mixer::{BroydenMixer, Mixer};
+use crate::scc::mulliken::mulliken;
+use crate::scc::{
+    density_matrix, density_matrix_ref, get_electronic_energy, get_repulsive_energy,
+    lc_exact_exchange,
+};
+use ndarray::prelude::*;
+use ndarray::stack;
+use ndarray_linalg::*;
 use ndarray_npy::write_npy;
+use ndarray_stats::{DeviationExt, QuantileExt};
+use rust_decimal::prelude::*;
 
 impl Fragment for Monomer {}
 
@@ -107,15 +111,29 @@ impl Monomer {
                 lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), dp.view());
             h = h + h_x;
         }
-        let mut h_save:Array2<f64> = h.clone();
+        let mut h_save: Array2<f64> = h.clone();
 
         // H' = X^t.H.X
         h = x.t().dot(&h).dot(&x);
-        write_npy(format!("h_{}_{}_.npy",self.properties.n_virt().unwrap(),self.index),&h);
+        // write_npy(
+        //    format!(
+        //        "h_{}_{}_.npy",
+        //        self.properties.n_virt().unwrap(),
+        //        self.index
+        //    ),
+        //    &h,
+        // );
         let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
         let orbe: Array1<f64> = tmp.0;
         // C = X.C'
-        write_npy(format!("orbs_{}_{}_.npy",self.properties.n_virt().unwrap(),self.index),&tmp.1);
+        // write_npy(
+        //    format!(
+        //        "orbs_{}_{}_.npy",
+        //        self.properties.n_virt().unwrap(),
+        //        self.index
+        //    ),
+        //    &tmp.1,
+        // );
         let orbs: Array2<f64> = x.dot(&tmp.1);
 
         // calculate the density matrix
@@ -130,7 +148,8 @@ impl Monomer {
         let diff_dq_max: f64 = q_ao.root_mean_sq_err(&q_ao_n).unwrap();
 
         // Broyden mixing of Mulliken charges.
-        q_ao = mixer.next(q_ao, delta_dq);
+        // q_ao = mixer.next(q_ao, delta_dq);
+        q_ao = q_ao + &delta_dq * defaults::BROYDEN_MIXING_PARAMETER;
 
         // The density matrix is updated in accordance with the Mulliken charges.
         p = p * &(&q_ao / &q_ao_n);

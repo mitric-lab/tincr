@@ -35,7 +35,7 @@ use crate::excited_states::{orbe_differences, trans_charges, initial_subspace, P
 use crate::fmo::gradients::GroundStateGradient;
 use crate::fmo::SuperSystem;
 use std::fs::File;
-use ndarray_npy::write_npy;
+use ndarray_npy::{write_npy, NpzWriter};
 use crate::fmo::cis_gradient::ReducedBasisState;
 
 
@@ -127,52 +127,91 @@ fn main() {
 
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
-        // let n_monomer:usize = system.monomers.len();
-        // let dynamics_config:DynamicConfiguration = read_dynamic_input_ehrenfest(&config,n_monomer);
-        // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
-        // let mut dynamic: Simulation = Simulation::new(&dynamics_data);
+        let n_monomer:usize = system.monomers.len();
+        let dynamics_config:DynamicConfiguration = read_dynamic_input_ehrenfest(&config,n_monomer);
+        let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
+        let mut dynamic: Simulation = Simulation::new(&dynamics_data);
         // dynamic.ehrenfest_dynamics(&mut system);
-        system.prepare_scc();
-        system.run_scc();
-        println!("Test");
-        let mo_coeff:Array2<f64> = system.monomers[0].properties.orbs().unwrap().to_owned();
-        let h_mat:Array2<f64> = system.monomers[0].properties.h_coul_transformed().unwrap().to_owned();
 
-        for i in 0..10{
-            for monomer in system.monomers.iter_mut(){
-                monomer.properties.set_n_virt(i);
-            }
-            println!("Iterataion {}",i);
-            println!(" ");
-            for monomer in system.monomers.iter_mut() {
-                monomer.properties.reset();
-            }
-            for pair in system.pairs.iter_mut() {
-                pair.properties.reset();
-            }
-            for esd_pair in system.esd_pairs.iter_mut() {
-                esd_pair.properties.reset();
-            }
-            system.properties.reset();
+        let mut npz = NpzWriter::new(File::create("arrays.npz").unwrap());
+        let mut npz_c = NpzWriter::new(File::create("cis_arrays.npz").unwrap());
+        let mut npz_q = NpzWriter::new(File::create("qtrans_arrays.npz").unwrap());
+        let mut npz_mo = NpzWriter::new(File::create("mo_arrays.npz").unwrap());
+        let mut npz_h = NpzWriter::new(File::create("h_arrays.npz").unwrap());
+        let mut npz_x = NpzWriter::new(File::create("x_arrays.npz").unwrap());
+        dynamic.initialize_ehrenfest(
+            &mut system,
+            &mut npz,
+            0,
+            &mut npz_c,
+            &mut npz_q,
+            &mut npz_mo,
+            &mut npz_h,
+            &mut npz_x,
+        );
+        let mut old_system = system.clone();
+        for step in 1..dynamic.config.nstep{
+            dynamic.ehrenfest_step(
+                &mut system,
+                &mut npz,
+                step,
+                &mut npz_c,
+                &mut npz_q,
+                &mut npz_mo,
+                &mut npz_h,
+                &mut npz_x,
+            );
 
-            system.prepare_scc();
-            system.run_scc();
-
-            let mo:Array2<f64> = system.monomers[0].properties.orbs().unwrap().to_owned();
-            let h:Array2<f64> = system.monomers[0].properties.h_coul_transformed().unwrap().to_owned();
-            let diff:Array2<f64> = &mo_coeff - &mo;
-            for elem in diff.iter(){
-                if elem.abs() > 2.0e-12{
-                    println!("MO coefficients deviate! {}",elem);
-                }
-            }
-            let diff_h:Array2<f64> = &h_mat - &h;
-            for elem in diff_h.iter(){
-                if elem.abs() > 2.6e-12{
-                    println!("Hamiltonian deviates! {}",elem);
-                }
-            }
+            old_system = system.clone();
         }
+        npz.finish();
+        npz_c.finish();
+        npz_q.finish();
+        npz_mo.finish();
+        npz_h.finish();
+        npz_x.finish();
+
+        // system.prepare_scc();
+        // system.run_scc();
+        // println!("Test");
+        // let mo_coeff:Array2<f64> = system.monomers[0].properties.orbs().unwrap().to_owned();
+        // let h_mat:Array2<f64> = system.monomers[0].properties.h_coul_transformed().unwrap().to_owned();
+        //
+        // for i in 0..30{
+        //    for monomer in system.monomers.iter_mut(){
+        //        monomer.properties.set_n_virt(i);
+        //    }
+        //    println!("Iterataion {}",i);
+        //    println!(" ");
+        //    for monomer in system.monomers.iter_mut() {
+        //        monomer.properties.reset();
+        //    }
+        //    for pair in system.pairs.iter_mut() {
+        //        pair.properties.reset();
+        //    }
+        //    for esd_pair in system.esd_pairs.iter_mut() {
+        //        esd_pair.properties.reset();
+        //    }
+        //    system.properties.reset();
+        //
+        //    system.prepare_scc();
+        //    system.run_scc();
+        //
+        //    let mo:Array2<f64> = system.monomers[0].properties.orbs().unwrap().to_owned();
+        //    let h:Array2<f64> = system.monomers[0].properties.h_coul_transformed().unwrap().to_owned();
+        //    let diff:Array2<f64> = &mo_coeff - &mo;
+        //    for elem in diff.iter(){
+        //        if elem.abs() > 2.0e-12{
+        //            println!("MO coefficients deviate! {}",elem);
+        //        }
+        //    }
+        //    let diff_h:Array2<f64> = &h_mat - &h;
+        //    for elem in diff_h.iter(){
+        //        if elem.abs() > 2.6e-12{
+        //            println!("Hamiltonian deviates! {}",elem);
+        //        }
+        //    }
+        // }
         // println!("{}",mo_coeff);
         // println!("{}",h_mat);
 

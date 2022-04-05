@@ -55,7 +55,7 @@ pub fn get_pair_type(mi_atoms: &[Atom], mj_atoms: &[Atom], vdw_scaling: f64) -> 
 
 /// Type that holds a fragment pair that use the ESD approximation. For this kind of pair no SCC
 /// calculation is required and therefore only a minimal amount of information is stored in this type.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct ESDPair {
     /// Index of the first monomer
     pub i: usize,
@@ -96,7 +96,7 @@ impl ESDPair {
 /// Type that holds a fragment pair that contains all data for the quantum chemical routines.
 /// For this type of pair full scc are implemented. This type is only used for FMO calculations
 /// and is a similar to the [Monomer] type that but holds less properties.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Pair {
     /// Index of the first monomer contained in the pair
     pub i: usize,
