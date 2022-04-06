@@ -139,6 +139,8 @@ fn main() {
         let mut npz_mo = NpzWriter::new(File::create("mo_arrays.npz").unwrap());
         let mut npz_h = NpzWriter::new(File::create("h_arrays.npz").unwrap());
         let mut npz_x = NpzWriter::new(File::create("x_arrays.npz").unwrap());
+        let mut npz_sign = NpzWriter::new(File::create("signs_arrays.npz").unwrap());
+        let mut npz_sc = NpzWriter::new(File::create("sc_arrays.npz").unwrap());
         dynamic.initialize_ehrenfest(
             &mut system,
             &mut npz,
@@ -148,6 +150,8 @@ fn main() {
             &mut npz_mo,
             &mut npz_h,
             &mut npz_x,
+            &mut npz_sign,
+            &mut npz_sc,
         );
         let old_system = system.clone();
         system.properties.set_old_supersystem(old_system);
@@ -161,6 +165,8 @@ fn main() {
                 &mut npz_mo,
                 &mut npz_h,
                 &mut npz_x,
+                &mut npz_sign,
+                &mut npz_sc,
             );
             let old_system = system.clone();
             system.properties.set_old_supersystem(old_system);
@@ -171,6 +177,8 @@ fn main() {
         npz_mo.finish();
         npz_h.finish();
         npz_x.finish();
+        npz_sign.finish();
+        npz_sc.finish();
 
         // system.prepare_scc();
         // system.run_scc();

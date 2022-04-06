@@ -174,15 +174,16 @@ impl SuperSystem {
                                    .h_coul_transformed()
                                    .unwrap()
                                    .to_owned());
-                    x_vec.push(self.monomers[a.monomer_index]
-                        .properties
-                        .x()
-                        .unwrap()
-                        .to_owned());
+                    // x_vec.push(self.monomers[a.monomer_index]
+                    //     .properties
+                    //     .x()
+                    //     .unwrap()
+                    //     .to_owned());
                 }
                 ReducedBasisState::CT(ref a) => {}
             }
         }
+        x_vec.push(self.properties.gamma().unwrap().to_owned());
 
         // // iterate over states
         // for (idx,state) in states.iter().enumerate(){

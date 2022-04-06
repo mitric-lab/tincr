@@ -15,7 +15,7 @@ impl SuperSystem {
         &mut self,
         excitonic_coupling: ArrayView2<f64>,
         dt: f64,
-    )->(Array2<f64>,Array2<f64>) {
+    )->(Array2<f64>,Array2<f64>,Array2<f64>,Array1<f64>,Array1<f64>) {
         // get old supersystem from properties
         let old_supersystem = self.properties.old_supersystem();
         // get the old supersystem
@@ -28,7 +28,7 @@ impl SuperSystem {
             &self
         };
         // calculate the overlap of the wavefunctions
-        let sci_overlap: Array2<f64> = self.scalar_coupling_ci_overlaps(old_system);
+        let (sci_overlap,s_ao):(Array2<f64>,Array2<f64>) = self.scalar_coupling_ci_overlaps(old_system);
         let dim: usize = sci_overlap.dim().0;
 
         // align phases
@@ -36,10 +36,10 @@ impl SuperSystem {
         // (+1 or -1). The orbitals of the ground state can also change their signs.
         // Eigen states from neighbouring geometries should change continuously.
         let diag = sci_overlap.diag();
-        println!("diag: {}",diag);
         // get signs of the diagonal
         let sign: Array1<f64> = get_sign_of_array(diag);
-        println!("signs: {}",sign);
+        // println!("signs: {}",sign);
+        // println!("diag: {}",diag);
         // create 2D matrix from the sign array
         let p: Array2<f64> = Array::from_diag(&sign);
         // align the new CI coefficients with the old coefficients
@@ -83,10 +83,61 @@ impl SuperSystem {
         // coupl = <Psi_A|d/dR Psi_B>*dR/dt * dt
         coupling = coupling / dt;
 
-        return (coupling,excitonic_coupling)
+        // align the CI coefficients
+        self.scalar_coupling_align_coefficients(sign.view());
+
+        return (coupling,excitonic_coupling,s_ao,diag.to_owned(),sign)
     }
 
-    pub fn scalar_coupling_ci_overlaps(&self, other: &Self) -> Array2<f64> {
+    pub fn scalar_coupling_align_coefficients(&mut self,signs:ArrayView1<f64>){
+        let basis_states = self.properties.basis_states().unwrap();
+
+        for (idx, state) in basis_states.iter().enumerate(){
+            match state{
+                ReducedBasisState::LE(ref state_a) => {
+                    let mol:&mut Monomer = &mut self.monomers[state_a.monomer_index];
+                    let mut ci_full:Array2<f64> = mol.properties.ci_coefficients().unwrap().to_owned();
+                    let ci:ArrayView1<f64> = mol.properties.ci_coefficient(state_a.state_index).unwrap();
+                    let ci_aligned:Array1<f64> = signs[idx+1] * &ci;
+                    ci_full.slice_mut(s![..,state_a.state_index]).assign(&ci_aligned);
+                    mol.properties.set_ci_coefficients(ci_full);
+                },
+                ReducedBasisState::CT(ref state_a) => {
+                    let (i, j): (&ReducedParticle, &ReducedParticle) = (&state_a.hole, &state_a.electron);
+                    let type_ij: PairType = self.properties.type_of_pair(i.m_index, j.m_index);
+
+                    if type_ij == PairType::Pair {
+                        // get the indices of the pairs
+                        let pair_index: usize = self
+                            .properties
+                            .index_of_pair(i.m_index, j.m_index);
+
+                        // get reference to the pairs
+                        let pair: &mut Pair = &mut self.pairs[pair_index];
+                        // align the MO coefficients of the pair
+                        let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
+                        let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
+                        pair.properties.set_orbs(orbs_aligned);
+                    }
+                    else{
+                        // get the indices of the pairs
+                        let pair_index: usize = self
+                            .properties
+                            .index_of_esd_pair(i.m_index, j.m_index);
+
+                        // get reference to the pairs
+                        let pair: &mut Pair = &mut self.pairs[pair_index];
+                        // align the MO coefficients of the pair
+                        let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
+                        let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
+                        pair.properties.set_orbs(orbs_aligned);
+                    }
+                },
+            }
+        }
+    }
+
+    pub fn scalar_coupling_ci_overlaps(&self, other: &Self) -> (Array2<f64>,Array2<f64>) {
         let basis_states = self.properties.basis_states().unwrap();
         let old_basis = other.properties.basis_states().unwrap();
 
@@ -142,7 +193,7 @@ impl SuperSystem {
         // coupling.slice_mut(s![0,1..]).assign(&Array::from(gs_diabatic));
         // coupling.slice_mut(s![1..,0]).assign(&Array::from(diabatic_gs));
 
-        coupling
+        (coupling,s)
     }
 
     pub fn scalar_coupling_diabatic_gs(

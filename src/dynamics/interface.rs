@@ -42,6 +42,8 @@ impl QuantumChemistryInterface for System {
         Vec<Array2<f64>>,
         Vec<Array2<f64>>,
         Vec<Array2<f64>>,
+        Array1<f64>,
+        Array1<f64>,
     ) {
         todo!()
     }
@@ -85,6 +87,8 @@ impl QuantumChemistryInterface for SuperSystem {
         Vec<Array2<f64>>,
         Vec<Array2<f64>>,
         Vec<Array2<f64>>,
+        Array1<f64>,
+        Array1<f64>,
     ) {
         // Return energies, forces, non-adiabtic coupling and the transition dipole#
         let n_atoms: usize = self.atoms.len();
@@ -107,8 +111,10 @@ impl QuantumChemistryInterface for SuperSystem {
         let gradient: Array2<f64> = gradient.into_shape([n_atoms, 3]).unwrap();
 
         // calculate the nonadiabatic coupling
-        let (coupling,diabatic_hamiltonian):(Array2<f64>,Array2<f64>)
+        let (coupling,diabatic_hamiltonian,s,diag,signs):(Array2<f64>,Array2<f64>,Array2<f64>,Array1<f64>,Array1<f64>)
             = self.nonadiabatic_scalar_coupling(diabatic_hamiltonian.view(),dt);
+        let mut s_vec:Vec<Array2<f64>> = Vec::new();
+        s_vec.push(s);
 
         // reset the old supersystem
         self.properties.reset_supersystem();
@@ -121,8 +127,10 @@ impl QuantumChemistryInterface for SuperSystem {
             cis_vec,
             qtrans_vec,
             mo_vec,
-            h_vec,
+            s_vec,
             x_vec,
+            diag,
+            signs,
         );
     }
 }
