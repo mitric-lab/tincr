@@ -1,3 +1,4 @@
+use std::ops::AddAssign;
 use crate::fmo::cis_gradient::ReducedBasisState;
 use crate::fmo::{Monomer, SuperSystem};
 use crate::initialization::System;
@@ -105,8 +106,6 @@ impl SuperSystem {
         state_coefficients: ArrayView1<f64>,
         thresh: f64,
     ) -> (
-        f64,
-        Array2<f64>,
         Array1<f64>,
         Vec<Array2<f64>>,
         Vec<Array1<f64>>,
@@ -114,30 +113,14 @@ impl SuperSystem {
         Vec<Array2<f64>>,
         Vec<Array2<f64>>,
     ) {
-        // reset old data
-        for monomer in self.monomers.iter_mut() {
-            monomer.properties.reset();
-        }
-        for pair in self.pairs.iter_mut() {
-            pair.properties.reset();
-        }
-        for esd_pair in self.esd_pairs.iter_mut() {
-            esd_pair.properties.reset();
-        }
-        self.properties.reset();
         // ground state energy and gradient
-        self.prepare_scc();
-        let gs_energy = self.run_scc().unwrap();
         let gs_gradient = self.ground_state_gradient();
 
         // mutable gradient
         let mut gradient: Array1<f64> = gs_gradient;
 
-        // calculate excited states
-        let (diabatic_hamiltonian): (Array2<f64>) =
-            self.create_diabatic_hamiltonian();
         // get the basis states
-        let states = self.properties.basis_states().unwrap();
+        let states = self.properties.basis_states().unwrap().to_vec();
 
         // get cis matrices
         let mut cis_vec: Vec<Array2<f64>> = Vec::new();
@@ -185,66 +168,65 @@ impl SuperSystem {
         }
         x_vec.push(self.properties.gamma().unwrap().to_owned());
 
-        // // iterate over states
-        // for (idx,state) in states.iter().enumerate(){
-        //     if state_coefficients[idx] > thresh{
-        //         match state{
-        //             ReducedBasisState::LE(ref a) => {
-        //                 let grad:Array1<f64> = self.exciton_le_gradient_without_davidson(a.monomer_index,a.state_index);
-        //                 let mol:&Monomer = &self.monomers[a.monomer_index];
-        //                 gradient.slice_mut(s![mol.slice.grad]).assign(&grad);
-        //             },
-        //             ReducedBasisState::CT(ref a) => {
-        //                 let mut hole_i:bool = true;
-        //                 let mut monomer_i:usize = 0;
-        //                 let mut monomer_j:usize = 1;
-        //                 let mut ct_i:usize = 0;
-        //                 let mut ct_j:usize = 0;
-        //
-        //                 if a.hole.m_index < a.electron.m_index{
-        //                     monomer_i = a.hole.m_index;
-        //                     ct_i = a.hole.ct_index;
-        //                     monomer_j = a.electron.m_index;
-        //                     ct_j = a.electron.ct_index;
-        //                 }
-        //                 else{
-        //                     hole_i = false;
-        //                     monomer_i = a.electron.m_index;
-        //                     ct_i = a.electron.ct_index;
-        //                     monomer_j = a.hole.m_index;
-        //                     ct_j = a.hole.ct_index;
-        //                 }
-        //
-        //                 let mut grad:Array1<f64> =
-        //                     self.ct_gradient_new(
-        //                         monomer_i,
-        //                         monomer_j,
-        //                         ct_i,
-        //                         ct_j,
-        //                         a.energy,hole_i
-        //                     );
-        //
-        //                 grad = grad +
-        //                     self.calculate_cphf_correction(
-        //                         monomer_i,
-        //                         monomer_j,
-        //                         ct_i,
-        //                         ct_j,
-        //                         hole_i
-        //                     );
-        //
-        //                 let mol_i = &self.monomers[monomer_i];
-        //                 let mol_j = &self.monomers[monomer_j];
-        //                 gradient.slice_mut(s![mol_i.slice.grad]).assign(&grad.slice(s![..mol_i.n_atoms*3]));
-        //                 gradient.slice_mut(s![mol_j.slice.grad]).assign(&grad.slice(s![mol_i.n_atoms*3..]));
-        //             },
-        //         }
-        //     }
-        // }
+        // iterate over states
+        for (idx,state) in states.iter().enumerate(){
+            let coefficient = state_coefficients[idx+1];
+            if coefficient > thresh{
+                match state{
+                    ReducedBasisState::LE(ref a) => {
+                        let grad:Array1<f64> = self.exciton_le_gradient_without_davidson(a.monomer_index,a.state_index);
+                        let mol:&Monomer = &self.monomers[a.monomer_index];
+                        gradient.slice_mut(s![mol.slice.grad]).add_assign(&(coefficient * &grad));
+                    },
+                    ReducedBasisState::CT(ref a) => {
+                        let mut hole_i:bool = true;
+                        let mut monomer_i:usize = 0;
+                        let mut monomer_j:usize = 1;
+                        let mut ct_i:usize = 0;
+                        let mut ct_j:usize = 0;
+
+                        if a.hole.m_index < a.electron.m_index{
+                            monomer_i = a.hole.m_index;
+                            ct_i = a.hole.ct_index;
+                            monomer_j = a.electron.m_index;
+                            ct_j = a.electron.ct_index;
+                        }
+                        else{
+                            hole_i = false;
+                            monomer_i = a.electron.m_index;
+                            ct_i = a.electron.ct_index;
+                            monomer_j = a.hole.m_index;
+                            ct_j = a.hole.ct_index;
+                        }
+
+                        let mut grad:Array1<f64> =
+                            self.ct_gradient_new(
+                                monomer_i,
+                                monomer_j,
+                                ct_i,
+                                ct_j,
+                                a.energy,hole_i
+                            );
+
+                        grad = grad +
+                            self.calculate_cphf_correction(
+                                monomer_i,
+                                monomer_j,
+                                ct_i,
+                                ct_j,
+                                hole_i
+                            );
+
+                        let mol_i = &self.monomers[monomer_i];
+                        let mol_j = &self.monomers[monomer_j];
+                        gradient.slice_mut(s![mol_i.slice.grad]).add_assign(&(coefficient *&grad.slice(s![..mol_i.n_atoms*3])));
+                        gradient.slice_mut(s![mol_j.slice.grad]).add_assign(&(coefficient *&grad.slice(s![mol_i.n_atoms*3..])));
+                    },
+                }
+            }
+        }
 
         return (
-            gs_energy,
-            diabatic_hamiltonian,
             gradient,
             cis_vec,
             qtrans_vec,

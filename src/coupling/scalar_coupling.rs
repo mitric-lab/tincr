@@ -38,8 +38,7 @@ impl SuperSystem {
         let diag = sci_overlap.diag();
         // get signs of the diagonal
         let sign: Array1<f64> = get_sign_of_array(diag);
-        // println!("signs: {}",sign);
-        // println!("diag: {}",diag);
+
         // create 2D matrix from the sign array
         let p: Array2<f64> = Array::from_diag(&sign);
         // align the new CI coefficients with the old coefficients
@@ -126,7 +125,7 @@ impl SuperSystem {
                             .index_of_esd_pair(i.m_index, j.m_index);
 
                         // get reference to the pairs
-                        let pair: &mut Pair = &mut self.pairs[pair_index];
+                        let pair: &mut ESDPair = &mut self.esd_pairs[pair_index];
                         // align the MO coefficients of the pair
                         let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
                         let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;

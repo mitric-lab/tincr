@@ -77,7 +77,7 @@ pub fn read_dynamic_input_ehrenfest(tincr_config:&Configuration,n_mol:usize)->Dy
     // The total number of states is given by: Sum_I n_LE_I + Sum_I Sum_J nocc_I * nvirt_J
     let n_states: usize = n_le * n_mol + n_occ * n_virt * n_mol * (n_mol-1);
     // change nstates of config
-    config.nstates = n_states;
+    config.nstates = n_states+1;
 
     return config;
 }
