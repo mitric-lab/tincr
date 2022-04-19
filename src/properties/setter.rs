@@ -380,4 +380,11 @@ impl Properties {
             Property::from(supersystem),
         )
     }
+
+    pub fn set_aligned_pair(&mut self,boolean:bool){
+        self.set(
+            "aligned_pair",
+            Property::from(boolean),
+        )
+    }
 }

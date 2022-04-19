@@ -75,6 +75,8 @@ pub struct ESDPair {
     pub slako: SlaterKoster,
     /// Type of Gamma function. This can be either `Gaussian` or `Slater` type.
     pub gammafunction: GammaFunction,
+    /// Gamma function for the long-range correction. Only used if long-range correction is requested
+    pub gammafunction_lc: Option<GammaFunction>,
 }
 
 impl ESDPair {
@@ -88,6 +90,7 @@ impl ESDPair {
             vrep: monomer1.vrep.clone(),
             slako: monomer1.slako.clone(),
             gammafunction: monomer1.gammafunction.clone(),
+            gammafunction_lc: monomer1.gammafunction_lc.clone()
         }
     }
 }

@@ -113,10 +113,14 @@ impl SuperSystem {
 
                         // get reference to the pairs
                         let pair: &mut Pair = &mut self.pairs[pair_index];
-                        // align the MO coefficients of the pair
-                        let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
-                        let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
-                        pair.properties.set_orbs(orbs_aligned);
+                        // check if pair is already aligned
+                        if !pair.properties.aligned_pair(){
+                            // align the MO coefficients of the pair
+                            let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
+                            let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
+                            pair.properties.set_orbs(orbs_aligned);
+                            pair.properties.set_aligned_pair(true);
+                        }
                     }
                     else{
                         // get the indices of the pairs
@@ -126,10 +130,15 @@ impl SuperSystem {
 
                         // get reference to the pairs
                         let pair: &mut ESDPair = &mut self.esd_pairs[pair_index];
-                        // align the MO coefficients of the pair
-                        let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
-                        let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
-                        pair.properties.set_orbs(orbs_aligned);
+
+                        // check if pair is already aligned
+                        if !pair.properties.aligned_pair(){
+                            // align the MO coefficients of the pair
+                            let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
+                            let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
+                            pair.properties.set_orbs(orbs_aligned);
+                            pair.properties.set_aligned_pair(true);
+                        }
                     }
                 },
             }
@@ -148,49 +157,49 @@ impl SuperSystem {
         let mut coupling: Array2<f64> =
             Array2::zeros([basis_states.len() + 1, basis_states.len() + 1]);
 
-        for (idx_i, state_i) in basis_states.iter().enumerate() {
-            // coupling between the ground state and the diabatic states
-            coupling[[idx_i + 1, 0]] =
-                self.scalar_coupling_diabatic_gs(other, state_i, s.view(), true);
-
-            for (idx_j, state_j) in old_basis.iter().enumerate() {
-                // coupling between the diabatic states
-                coupling[[idx_i + 1, idx_j + 1]] =
-                    self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
-
-            }
-        }
-        // cooupling between the ground state and the diabatic state
-        for (idx_j, state_j) in old_basis.iter().enumerate() {
-            coupling[[0, idx_j + 1]] =
-                self.scalar_coupling_diabatic_gs(other, state_j, s.view(), false);
-        }
-
-        // let coupling_vec:Vec<Array1<f64>> = basis_states.par_iter().map(|state_i|{
-        //     let mut arr:Array1<f64> = Array1::zeros(basis_states.len());
+        // for (idx_i, state_i) in basis_states.iter().enumerate() {
+        //     // coupling between the ground state and the diabatic states
+        //     coupling[[idx_i + 1, 0]] =
+        //         self.scalar_coupling_diabatic_gs(other, state_i, s.view(), true);
+        //
         //     for (idx_j, state_j) in old_basis.iter().enumerate() {
         //         // coupling between the diabatic states
-        //         arr[idx_j] = self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
-        //     }
-        //     arr
-        // }).collect();
+        //         coupling[[idx_i + 1, idx_j + 1]] =
+        //             self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
         //
-        // // slice the coupling matrix elements
-        // for (idx,arr) in coupling_vec.iter().enumerate(){
-        //     coupling.slice_mut(s![idx+1,1..]).assign(arr);
+        //     }
         // }
-        // // parallel calculation
-        // let diabatic_gs:Vec<f64> = basis_states.par_iter().map(|state|{
-        //     // coupling between the ground state and the diabatic states
-        //     self.scalar_coupling_diabatic_gs(other, state, s.view(), true)
-        // }).collect();
         // // cooupling between the ground state and the diabatic state
-        // let gs_diabatic:Vec<f64> = old_basis.par_iter().map(|state|{
-        //     self.scalar_coupling_diabatic_gs(other, state, s.view(), false)
-        // }).collect();
-        // // slice coupling matrix
-        // coupling.slice_mut(s![0,1..]).assign(&Array::from(gs_diabatic));
-        // coupling.slice_mut(s![1..,0]).assign(&Array::from(diabatic_gs));
+        // for (idx_j, state_j) in old_basis.iter().enumerate() {
+        //     coupling[[0, idx_j + 1]] =
+        //         self.scalar_coupling_diabatic_gs(other, state_j, s.view(), false);
+        // }
+
+        let coupling_vec:Vec<Array1<f64>> = basis_states.par_iter().map(|state_i|{
+            let mut arr:Array1<f64> = Array1::zeros(basis_states.len());
+            for (idx_j, state_j) in old_basis.iter().enumerate() {
+                // coupling between the diabatic states
+                arr[idx_j] = self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
+            }
+            arr
+        }).collect();
+
+        // slice the coupling matrix elements
+        for (idx,arr) in coupling_vec.iter().enumerate(){
+            coupling.slice_mut(s![idx+1,1..]).assign(arr);
+        }
+        // parallel calculation
+        let diabatic_gs:Vec<f64> = basis_states.par_iter().map(|state|{
+            // coupling between the ground state and the diabatic states
+            self.scalar_coupling_diabatic_gs(other, state, s.view(), true)
+        }).collect();
+        // cooupling between the ground state and the diabatic state
+        let gs_diabatic:Vec<f64> = old_basis.par_iter().map(|state|{
+            self.scalar_coupling_diabatic_gs(other, state, s.view(), false)
+        }).collect();
+        // slice coupling matrix
+        coupling.slice_mut(s![0,1..]).assign(&Array::from(gs_diabatic));
+        coupling.slice_mut(s![1..,0]).assign(&Array::from(diabatic_gs));
 
         (coupling,s)
     }

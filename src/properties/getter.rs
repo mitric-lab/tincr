@@ -691,4 +691,11 @@ impl Properties {
             _ =>None,
         }
     }
+
+    pub fn aligned_pair(&self)->bool{
+        match self.get("aligned_pair"){
+            Some(value) =>(*value.as_bool().unwrap()),
+            _ =>false,
+        }
+    }
 }

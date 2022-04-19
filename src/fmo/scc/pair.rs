@@ -330,6 +330,18 @@ impl ESDPair {
             .collect();
         self.properties.set_occupation(f);
 
+        // if the system contains a long-range corrected Gamma function the gamma matrix will be computed
+        if self.gammafunction_lc.is_some() {
+            let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                &atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_gamma_lr(gamma_lr);
+            self.properties.set_gamma_lr_ao(gamma_lr_ao);
+        }
+
         // if this is the first SCC calculation the charge will be taken from the corresponding
         // monomers
         if !self.properties.contains_key("dq") {
