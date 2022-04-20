@@ -90,6 +90,19 @@ fn default_n_particles() -> usize {
 fn default_use_mio() -> bool { USE_MIO }
 fn default_mio_directory() ->String { String::from( MIO_DIR ) }
 fn default_number_of_cores()->usize{1}
+fn default_use_dispersion()->bool{USE_DISPERSION}
+fn default_s6() -> f64 {
+    S6_DISP_PARAM_OB2
+}
+fn default_s8() -> f64 {
+    S8_DISP_PARAM_OB2
+}
+fn default_a1() -> f64 {
+    A1_DISP_PARAM_OB2
+}
+fn default_a2() -> f64 {
+    A2_DISP_PARAM_OB2
+}
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
     return mol_config;
@@ -123,6 +136,10 @@ fn default_lcmo_config()-> LcmoConfig{
     let config: LcmoConfig = toml::from_str("").unwrap();
     return config;
 }
+fn default_dispersion_config() -> DispersionConfig {
+    let disp_config: DispersionConfig = toml::from_str("").unwrap();
+    return disp_config;
+}
 
 #[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct Configuration {
@@ -130,10 +147,10 @@ pub struct Configuration {
     pub jobtype: String,
     #[serde(default = "default_use_fmo")]
     pub fmo: bool,
-    #[serde(default = "default_dispersion_correction")]
-    pub dispersion_correction: bool,
     #[serde(default = "default_verbose")]
     pub verbose: i8,
+    #[serde(default = "default_dispersion_config")]
+    pub dispersion: DispersionConfig,
     #[serde(default = "default_mol_config")]
     pub mol: MoleculeConfig,
     #[serde(default = "default_scc_config")]
@@ -193,6 +210,20 @@ pub struct SccConfig {
     pub scf_energy_conv: f64,
     #[serde(default = "default_temperature")]
     pub electronic_temperature: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+pub struct DispersionConfig {
+    #[serde(default = "default_use_dispersion")]
+    pub use_dispersion:bool,
+    #[serde(default = "default_s6")]
+    pub s6: f64,
+    #[serde(default = "default_s8")]
+    pub s8: f64,
+    #[serde(default = "default_a1")]
+    pub a1: f64,
+    #[serde(default = "default_a2")]
+    pub a2: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy,Debug)]

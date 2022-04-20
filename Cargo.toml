@@ -10,9 +10,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rusty-fish = { path = "/home/richard/software/rusty_fish"}
+rusty-fish = {path = "/home/einseler/software/Rusty-FISH/"}
+rusty-dftd = { path = "../Rusty-DFTD/"}
 chemfiles = "0.10"
-ndarray = {version = "0.15.3", features = ["serde-1", "approx", "rayon"]}
+ndarray = {version = "0.15.3", features = ["serde-1", "approx", "rayon","blas"]}
 ndarray-npy = "0.8"
 approx = "0.3.2"
 ndarray-linalg = { version = "0.14", features = ["intel-mkl"]}
@@ -30,8 +31,8 @@ bspline = "0.2.3"
 rusty-fitpack = { git = "https://github.com/mitric-lab/Rusty-FITPACK.git"}
 ndarray_einsum_beta = "0.5.0"
 petgraph = "0.5.1"
-nalgebra = "0.27.1"
-nshare = {version = "0.7", features = ["ndarray", "nalgebra"]}
+nalgebra = "0.29"
+nshare = {version = "0.9", features = ["ndarray", "nalgebra"]}
 clap = "=3.0.0-beta.2"
 toml = "0.5"
 rand = "0.8.3"
@@ -46,3 +47,8 @@ derive_builder = "0.10.2"
 chrono = "0.4"
 num-traits = "0.2.14"
 anyhow = "=1.0.44"
+ndarray-rand = "0.14.0"
+rust_decimal = "1.23"
+
+[profile.release]
+lto = true

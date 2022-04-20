@@ -4,8 +4,35 @@ use std::collections::HashMap;
 use crate::initialization::parameters::{RepulsivePotentialTable, RepulsivePotential};
 use ndarray_einsum_beta::tensordot;
 use crate::initialization::Atom;
-use nalgebra::Vector3;
 use ndarray_linalg::krylov::qr;
+use rusty_dftd_lib::model::*;
+use rusty_dftd_lib::*;
+use crate::io::settings::DispersionConfig;
+use nalgebra::{Point3, Vector3};
+
+pub fn gradient_disp(atoms: &[Atom], config: &DispersionConfig) -> Array1<f64> {
+    let positions = atoms
+        .iter()
+        .map(|atom| Point3::from_coordinates(atom.xyz))
+        .collect::<Vec<Point3<f64>>>();
+    let atomic_numbers = atoms.iter().map(|atom| atom.number).collect::<Vec<u8>>();
+    let mut disp_mol = model::Molecule::from((&positions, &atomic_numbers));
+    let disp: D3Model = D3Model::from_molecule(&disp_mol, None);
+    let cutoff: RealspaceCutoff = RealspaceCutoffBuilder::new()
+        .set_cn(CN_CUTOFF_D3_DEFAULT)
+        .build();
+
+    let d3param: D3Param = D3ParamBuilder::new()
+        .set_s6(config.s6)
+        .set_s8(config.s8)
+        .set_s9(1.0)
+        .set_a1(config.a1)
+        .set_a2(config.a2)
+        .build();
+    let param: RationalDamping3Param = RationalDamping3Param::from((d3param, &disp_mol.num));
+    let disp_result = get_dispersion(&mut disp_mol, &disp, &param, &cutoff, false, true);
+    Array1::from_iter(disp_result.gradient.unwrap().into_iter())
+}
 
 pub fn get_outer_product(v1: &ArrayView1<f64>, v2: &ArrayView1<f64>) -> (Array2<f64>) {
     let mut matrix: Array2<f64> = Array::zeros((v1.len(), v2.len()));

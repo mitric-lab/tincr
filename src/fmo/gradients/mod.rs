@@ -20,6 +20,7 @@ pub use pair::*;
 use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::gradients::embedding::diag_of_last_dimensions;
 use rayon::prelude::*;
+use crate::gradients::helpers::gradient_disp;
 
 pub trait GroundStateGradient {
     fn get_grad_dq(&self, atoms: &[Atom], s: ArrayView2<f64>, grad_s: ArrayView3<f64>, p: ArrayView2<f64>) -> Array2<f64>;
@@ -44,7 +45,10 @@ impl SuperSystem {
         // let timer: Timer = Timer::start();
         // self.self_consistent_z_vector(1e-10);
         // info!("Z-vector: {}", timer);
-
+        let mut grad:Array1<f64>  = Array1::zeros(3*atoms.len());
+        if self.config.dispersion.use_dispersion{
+            grad = grad + gradient_disp(&atoms, &self.config.dispersion);
+        }
         let monomer_gradient: Array1<f64> = self.monomer_gradients();
 
         let pair_gradient: Array1<f64> = self.pair_gradients(monomer_gradient.view());
@@ -53,11 +57,13 @@ impl SuperSystem {
 
         let esd_gradient: Array1<f64> = self.es_dimer_gradient();
 
+        grad = grad + monomer_gradient + pair_gradient + embedding_gradient + esd_gradient;
+
         // let timer: Timer = Timer::start();
         // let response_gradient: Array1<f64> = self.response_embedding_gradient();
         // info!("Response : {}", timer);
 
-        return monomer_gradient + pair_gradient + embedding_gradient + esd_gradient;// + response_gradient;
+        return  grad;// + response_gradient;
     }
 
 
