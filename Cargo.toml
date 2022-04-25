@@ -49,6 +49,7 @@ num-traits = "0.2.14"
 anyhow = "=1.0.44"
 ndarray-rand = "0.14.0"
 rust_decimal = "1.23"
+serde_repr = "0.1"
 
 [profile.release]
 lto = true

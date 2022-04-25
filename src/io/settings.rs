@@ -16,6 +16,10 @@ use std::path::Path;
 use std::ptr::eq;
 use std::collections::HashMap;
 use crate::constants;
+use crate::scc::mixer::{AAType, AndersonAccel,AndersonAccelBuilder};
+use crate::scc::mixer::anderson::*;
+use anyhow::{Context, Result};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 fn default_charge() -> i8 {
     CHARGE
@@ -282,4 +286,51 @@ pub struct LcmoConfig{
 pub struct ParallelizationConfig{
     #[serde(default = "default_number_of_cores")]
     pub number_of_cores:usize,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
+pub struct MixConfig {
+    pub use_aa: bool,
+    pub memory: usize,
+    pub aa_type: AAType,
+    pub regularization: f64,
+    pub tol_safe: f64,
+    pub max_norm: f64,
+}
+
+impl MixConfig {
+    /// Initialize an instance of the Anderson Accelerator. The dimension `dim` specifies the
+    /// length of the vector that should be mixed. Further details are given in the Ac2O3 crate.
+    pub fn build_mixer(&self, dim: usize) -> Result<AndersonAccel> {
+        // In case that AA should not be used linear mixing/vanilla iterations will be used. This
+        // can be enabled by setting the memory of AndersonAccel to zero.
+        let memory = match self.use_aa {
+            true => self.memory,
+            false => 0,
+        };
+
+        AndersonAccelBuilder::default()
+            .dim(dim)
+            .memory(memory)
+            .aa_type(self.aa_type)
+            .regularization(self.regularization)
+            .safeguard_factor(self.tol_safe)
+            .max_weight_norm(self.max_norm)
+            .build()
+            .context("Could not intialize Anderson Acceleration instance")
+    }
+}
+
+impl Default for MixConfig {
+    fn default() -> Self {
+        Self {
+            use_aa: USE_AA,
+            memory: AA_MEMORY,
+            aa_type: AA_TYPE,
+            regularization: AA_REGULARIZATION,
+            tol_safe: TOL_SAFEGUARD,
+            max_norm: AA_MAX_NORM,
+        }
+    }
 }

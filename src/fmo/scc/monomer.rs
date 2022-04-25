@@ -5,18 +5,16 @@ use crate::initialization::Atom;
 use crate::io::SccConfig;
 use crate::scc::gamma_approximation::*;
 use crate::scc::h0_and_s::*;
-use crate::scc::mixer::{BroydenMixer, Mixer};
-use crate::scc::mulliken::mulliken;
-use crate::scc::{
-    density_matrix, density_matrix_ref, get_electronic_energy, get_repulsive_energy,
-    lc_exact_exchange,
-};
+use crate::scc::mixer::{AndersonAccel, BroydenMixer, Mixer};
+use crate::scc::mulliken::{mulliken, mulliken_atomwise};
+use crate::scc::{calc_exchange, density_matrix, density_matrix_ref, get_electronic_energy, get_electronic_energy_new, get_repulsive_energy, lc_exact_exchange};
 use ndarray::prelude::*;
 use ndarray::stack;
 use ndarray_linalg::*;
 use ndarray_npy::write_npy;
 use ndarray_stats::{DeviationExt, QuantileExt};
 use rust_decimal::prelude::*;
+use crate::io::settings::MixConfig;
 
 impl Fragment for Monomer {}
 
@@ -37,8 +35,10 @@ impl Monomer {
         // get the gamma matrix
 
         let gamma: Array2<f64> = gamma_atomwise(&self.gammafunction, &atoms, self.n_atoms);
+        let gamma_ao = gamma_ao_wise_from_gamma_atomwise(gamma.view(),&atoms,self.n_orbs);
         // and save it as a `Property`
         self.properties.set_gamma(gamma);
+        self.properties.set_gamma_ao(gamma_ao);
 
         // calculate the number of electrons
         let n_elec: usize = atoms.iter().fold(0, |n, atom| n + atom.n_elec);
@@ -66,9 +66,22 @@ impl Monomer {
 
         self.properties.set_mixer(BroydenMixer::new(self.n_orbs));
 
+        // Anderson mixer
+        let mix_config:MixConfig = MixConfig::default();
+        let mut dim:usize = 0;
+        if self.gammafunction_lc.is_some(){
+            dim = self.n_orbs*self.n_orbs;
+        }
+        else{
+            dim = self.n_atoms;
+        }
+        let accel = mix_config.build_mixer(dim).unwrap();
+        self.properties.set_accel(accel);
+
         // if this is the first SCC calculation the charge differences will be initialized to zeros
         if !self.properties.contains_key("dq") {
             self.properties.set_dq(Array1::zeros(self.n_atoms));
+            // self.properties.set_dq(Array1::zeros(self.n_orbs));
             self.properties.set_q_ao(Array1::zeros(self.n_orbs));
         }
 
@@ -123,7 +136,7 @@ impl Monomer {
         //    ),
         //    &h,
         // );
-        let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+        let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
         let orbe: Array1<f64> = tmp.0;
         // C = X.C'
         // write_npy(
@@ -148,8 +161,8 @@ impl Monomer {
         let diff_dq_max: f64 = q_ao.root_mean_sq_err(&q_ao_n).unwrap();
 
         // Broyden mixing of Mulliken charges.
-        // q_ao = mixer.next(q_ao, delta_dq);
-        q_ao = q_ao + &delta_dq * defaults::BROYDEN_MIXING_PARAMETER;
+        q_ao = mixer.next(q_ao, delta_dq);
+        // q_ao = q_ao + &delta_dq * defaults::BROYDEN_MIXING_PARAMETER;
 
         // The density matrix is updated in accordance with the Mulliken charges.
         p = p * &(&q_ao / &q_ao_n);
@@ -179,6 +192,114 @@ impl Monomer {
         self.properties.set_mixer(mixer);
         self.properties.set_last_energy(scf_energy);
         self.properties.set_q_ao(q_ao);
+        self.properties.set_h_coul_x(h_save);
+        self.properties.set_h_coul_transformed(h);
+
+        // scc (for one fragment) is converged if both criteria are passed
+        conv_charge && conv_energy
+    }
+
+    pub fn scc_step_test(&mut self, atoms: &[Atom],v_esp: Array2<f64>, config: SccConfig) -> bool {
+        let scf_charge_conv: f64 = config.scf_charge_conv;
+        let scf_energy_conv: f64 = config.scf_energy_conv;
+        let mut dq: Array1<f64> = self.properties.take_dq().unwrap();
+        // let mut q_ao: Array1<f64> = self.properties.take_q_ao().unwrap();
+        // let mut mixer: BroydenMixer = self.properties.take_mixer().unwrap();
+        let mut accel:AndersonAccel = self.properties.take_accel().unwrap();
+        let mut p: Array2<f64> = self.properties.take_p().unwrap();
+        let x: ArrayView2<f64> = self.properties.x().unwrap();
+        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
+        let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
+        let last_energy: f64 = self.properties.last_energy().unwrap();
+        let f: &[f64] = self.properties.occupation().unwrap();
+        // electrostatic interaction between the atoms of the same monomer and all the other atoms
+        // the coulomb term and the electrostatic potential term are combined into one:
+        // H_mu_nu = H0_mu_nu + HCoul_mu_nu + HESP_mu_nu
+        // H_mu_nu = H0_mu_nu + 1/2 S_mu_nu sum_k sum_c_on_k (gamma_ac + gamma_bc) dq_c
+        let h_coul: Array2<f64> = v_esp * &s * 0.5;
+        let mut h: Array2<f64> = h_coul + h0;
+        if self.gammafunction_lc.is_some() && self.properties.delta_p().is_some() {
+            let h_x: Array2<f64> =
+                lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), self.properties.delta_p().unwrap());
+            h = h + h_x;
+        }
+        let mut h_save: Array2<f64> = h.clone();
+
+        // H' = X^t.H.X
+        h = x.t().dot(&h).dot(&x);
+        let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
+        let orbe: Array1<f64> = tmp.0;
+        // C = X.C'
+        let orbs: Array2<f64> = x.dot(&tmp.1);
+
+        // calculate the density matrix
+        p = density_matrix(orbs.view(), &f[..]);
+
+        // Compute the difference density matrix. This will be mixed in case of long-range correction.
+        let dp:Array2<f64> = &p - &p0;
+
+        let (dq_new,delta_p_temp):(Array1<f64>,Option<Array2<f64>>) = if self.gammafunction_lc.is_some() {
+            let dim:usize = self.n_orbs*self.n_orbs;
+            let dp_flat:ArrayView1<f64> = dp.view().into_shape(dim).unwrap();
+
+            let delta_p:Array2<f64> = match &self.properties.delta_p(){
+                Some(dp0) =>{
+                    let dp0_flat:ArrayView1<f64> = dp0.into_shape(dim).unwrap();
+                    accel.apply(dp0_flat.view(),dp_flat.view()).unwrap()
+                        .into_shape(p.raw_dim()).unwrap()
+                },
+                None =>{
+                    accel.apply(Array1::zeros(dim).view(),dp_flat.view()).unwrap()
+                        .into_shape(p.raw_dim()).unwrap()
+                },
+            };
+            p = &delta_p + &p0;
+            // mulliken charges
+            let dq_temp = mulliken_atomwise(delta_p.view(),s.view(),atoms,self.n_atoms);
+            // let dq_temp = s.dot(&p).diag().to_owned();
+            (dq_temp,Some(delta_p))
+        }
+        else{
+            // mulliken charges
+            let dq1 = mulliken_atomwise(dp.view(),s.view(),atoms,self.n_atoms);
+            // let dq1:Array1<f64> = s.dot(&dp).diag().to_owned();
+            let dq_temp = accel.apply(dq.view(),dq1.view()).unwrap();
+            (dq_temp,None)
+        };
+
+        // compute electronic energy
+        let mut scf_energy = get_electronic_energy_new(
+            p.view(),
+            h0.view(),
+            dq_new.view(),
+            self.properties.gamma().unwrap(),
+        );
+        if self.gammafunction_lc.is_some(){
+            scf_energy += calc_exchange(
+                s.view(),
+                self.properties.gamma_lr_ao().unwrap(),
+                delta_p_temp.clone().unwrap().view(),
+            );
+        }
+
+        let diff_dq_max: f64 = dq_new.root_mean_sq_err(&dq).unwrap();
+
+        // check if charge difference to the previous iteration is lower than threshold
+        let conv_charge: bool = diff_dq_max < scf_charge_conv;
+        // same check for the electronic energy
+        let conv_energy: bool = (last_energy - scf_energy).abs() < scf_energy_conv;
+
+        if self.gammafunction_lc.is_some(){
+            self.properties.set_delta_p(delta_p_temp.unwrap());
+        }
+        self.properties.set_orbs(orbs);
+        self.properties.set_orbe(orbe);
+        self.properties.set_p(p);
+        self.properties.set_dq(dq_new);
+        self.properties.set_accel(accel);
+        self.properties.set_last_energy(scf_energy);
+        // self.properties.set_q_ao(q_ao);
         self.properties.set_h_coul_x(h_save);
         self.properties.set_h_coul_transformed(h);
 

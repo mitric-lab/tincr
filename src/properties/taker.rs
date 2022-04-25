@@ -1,5 +1,5 @@
 use crate::properties::Properties;
-use crate::scc::mixer::BroydenMixer;
+use crate::scc::mixer::{AndersonAccel, BroydenMixer};
 use ndarray::prelude::*;
 use crate::properties::property::Property;
 use crate::excited_states::ProductCache;
@@ -10,6 +10,14 @@ impl Properties {
     pub fn take_mixer(&mut self) -> Result<BroydenMixer, Property> {
         match self.take("mixer") {
             Some(value) => value.into_mixer(),
+            _ => Err(Property::default()),
+        }
+    }
+
+    // Takes the scc mixer
+    pub fn take_accel(&mut self) -> Result<AndersonAccel, Property> {
+        match self.take("accel") {
+            Some(value) => value.into_accel(),
             _ => Err(Property::default()),
         }
     }

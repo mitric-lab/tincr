@@ -1,7 +1,10 @@
 use ndarray::Array1;
 
 pub mod broyden;
+pub mod anderson;
+
 pub use broyden::BroydenMixer;
+pub use anderson::*;
 
 /// Trait that allows mixing of partial charge differences for the acceleration
 /// of the SCC routine

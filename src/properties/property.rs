@@ -1,6 +1,6 @@
 use ndarray::prelude::*;
 use enum_as_inner::EnumAsInner;
-use crate::scc::mixer::BroydenMixer;
+use crate::scc::mixer::{AndersonAccel, BroydenMixer};
 use crate::excited_states::ProductCache;
 use hashbrown::HashMap;
 use crate::fmo::PairType;
@@ -63,6 +63,8 @@ pub enum Property {
     Array2Bool(Array2<bool>),
     /// SCC Mixer property
     Mixer(BroydenMixer),
+    /// SCC Mixer property
+    Accel(AndersonAccel),
     /// Excited state product cache
     Cache(ProductCache),
     SuperSystem(SuperSystem),
@@ -177,6 +179,12 @@ impl From<ArrayView2<'_, bool>> for Property {
 impl From<BroydenMixer> for Property {
     fn from(value: BroydenMixer) -> Self {
         Property::Mixer(value)
+    }
+}
+
+impl From<AndersonAccel> for Property {
+    fn from(value: AndersonAccel) -> Self {
+        Property::Accel(value)
     }
 }
 

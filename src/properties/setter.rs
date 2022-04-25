@@ -2,7 +2,7 @@ use ndarray::prelude::*;
 use crate::properties::property::Property;
 use hashbrown::HashMap;
 use crate::fmo::PairType;
-use crate::scc::mixer::BroydenMixer;
+use crate::scc::mixer::{AndersonAccel, BroydenMixer};
 use crate::properties::Properties;
 use crate::excited_states::ProductCache;
 use crate::initialization::{MO, Atom};
@@ -87,6 +87,11 @@ impl Properties {
     /// Set the scc mixer
     pub fn set_mixer(&mut self, mixer: BroydenMixer) {
         self.set("mixer", Property::from(mixer))
+    }
+
+    /// Set the scc mixer
+    pub fn set_accel(&mut self, accel: AndersonAccel) {
+        self.set("accel", Property::from(accel))
     }
 
     /// Set the atomic numbers

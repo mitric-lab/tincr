@@ -31,13 +31,18 @@ impl SuperSystem {
             //         mol.n_orbs,
             //         &self.atoms[mol.slice.atom_as_range()],
             //     );
-            //     if !converged[i] {
-            //         converged[i] = mol.scc_step(
-            //             &self.atoms[mol.slice.atom_as_range()],
-            //             v_esp,
-            //             self.config.scf,
-            //         );
-            //     }
+            //     // if !converged[i] {
+            //     //     // converged[i] = mol.scc_step(
+            //     //     //     &self.atoms[mol.slice.atom_as_range()],
+            //     //     //     v_esp,
+            //     //     //     self.config.scf,
+            //     //     // );
+            //     // }
+            //     converged[i] = mol.scc_step_test(
+            //         &self.atoms[mol.slice.atom_as_range()],
+            //         v_esp,
+            //         self.config.scf,
+            //     );
             //     // save the dq's from the monomer calculation
             //     dq.slice_mut(s![mol.slice.atom])
             //         .assign(&mol.properties.dq().unwrap());
@@ -50,7 +55,12 @@ impl SuperSystem {
                     mol.n_orbs,
                     &atoms[mol.slice.atom_as_range()],
                 );
-                mol.scc_step(
+                // mol.scc_step(
+                //     &atoms[mol.slice.atom_as_range()],
+                //     v_esp,
+                //     *scf_config,
+                // )
+                mol.scc_step_test(
                     &atoms[mol.slice.atom_as_range()],
                     v_esp,
                     *scf_config,
@@ -67,6 +77,8 @@ impl SuperSystem {
             logging::fmo_monomer_iteration(iter, n_converged, self.n_mol);
             // the loop ends if all monomers are converged
             if n_converged == self.n_mol {
+                // println!("scf iterations {}",iter);
+                // println!("monomer energie: {}",self.monomers[0].properties.last_energy().unwrap());
                 break 'scf_loop;
             }
         }
