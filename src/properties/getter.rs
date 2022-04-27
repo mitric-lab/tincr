@@ -698,4 +698,11 @@ impl Properties {
             _ =>false,
         }
     }
+
+    pub fn coupling_signs(&self) -> Option<ArrayView1<f64>> {
+        match self.get("coupling_signs") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
+            _ => None,
+        }
+    }
 }

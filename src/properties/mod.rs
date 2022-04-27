@@ -58,6 +58,7 @@ impl Properties {
             "tr_dipoles",
             "oscillator_strengths",
             "lcmo_fock",
+            "coupling_signs",
         ];
         for data_name in multi_dim_data.iter() {
             self.map.remove(*data_name);

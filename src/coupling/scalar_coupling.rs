@@ -85,6 +85,9 @@ impl SuperSystem {
         // align the CI coefficients
         self.scalar_coupling_align_coefficients(sign.view());
 
+        // save the signs of the couplings
+        self.properties.set_coupling_signs(sign.slice(s![1..]).to_owned());
+
         return (coupling,excitonic_coupling,s_ao,diag.to_owned(),sign)
     }
 
@@ -102,44 +105,44 @@ impl SuperSystem {
                     mol.properties.set_ci_coefficients(ci_full);
                 },
                 ReducedBasisState::CT(ref state_a) => {
-                    let (i, j): (&ReducedParticle, &ReducedParticle) = (&state_a.hole, &state_a.electron);
-                    let type_ij: PairType = self.properties.type_of_pair(i.m_index, j.m_index);
-
-                    if type_ij == PairType::Pair {
-                        // get the indices of the pairs
-                        let pair_index: usize = self
-                            .properties
-                            .index_of_pair(i.m_index, j.m_index);
-
-                        // get reference to the pairs
-                        let pair: &mut Pair = &mut self.pairs[pair_index];
-                        // check if pair is already aligned
-                        if !pair.properties.aligned_pair(){
-                            // align the MO coefficients of the pair
-                            let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
-                            let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
-                            pair.properties.set_orbs(orbs_aligned);
-                            pair.properties.set_aligned_pair(true);
-                        }
-                    }
-                    else{
-                        // get the indices of the pairs
-                        let pair_index: usize = self
-                            .properties
-                            .index_of_esd_pair(i.m_index, j.m_index);
-
-                        // get reference to the pairs
-                        let pair: &mut ESDPair = &mut self.esd_pairs[pair_index];
-
-                        // check if pair is already aligned
-                        if !pair.properties.aligned_pair(){
-                            // align the MO coefficients of the pair
-                            let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
-                            let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
-                            pair.properties.set_orbs(orbs_aligned);
-                            pair.properties.set_aligned_pair(true);
-                        }
-                    }
+                    // let (i, j): (&ReducedParticle, &ReducedParticle) = (&state_a.hole, &state_a.electron);
+                    // let type_ij: PairType = self.properties.type_of_pair(i.m_index, j.m_index);
+                    //
+                    // if type_ij == PairType::Pair {
+                    //     // get the indices of the pairs
+                    //     let pair_index: usize = self
+                    //         .properties
+                    //         .index_of_pair(i.m_index, j.m_index);
+                    //
+                    //     // get reference to the pairs
+                    //     let pair: &mut Pair = &mut self.pairs[pair_index];
+                    //     // // check if pair is already aligned
+                    //     // if !pair.properties.aligned_pair(){
+                    //     //     // align the MO coefficients of the pair
+                    //     //     let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
+                    //     //     let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
+                    //     //     pair.properties.set_orbs(orbs_aligned);
+                    //     //     pair.properties.set_aligned_pair(true);
+                    //     // }
+                    // }
+                    // else{
+                    //     // get the indices of the pairs
+                    //     let pair_index: usize = self
+                    //         .properties
+                    //         .index_of_esd_pair(i.m_index, j.m_index);
+                    //
+                    //     // get reference to the pairs
+                    //     let pair: &mut ESDPair = &mut self.esd_pairs[pair_index];
+                    //
+                    //     // // check if pair is already aligned
+                    //     // if !pair.properties.aligned_pair(){
+                    //     //     // align the MO coefficients of the pair
+                    //     //     let orbs:ArrayView2<f64> = pair.properties.orbs().unwrap();
+                    //     //     let orbs_aligned:Array2<f64> = signs[idx+1] * &orbs;
+                    //     //     pair.properties.set_orbs(orbs_aligned);
+                    //     //     pair.properties.set_aligned_pair(true);
+                    //     // }
+                    // }
                 },
             }
         }
@@ -153,53 +156,64 @@ impl SuperSystem {
         let slako = &self.monomers[0].slako;
         // calculate the overlap matrix between the timesteps
         let s: Array2<f64> = self.supersystem_overlap_between_timesteps(other, slako);
+        // write_npy("complete_s.npy",&s);
         // empty coupling array
         let mut coupling: Array2<f64> =
             Array2::zeros([basis_states.len() + 1, basis_states.len() + 1]);
 
-        // for (idx_i, state_i) in basis_states.iter().enumerate() {
-        //     // coupling between the ground state and the diabatic states
-        //     coupling[[idx_i + 1, 0]] =
-        //         self.scalar_coupling_diabatic_gs(other, state_i, s.view(), true);
-        //
-        //     for (idx_j, state_j) in old_basis.iter().enumerate() {
-        //         // coupling between the diabatic states
-        //         coupling[[idx_i + 1, idx_j + 1]] =
-        //             self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
-        //
-        //     }
-        // }
-        // // cooupling between the ground state and the diabatic state
-        // for (idx_j, state_j) in old_basis.iter().enumerate() {
-        //     coupling[[0, idx_j + 1]] =
-        //         self.scalar_coupling_diabatic_gs(other, state_j, s.view(), false);
-        // }
+        // get the signs of the coupling
+        let coupling_signs:Array1<f64> = if other.properties.coupling_signs().is_some(){
+            other.properties.coupling_signs().unwrap().to_owned()
+        }
+        else{
+            // println!("Coupling signs not available!");
+            Array1::ones(old_basis.len())
+        };
 
-        let coupling_vec:Vec<Array1<f64>> = basis_states.par_iter().map(|state_i|{
-            let mut arr:Array1<f64> = Array1::zeros(basis_states.len());
+        for (idx_i, state_i) in basis_states.iter().enumerate() {
+            // coupling between the ground state and the diabatic states
+            // coupling[[idx_i + 1, 0]] =
+            //     self.scalar_coupling_diabatic_gs(other, state_i, s.view(), true);
+
             for (idx_j, state_j) in old_basis.iter().enumerate() {
                 // coupling between the diabatic states
-                arr[idx_j] = self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view())
+                let sign:f64 = coupling_signs[idx_j];
+                coupling[[idx_i + 1, idx_j + 1]] =
+                    self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view(),sign)
             }
-            arr
-        }).collect();
-
-        // slice the coupling matrix elements
-        for (idx,arr) in coupling_vec.iter().enumerate(){
-            coupling.slice_mut(s![idx+1,1..]).assign(arr);
         }
-        // parallel calculation
-        let diabatic_gs:Vec<f64> = basis_states.par_iter().map(|state|{
-            // coupling between the ground state and the diabatic states
-            self.scalar_coupling_diabatic_gs(other, state, s.view(), true)
-        }).collect();
         // cooupling between the ground state and the diabatic state
-        let gs_diabatic:Vec<f64> = old_basis.par_iter().map(|state|{
-            self.scalar_coupling_diabatic_gs(other, state, s.view(), false)
-        }).collect();
-        // slice coupling matrix
-        coupling.slice_mut(s![0,1..]).assign(&Array::from(gs_diabatic));
-        coupling.slice_mut(s![1..,0]).assign(&Array::from(diabatic_gs));
+        for (idx_j, state_j) in old_basis.iter().enumerate() {
+            coupling[[0, idx_j + 1]] =
+                self.scalar_coupling_diabatic_gs(other, state_j, s.view(), false);
+        }
+
+        // let coupling_vec:Vec<Array1<f64>> = basis_states.par_iter().map(|state_i|{
+        //     let mut arr:Array1<f64> = Array1::zeros(basis_states.len());
+        //     for (idx_j, state_j) in old_basis.iter().enumerate() {
+        //         // coupling between the diabatic states
+        //         let sign:f64 = coupling_signs[idx_j];
+        //         arr[idx_j] = self.scalar_coupling_diabatic_states(other, state_i, state_j, s.view(),sign)
+        //     }
+        //     arr
+        // }).collect();
+        //
+        // // slice the coupling matrix elements
+        // for (idx,arr) in coupling_vec.iter().enumerate(){
+        //     coupling.slice_mut(s![idx+1,1..]).assign(arr);
+        // }
+        // // parallel calculation
+        // let diabatic_gs:Vec<f64> = basis_states.par_iter().map(|state|{
+        //     // coupling between the ground state and the diabatic states
+        //     self.scalar_coupling_diabatic_gs(other, state, s.view(), true)
+        // }).collect();
+        // // cooupling between the ground state and the diabatic state
+        // let gs_diabatic:Vec<f64> = old_basis.par_iter().map(|state|{
+        //     self.scalar_coupling_diabatic_gs(other, state, s.view(), false)
+        // }).collect();
+        // // slice coupling matrix
+        // coupling.slice_mut(s![0,1..]).assign(&Array::from(gs_diabatic));
+        // coupling.slice_mut(s![1..,0]).assign(&Array::from(diabatic_gs));
 
         (coupling,s)
     }
@@ -568,6 +582,7 @@ impl SuperSystem {
         lhs: &ReducedBasisState,
         rhs: &ReducedBasisState,
         overlap: ArrayView2<f64>,
+        sign:f64,
     ) -> f64 {
         match (lhs, rhs) {
             // coupling between two LE states.
@@ -584,11 +599,18 @@ impl SuperSystem {
             (ReducedBasisState::CT(ref a), ReducedBasisState::LE(ref b)) => 0.0,
             // coupling between CT and CT
             (ReducedBasisState::CT(ref a), ReducedBasisState::CT(ref b)) => {
-                if (a.hole.m_index == b.hole.m_index && a.electron.m_index == b.electron.m_index)
-                    || (a.hole.m_index == b.electron.m_index
-                        && a.electron.m_index == b.hole.m_index)
+                // if (a.hole.m_index == b.hole.m_index && a.electron.m_index == b.electron.m_index)
+                //     || (a.hole.m_index == b.electron.m_index
+                //         && a.electron.m_index == b.hole.m_index)
+                // {
+                if a.hole.m_index == b.hole.m_index && a.electron.m_index == b.electron.m_index
                 {
-                    self.scalar_coupling_ct_ct(other, a, b, overlap)
+                    // self.scalar_coupling_ct_ct_new(other, a, b, overlap,sign)
+                    let sci = sign * self.scalar_coupling_ct_ct_new(other, a, b, overlap,sign);
+                    // let sci = self.scalar_coupling_ct_ct_new(other, a, b, overlap,sign);
+                    // let sci = self.scalar_coupling_ct_ct(other, a, b, overlap);
+                    // println!("sci {}",sci);
+                    sci
                 } else {
                     0.0
                 }
@@ -963,6 +985,179 @@ impl SuperSystem {
             // calculate the ci_overlap
             self.ci_overlap_same_fragment(s_mo.view(), s_mo_occ, cis_new.view(), cis_old.view())
         }
+    }
+
+    pub fn scalar_coupling_ct_ct_new(
+        &self,
+        other: &Self,
+        state_new: &ReducedCT,
+        state_old: &ReducedCT,
+        overlap: ArrayView2<f64>,
+        sign_old:f64,
+    ) -> f64 {
+        // get the monomers of the LE state of the new and old Supersystem
+        let (i, j): (&ReducedParticle, &ReducedParticle) = (&state_new.electron, &state_new.hole);
+        let (k, l): (&ReducedParticle, &ReducedParticle) = (&state_old.electron, &state_old.hole);
+
+        // if i.m_index == k.m_index{
+
+        // get the references to the monomers
+        let m_new_hole: &Monomer = &self.monomers[j.m_index];
+        let m_new_elec: &Monomer = &self.monomers[i.m_index];
+        let m_old_hole: &Monomer = &other.monomers[l.m_index];
+        let m_old_elec: &Monomer = &other.monomers[k.m_index];
+
+        // println!("Monomer indices: new ij {} {}, old kl {} {}",i.m_index,j.m_index,k.m_index,l.m_index);
+
+        // dimension of the MO overlap matrix
+        let dim:usize = m_new_hole.n_orbs + m_new_elec.n_orbs;
+        // get the MO coefficients of the monomers
+        let orbs_j = m_new_hole.properties.orbs().unwrap();
+        let orbs_i = m_new_elec.properties.orbs().unwrap();
+        let orbs_l = m_old_hole.properties.orbs().unwrap();
+        let orbs_k = m_old_elec.properties.orbs().unwrap();
+
+        // write_npy("new_orbs.npy",&orbs_j);
+        // write_npy("old_orbs.npy",&orbs_l);
+
+        // prepare the MO overlap matrix
+        let mut s_mo:Array2<f64> = Array2::zeros([dim,dim]);
+        // fill the MO overlap matrix
+        s_mo.slice_mut(s![..m_new_hole.n_orbs, ..m_old_hole.n_orbs])
+            .assign(&orbs_j.t().dot(&overlap.slice(s![m_new_hole.slice.orb, m_new_hole.slice.orb]).dot(&orbs_l)));
+        s_mo.slice_mut(s![m_new_hole.n_orbs.., m_old_hole.n_orbs..])
+            .assign(&orbs_i.t().dot(&overlap.slice(s![m_new_elec.slice.orb, m_new_elec.slice.orb]).dot(&orbs_k)));
+        s_mo.slice_mut(s![..m_new_hole.n_orbs, m_old_hole.n_orbs..])
+            .assign(&orbs_j.t().dot(&overlap.slice(s![m_new_hole.slice.orb, m_new_elec.slice.orb]).dot(&orbs_k)));
+        s_mo.slice_mut(s![m_new_hole.n_orbs.., ..m_old_hole.n_orbs])
+            .assign(&orbs_i.t().dot(&overlap.slice(s![m_new_elec.slice.orb, m_new_hole.slice.orb]).dot(&orbs_l)));
+
+        // occupied and virtual indices
+        let nocc_j:usize = m_new_hole.properties.occ_indices().unwrap().len();
+        let nocc_i:usize = m_new_elec.properties.occ_indices().unwrap().len();
+        let nvirt_j:usize = m_new_hole.properties.virt_indices().unwrap().len();
+        let nvirt_i:usize = m_new_elec.properties.virt_indices().unwrap().len();
+        // number of orbitals
+        let norb_i:usize = nocc_i+nvirt_i;
+        let norb_j:usize = nocc_j+nvirt_j;
+        let nocc:usize = nocc_i + nocc_j;
+        let nvirt:usize = nvirt_i + nvirt_j;
+        // slice the MO overlap matrix
+        let mut s_mo_occ:Array2<f64> = Array2::zeros((nocc,nocc));
+        s_mo_occ.slice_mut(s![..nocc_j,..nocc_j]).assign(&s_mo.slice(s![..nocc_j,..nocc_j]));
+        s_mo_occ.slice_mut(s![nocc_j..,nocc_j..]).assign(&s_mo.slice(s![norb_j..norb_j+nocc_i,norb_j..norb_j+nocc_i]));
+        s_mo_occ.slice_mut(s![..nocc_j,nocc_j..]).assign(&s_mo.slice(s![..nocc_j,norb_j..norb_j+nocc_i]));
+        s_mo_occ.slice_mut(s![nocc_j..,..nocc_j]).assign(&s_mo.slice(s![norb_j..norb_j+nocc_i,..nocc_j]));
+
+        // get the CI coefficients of the CT states
+        let mut cis_new: Array2<f64> = Array2::zeros([nocc_j,nvirt_i]);
+        cis_new[[
+            nocc_j - 1 - state_new.hole.ct_index,
+            state_new.electron.ct_index,
+        ]] = 1.0;
+
+        let mut cis_old: Array2<f64> = Array2::zeros([nocc_j,nvirt_i]);
+        cis_old[[
+            nocc_j - 1 - state_old.hole.ct_index,
+            state_old.electron.ct_index,
+        ]] = 1.0; // * sign_old;
+
+        // write_npy("s_mo.npy",&s_mo);
+        // write_npy("s_mo_occ.npy",&s_mo_occ);
+
+        self.ci_overlap_ct_ct(
+            s_mo.view(),
+            s_mo_occ.view(),
+            cis_new.view(),
+            cis_old.view(),
+            nocc_j,
+            nvirt_j,
+            nocc_i,
+            nvirt_i
+        )
+    }
+
+    pub fn ci_overlap_ct_ct(
+        &self,
+        s_mo: ArrayView2<f64>,
+        s_mo_occ: ArrayView2<f64>,
+        ci_new: ArrayView2<f64>,
+        ci_old: ArrayView2<f64>,
+        nocc_hole:usize,
+        nvirt_hole:usize,
+        nocc_elec:usize,
+        nvirt_elec:usize,
+    ) -> f64 {
+        // Excitations i->a with coefficients |C_ia| < threshold will be neglected
+        let threshold: f64 = 0.001;
+
+        // calc the ground state part of the ci overlap
+        let det_ij: f64 = s_mo_occ.det().unwrap();
+
+        // get indics for iterating over the overlap matrix
+        let norb_hole: usize = nocc_hole + nvirt_hole;
+        let norb_elec:usize = nocc_elec + nvirt_elec;
+        let norb:usize = norb_hole + norb_elec;
+        let nocc:usize = nocc_hole + nocc_elec;
+        let start_virt_elec = nocc + nvirt_hole;
+
+        // scalar coupling value
+        let mut s_ci: f64 = 0.0;
+
+        for i in 0..nocc_hole {
+            for (a_idx, a) in (start_virt_elec..norb).into_iter().enumerate() {
+                // slice the CI coefficients of the diabatic state J at the indicies i and a
+                let coeff_i = ci_new[[i, a_idx]];
+
+                if coeff_i.abs() > threshold {
+                    let mut s_aj: Array2<f64> = s_mo_occ.to_owned();
+                    // occupied orbitals in the configuration state function |Psi_ia>
+                    // overlap <1,...,a,...|1,...,j,...>
+                    s_aj.slice_mut(s![i, ..nocc_hole])
+                        .assign(&s_mo.slice(s![a, ..nocc_hole]));
+                    s_aj.slice_mut(s![i, nocc_hole..nocc])
+                        .assign(&s_mo.slice(s![a, norb_hole..norb_hole+nocc_elec]));
+                    let det_aj: f64 = s_aj.det().unwrap();
+
+                    for j in 0..nocc_hole {
+                        for (b_idx, b) in (start_virt_elec..norb).into_iter().enumerate() {
+                            let coeff_j = ci_old[[j, b_idx]];
+
+                            if coeff_j.abs() > threshold {
+                                let mut s_ab: Array2<f64> = s_mo_occ.to_owned();
+                                // select part of overlap matrix for orbitals
+                                // in |Psi_ia> and |Psi_jb>
+                                // <1,...,a,...|1,...,b,...>
+                                s_ab.slice_mut(s![i, ..nocc_hole])
+                                    .assign(&s_mo.slice(s![a, ..nocc_hole]));
+                                s_ab.slice_mut(s![i, nocc_hole..nocc])
+                                    .assign(&s_mo.slice(s![a, norb_hole..norb_hole+nocc_elec]));
+
+                                s_ab.slice_mut(s![..nocc_hole, j])
+                                    .assign(&s_mo.slice(s![..nocc_hole, b]));
+                                s_ab.slice_mut(s![nocc_hole..nocc, j])
+                                    .assign(&s_mo.slice(s![norb_hole..norb_hole+nocc_elec, b]));
+                                s_ab[[i, j]] = s_mo[[a, b]];
+                                let det_ab: f64 = s_ab.det().unwrap();
+
+                                let mut s_ib: Array2<f64> = s_mo_occ.to_owned();
+                                // <1,...,i,...|1,...,b,...>
+                                s_ib.slice_mut(s![..nocc_hole, j])
+                                    .assign(&s_mo.slice(s![..nocc_hole, b]));
+                                s_ib.slice_mut(s![nocc_hole..nocc, j])
+                                    .assign(&s_mo.slice(s![norb_hole..norb_hole+nocc_elec, b]));
+                                let det_ib: f64 = s_ib.det().unwrap();
+
+                                // calculate the ci overlap
+                                s_ci += coeff_j * coeff_i * (det_ab * det_ij + det_aj * det_ib);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        s_ci
     }
 
     pub fn supersystem_overlap_between_timesteps(

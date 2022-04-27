@@ -392,4 +392,11 @@ impl Properties {
             Property::from(boolean),
         )
     }
+
+    pub fn set_coupling_signs(&mut self,arr:Array1<f64>){
+        self.set(
+            "coupling_signs",
+            Property::from(arr),
+        )
+    }
 }

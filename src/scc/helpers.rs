@@ -123,17 +123,22 @@ pub fn lc_exact_exchange(
     // let dim = s.dim().0;
     // for mu in 0..dim {
     //     for nu in 0..dim {
-    //         for la in 0..dim {
-    //             for sig in 0..dim {
-    //                 hx[[mu, nu]] += -0.125
-    //                     * dp[[la, sig]]
-    //                     * s[[mu, la]]
-    //                     * s[[nu, sig]]
-    //                     * (g0_lr_ao[[mu, sig]]
+    //         if mu <= nu{
+    //             for la in 0..dim {
+    //                 for sig in 0..dim {
+    //                     hx[[mu, nu]] += -0.125
+    //                         * dp[[la, sig]]
+    //                         * s[[mu, la]]
+    //                         * s[[nu, sig]]
+    //                         * (g0_lr_ao[[mu, sig]]
     //                         + g0_lr_ao[[mu, nu]]
     //                         + g0_lr_ao[[la, sig]]
-    //                         + g0_lr_ao[[la, nu]])
+    //                         + g0_lr_ao[[la, nu]]);
+    //                 }
     //             }
+    //         }
+    //         else{
+    //             hx[[mu,nu]] = hx[[nu,mu]];
     //         }
     //     }
     // }
@@ -144,6 +149,8 @@ pub fn lc_exact_exchange(
     hx = hx + &g0_lr_ao * &s_dot_dp.dot(&s);
     hx = hx + (s.dot(&(&dp * &g0_lr_ao))).dot(&s);
     hx *= -0.125;
+    hx = 0.5* (&hx + &hx.t());
+
     return hx;
 }
 
@@ -159,6 +166,33 @@ pub fn lc_exchange_energy(
     e_hf_x += (s.dot(&dp) * dp.dot(&s) * &g0_lr_ao).sum();
     e_hf_x *= -0.125;
     return e_hf_x;
+}
+
+/// Compute electronic energies
+pub fn get_electronic_energy_new(
+    p: ArrayView2<f64>,
+    h0: ArrayView2<f64>,
+    dq: ArrayView1<f64>,
+    gamma: ArrayView2<f64>,
+) -> f64 {
+    // band structure energy
+    let e_band_structure: f64 = (&p * &h0).sum();
+    // Coulomb energy from monopoles
+    let e_coulomb: f64 = 0.5 * &dq.dot(&gamma.dot(&dq));
+    // electronic energy as sum of band structure energy and Coulomb energy
+    let mut e_elec: f64 = e_band_structure + e_coulomb;
+
+    return e_elec;
+}
+
+pub fn calc_exchange(
+    s: ArrayView2<f64>,
+    g0_lr_ao: ArrayView2<f64>,
+    dp: ArrayView2<f64>,
+) -> f64 {
+    let ex = ((s.dot(&dp.dot(&s))) * dp * g0_lr_ao).sum()
+        + (s.dot(&dp) * dp.dot(&s) * g0_lr_ao).sum();
+    -0.125 * ex
 }
 
 /// Construct the density matrix
