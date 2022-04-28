@@ -38,13 +38,14 @@ impl QuantumChemistryInterface for System {
         Array2<f64>,
         Array2<f64>,
         Array2<f64>,
-        Vec<Array2<f64>>,
-        Vec<Array1<f64>>,
-        Vec<Array2<f64>>,
-        Vec<Array2<f64>>,
-        Vec<Array2<f64>>,
-        Array1<f64>,
-        Array1<f64>,
+        // Vec<Array2<f64>>,
+        // Vec<Array1<f64>>,
+        // Vec<Array2<f64>>,
+        // Vec<Array2<f64>>,
+        // Vec<Array2<f64>>,
+        // Array1<f64>,
+        // Vec<Array2<f64>>,
+        // Array1<f64>,
     ) {
         todo!()
     }
@@ -83,13 +84,14 @@ impl QuantumChemistryInterface for SuperSystem {
         Array2<f64>,
         Array2<f64>,
         Array2<f64>,
-        Vec<Array2<f64>>,
-        Vec<Array1<f64>>,
-        Vec<Array2<f64>>,
-        Vec<Array2<f64>>,
-        Vec<Array2<f64>>,
-        Array1<f64>,
-        Array1<f64>,
+        // Vec<Array2<f64>>,
+        // Vec<Array1<f64>>,
+        // Vec<Array2<f64>>,
+        // Vec<Array2<f64>>,
+        // Vec<Array2<f64>>,
+        // Array1<f64>,
+        // Vec<Array2<f64>>,
+        // Array1<f64>,
     ) {
         // let timer = Instant::now();
         // reset old data
@@ -122,20 +124,22 @@ impl QuantumChemistryInterface for SuperSystem {
         // calculate the nonadiabatic coupling
         let (coupling,diabatic_hamiltonian,s,diag,signs):(Array2<f64>,Array2<f64>,Array2<f64>,Array1<f64>,Array1<f64>)
             = self.nonadiabatic_scalar_coupling(diabatic_hamiltonian.view(),dt);
-        let mut s_vec:Vec<Array2<f64>> = Vec::new();
-        s_vec.push(s);
+        // let mut s_vec:Vec<Array2<f64>> = Vec::new();
+        // s_vec.push(s);
 
         // println!("TIme nonadiabatic couplings {}",timer.elapsed().as_secs_f64());
 
+        // // calculate diabatic coupling and the gradient
+        // let (gradient, cis_vec, qtrans_vec, mo_vec,h_vec,x_vec): (
+        //     Array1<f64>,
+        //     Vec<Array2<f64>>,
+        //     Vec<Array1<f64>>,
+        //     Vec<Array2<f64>>,
+        //     Vec<Array2<f64>>,
+        //     Vec<Array2<f64>>,
+        // ) = self.calculate_ehrenfest_gradient(state_coefficients, thresh);
         // calculate diabatic coupling and the gradient
-        let (gradient, cis_vec, qtrans_vec, mo_vec,h_vec,x_vec): (
-            Array1<f64>,
-            Vec<Array2<f64>>,
-            Vec<Array1<f64>>,
-            Vec<Array2<f64>>,
-            Vec<Array2<f64>>,
-            Vec<Array2<f64>>,
-        ) = self.calculate_ehrenfest_gradient(state_coefficients, thresh);
+        let gradient:Array1<f64> = self.calculate_ehrenfest_gradient(state_coefficients, thresh);
 
         // println!("TIme gradient {}",timer.elapsed().as_secs_f64());
 
@@ -150,6 +154,10 @@ impl QuantumChemistryInterface for SuperSystem {
         let mut new_diabatic:Array2<f64> = Array2::zeros([dim,dim]);
         new_diabatic.slice_mut(s![1..,1..]).assign(&diabatic_hamiltonian);
 
+        let mut mo_coeff_vec:Vec<Array2<f64>> = Vec::new();
+        for monomer in &self.monomers{
+            mo_coeff_vec.push(monomer.properties.orbs().unwrap().to_owned());
+        }
         // println!("TIme for quantum chemistry {}",timer.elapsed().as_secs_f64());
 
         return (
@@ -157,13 +165,14 @@ impl QuantumChemistryInterface for SuperSystem {
             gradient,
             new_diabatic,
             coupling,
-            cis_vec,
-            qtrans_vec,
-            mo_vec,
-            s_vec,
-            x_vec,
-            diag,
-            signs,
+            // cis_vec,
+            // qtrans_vec,
+            // mo_vec,
+            // s_vec,
+            // x_vec,
+            // diag,
+            // mo_coeff_vec,
+            // signs,
         );
     }
 }

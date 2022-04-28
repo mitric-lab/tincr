@@ -106,12 +106,12 @@ impl SuperSystem {
         state_coefficients: ArrayView1<f64>,
         thresh: f64,
     ) -> (
-        Array1<f64>,
-        Vec<Array2<f64>>,
-        Vec<Array1<f64>>,
-        Vec<Array2<f64>>,
-        Vec<Array2<f64>>,
-        Vec<Array2<f64>>,
+        Array1<f64>
+        // Vec<Array2<f64>>,
+        // Vec<Array1<f64>>,
+        // Vec<Array2<f64>>,
+        // Vec<Array2<f64>>,
+        // Vec<Array2<f64>>,
     ) {
         // ground state energy and gradient
         let gs_gradient = self.ground_state_gradient();
@@ -129,110 +129,110 @@ impl SuperSystem {
         let mut h_vec:Vec<Array2<f64>> = Vec::new();
         let mut x_vec:Vec<Array2<f64>> = Vec::new();
 
-        // iterate over states
-        for (idx, state) in states.iter().enumerate() {
-            match state {
-                ReducedBasisState::LE(ref a) => {
-                    let tdm: ArrayView2<f64> = self.monomers[a.monomer_index]
-                        .properties
-                        .tdm(a.state_index)
-                        .unwrap();
-                    let ci_coeff: ArrayView1<f64> = self.monomers[a.monomer_index]
-                        .properties
-                        .ci_coefficient(a.state_index)
-                        .unwrap();
-                    let q_ov: ArrayView2<f64> =
-                        self.monomers[a.monomer_index].properties.q_ov().unwrap();
-                    cis_vec.push(tdm.to_owned());
-                    qtrans_vec.push(q_ov.dot(&ci_coeff));
-                    mo_vec.push(
-                        self.monomers[a.monomer_index]
-                            .properties
-                            .orbs()
-                            .unwrap()
-                            .to_owned(),
-                    );
-                    h_vec.push(self.monomers[a.monomer_index]
-                                   .properties
-                                   .h_coul_transformed()
-                                   .unwrap()
-                                   .to_owned());
-                    // x_vec.push(self.monomers[a.monomer_index]
-                    //     .properties
-                    //     .x()
-                    //     .unwrap()
-                    //     .to_owned());
-                }
-                ReducedBasisState::CT(ref a) => {}
-            }
-        }
-        x_vec.push(self.properties.gamma().unwrap().to_owned());
+        // // iterate over states
+        // for (idx, state) in states.iter().enumerate() {
+        //     match state {
+        //         ReducedBasisState::LE(ref a) => {
+        //             let tdm: ArrayView2<f64> = self.monomers[a.monomer_index]
+        //                 .properties
+        //                 .tdm(a.state_index)
+        //                 .unwrap();
+        //             let ci_coeff: ArrayView1<f64> = self.monomers[a.monomer_index]
+        //                 .properties
+        //                 .ci_coefficient(a.state_index)
+        //                 .unwrap();
+        //             let q_ov: ArrayView2<f64> =
+        //                 self.monomers[a.monomer_index].properties.q_ov().unwrap();
+        //             cis_vec.push(tdm.to_owned());
+        //             qtrans_vec.push(q_ov.dot(&ci_coeff));
+        //             mo_vec.push(
+        //                 self.monomers[a.monomer_index]
+        //                     .properties
+        //                     .orbs()
+        //                     .unwrap()
+        //                     .to_owned(),
+        //             );
+        //             h_vec.push(self.monomers[a.monomer_index]
+        //                            .properties
+        //                            .h_coul_transformed()
+        //                            .unwrap()
+        //                            .to_owned());
+        //             // x_vec.push(self.monomers[a.monomer_index]
+        //             //     .properties
+        //             //     .x()
+        //             //     .unwrap()
+        //             //     .to_owned());
+        //         }
+        //         ReducedBasisState::CT(ref a) => {}
+        //     }
+        // }
+        // x_vec.push(self.properties.gamma().unwrap().to_owned());
 
-        // iterate over states
-        for (idx,state) in states.iter().enumerate(){
-            let coefficient = state_coefficients[idx+1];
-            if coefficient > thresh{
-                match state{
-                    ReducedBasisState::LE(ref a) => {
-                        let grad:Array1<f64> = self.exciton_le_gradient_without_davidson(a.monomer_index,a.state_index);
-                        let mol:&Monomer = &self.monomers[a.monomer_index];
-                        gradient.slice_mut(s![mol.slice.grad]).add_assign(&(coefficient * &grad));
-                    },
-                    ReducedBasisState::CT(ref a) => {
-                        let mut hole_i:bool = true;
-                        let mut monomer_i:usize = 0;
-                        let mut monomer_j:usize = 1;
-                        let mut ct_i:usize = 0;
-                        let mut ct_j:usize = 0;
-
-                        if a.hole.m_index < a.electron.m_index{
-                            monomer_i = a.hole.m_index;
-                            ct_i = a.hole.ct_index;
-                            monomer_j = a.electron.m_index;
-                            ct_j = a.electron.ct_index;
-                        }
-                        else{
-                            hole_i = false;
-                            monomer_i = a.electron.m_index;
-                            ct_i = a.electron.ct_index;
-                            monomer_j = a.hole.m_index;
-                            ct_j = a.hole.ct_index;
-                        }
-
-                        let mut grad:Array1<f64> =
-                            self.ct_gradient_new(
-                                monomer_i,
-                                monomer_j,
-                                ct_i,
-                                ct_j,
-                                a.energy,hole_i
-                            );
-
-                        grad = grad +
-                            self.calculate_cphf_correction(
-                                monomer_i,
-                                monomer_j,
-                                ct_i,
-                                ct_j,
-                                hole_i
-                            );
-
-                        let mol_i = &self.monomers[monomer_i];
-                        let mol_j = &self.monomers[monomer_j];
-                        gradient.slice_mut(s![mol_i.slice.grad]).add_assign(&(coefficient *&grad.slice(s![..mol_i.n_atoms*3])));
-                        gradient.slice_mut(s![mol_j.slice.grad]).add_assign(&(coefficient *&grad.slice(s![mol_i.n_atoms*3..])));
-                    },
-                }
-            }
-        }
+        // // iterate over states
+        // for (idx,state) in states.iter().enumerate(){
+        //     let coefficient = state_coefficients[idx+1];
+        //     if coefficient > thresh{
+        //         match state{
+        //             ReducedBasisState::LE(ref a) => {
+        //                 let grad:Array1<f64> = self.exciton_le_gradient_without_davidson(a.monomer_index,a.state_index);
+        //                 let mol:&Monomer = &self.monomers[a.monomer_index];
+        //                 gradient.slice_mut(s![mol.slice.grad]).add_assign(&(coefficient * &grad));
+        //             },
+        //             ReducedBasisState::CT(ref a) => {
+        //                 let mut hole_i:bool = true;
+        //                 let mut monomer_i:usize = 0;
+        //                 let mut monomer_j:usize = 1;
+        //                 let mut ct_i:usize = 0;
+        //                 let mut ct_j:usize = 0;
+        //
+        //                 if a.hole.m_index < a.electron.m_index{
+        //                     monomer_i = a.hole.m_index;
+        //                     ct_i = a.hole.ct_index;
+        //                     monomer_j = a.electron.m_index;
+        //                     ct_j = a.electron.ct_index;
+        //                 }
+        //                 else{
+        //                     hole_i = false;
+        //                     monomer_i = a.electron.m_index;
+        //                     ct_i = a.electron.ct_index;
+        //                     monomer_j = a.hole.m_index;
+        //                     ct_j = a.hole.ct_index;
+        //                 }
+        //
+        //                 let mut grad:Array1<f64> =
+        //                     self.ct_gradient_new(
+        //                         monomer_i,
+        //                         monomer_j,
+        //                         ct_i,
+        //                         ct_j,
+        //                         a.energy,hole_i
+        //                     );
+        //
+        //                 grad = grad +
+        //                     self.calculate_cphf_correction(
+        //                         monomer_i,
+        //                         monomer_j,
+        //                         ct_i,
+        //                         ct_j,
+        //                         hole_i
+        //                     );
+        //
+        //                 let mol_i = &self.monomers[monomer_i];
+        //                 let mol_j = &self.monomers[monomer_j];
+        //                 gradient.slice_mut(s![mol_i.slice.grad]).add_assign(&(coefficient *&grad.slice(s![..mol_i.n_atoms*3])));
+        //                 gradient.slice_mut(s![mol_j.slice.grad]).add_assign(&(coefficient *&grad.slice(s![mol_i.n_atoms*3..])));
+        //             },
+        //         }
+        //     }
+        // }
 
         return (
-            gradient,
-            cis_vec,
-            qtrans_vec,
-            mo_vec,
-            h_vec,
-            x_vec
+            gradient
+            // cis_vec,
+            // qtrans_vec,
+            // mo_vec,
+            // h_vec,
+            // x_vec
         );
     }
 }
