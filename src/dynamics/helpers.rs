@@ -1,9 +1,10 @@
 use std::ops::AddAssign;
 use crate::fmo::cis_gradient::ReducedBasisState;
-use crate::fmo::{Monomer, SuperSystem};
+use crate::fmo::{ExcitedStateMonomerGradient, Monomer, SuperSystem};
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
 use ndarray::prelude::*;
+use rayon::prelude::*;
 
 impl System {
     pub fn calculate_energies_and_gradient(&mut self, state: usize) -> (Array1<f64>, Array1<f64>) {
@@ -122,13 +123,12 @@ impl SuperSystem {
         // get the basis states
         let states = self.properties.basis_states().unwrap().to_vec();
 
-        // get cis matrices
-        let mut cis_vec: Vec<Array2<f64>> = Vec::new();
-        let mut qtrans_vec: Vec<Array1<f64>> = Vec::new();
-        let mut mo_vec: Vec<Array2<f64>> = Vec::new();
-        let mut h_vec:Vec<Array2<f64>> = Vec::new();
-        let mut x_vec:Vec<Array2<f64>> = Vec::new();
-
+        // // get cis matrices
+        // let mut cis_vec: Vec<Array2<f64>> = Vec::new();
+        // let mut qtrans_vec: Vec<Array1<f64>> = Vec::new();
+        // let mut mo_vec: Vec<Array2<f64>> = Vec::new();
+        // let mut h_vec:Vec<Array2<f64>> = Vec::new();
+        // let mut x_vec:Vec<Array2<f64>> = Vec::new();
         // // iterate over states
         // for (idx, state) in states.iter().enumerate() {
         //     match state {
@@ -168,6 +168,138 @@ impl SuperSystem {
         // }
         // x_vec.push(self.properties.gamma().unwrap().to_owned());
 
+        // iterate over states
+        for (idx,state) in states.iter().enumerate(){
+            let coefficient = state_coefficients[idx+1];
+            if coefficient > thresh{
+                match state{
+                    ReducedBasisState::LE(ref a) => {
+                        // let grad:Array1<f64> = self.exciton_le_gradient_without_davidson(a.monomer_index,a.state_index);
+                        let mol:&mut Monomer = &mut self.monomers[a.monomer_index];
+                        mol.prepare_excited_gradient(&self.atoms[mol.slice.atom_as_range()]);
+                    },
+                    ReducedBasisState::CT(ref a) => {
+                        let mut hole_i:bool = true;
+                        let mut monomer_i:usize = 0;
+                        let mut monomer_j:usize = 1;
+                        let mut ct_i:usize = 0;
+                        let mut ct_j:usize = 0;
+
+                        if a.hole.m_index < a.electron.m_index{
+                            monomer_i = a.hole.m_index;
+                            ct_i = a.hole.ct_index;
+                            monomer_j = a.electron.m_index;
+                            ct_j = a.electron.ct_index;
+                        }
+                        else{
+                            hole_i = false;
+                            monomer_i = a.electron.m_index;
+                            ct_i = a.electron.ct_index;
+                            monomer_j = a.hole.m_index;
+                            ct_j = a.hole.ct_index;
+                        }
+
+                        self.prepare_parallel_ct_gradient(monomer_i,monomer_j);
+                    },
+                }
+            }
+        }
+
+        let vec_array:Vec<Array1<f64>> = states.par_iter().enumerate().map(|(idx,state)|{
+            let coefficient = state_coefficients[idx+1];
+            if coefficient > thresh{
+                match state{
+                    ReducedBasisState::LE(ref a) => {
+                        // let grad:Array1<f64> = self.exciton_le_gradient_without_davidson(a.monomer_index,a.state_index);
+                        let mol:&Monomer = &self.monomers[a.monomer_index];
+                        mol.tda_gradient_lc(a.state_index)
+                    },
+                    ReducedBasisState::CT(ref a) => {
+                        let mut hole_i:bool = true;
+                        let mut monomer_i:usize = 0;
+                        let mut monomer_j:usize = 1;
+                        let mut ct_i:usize = 0;
+                        let mut ct_j:usize = 0;
+
+                        if a.hole.m_index < a.electron.m_index{
+                            monomer_i = a.hole.m_index;
+                            ct_i = a.hole.ct_index;
+                            monomer_j = a.electron.m_index;
+                            ct_j = a.electron.ct_index;
+                        }
+                        else{
+                            hole_i = false;
+                            monomer_i = a.electron.m_index;
+                            ct_i = a.electron.ct_index;
+                            monomer_j = a.hole.m_index;
+                            ct_j = a.hole.ct_index;
+                        }
+                        let mut grad:Array1<f64> = self.calculate_parallel_ct_gradient(
+                            monomer_i,
+                            monomer_j,
+                            ct_i,
+                            ct_j,
+                            a.energy,
+                            hole_i
+                        );
+
+                        grad = grad +
+                            self.calculate_cphf_correction(
+                                monomer_i,
+                                monomer_j,
+                                ct_i,
+                                ct_j,
+                                hole_i
+                            );
+
+                        grad
+                    },
+                }
+            }
+            else{
+                Array1::zeros(1)
+            }
+        }).collect();
+
+        // iterate over states
+        for ((idx,state),array) in states.iter().enumerate().zip(vec_array.iter()){
+            let coefficient = state_coefficients[idx+1];
+            if coefficient > thresh{
+                match state{
+                    ReducedBasisState::LE(ref a) => {
+                        let mol:&Monomer = &self.monomers[a.monomer_index];
+                        gradient.slice_mut(s![mol.slice.grad]).add_assign(&(coefficient * array));
+                    },
+                    ReducedBasisState::CT(ref a) => {
+                        let mut hole_i:bool = true;
+                        let mut monomer_i:usize = 0;
+                        let mut monomer_j:usize = 1;
+                        let mut ct_i:usize = 0;
+                        let mut ct_j:usize = 0;
+
+                        if a.hole.m_index < a.electron.m_index{
+                            monomer_i = a.hole.m_index;
+                            ct_i = a.hole.ct_index;
+                            monomer_j = a.electron.m_index;
+                            ct_j = a.electron.ct_index;
+                        }
+                        else{
+                            hole_i = false;
+                            monomer_i = a.electron.m_index;
+                            ct_i = a.electron.ct_index;
+                            monomer_j = a.hole.m_index;
+                            ct_j = a.hole.ct_index;
+                        }
+
+                        let mol_i = &self.monomers[monomer_i];
+                        let mol_j = &self.monomers[monomer_j];
+                        gradient.slice_mut(s![mol_i.slice.grad]).add_assign(&(coefficient *&array.slice(s![..mol_i.n_atoms*3])));
+                        gradient.slice_mut(s![mol_j.slice.grad]).add_assign(&(coefficient *&array.slice(s![mol_i.n_atoms*3..])));
+                    },
+                }
+            }
+        }
+
         // // iterate over states
         // for (idx,state) in states.iter().enumerate(){
         //     let coefficient = state_coefficients[idx+1];
@@ -205,7 +337,8 @@ impl SuperSystem {
         //                         monomer_j,
         //                         ct_i,
         //                         ct_j,
-        //                         a.energy,hole_i
+        //                         a.energy,
+        //                         hole_i
         //                     );
         //
         //                 grad = grad +

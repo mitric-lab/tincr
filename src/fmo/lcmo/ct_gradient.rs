@@ -15,6 +15,98 @@ use rayon::iter::ParallelIterator;
 use crate::fmo::lcmo::helpers::{exchange_integral_loop_ao, coulomb_integral_loop_ao};
 
 impl SuperSystem {
+    pub fn prepare_parallel_ct_gradient(
+        &mut self,
+        index_i: usize,
+        index_j: usize,
+    ) -> Array1<f64> {
+        // get monomers
+        let m_i: &Monomer = &self.monomers[index_i];
+        let m_j: &Monomer = &self.monomers[index_j];
+
+        // get pair type
+        let pair_type: PairType = self.properties.type_of_pair(index_i, index_j);
+        let mut ct_gradient: Array1<f64> = Array1::zeros([3 * (m_i.n_atoms + m_j.n_atoms)]);
+
+        if pair_type == PairType::Pair {
+            // get pair index
+            let pair_index: usize = self.properties.index_of_pair(index_i, index_j);
+            // get correct pair from pairs vector
+            let pair_ij: &mut Pair = &mut self.pairs[pair_index];
+            // get pair atoms
+            let pair_atoms: Vec<Atom> = get_pair_slice(
+                &self.atoms,
+                m_i.slice.atom_as_range(),
+                m_j.slice.atom_as_range(),
+            );
+
+            pair_ij.prepare_lcmo_gradient(&pair_atoms, m_i, m_j);
+        } else {
+            // Do something for ESD pairs
+            // get pair index
+            let pair_index: usize = self.properties.index_of_esd_pair(index_i, index_j);
+            // get correct pair from pairs vector
+            let pair_ij: &mut ESDPair = &mut self.esd_pairs[pair_index];
+            // get pair atoms
+            let pair_atoms: Vec<Atom> = get_pair_slice(
+                &self.atoms,
+                m_i.slice.atom_as_range(),
+                m_j.slice.atom_as_range(),
+            );
+
+            // do a scc calculation of the ESD pair
+            // pair_ij.prepare_scc(&pair_atoms, m_i, m_j);
+            // pair_ij.run_scc(&pair_atoms, self.config.scf);
+
+            pair_ij.prepare_lcmo_gradient(&pair_atoms);
+        }
+
+        return ct_gradient;
+    }
+
+    pub fn calculate_parallel_ct_gradient(
+        &self,
+        index_i: usize,
+        index_j: usize,
+        ct_ind_i: usize,
+        ct_ind_j: usize,
+        ct_energy: f64,
+        hole_i: bool,
+    )->Array1<f64>{
+        // get monomers
+        let m_i: &Monomer = &self.monomers[index_i];
+        let m_j: &Monomer = &self.monomers[index_j];
+
+        // get pair type
+        let pair_type: PairType = self.properties.type_of_pair(index_i, index_j);
+        let mut ct_gradient: Array1<f64> = Array1::zeros([3 * (m_i.n_atoms + m_j.n_atoms)]);
+
+        if pair_type == PairType::Pair {
+            // get pair index
+            let pair_index: usize = self.properties.index_of_pair(index_i, index_j);
+            // get correct pair from pairs vector
+            let pair_ij: &Pair = &self.pairs[pair_index];
+
+            let cis_coefficients = pair_ij.prepare_ct_state_parallel(m_i, m_j, ct_ind_i, ct_ind_j, hole_i);
+            ct_gradient = pair_ij.tda_gradient_lc_parallel_ct(0,cis_coefficients.view(),ct_energy);
+            // reset gradient specific properties
+            // pair_ij.properties.reset_gradient();
+        } else {
+            // Do something for ESD pairs
+            // get pair index
+            let pair_index: usize = self.properties.index_of_esd_pair(index_i, index_j);
+            // get correct pair from pairs vector
+            let pair_ij: &ESDPair = &self.esd_pairs[pair_index];
+
+            let cis_coefficients = pair_ij.prepare_ct_state_parallel(m_i, m_j, ct_ind_i, ct_ind_j, hole_i);
+            ct_gradient = pair_ij.tda_gradient_nolc(0);
+            // pair_ij.properties.reset_gradient();
+        }
+
+        return ct_gradient;
+    }
+
+
     pub fn ct_gradient_new(
         &mut self,
         index_i: usize,
@@ -48,7 +140,7 @@ impl SuperSystem {
             pair_ij.prepare_ct_state(&pair_atoms, m_i, m_j, ct_ind_i, ct_ind_j, ct_energy, hole_i);
             ct_gradient = pair_ij.tda_gradient_lc(0);
             // reset gradient specific properties
-            pair_ij.properties.reset_gradient();
+            // pair_ij.properties.reset_gradient();
         } else {
             // Do something for ESD pairs
             // get pair index
@@ -69,7 +161,7 @@ impl SuperSystem {
             pair_ij.prepare_lcmo_gradient(&pair_atoms);
             pair_ij.prepare_ct_state(&pair_atoms, m_i, m_j, ct_ind_i, ct_ind_j, ct_energy, hole_i);
             ct_gradient = pair_ij.tda_gradient_nolc(0);
-            pair_ij.properties.reset_gradient();
+            // pair_ij.properties.reset_gradient();
         }
 
         return ct_gradient;
@@ -206,19 +298,19 @@ impl SuperSystem {
         return val;
     }
 
-    pub fn calculate_cphf_correction(&mut self,index_i:usize,index_j:usize,ct_ind_i:usize,ct_ind_j:usize,hole_i:bool)->Array1<f64>{
+    pub fn calculate_cphf_correction(&self,index_i:usize,index_j:usize,ct_ind_i:usize,ct_ind_j:usize,hole_i:bool)->Array1<f64>{
         // get monomers and atoms of both monomers
         let monomer: &Monomer = &self.monomers[index_i];
         let atoms_i: &[Atom] = &self.atoms[monomer.slice.atom_as_range()];
         let monomer: &Monomer = &self.monomers[index_j];
         let atoms_j: &[Atom] = &self.atoms[monomer.slice.atom_as_range()];
 
-        // prepare the calculation of the U matrices
-        let monomers:&mut Vec<Monomer> = &mut self.monomers;
-        let monomer:&mut Monomer = &mut monomers[index_i];
-        monomer.prepare_u_matrix(&atoms_i);
-        let monomer: &mut Monomer = &mut monomers[index_j];
-        monomer.prepare_u_matrix(&atoms_j);
+        // // prepare the calculation of the U matrices
+        // let monomers:&mut Vec<Monomer> = &mut self.monomers;
+        // let monomer:&mut Monomer = &mut monomers[index_i];
+        // monomer.prepare_u_matrix(&atoms_i);
+        // let monomer: &mut Monomer = &mut monomers[index_j];
+        // monomer.prepare_u_matrix(&atoms_j);
         let monomers:usize;
         let monomer:usize;
 
@@ -243,7 +335,7 @@ impl SuperSystem {
             // get pair index
             let pair_index:usize = self.properties.index_of_pair(index_i,index_j);
             // get correct pair from pairs vector
-            let pair_ij: &mut Pair = &mut self.pairs[pair_index];
+            let pair_ij: &Pair = &self.pairs[pair_index];
             // length of atoms of the pair
             let n_atoms_pair:usize = m_i.n_atoms + m_j.n_atoms;
             let pair_atoms: Vec<Atom> = get_pair_slice(
@@ -491,7 +583,7 @@ impl SuperSystem {
             // get pair index
             let pair_index:usize = self.properties.index_of_esd_pair(index_i,index_j);
             // get correct pair from pairs vector
-            let pair_ij: &mut ESDPair = &mut self.esd_pairs[pair_index];
+            let pair_ij: &ESDPair = &self.esd_pairs[pair_index];
             // length of atoms of the pair
             let n_atoms_pair:usize = m_i.n_atoms + m_j.n_atoms;
             let pair_atoms: Vec<Atom> = get_pair_slice(
