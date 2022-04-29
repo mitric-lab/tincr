@@ -173,7 +173,7 @@ impl SuperSystem {
             pair.prepare_scc(&pair_atoms[..], m_i, m_j);
 
             // do the SCC iterations
-            pair.run_scc(&*pair_atoms, *scf_config);
+            pair.run_scc_test(&*pair_atoms, *scf_config);
 
             // and compute the SCC energy
             let pair_energ:f64 = pair.properties.last_energy().unwrap()

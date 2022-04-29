@@ -120,7 +120,7 @@ impl SuperSystem {
             );
             // do a scc calculation of the ESD pair
             esd_pair.prepare_scc(&pair_atoms, m_i, m_j);
-            esd_pair.run_scc(&pair_atoms, self.config.scf);
+            esd_pair.run_scc_test(&pair_atoms, self.config.scf);
 
             // get overlap matrix
             let s:ArrayView2<f64> = esd_pair.properties.s().unwrap();
