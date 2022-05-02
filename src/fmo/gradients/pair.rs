@@ -309,6 +309,44 @@ impl Pair{
             self.properties.set_grad_s(grad_s);
             self.properties.set_grad_h0(grad_h0);
         }
+
+        // check if occ and virt indices exist
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        if (self.properties.contains_key("occ_indices") == false) || (self.properties.contains_key("virt_indices") == true) {
+            // calculate the number of electrons
+            let n_elec: usize = pair_atoms.iter().fold(0, |n, atom| n + atom.n_elec);
+            // get the indices of the occupied and virtual orbitals
+            (0..self.n_orbs).for_each(|index| {
+                if index < (n_elec / 2) {
+                    occ_indices.push(index)
+                } else {
+                    virt_indices.push(index)
+                }
+            });
+
+            self.properties.set_occ_indices(occ_indices.clone());
+            self.properties.set_virt_indices(virt_indices.clone());
+        }
+        else{
+            occ_indices = self.properties.occ_indices().unwrap().to_vec();
+            virt_indices = self.properties.virt_indices().unwrap().to_vec();
+        }
+
+        if self.properties.q_ov().is_none(){
+            // calculate transition charges
+            let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
+                self.n_atoms,
+                pair_atoms,
+                self.properties.orbs().unwrap(),
+                self.properties.s().unwrap(),
+                &occ_indices,
+                &virt_indices,
+            );
+            self.properties.set_q_ov(tmp.0);
+            self.properties.set_q_oo(tmp.1);
+            self.properties.set_q_vv(tmp.2);
+        }
     }
 
     pub fn prepare_lcmo_gradient_parallel(&mut self,pair_atoms:&[Atom],m_i: &Monomer, m_j: &Monomer){

@@ -361,21 +361,26 @@ impl Monomer {
             );
             self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
         }
-        // prepare gamma and grad gamma AO matrix
-        let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
-            self.properties.gamma().unwrap(),
-            atoms,
-            self.n_orbs
-        );
-        let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-            &self.gammafunction,
-            atoms,
-            self.n_atoms,
-            self.n_orbs,
-        );
-        self.properties.set_grad_gamma(g1);
-        self.properties.set_gamma_ao(g0_ao);
-        self.properties.set_grad_gamma_ao(g1_ao);
+        if self.properties.gamma_ao().is_none(){
+            // prepare gamma and grad gamma AO matrix
+            let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+                self.properties.gamma().unwrap(),
+                atoms,
+                self.n_orbs
+            );
+            self.properties.set_gamma_ao(g0_ao);
+        }
+    
+        if self.properties.grad_gamma().is_none(){
+            let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                &self.gammafunction,
+                atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_grad_gamma(g1);
+            self.properties.set_grad_gamma_ao(g1_ao);
+        }
     }
 
     pub fn calculate_u_matrix(

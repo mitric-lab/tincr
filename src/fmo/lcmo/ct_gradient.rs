@@ -20,7 +20,13 @@ impl SuperSystem {
         index_i: usize,
         index_j: usize,
     ) -> Array1<f64> {
-        // get monomers
+        // get monomers and prepare the U matrix
+        let monomer: &mut Monomer = &mut self.monomers[index_i];
+        monomer.prepare_u_matrix(&self.atoms[monomer.slice.atom_as_range()]);
+        let monomer: &mut Monomer = &mut self.monomers[index_j];
+        monomer.prepare_u_matrix(&self.atoms[monomer.slice.atom_as_range()]);
+        drop(monomer);
+
         let m_i: &Monomer = &self.monomers[index_i];
         let m_j: &Monomer = &self.monomers[index_j];
 
@@ -99,7 +105,7 @@ impl SuperSystem {
             let pair_ij: &ESDPair = &self.esd_pairs[pair_index];
 
             let cis_coefficients = pair_ij.prepare_ct_state_parallel(m_i, m_j, ct_ind_i, ct_ind_j, hole_i);
-            ct_gradient = pair_ij.tda_gradient_nolc(0);
+            ct_gradient = pair_ij.tda_gradient_nolc_parllel_ct(0,cis_coefficients.view(),ct_energy);
             // pair_ij.properties.reset_gradient();
         }
 
