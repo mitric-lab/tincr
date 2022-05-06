@@ -165,7 +165,7 @@ pub fn q_lele<'a>(
 /// Computes the Mulliken transition charges between two `Particle`s (hole or electron). They can
 /// either be located on the same monomer or on two different ones. The overlap matrix has to be the
 /// overlap between the basis functions of `a` and `b`.
-pub fn q_pp<'a>(a: &'a Particle<'a>, b: &'a Particle<'a>, s: ArrayView2<f64>) -> Array1<f64> {
+pub fn q_pp<'a,'b>(a: &'a Particle<'b>, b: &'a Particle<'b>, s: ArrayView2<f64>) -> Array1<f64> {
     // Check if the transition charges are on the same monomer or not.
     let inter: bool = a.monomer != b.monomer;
     // Number of atoms.
