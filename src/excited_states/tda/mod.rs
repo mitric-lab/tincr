@@ -3,6 +3,7 @@ mod monomer;
 mod new_mod;
 mod system;
 mod utils;
+mod ct_pair;
 
 use crate::excited_states::solvers::davidson::Davidson;
 use crate::excited_states::tda::new_mod::TdaStates;
@@ -63,7 +64,7 @@ impl Monomer {
         self.properties.set_tr_dipoles(tr_dipoles);
         self.properties.set_oscillator_strengths(f);
 
-        // println!("{}", states);
+        println!("{}", states);
         // states.ntos_to_molden(&atoms, 0, "/Users/hochej/Downloads/s1.molden");
     }
 }
@@ -113,7 +114,8 @@ impl System {
         };
 
 
-        // write_npy("/home/einseler/Downloads/full_energies.npy", &davidson.eigenvalues.view());
+        write_npy("full_energies.npy", &davidson.eigenvalues.view());
+        write_npy("oscillator_strengths.npy",&f);
 
         // The eigenvalues are the excitation energies and the eigenvectors are the CI coefficients.
         self.properties.set_ci_eigenvalues(davidson.eigenvalues);

@@ -1186,3 +1186,66 @@ pub fn exchange_integral_loop_ao_ijji(
 
     return integral;
 }
+
+pub fn coulomb_integral_loop_lect_2e(
+    s_i: ArrayView2<f64>,
+    s_ij: ArrayView2<f64>,
+    g_i:ArrayView2<f64>,
+    g_ij: ArrayView2<f64>,
+    n_orb_i: usize,
+    n_orb_j:usize,
+    hole_on_I:bool,
+)->Array4<f64>{
+    let mut integral:Array4<f64>;
+    // Integral: sum_mu,nu^I sum_la^I sum_sig^J (mu,nu|la,sig)
+    // (mu,nu|la,sig) = 0.25 * S_mu,nu * S_la,sig * (g_mu,la + g_mu,sig + g_nu,la + g_nu,sig)
+    if hole_on_I{
+        let mut coul_integral = Array4::zeros([n_orb_i,n_orb_i,n_orb_i,n_orb_j]);
+        let mut ex_integral = Array4::zeros([n_orb_i,n_orb_i,n_orb_i,n_orb_j]);
+
+        let norbs:usize = n_orb_i+n_orb_j;
+        for mu in 0..n_orb_i{
+            for nu in 0..n_orb_i{
+                for la in 0..n_orb_i{
+                    for sig in n_orb_i..norbs{
+                        coul_integral[[mu,la,nu,sig-n_orb_i]] = 0.25 * s_i[[mu,la]] * s_ij[[nu,sig-n_orb_i]] *
+                            (g_i[[mu,nu]] + g_ij[[mu,sig]]
+                                + g_i[[la,nu]] + g_ij[[la,sig]]);
+
+                        ex_integral[[mu,nu,la,sig-n_orb_i]] = 0.25 * s_i[[mu,nu]] * s_ij[[la,sig-n_orb_i]] *
+                            (g_i[[mu,la]] + g_ij[[mu,sig]] + g_i[[nu,la]] + g_ij[[nu,sig]]);
+                    }
+                }
+            }
+        }
+
+        let diff:Array4<f64> = 2.0 * ex_integral - coul_integral.permuted_axes([0,2,1,3]).as_standard_layout().to_owned();
+        integral = diff;
+    }
+    // Integral: sum_mu,nu^J sum_la^J sum_sig^I (mu,nu|la,sig)
+    // (mu,nu|la,sig) = 0.25 * S_mu,nu * S_la,sig * (g_mu,la + g_mu,sig + g_nu,la + g_nu,sig)
+    else {
+        let mut coul_integral = Array4::zeros([n_orb_i,n_orb_j,n_orb_i,n_orb_i]);
+        let mut ex_integral = Array4::zeros([n_orb_i,n_orb_i,n_orb_j,n_orb_i]);
+
+        let norbs:usize = n_orb_i+n_orb_j;
+        for mu in 0..n_orb_i{
+            for nu in 0..n_orb_i{
+                for la in n_orb_i..norbs{
+                    for sig in 0..n_orb_i{
+                        coul_integral[[mu,la-n_orb_i,nu,sig]] = 0.25 * s_ij[[mu,la-n_orb_i]] * s_i[[nu,sig]] *
+                            (g_i[[mu,nu]] + g_i[[mu,sig]]
+                                + g_ij[[la,nu]] + g_ij[[la,sig]]);
+
+                        ex_integral[[mu,nu,la-n_orb_i,sig]] = 0.25 * s_i[[mu,nu]] * s_ij[[sig,la-n_orb_i]] *
+                            (g_ij[[mu,la]] + g_i[[mu,sig]] + g_ij[[nu,la]] + g_i[[nu,sig]]);
+                    }
+                }
+            }
+        }
+        let diff:Array4<f64> = 2.0 * ex_integral - coul_integral.permuted_axes([0,2,1,3]).as_standard_layout().to_owned();
+        integral = diff;
+    }
+
+    return integral;
+}

@@ -1,10 +1,12 @@
-use crate::fmo::{BasisState, ChargeTransfer, LocallyExcited, Monomer, Particle};
+use crate::fmo::{BasisState, ChargeTransfer, ChargeTransferPair, LocallyExcited, Monomer, Particle};
 use crate::initialization::Atom;
 use ndarray::concatenate;
 use ndarray::prelude::*;
 use std::iter;
 use std::io::empty;
 use std::ops::AddAssign;
+use std::thread::panicking;
+use crate::SuperSystem;
 
 /// Type to determine the kind of orbitals that are used for the LE-LE transition charges. `Hole`
 /// specifies the use of occupied orbitals, while `Electron` means that virtual orbitals are used.
@@ -268,4 +270,262 @@ pub fn q_le_p<'a>(
     }
 
     0.5 * q_trans
+}
+
+impl SuperSystem{
+    pub fn q_lect<'a>(
+        &self,
+        a: &'a LocallyExcited<'a>,
+        b: &ChargeTransferPair,
+        kind: ElecHole,
+    ) -> Array3<f64> {
+        match kind{
+            ElecHole::Hole =>{
+                // Number of atoms.
+                let n_atoms_le: usize = a.atoms.len();
+                let n_atoms_ct_occ: usize = self.monomers[b.m_h].n_atoms;
+                let n_atoms_occ: usize = n_atoms_le + n_atoms_ct_occ;
+
+                // get the atoms of the hole
+                let atoms_h:&[Atom] = &self.atoms[self.monomers[b.m_h].slice.atom_as_range()];
+
+                // get occupied orbitals of the LE state
+                let occs_le: ArrayView2<f64> = a.occs;
+
+                // get orbitals of the ct state
+                let occ_indices: &[usize] = self.monomers[b.m_h].properties.occ_indices().unwrap();
+                // The index of the HOMO (zero based).
+                let homo: usize = occ_indices[occ_indices.len() - 1];
+                let occs_ct:ArrayView2<f64> = self.monomers[b.m_h].properties.orbs_slice(0, Some(homo + 1)).unwrap();
+
+                // slice the overlap matrix
+                let s_ij:ArrayView2<f64> = self.properties.s_slice(a.monomer.slice.orb,self.monomers[b.m_h].slice.orb).unwrap();
+
+                // Number of occupied molecular orbitals on I
+                let dim_i: usize = occs_le.ncols();
+                // Number of molecular orbitals on the hole
+                let dim_j: usize = occs_ct.ncols();
+
+                // The transition charges between the two sets of MOs are initialized.
+                let mut q_trans_ij: Array3<f64> = Array3::zeros([n_atoms_occ, dim_i, dim_j]);
+
+                // Matrix products between the overlap matrix and the molecular orbitals
+                let s_ij_c_ct_occ: Array2<f64> = s_ij.dot(&occs_ct);
+                let s_ij_c_le_occ: Array2<f64> = s_ij.t().dot(&occs_le);
+
+                let mut mu: usize = 0;
+                for (atom, mut q_n) in a.atoms.iter().zip(q_trans_ij.slice_mut(s![0..n_atoms_le, .., ..]).axis_iter_mut(Axis(0))) {
+                    for _ in 0..atom.n_orbs {
+                        for (orb_i, mut q_i) in occs_le.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                            for (sc, mut q) in s_ij_c_ct_occ.row(mu).iter().zip(q_i.iter_mut()) {
+                                *q += orb_i * sc;
+                            }
+                        }
+                        mu += 1;
+                    }
+                }
+                mu = 0;
+
+                for (atom, mut q_n) in atoms_h.iter().zip(q_trans_ij.slice_mut(s![n_atoms_le.., .., ..]).axis_iter_mut(Axis(0))) {
+                    for _ in 0..atom.n_orbs {
+                        for (sc, mut q_i) in s_ij_c_le_occ.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                            for (orb_j, mut q) in occs_ct.row(mu).iter().zip(q_i.iter_mut()) {
+                                *q += orb_j * sc;
+                            }
+                        }
+                        mu += 1;
+                    }
+                }
+                0.5 * q_trans_ij
+            }
+            ElecHole::Electron =>{
+                // Number of atoms.
+                let n_atoms_le: usize = a.atoms.len();
+                let n_atoms_ct_virt:usize = self.monomers[b.m_l].n_atoms;
+                let n_atoms_virt: usize = n_atoms_le + n_atoms_ct_virt;
+
+                // get the atoms of the hole
+                let atoms_l:&[Atom] = &self.atoms[self.monomers[b.m_l].slice.atom_as_range()];
+
+                // get virtual orbitals of the LE state
+                let virts_le: ArrayView2<f64> = a.virts;
+
+                // get orbitals of the ct state
+                let virt_indices: &[usize] = self.monomers[b.m_l].properties.virt_indices().unwrap();
+                // The index of the LUMO (zero based).
+                let lumo: usize = virt_indices[0];
+                let virts_ct:ArrayView2<f64> = self.monomers[b.m_l].properties.orbs_slice(lumo, None).unwrap();
+
+                // slice the overlap matrix
+                let s_ab:ArrayView2<f64> = self.properties.s_slice(a.monomer.slice.orb,self.monomers[b.m_l].slice.orb).unwrap();
+
+                // Number of virtual molecular orbitals on I
+                let dim_a: usize = virts_le.ncols();
+                // Number of virtual molecular orbitals on the electron
+                let dim_b:usize = virts_ct.ncols();
+
+                // The transition charges between the two sets of MOs are initialized.
+                let mut q_trans_ab: Array3<f64> = Array3::zeros([n_atoms_virt, dim_a, dim_b]);
+
+                // Matrix products between the overlap matrix and the molecular orbitals
+                let s_ab_c_ct_virt:Array2<f64> = s_ab.dot(&virts_ct);
+                let s_ab_c_le_virt:Array2<f64> = s_ab.t().dot(&virts_le);
+
+                let mut mu: usize = 0;
+                for (atom, mut q_n) in a.atoms.iter().zip(q_trans_ab.slice_mut(s![0..n_atoms_le, .., ..]).axis_iter_mut(Axis(0))) {
+                    for _ in 0..atom.n_orbs {
+                        for (orb_i, mut q_i) in virts_le.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                            for (sc, mut q) in s_ab_c_ct_virt.row(mu).iter().zip(q_i.iter_mut()) {
+                                *q += orb_i * sc;
+                            }
+                        }
+                        mu += 1;
+                    }
+                }
+                mu = 0;
+
+                for (atom, mut q_n) in atoms_l.iter().zip(q_trans_ab.slice_mut(s![n_atoms_le.., .., ..]).axis_iter_mut(Axis(0))) {
+                    for _ in 0..atom.n_orbs {
+                        for (sc, mut q_i) in s_ab_c_le_virt.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                            for (orb_j, mut q) in virts_ct.row(mu).iter().zip(q_i.iter_mut()) {
+                                *q += orb_j * sc;
+                            }
+                        }
+                        mu += 1;
+                    }
+                }
+                0.5 * q_trans_ab
+            }
+        }
+    }
+
+    pub fn q_ctct<'a>(
+        &self,
+        a: &ChargeTransferPair,
+        b: &ChargeTransferPair,
+        kind: ElecHole,
+    ) -> Array3<f64> {
+        match kind{
+            ElecHole::Hole =>{
+                // Number of atoms.
+                let n_atoms_ct_a: usize = self.monomers[a.m_h].n_atoms;
+                let n_atoms_ct_b: usize = self.monomers[b.m_h].n_atoms;
+                let n_atoms_occ: usize = n_atoms_ct_a+ n_atoms_ct_b;
+
+                // get the atoms of the hole
+                let atoms_a:&[Atom] = &self.atoms[self.monomers[a.m_h].slice.atom_as_range()];
+                let atoms_b:&[Atom] = &self.atoms[self.monomers[b.m_h].slice.atom_as_range()];
+
+                // get orbitals of the ct state
+                let occ_indices_a: &[usize] = self.monomers[a.m_h].properties.occ_indices().unwrap();
+                let occ_indices_b: &[usize] = self.monomers[b.m_h].properties.occ_indices().unwrap();
+                // The index of the HOMO (zero based).
+                let homo_a: usize = occ_indices_a[occ_indices_a.len() - 1];
+                let homo_b: usize = occ_indices_b[occ_indices_b.len() - 1];
+                let occs_ct_a:ArrayView2<f64> = self.monomers[a.m_h].properties.orbs_slice(0, Some(homo_a + 1)).unwrap();
+                let occs_ct_b:ArrayView2<f64> = self.monomers[b.m_h].properties.orbs_slice(0, Some(homo_b + 1)).unwrap();
+
+                // slice the overlap matrix
+                let s_ij:ArrayView2<f64> =
+                    self.properties.s_slice(self.monomers[a.m_h].slice.orb,self.monomers[b.m_h].slice.orb).unwrap();
+
+                // Number of occupied molecular orbitals on I
+                let dim_i: usize = occs_ct_a.ncols();
+                // Number of molecular orbitals on the hole
+                let dim_j: usize = occs_ct_b.ncols();
+
+                // The transition charges between the two sets of MOs are initialized.
+                let mut q_trans_ij: Array3<f64> = Array3::zeros([n_atoms_occ, dim_i, dim_j]);
+
+                // Matrix products between the overlap matrix and the molecular orbitals
+                let s_ij_c_ct_b: Array2<f64> = s_ij.dot(&occs_ct_b);
+                let s_ij_c_ct_a: Array2<f64> = s_ij.t().dot(&occs_ct_a);
+
+                let mut mu: usize = 0;
+                for (atom, mut q_n) in atoms_a.iter().zip(q_trans_ij.slice_mut(s![0..n_atoms_ct_a, .., ..]).axis_iter_mut(Axis(0))) {
+                    for _ in 0..atom.n_orbs {
+                        for (orb_i, mut q_i) in occs_ct_a.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                            for (sc, mut q) in s_ij_c_ct_b.row(mu).iter().zip(q_i.iter_mut()) {
+                                *q += orb_i * sc;
+                            }
+                        }
+                        mu += 1;
+                    }
+                }
+                mu = 0;
+
+                for (atom, mut q_n) in atoms_b.iter().zip(q_trans_ij.slice_mut(s![n_atoms_ct_a.., .., ..]).axis_iter_mut(Axis(0))) {
+                    for _ in 0..atom.n_orbs {
+                        for (sc, mut q_i) in s_ij_c_ct_a.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                            for (orb_j, mut q) in occs_ct_a.row(mu).iter().zip(q_i.iter_mut()) {
+                                *q += orb_j * sc;
+                            }
+                        }
+                        mu += 1;
+                    }
+                }
+                0.5 * q_trans_ij
+            },
+            ElecHole::Electron =>{
+                // Number of atoms.
+                let n_atoms_ct_a: usize =self.monomers[a.m_l].n_atoms;
+                let n_atoms_ct_b:usize = self.monomers[b.m_l].n_atoms;
+                let n_atoms_virt: usize = n_atoms_ct_a+ n_atoms_ct_b;
+
+                // get the atoms of the hole
+                let atoms_a:&[Atom] = &self.atoms[self.monomers[a.m_l].slice.atom_as_range()];
+                let atoms_b:&[Atom] = &self.atoms[self.monomers[b.m_l].slice.atom_as_range()];
+
+                // get orbitals of the ct state
+                let virt_indices_a: &[usize] = self.monomers[a.m_l].properties.virt_indices().unwrap();
+                let virt_indices_b: &[usize] = self.monomers[b.m_l].properties.virt_indices().unwrap();
+                // The index of the LUMO (zero based).
+                let lumo_a: usize = virt_indices_a[0];
+                let lumo_b: usize = virt_indices_b[0];
+                let virts_ct_a:ArrayView2<f64> = self.monomers[a.m_l].properties.orbs_slice(lumo_a, None).unwrap();
+                let virts_ct_b:ArrayView2<f64> = self.monomers[b.m_l].properties.orbs_slice(lumo_b, None).unwrap();
+
+                // slice the overlap matrix
+                let s_ab:ArrayView2<f64> =
+                    self.properties.s_slice(self.monomers[a.m_l].slice.orb,self.monomers[b.m_l].slice.orb).unwrap();
+
+                // Number of virtual molecular orbitals on I
+                let dim_a: usize = virts_ct_a.ncols();
+                // Number of virtual molecular orbitals on the electron
+                let dim_b:usize = virts_ct_b.ncols();
+
+                // The transition charges between the two sets of MOs are initialized.
+                let mut q_trans_ab: Array3<f64> = Array3::zeros([n_atoms_virt, dim_a, dim_b]);
+
+                // Matrix products between the overlap matrix and the molecular orbitals
+                let s_ab_c_ct_b:Array2<f64> = s_ab.dot(&virts_ct_b);
+                let s_ab_c_ct_a:Array2<f64> = s_ab.t().dot(&virts_ct_a);
+
+                let mut mu: usize = 0;
+                for (atom, mut q_n) in atoms_a.iter().zip(q_trans_ab.slice_mut(s![0..n_atoms_ct_a, .., ..]).axis_iter_mut(Axis(0))) {
+                    for _ in 0..atom.n_orbs {
+                        for (orb_i, mut q_i) in virts_ct_a.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                            for (sc, mut q) in s_ab_c_ct_b.row(mu).iter().zip(q_i.iter_mut()) {
+                                *q += orb_i * sc;
+                            }
+                        }
+                        mu += 1;
+                    }
+                }
+                mu = 0;
+
+                for (atom, mut q_n) in atoms_b.iter().zip(q_trans_ab.slice_mut(s![n_atoms_ct_a.., .., ..]).axis_iter_mut(Axis(0))) {
+                    for _ in 0..atom.n_orbs {
+                        for (sc, mut q_i) in s_ab_c_ct_a.row(mu).iter().zip(q_n.axis_iter_mut(Axis(0))) {
+                            for (orb_j, mut q) in virts_ct_b.row(mu).iter().zip(q_i.iter_mut()) {
+                                *q += orb_j * sc;
+                            }
+                        }
+                        mu += 1;
+                    }
+                }
+                0.5 * q_trans_ab
+            },
+        }
+    }
 }

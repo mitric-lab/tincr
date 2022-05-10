@@ -97,6 +97,7 @@ impl SuperSystem {
                         }));
                         // (vec![mo_i, mo_j], vec![index_i, index_j])
                     }
+                    _ =>{},
                 };
                 // let reduced_state: ReducedBasisState =
                 //     ReducedBasisState::new(energy_state, m_index, state_ind, c.powi(2));

@@ -84,6 +84,7 @@ impl ExcitedState for ExcitonStates<'_> {
                         let particle_slice = state.electron.monomer.slice.virt_orb;
                         tdm.slice_mut(s![hole_slice, particle_slice])[[h_mo, e_mo]] += *c;
                     },
+                    _ => {},
                 }
             }
 
@@ -142,6 +143,7 @@ impl<'a> ExcitonStates<'a> {
                         let dip = q_ia.dot(&atoms_2d);
                         tr_dip += Vector3::new( dip[0], dip[1], dip[2]).scale(*v);
                     },
+                    _ =>{},
                 }
             }
             *fi = 2.0 / 3.0 * e * tr_dip.dot(&tr_dip);

@@ -1,17 +1,17 @@
 use crate::fmo::lcmo::lcmo_trans_charges::{q_lele, q_pp, ElecHole, q_le_p};
-use crate::fmo::{
-    BasisState, ChargeTransfer, LocallyExcited, Monomer, PairType, Particle, SuperSystem, LRC,
-};
+use crate::fmo::{BasisState, ChargeTransfer, LocallyExcited, Monomer, PairType, Particle, SuperSystem, LRC, ChargeTransferPair};
 use crate::initialization::Atom;
-use crate::scc::gamma_approximation::gamma_atomwise_ab;
+use crate::scc::gamma_approximation::{gamma_ao_wise_from_gamma_atomwise, gamma_atomwise_ab};
 use crate::scc::h0_and_s::h0_and_s_ab;
 use hashbrown::HashSet;
 use ndarray::prelude::*;
 use ndarray::{concatenate, Slice};
-use ndarray_linalg::Trace;
+use ndarray_linalg::{into_col, into_row, Trace};
 use peroxide::fuga::gamma;
+use crate::fmo::helpers::get_pair_slice;
 use crate::fmo::PairType::Pair;
 use crate::fmo::lcmo::cis_gradient::ReducedParticle;
+use crate::fmo::lcmo::helpers::coulomb_integral_loop_lect_2e;
 
 impl SuperSystem {
     pub fn exciton_coupling<'a>(&self, lhs: &'a BasisState<'a>, rhs: &'a BasisState<'a>) -> f64 {
@@ -57,6 +57,24 @@ impl SuperSystem {
                 // one_elec
                 // self.ct_ct(a, b)
             },
+            (BasisState::LE(ref a),BasisState::PairCT(ref b)) => {
+                self.le_ct_new(a,b)
+            },
+            (BasisState::PairCT(ref a),BasisState::LE(ref b),) => {
+                self.ct_le_new(a,b)
+            },
+            (BasisState::PairCT(ref a),BasisState::PairCT(ref b)) =>{
+                if a == b{
+                    a.state_energy
+                }
+                else if a.m_h == b.m_h && a.m_l == b.m_l{
+                    0.0
+                }
+                else{
+                    self.ct_ct_new(a,b)
+                }
+            }
+            _ =>{0.0},
         }
     }
 
@@ -357,8 +375,12 @@ impl SuperSystem {
     }
 
     pub fn le_ct<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
+        self.le_ct_1e(i, j)
+        // let val = self.le_ct_1e(i, j);
+        // println!("lect_1e {}",val* 219474.63);
+        // val
         // self.le_ct_1e(i, j) + self.le_ct_2e(i, j)
-        self.le_ct_2e(i, j)
+        // self.le_ct_2e(i, j)
     }
 
     pub fn le_ct_1e<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
@@ -511,6 +533,412 @@ impl SuperSystem {
     }
     pub fn ct_le<'a>(&self, i: &'a ChargeTransfer<'a>, j: &'a LocallyExcited<'a>) -> f64 {
         self.le_ct(j, i)
+    }
+
+    pub fn le_ct_new<'a>(&self, i: &'a LocallyExcited<'a>, j: &ChargeTransferPair) -> f64 {
+        self.le_ct_1e_new(i, j) + self.le_ct_2e_new(i, j)
+    }
+
+    pub fn le_ct_1e_new<'a>(&self,i: &'a LocallyExcited<'a>,j: &ChargeTransferPair)->f64{
+        if i.monomer.index == j.m_l{
+            // reference to the Monomer of the CT where the hole is placed
+            let m_h:&Monomer = &self.monomers[j.m_h];
+
+            // Transition Density Matrix of the LE state in MO basis.
+            let tdm_le: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+
+            // Transition Density Matrix of the CT state
+            let tdm_ct:&Array2<f64> = &j.eigenvectors;
+
+            // Index of the HOMO of the LE.
+            let homo_le: usize = i.monomer.properties.homo().unwrap();
+
+            // Index of the HOMO of the CT
+            let occ_indices_ct = m_h.properties.occ_indices().unwrap();
+            let homo_ct:usize = occ_indices_ct[occ_indices_ct.len()-1];
+
+            let f_ij: ArrayView2<f64> = self.properties.lcmo_fock().unwrap()
+                .slice_move(s![i.monomer.slice.orb, m_h.slice.orb])
+                .slice_move(s![..=homo_le,..=homo_ct]);
+
+            let nocc_i:usize = f_ij.dim().0;
+            let nocc_j:usize = f_ij.dim().1;
+
+            let t_ij:Array1<f64> = tdm_le.dot(&tdm_ct.t()).into_shape([nocc_i*nocc_j]).unwrap();
+
+            f_ij.as_standard_layout().to_owned().into_shape([nocc_i*nocc_j]).unwrap().dot(&t_ij)
+        }
+        else if i.monomer.index == j.m_h{
+            // reference to the Monomer of the CT where the electron is placed
+            let m_l:&Monomer = &self.monomers[j.m_l];
+
+            // Transition Density Matrix of the LE state in MO basis.
+            let tdm_le: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+
+            // Transition Density Matrix of the CT state
+            let tdm_ct:&Array2<f64> = &j.eigenvectors;
+
+            // Index of the LUMO of the LE
+            let lumo_le: usize = i.monomer.properties.lumo().unwrap();
+
+            // Index of the LUMO of the CT
+            let lumo_ct:usize = m_l.properties.virt_indices().unwrap()[0];
+
+            let f_ab: ArrayView2<f64> = self.properties.lcmo_fock().unwrap()
+                .slice_move(s![i.monomer.slice.orb, m_l.slice.orb])
+                .slice_move(s![lumo_le.., lumo_ct..]);
+
+            let nvirt_a:usize = f_ab.dim().0;
+            let nvirt_b:usize = f_ab.dim().1;
+
+            let t_ab:Array1<f64> = tdm_le.t().dot(tdm_ct).into_shape([nvirt_a*nvirt_b]).unwrap();
+            f_ab.as_standard_layout().to_owned().into_shape([nvirt_a*nvirt_b]).unwrap().dot(&t_ab)
+        }
+        else{
+            0.0
+        }
+    }
+
+    pub fn le_ct_2e_new<'a>(&self, i: &'a LocallyExcited<'a>, j: &ChargeTransferPair) -> f64 {
+        // Transition charges of LE state at monomer I.
+        let qtrans_le: ArrayView1<f64> = i.q_trans.view();
+
+        // calculate the gamma matrix between the three monomers
+        let gamma = self.gamma_ab_c(j.m_h,j.m_l,i.monomer.index,LRC::OFF);
+
+        // calculate the coulomb interaction between both charge densities
+        let coulomb:f64 = qtrans_le.dot(&gamma.t().dot(&j.q_tr));
+
+        let type_le_h:PairType = self.properties.type_of_pair(i.monomer.index,j.m_h);
+        let type_le_l:PairType = self.properties.type_of_pair(i.monomer.index,j.m_l);
+
+        let exchange:f64 = if type_le_h == PairType::Pair || type_le_l == PairType::Pair{
+            let q_ij = if i.monomer.index == j.m_h{
+                let q_oo = i.monomer.properties.q_oo().unwrap();
+                let nocc:usize = i.occs.ncols();
+                let q_oo_3d:Array3<f64> =
+                    q_oo.into_shape([i.monomer.n_atoms,nocc,nocc]).unwrap().to_owned();
+                q_oo_3d
+            }
+            else{
+                self.q_lect(i,j,ElecHole::Hole)
+            };
+
+            let q_ab = if i.monomer.index == j.m_l{
+                let q_vv = i.monomer.properties.q_vv().unwrap();
+                let nvirt:usize = i.virts.ncols();
+                let q_vv_3d:Array3<f64> = q_vv.into_shape([i.monomer.n_atoms,nvirt,nvirt]).unwrap().to_owned();
+                q_vv_3d
+            }
+            else{
+                self.q_lect(i,j,ElecHole::Electron)
+            };
+
+            let gamma_lr = if i.monomer.index == j.m_h{
+                let gamma = self.gamma_ab_c(i.monomer.index,j.m_l,i.monomer.index,LRC::ON);
+                gamma.reversed_axes()
+            }
+            else if i.monomer.index == j.m_l{
+                self.gamma_ab_c(i.monomer.index,j.m_h,i.monomer.index,LRC::ON)
+            }
+            else{
+                self.gamma_ab_cd(i.monomer.index, j.m_h, i.monomer.index, j.m_l, LRC::ON)
+            };
+
+            // Reference to the transition density matrix of I in MO basis.
+            let b_ia: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+            // Reference to the transition density matrix of J in MO basis.
+            let b_jb: &Array2<f64> = &j.eigenvectors;
+
+            // Some properties that are used specify the shapes.
+            let n_atoms_ij:usize = q_ij.dim().0;
+            let n_atoms_ab:usize = q_ab.dim().0;
+            // Number of occupied orbitals in both monomers.
+            let (n_i, n_j): (usize, usize) = (q_ij.dim().1, q_ij.dim().2);
+            // Number of virtual orbitals in both monomers.
+            let (n_a, n_b): (usize, usize) = (q_ab.dim().1, q_ab.dim().2);
+
+            // Contract the product b_ia^I b_jb^J ( i^I j^J | a^I b^J)
+            let bia_ij = q_ij
+                .permuted_axes([0, 2, 1])
+                .as_standard_layout()
+                .into_shape((n_atoms_ij * n_j, n_i))
+                .unwrap()
+                .dot(&b_ia)
+                .into_shape((n_atoms_ij, n_j, n_a))
+                .unwrap()
+                .permuted_axes([0, 2, 1])
+                .as_standard_layout()
+                .into_shape((n_atoms_ij, n_a * n_j))
+                .unwrap()
+                .to_owned();
+
+            let ab_bjb: Array2<f64> = q_ab
+                .into_shape([n_atoms_ab * n_a, n_b])
+                .unwrap()
+                .dot(&b_jb.t())
+                .into_shape([n_atoms_ab, n_a * n_j])
+                .unwrap();
+
+            ab_bjb.dot(&bia_ij.t()).dot(&gamma_lr).trace().unwrap()
+        }
+        else{
+            0.0
+        };
+
+        2.0 * coulomb - exchange
+    }
+
+    pub fn ct_le_new<'a>(&self, i: &ChargeTransferPair, j: &'a LocallyExcited<'a>) -> f64 {
+        self.le_ct_new(j, i)
+    }
+
+    pub fn ct_ct_new<'a>(&self, state_1: &ChargeTransferPair, state_2: &ChargeTransferPair) -> f64 {
+        // calculate the gamma matrix between the two pairs
+        let gamma_ij_kl: Array2<f64> =
+            self.gamma_ab_cd(state_1.m_h, state_1.m_l, state_2.m_h, state_2.m_l, LRC::OFF);
+
+        // calculate the coulomb interaction between both charge densities
+        let coulomb: f64 = state_1.q_tr.dot(&gamma_ij_kl.dot(&state_2.q_tr));
+
+        // get all possible pair types of the monomers
+        let type_hh: PairType = self
+            .properties
+            .type_of_pair(state_1.m_h, state_2.m_h);
+        let type_ll:PairType = self.properties.type_of_pair(state_1.m_l,state_2.m_l);
+        let type_hl: PairType = self
+            .properties
+            .type_of_pair(state_1.m_h, state_2.m_l);
+        let type_lh: PairType = self
+            .properties
+            .type_of_pair(state_1.m_l, state_2.m_h);
+
+        // calculate the exchange like integral in case one of the pair type is a real pair
+        let exchange:f64 = if type_hh == PairType::Pair || type_hl == PairType::Pair || type_lh == PairType::Pair || type_ll == PairType::Pair{
+            let q_ij = if state_1.m_h == state_2.m_h{
+                let nocc:usize = self.monomers[state_1.m_h].properties.occ_indices().unwrap().len();
+                let q_oo = self.monomers[state_1.m_h].properties.q_oo().unwrap();
+                let n_atoms:usize = self.monomers[state_1.m_h].n_atoms;
+                let q_oo_3d:Array3<f64> = q_oo.into_shape([n_atoms,nocc,nocc]).unwrap().to_owned();
+                q_oo_3d
+            }
+            else{
+                self.q_ctct(state_1,state_2,ElecHole::Hole)
+            };
+
+            let q_ab:Array3<f64> = if state_1.m_l == state_2.m_l{
+                let nvirt:usize = self.monomers[state_1.m_h].properties.virt_indices().unwrap().len();
+                let q_vv = self.monomers[state_1.m_h].properties.q_vv().unwrap();
+                let n_atoms:usize = self.monomers[state_1.m_h].n_atoms;
+                let q_vv_3d:Array3<f64> = q_vv.into_shape([n_atoms,nvirt,nvirt]).unwrap().to_owned();
+                q_vv_3d
+            }
+            else{
+                self.q_ctct(state_1,state_2,ElecHole::Electron)
+            };
+
+            let gamma_lr = if state_1.m_h == state_2.m_h{
+                let gamma = self.gamma_ab_c(state_1.m_l,state_2.m_l,state_1.m_h,LRC::ON);
+                gamma.reversed_axes()
+            }
+            else if state_1.m_l == state_2.m_l{
+                self.gamma_ab_c(state_1.m_h,state_2.m_h,state_1.m_l,LRC::ON)
+            }
+            else{
+                self.gamma_ab_cd(state_1.m_h,state_2.m_h, state_1.m_l,state_2.m_l, LRC::ON)
+            };
+
+            // Reference to the transition density matrix of the CT 1
+            let b_ia: &Array2<f64> = &state_1.eigenvectors;
+            // Reference to the transition density matrix of the CT 2.
+            let b_jb: &Array2<f64> = &state_2.eigenvectors;
+
+            // Some properties that are used specify the shapes.
+            let n_atoms_ij:usize = q_ij.dim().0;
+            let n_atoms_ab:usize = q_ab.dim().0;
+            // Number of occupied orbitals in both monomers.
+            let (n_i, n_j): (usize, usize) = (q_ij.dim().1, q_ij.dim().2);
+            // Number of virtual orbitals in both monomers.
+            let (n_a, n_b): (usize, usize) = (q_ab.dim().1, q_ab.dim().2);
+
+            // Contract the product b_ia^I b_jb^J ( i^I j^J | a^I b^J)
+            let bia_ij = q_ij
+                .permuted_axes([0, 2, 1])
+                .as_standard_layout()
+                .into_shape((n_atoms_ij * n_j, n_i))
+                .unwrap()
+                .dot(b_ia)
+                .into_shape((n_atoms_ij, n_j, n_a))
+                .unwrap()
+                .permuted_axes([0, 2, 1])
+                .as_standard_layout()
+                .into_shape((n_atoms_ij, n_a * n_j))
+                .unwrap()
+                .to_owned();
+
+            let ab_bjb: Array2<f64> = q_ab
+                .into_shape([n_atoms_ab * n_a, n_b])
+                .unwrap()
+                .dot(&b_jb.t())
+                .into_shape([n_atoms_ab, n_a * n_j])
+                .unwrap();
+
+            ab_bjb.dot(&bia_ij.t()).dot(&gamma_lr).trace().unwrap()
+        }
+        else{
+            0.0
+        };
+
+        2.0 *coulomb - exchange
+    }
+
+    /// The two electron matrix element of between a LE state (on monomer I) and a CT state from orbital j on
+    /// monomer J to orbital b to monomer K is computed.
+    /// < LE I | H | CT J_j -> K_b >
+    pub fn le_ct_2e_test<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
+        // Check if the pair of monomers I and J is close to each other or not: S_IJ != 0 ?
+        let type_ij: PairType = self.properties.type_of_pair(i.monomer.index, j.hole.idx);
+        // The same for I and K
+        let type_ik: PairType = self.properties.type_of_pair(i.monomer.index, j.electron.idx);
+
+        // Transition charges of LE state at monomer I.
+        let qtrans: ArrayView1<f64> = i.q_trans.view();
+
+        // < LE I | H | CT J_j -> I_b>
+        if i.monomer.index == j.electron.idx {
+            // Check if the pair IK is close, so that the overlap is non-zero.
+            if type_ij == PairType::Pair {
+                // Overlap matrix between monomer I and J.
+                let s_ij: ArrayView2<f64> = self.properties.s_slice(j.electron.monomer.slice.orb, j.hole.monomer.slice.orb).unwrap();
+                let s_i:ArrayView2<f64> = self.properties.s_slice(i.monomer.slice.orb,i.monomer.slice.orb).unwrap();
+                let g_i:ArrayView2<f64> = self.properties.gamma_lr_slice(i.monomer.slice.atom,i.monomer.slice.atom).unwrap();
+                let g_ij_outer: ArrayView2<f64> = self.properties.gamma_lr_slice(j.electron.monomer.slice.atom, j.hole.monomer.slice.atom).unwrap();
+
+                let pair_atoms: Vec<Atom> = get_pair_slice(
+                    &self.atoms,
+                    i.monomer.slice.atom_as_range(),
+                    j.hole.monomer.slice.atom_as_range(),
+                );
+
+                let pair_orbs:usize = i.monomer.n_orbs+j.hole.monomer.n_orbs;
+                let mut g_ij:Array2<f64> = Array2::zeros([pair_atoms.len(),pair_atoms.len()]);
+                g_ij.slice_mut(s![0..i.monomer.n_atoms,0..i.monomer.n_atoms]).assign(&g_i);
+                g_ij.slice_mut(s![i.monomer.n_atoms..,i.monomer.n_atoms..])
+                    .assign(&self.properties.gamma_lr_slice(j.hole.monomer.slice.atom,j.hole.monomer.slice.atom).unwrap());
+                g_ij.slice_mut(s![0..i.monomer.n_atoms,i.monomer.n_atoms..]).assign(&g_ij_outer);
+                g_ij.slice_mut(s![i.monomer.n_atoms..,..i.monomer.n_atoms]).assign(&g_ij_outer.t());
+
+                let g_i_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(g_i,i.atoms,i.monomer.n_orbs);
+                let g_ij_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(g_ij.view(),&pair_atoms,pair_orbs);
+
+                let integral:Array4<f64> =
+                    coulomb_integral_loop_lect_2e(s_i,s_ij,g_i_ao.view(),g_ij_ao.view(),i.monomer.n_orbs,j.hole.monomer.n_orbs,false);
+                let norbs_i:usize = i.monomer.n_orbs;
+                let norbs_j:usize = j.hole.monomer.n_orbs;
+
+                let tdm:ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+                let t_mat:Array2<f64> = i.occs.dot(&tdm.dot(&i.virts.t()));
+
+                let ct_arr:Array2<f64> = into_col(j.hole.mo.c.to_owned()).dot(&into_row(j.electron.mo.c.to_owned()));
+                let integral_2d:Array2<f64> = integral.into_shape([norbs_i*norbs_i,norbs_j*norbs_i]).unwrap();
+                let val:f64 = t_mat.into_shape([norbs_i*norbs_i]).unwrap()
+                    .dot(&integral_2d.dot(&ct_arr.into_shape([norbs_j*norbs_i]).unwrap()));
+
+                // println!("lect {}",val * 219474.63);
+                val
+
+                // // Gamma matrix between pair IJ and monomer I. TODO: Check LC
+                // let gamma_ij_i_lr: Array2<f64> = self.gamma_ab_c( j.electron.idx, j.hole.idx,i.monomer.index, LRC::ON);
+                // let gamma_ij_i: Array2<f64> = self.gamma_ab_c( j.electron.idx, j.hole.idx,i.monomer.index, LRC::OFF);
+                // // q_bj is computed instead of q_jb to use the same overlap and Gamma matrix.
+                // let q_bj: Array1<f64> = q_pp(&j.electron, &j.hole, s_ij.view());
+                // // The two electron integral (ia|jb) is computed.
+                // let ia_jb: f64 = qtrans.dot(&gamma_ij_i.t()).dot(&q_bj);
+                // // Transition charges between all orbitals on I and the hole on J.
+                // let q_ij: Array2<f64> = q_le_p(&i, &j.hole, s_ij, ElecHole::Hole);
+                // // Overlap integral of monomer I.
+                // let s_ii: ArrayView2<f64> = i.monomer.properties.s().unwrap();
+                // // Transition charges betwenn all orbitals on I and the electron on I.
+                // let q_ab: Array2<f64> = q_le_p(&i, &j.electron, s_ii, ElecHole::Electron);
+                //
+                // // The two electron integral b_ia (ij|ab) is computed.
+                // let ij_ab: f64 = i.tdm.dot(&q_ij.t().dot(&gamma_ij_i_lr.dot(&q_ab)).into_shape([i.occs.ncols() * i.virts.ncols()]).unwrap());
+                // 2.0 * ia_jb - ij_ab
+            } else {0.0} // If overlap IK is zero, the coupling is zero.
+            // < LE I | H | CT I -> J >
+        } else if i.monomer.index == j.hole.idx {
+            // Check if the pair IJ is close, so that the overlap is non-zero.
+            if type_ik == PairType::Pair {
+                let s_ij: ArrayView2<f64> = self.properties.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb).unwrap();
+                let s_i:ArrayView2<f64> = self.properties.s_slice(i.monomer.slice.orb,i.monomer.slice.orb).unwrap();
+                let g_i:ArrayView2<f64> = self.properties.gamma_lr_slice(i.monomer.slice.atom,i.monomer.slice.atom).unwrap();
+                let g_ij_outer: ArrayView2<f64> = self.properties.gamma_lr_slice(j.hole.monomer.slice.atom, j.electron.monomer.slice.atom).unwrap();
+
+                let pair_atoms: Vec<Atom> = get_pair_slice(
+                    &self.atoms,
+                    i.monomer.slice.atom_as_range(),
+                    j.electron.monomer.slice.atom_as_range(),
+                );
+
+                let pair_orbs:usize = i.monomer.n_orbs+j.electron.monomer.n_orbs;
+                let mut g_ij:Array2<f64> = Array2::zeros([pair_atoms.len(),pair_atoms.len()]);
+                g_ij.slice_mut(s![0..i.monomer.n_atoms,0..i.monomer.n_atoms]).assign(&g_i);
+                g_ij.slice_mut(s![i.monomer.n_atoms..,i.monomer.n_atoms..])
+                    .assign(&self.properties.gamma_lr_slice(j.electron.monomer.slice.atom,j.electron.monomer.slice.atom).unwrap());
+                g_ij.slice_mut(s![0..i.monomer.n_atoms,i.monomer.n_atoms..]).assign(&g_ij_outer);
+                g_ij.slice_mut(s![i.monomer.n_atoms..,..i.monomer.n_atoms]).assign(&g_ij_outer.t());
+
+                let g_i_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(g_i,i.atoms,i.monomer.n_orbs);
+                let g_ij_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(g_ij.view(),&pair_atoms,pair_orbs);
+
+                let integral:Array4<f64> =
+                    coulomb_integral_loop_lect_2e(s_i,s_ij,g_i_ao.view(),g_ij_ao.view(),i.monomer.n_orbs,j.electron.monomer.n_orbs,true);
+                let norbs_i:usize = i.monomer.n_orbs;
+                let norbs_j:usize = j.electron.monomer.n_orbs;
+
+                let tdm:ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+                let t_mat:Array2<f64> = i.occs.dot(&tdm.dot(&i.virts.t()));
+
+                let ct_arr:Array2<f64> = into_col(j.hole.mo.c.to_owned()).dot(&into_row(j.electron.mo.c.to_owned()));
+                let integral_2d:Array2<f64> = integral.into_shape([norbs_i*norbs_i,norbs_i*norbs_j]).unwrap();
+                let val:f64 = t_mat.into_shape([norbs_i*norbs_i]).unwrap()
+                    .dot(&integral_2d.dot(&ct_arr.into_shape([norbs_i*norbs_j]).unwrap()));
+
+                // println!("lect {}",val* 219474.63);
+                val
+
+                // // Overlap matrix between monomer I and J.
+                // let s_ij: ArrayView2<f64> = self.properties.s_slice(j.hole.monomer.slice.orb, j.electron.monomer.slice.orb).unwrap();
+                //
+                // // Gamma matrix between pair IJ and monomer I. TODO: Check LC
+                // let gamma_ij_i_lr: Array2<f64> = self.gamma_ab_c( j.hole.idx, j.electron.idx,i.monomer.index, LRC::ON);
+                // let gamma_ij_i: Array2<f64> = self.gamma_ab_c( j.hole.idx, j.electron.idx,i.monomer.index, LRC::OFF);
+                //
+                // // Transition charge between hole on I and electron on J.
+                // let q_jb: Array1<f64> = q_pp(&j.hole, &j.electron, s_ij.view());
+                //
+                // // The two electron integral (ia|jb) is computed.
+                // let ia_jb: f64 = qtrans.dot(&gamma_ij_i.t()).dot(&q_jb);
+                //
+                // // Overlap integral of monomer I.
+                // let s_ii: ArrayView2<f64> = i.monomer.properties.s().unwrap();
+                //
+                // // Transition charges between all orbitals on I and the hole on I.
+                // let q_ij: Array2<f64> = q_le_p(&i, &j.hole, s_ii.view(), ElecHole::Hole);
+                //
+                // // Transition charges betwenn all orbitals on I and the electron on I.
+                // let q_ab: Array2<f64> = q_le_p(&i, &j.electron, s_ij.view(), ElecHole::Electron);
+                //
+                // // The two electron integral b_ia (ij|ab) is computed.
+                // let ij_ab: f64 = i.tdm.dot(&q_ij.t().dot(&gamma_ij_i_lr.t().dot(&q_ab)).into_shape([i.occs.ncols() * i.virts.ncols()]).unwrap());
+                //
+                // 2.0 * ia_jb - ij_ab
+
+            } else {0.0} // If overlap IJ is zero, the coupling is zero.
+            // < LE I_ia | H | CT K_j -> J_b >
+        } else {
+            0.0
+        }
     }
 }
 

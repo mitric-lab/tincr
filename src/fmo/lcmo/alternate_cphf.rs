@@ -125,17 +125,17 @@ impl Monomer{
             for i in 0..nocc{
                 for mu in 0..norbs{
                     for sig in 0..norbs{
-                        pi_term_2[[a,i,mu,sig]] =
+                        pi_term[[a,i,mu,sig]] =
                             (orbs_virt[[mu,a]] * orbs_occ[[sig,i]] +  orbs_occ[[mu,i]] * orbs_virt[[sig,a]]);
                     }
                 }
             }
         }
         let pi_term:Array1<f64> = pi_term.into_shape([nvirt*nocc*norbs*norbs]).unwrap();
-        let test:Array2<f64> = -2.0 * into_col(pi_term_2).dot(&into_row(pmat_occ.clone()
+        let pi_term:Array2<f64> = -2.0 * into_col(pi_term).dot(&into_row(pmat_occ.clone()
             .into_shape([norbs*norbs]).unwrap()))
             .into_shape([nvirt*nocc,norbs*norbs*norbs*norbs]).unwrap();
-        assert!(test.abs_diff_eq(&pi_term,1e-9),"Pi terms NOT equal!");
+        // assert!(test.abs_diff_eq(&pi_term,1e-9),"Pi terms NOT equal!");
 
         // calculate derivative term depending on S
         let fock_mat:ArrayView2<f64> = self.properties.h_coul_x().unwrap();

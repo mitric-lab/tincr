@@ -71,7 +71,7 @@ impl Davidson {
         let mut dim_sub: usize = dim_sub_origin;
 
         // The maximal possible subspace, before it will be collapsed.
-        let max_space: usize = 150;
+        let max_space: usize = 15*n_roots;
 
         // The initial information of the Davidson routine are printed.
         utils::print_davidson_init(max_iter, n_roots, tolerance);

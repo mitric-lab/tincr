@@ -12,22 +12,23 @@ use ndarray::prelude::*;
 use ndarray_linalg::{into_col, into_row};
 
 impl SuperSystem {
-    pub fn exciton_coupling_gradient<'a>(
-        &mut self,
-        lhs: &'a BasisState<'a>,
-        rhs: &'a BasisState<'a>,
-    ) -> Array1<f64> {
-        match (lhs, rhs) {
-            // Coupling between two LE states.
-            (BasisState::LE(ref a), BasisState::LE(ref b)) => self.le_le_coupling_grad(a, b),
-            // Coupling between LE and CT state.
-            (BasisState::LE(ref a), BasisState::CT(ref b)) => self.le_ct_coupling_grad(a, b),
-            // Coupling between CT and LE state.
-            (BasisState::CT(ref a), BasisState::LE(ref b)) => self.ct_le_coupling_grad(a, b),
-            // Coupling between CT and CT
-            (BasisState::CT(ref a), BasisState::CT(ref b)) => self.ct_ct_coupling_grad(a, b),
-        }
-    }
+    // pub fn exciton_coupling_gradient<'a>(
+    //     &mut self,
+    //     lhs: &'a BasisState<'a>,
+    //     rhs: &'a BasisState<'a>,
+    // ) -> Array1<f64> {
+    //     match (lhs, rhs) {
+    //         // Coupling between two LE states.
+    //         (BasisState::LE(ref a), BasisState::LE(ref b)) => self.le_le_coupling_grad(a, b),
+    //         // Coupling between LE and CT state.
+    //         (BasisState::LE(ref a), BasisState::CT(ref b)) => self.le_ct_coupling_grad(a, b),
+    //         // Coupling between CT and LE state.
+    //         (BasisState::CT(ref a), BasisState::LE(ref b)) => self.ct_le_coupling_grad(a, b),
+    //         // Coupling between CT and CT
+    //         (BasisState::CT(ref a), BasisState::CT(ref b)) => self.ct_ct_coupling_grad(a, b),
+    //
+    //     }
+    // }
 
     pub fn exciton_coupling_gradient_new(
         &mut self,
@@ -386,9 +387,9 @@ impl SuperSystem {
             drop(m_i);
             drop(m_j);
             let cpcis_coeff_i:Array3<f64> =
-                self.cpcis_routine_inversion(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
+                self.cpcis_routine_iterative(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
             let cpcis_coeff_j:Array3<f64> =
-                self.cpcis_routine_inversion(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
+                self.cpcis_routine_iterative(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
 
             let pair: &mut Pair = &mut self.pairs[pair_index];
             // monomers
@@ -431,7 +432,7 @@ impl SuperSystem {
             cpcis_grad = cpcis_grad + tdm_i_1.dot(&coulomb_arr_1).dot(&cpcis_tdm_j.t());
             println!("cpcis_grad {}",cpcis_grad.slice(s![0..30]));
             // add the cpcis term to the gradient
-            // gradient = gradient + cpcis_grad;
+            gradient = gradient + cpcis_grad;
 
             // remove data from the RAM after the calculation
             pair.properties.reset_gradient();
@@ -620,9 +621,9 @@ impl SuperSystem {
             let index_i:usize = m_i.index;
             let index_j:usize = m_j.index;
             let cpcis_coeff_i:Array3<f64> =
-                self.cpcis_routine_inversion(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
+                self.cpcis_routine_iterative(index_i,state_i,u_mat_i.view(),nocc_i,nvirt_i);
             let cpcis_coeff_j:Array3<f64> =
-                self.cpcis_routine_inversion(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
+                self.cpcis_routine_iterative(index_j,state_j,u_mat_j.view(),nocc_j,nvirt_j);
 
             let pair: &mut ESDPair = &mut self.esd_pairs[pair_index];
             // monomers

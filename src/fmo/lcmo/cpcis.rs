@@ -1789,7 +1789,7 @@ fn solve_cpcis_iterative_new(
                 integrals_mo.dot(&prev.view().into_shape([nvirt * nocc]).unwrap());
             let term: Array2<f64> =
                 &integrals_dot_coeff.into_shape([nvirt, nocc]).unwrap() + &mat_2d;
-            let new: Array2<f64> = 0.3 * &prev + (0.7 * term);
+            let new: Array2<f64> = 0.2 * &prev + (0.8 * term);
             cis_der_2d = new;
 
             let diff: Array2<f64> = (&prev - &cis_der_2d.view()).map(|val| val.abs());
