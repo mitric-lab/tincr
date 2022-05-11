@@ -143,6 +143,9 @@ impl<'a> ExcitonStates<'a> {
                         let dip = q_ia.dot(&atoms_2d);
                         tr_dip += Vector3::new( dip[0], dip[1], dip[2]).scale(*v);
                     },
+                    BasisState::PairCT(state) =>{
+                        tr_dip += state.tr_dipole.scale(*v);
+                    }
                     _ =>{},
                 }
             }

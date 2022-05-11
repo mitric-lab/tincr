@@ -566,7 +566,7 @@ impl SuperSystem {
 
             let t_ij:Array1<f64> = tdm_le.dot(&tdm_ct.t()).into_shape([nocc_i*nocc_j]).unwrap();
 
-            f_ij.as_standard_layout().to_owned().into_shape([nocc_i*nocc_j]).unwrap().dot(&t_ij)
+            -1.0 * f_ij.as_standard_layout().to_owned().into_shape([nocc_i*nocc_j]).unwrap().dot(&t_ij)
         }
         else if i.monomer.index == j.m_h{
             // reference to the Monomer of the CT where the electron is placed
