@@ -375,11 +375,11 @@ impl SuperSystem {
     }
 
     pub fn le_ct<'a>(&self, i: &'a LocallyExcited<'a>, j: &'a ChargeTransfer<'a>) -> f64 {
-        self.le_ct_1e(i, j)
+        // self.le_ct_1e(i, j)
         // let val = self.le_ct_1e(i, j);
         // println!("lect_1e {}",val* 219474.63);
         // val
-        // self.le_ct_1e(i, j) + self.le_ct_2e(i, j)
+        self.le_ct_1e(i, j) + self.le_ct_2e(i, j)
         // self.le_ct_2e(i, j)
     }
 

@@ -147,9 +147,7 @@ impl SuperSystem {
         // Reference to the atoms of the total system.
         let atoms: &[Atom] = &self.atoms[..];
 
-        let n_states: usize = n_le * self.n_mol + n_ct * self.n_mol * self.n_mol;
-
-        let mut states: Vec<BasisState> = Vec::with_capacity(n_states);
+        let mut states: Vec<BasisState> = Vec::new();
         // Create all LE states.
         for mol in self.monomers.iter() {
             let homo: usize = mol.properties.homo().unwrap();
@@ -169,69 +167,73 @@ impl SuperSystem {
             }
         }
 
-        // Create all CT states.
-        for (idx, m_i) in self.monomers.iter().enumerate() {
-            for m_j in self.monomers[idx + 1..].iter() {
-                // get the PairType
-                let type_ij: PairType = self.properties.type_of_pair(m_i.index, m_j.index);
+        if n_ct > 0{
+            // Create all CT states.
+            for (idx, m_i) in self.monomers.iter().enumerate() {
+                for m_j in self.monomers[idx + 1..].iter() {
+                    // get the PairType
+                    let type_ij: PairType = self.properties.type_of_pair(m_i.index, m_j.index);
 
-                // create both CT states
-                let mut state_1 = PairChargeTransfer{
-                    m_h:m_i,
-                    m_l:m_j,
-                    pair_type:type_ij,
-                    properties:Properties::new(),
-                };
-                let mut state_2 = PairChargeTransfer{
-                    m_h:m_j,
-                    m_l:m_i,
-                    pair_type:type_ij,
-                    properties:Properties::new(),
-                };
-
-                // prepare the TDA calculation of both states
-                state_1.prepare_ct_tda(
-                    self.properties.gamma().unwrap(),
-                    self.properties.gamma_lr().unwrap(),
-                    self.properties.s().unwrap(),
-                    atoms
-                );
-                state_2.prepare_ct_tda(
-                    self.properties.gamma().unwrap(),
-                    self.properties.gamma_lr().unwrap(),
-                    self.properties.s().unwrap(),
-                    atoms
-                );
-                // do the TDA calculation using the davidson routine
-                state_1.run_ct_tda(atoms,n_ct,150,1.0e-4);
-                state_2.run_ct_tda(atoms,n_ct,150,1.0e-4);
-
-                let q_ov_1:ArrayView2<f64> = state_1.properties.q_ov().unwrap();
-                let q_ov_2:ArrayView2<f64> = state_2.properties.q_ov().unwrap();
-
-                for n in 0..n_ct{
-                    let tdm_1:ArrayView1<f64> = state_1.properties.ci_coefficient(n).unwrap();
-                    let ct_1 = ChargeTransferPair{
-                        m_h:m_i.index,
-                        m_l:m_j.index,
-                        state_index:n,
-                        state_energy:state_1.properties.ci_eigenvalue(n).unwrap(),
-                        eigenvectors: state_1.properties.tdm(n).unwrap().to_owned(),
-                        q_tr: q_ov_1.dot(&tdm_1),
+                    // create both CT states
+                    let mut state_1 = PairChargeTransfer{
+                        m_h:m_i,
+                        m_l:m_j,
+                        pair_type:type_ij,
+                        properties:Properties::new(),
+                    };
+                    let mut state_2 = PairChargeTransfer{
+                        m_h:m_j,
+                        m_l:m_i,
+                        pair_type:type_ij,
+                        properties:Properties::new(),
                     };
 
-                    let tdm_2:ArrayView1<f64> = state_2.properties.ci_coefficient(n).unwrap();
-                    let ct_2 = ChargeTransferPair{
-                        m_h:m_j.index,
-                        m_l:m_i.index,
-                        state_index:n,
-                        state_energy:state_2.properties.ci_eigenvalue(n).unwrap(),
-                        eigenvectors:state_2.properties.tdm(n).unwrap().to_owned(),
-                        q_tr:q_ov_2.dot(&tdm_2),
-                    };
+                    // prepare the TDA calculation of both states
+                    state_1.prepare_ct_tda(
+                        self.properties.gamma().unwrap(),
+                        self.properties.gamma_lr().unwrap(),
+                        self.properties.s().unwrap(),
+                        atoms
+                    );
+                    state_2.prepare_ct_tda(
+                        self.properties.gamma().unwrap(),
+                        self.properties.gamma_lr().unwrap(),
+                        self.properties.s().unwrap(),
+                        atoms
+                    );
+                    // do the TDA calculation using the davidson routine
+                    state_1.run_ct_tda(atoms,n_ct,150,1.0e-4);
+                    state_2.run_ct_tda(atoms,n_ct,150,1.0e-4);
 
-                    states.push(BasisState::PairCT(ct_1));
-                    states.push(BasisState::PairCT(ct_2));
+                    let q_ov_1:ArrayView2<f64> = state_1.properties.q_ov().unwrap();
+                    let q_ov_2:ArrayView2<f64> = state_2.properties.q_ov().unwrap();
+
+                    for n in 0..n_ct{
+                        let tdm_1:ArrayView1<f64> = state_1.properties.ci_coefficient(n).unwrap();
+                        let ct_1 = ChargeTransferPair{
+                            m_h:m_i.index,
+                            m_l:m_j.index,
+                            state_index:n,
+                            state_energy:state_1.properties.ci_eigenvalue(n).unwrap(),
+                            eigenvectors: state_1.properties.tdm(n).unwrap().to_owned(),
+                            q_tr: q_ov_1.dot(&tdm_1),
+                            tr_dipole: state_1.properties.tr_dipole(n).unwrap(),
+                        };
+
+                        let tdm_2:ArrayView1<f64> = state_2.properties.ci_coefficient(n).unwrap();
+                        let ct_2 = ChargeTransferPair{
+                            m_h:m_j.index,
+                            m_l:m_i.index,
+                            state_index:n,
+                            state_energy:state_2.properties.ci_eigenvalue(n).unwrap(),
+                            eigenvectors:state_2.properties.tdm(n).unwrap().to_owned(),
+                            q_tr:q_ov_2.dot(&tdm_2),
+                            tr_dipole:state_1.properties.tr_dipole(n).unwrap(),
+                        };
+
+                        states.push(BasisState::PairCT(ct_1));
+                        states.push(BasisState::PairCT(ct_2));
+                    }
                 }
             }
         }
@@ -402,14 +404,14 @@ impl SuperSystem {
         // The Hamiltonian is returned. Only the upper triangle is filled, so this has to be
         // considered when using eigh.
         // TODO: If the Hamiltonian gets to big, the Davidson diagonalization should be used.
-        // let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
-        let diag = h.diag();
-        h = &h + &h.t() - Array::from_diag(&diag);
-        let nroots:usize = self.config.excited.nstates;
-        let guess: Array2<f64> = initial_subspace(h.diag(), nroots);
-        let davidson: Davidson = Davidson::new(&mut h, guess, nroots, 1e-4,100).unwrap();
-        let energies = davidson.eigenvalues;
-        let eigvectors = davidson.eigenvectors;
+        let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+        // let diag = h.diag();
+        // h = &h + &h.t() - Array::from_diag(&diag);
+        // let nroots:usize = self.config.excited.nstates;
+        // let guess: Array2<f64> = initial_subspace(h.diag(), nroots);
+        // let davidson: Davidson = Davidson::new(&mut h, guess, nroots, 1e-4,100).unwrap();
+        // let energies = davidson.eigenvalues;
+        // let eigvectors = davidson.eigenvectors;
 
         write_npy("fmo_energies.npy",&energies);
 
@@ -465,7 +467,7 @@ impl SuperSystem {
         println!("elapsed time 2 {}",timer.elapsed().as_secs_f64());
 
         // Construct the diabatic basis states.
-        let states: Vec<BasisState> = self.create_diab_basis_new(10);
+        let states: Vec<BasisState> = self.create_diab_basis_new(self.config.lcmo.n_holes);
 
         let dim: usize = states.len();
         println!("Dimension of the Hamiltonian: {}", dim);
@@ -474,22 +476,57 @@ impl SuperSystem {
 
         println!("elapsed time 3 {}",timer.elapsed().as_secs_f64());
 
-        for (i, state_i) in states.iter().enumerate() {
-            // Only the upper triangle is calculated!
+        let arr:Vec<Array1<f64>> = states.par_iter().enumerate().map(|(i,state_i)|{
+            let mut arr:Array1<f64> = Array1::zeros(dim);
             for (j, state_j) in states[i..].iter().enumerate() {
-                h[[i, j + i]] = self.exciton_coupling(state_i, state_j);
+                arr[j+i] = self.exciton_coupling(state_i, state_j);
             }
+            arr
+        }).collect();
+
+        for (i, arr) in arr.iter().enumerate(){
+            h.slice_mut(s![i,..]).assign(&arr);
         }
 
-        let diag = h.diag();
-        h = &h + &h.t() - Array::from_diag(&diag);
-        let nroots:usize = self.config.excited.nstates;
-        let guess: Array2<f64> = initial_subspace(h.diag(), nroots);
-        let davidson: Davidson = Davidson::new(&mut h, guess, nroots, 1e-4,100).unwrap();
-        let energies = davidson.eigenvalues;
-        let eigvectors = davidson.eigenvectors;
+        println!("elapsed time 4 {}",timer.elapsed().as_secs_f64());
+
+        let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+
+        println!("elapsed time 5 {}",timer.elapsed().as_secs_f64());
+        // let diag = h.diag();
+        // h = &h + &h.t() - Array::from_diag(&diag);
+        // let nroots:usize = self.config.excited.nstates;
+        // let guess: Array2<f64> = initial_subspace(h.diag(), nroots);
+        // let davidson: Davidson = Davidson::new(&mut h, guess, nroots, 1e-4,100).unwrap();
+        // let energies = davidson.eigenvalues;
+        // let eigvectors = davidson.eigenvectors;
 
         write_npy("fmo_energies.npy",&energies);
+
+        let n_occ: usize = self.monomers.iter().map(|m| m.properties.n_occ().unwrap()).sum();
+        let n_virt: usize = self.monomers.iter().map(|m| m.properties.n_virt().unwrap()).sum();
+        let n_orbs: usize = n_occ + n_virt;
+        let mut occ_orbs: Array2<f64> = Array2::zeros([n_orbs, n_occ]);
+        let mut virt_orbs: Array2<f64> = Array2::zeros([n_orbs, n_virt]);
+
+        for mol in self.monomers.iter() {
+            let mol_orbs: ArrayView2<f64> = mol.properties.orbs().unwrap();
+            let lumo: usize = mol.properties.lumo().unwrap();
+            occ_orbs.slice_mut(s![mol.slice.orb, mol.slice.occ_orb]).assign(&mol_orbs.slice(s![.., ..lumo]));
+            virt_orbs.slice_mut(s![mol.slice.orb, mol.slice.virt_orb]).assign(&mol_orbs.slice(s![.., lumo..]));
+        }
+
+        let orbs: Array2<f64> = concatenate![Axis(1), occ_orbs, virt_orbs];
+        // write_npy("/Users/hochej/Downloads/lcmo_energies.npy", &energies.view());
+        let exciton = ExcitonStates::new(self.properties.last_energy().unwrap(),
+                                         (energies.clone(), eigvectors.clone()), states.clone(),
+                                         (n_occ, n_virt), orbs, self.properties.s().unwrap(),&self.atoms);
+
+        exciton.spectrum_to_npy("lcmo_spec.npy");
+        exciton.spectrum_to_txt("lcmo_spec.txt");
+        // exciton.ntos_to_molden(&self.atoms, 1, "ntos_fmo.molden");
+        println!("{}", exciton);
+        exciton.print_state_contributions(0);
     }
 }
 
@@ -508,7 +545,7 @@ impl Display for BasisState<'_> {
         match self {
             BasisState::LE(state) => write!(f, "{}", state),
             BasisState::CT(state) => write!(f, "{}", state),
-            BasisState::PairCT(state) => write!(f,"{}",state.state_index),
+            BasisState::PairCT(state) => write!(f,"{}",state),
         }
     }
 }
@@ -568,11 +605,18 @@ pub struct ChargeTransferPair{
     pub state_energy:f64,
     pub eigenvectors:Array2<f64>,
     pub q_tr:Array1<f64>,
+    pub tr_dipole: Vector3<f64>,
 }
 
 impl PartialEq for ChargeTransferPair{
     fn eq(&self,other:&Self) ->bool{
         self.m_h == other.m_h && self.m_l == other.m_l && self.state_index == other.state_index
+    }
+}
+
+impl Display for ChargeTransferPair{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CT {}: {} -> {}", self.state_index,self.m_h+1, self.m_l+1)
     }
 }
 

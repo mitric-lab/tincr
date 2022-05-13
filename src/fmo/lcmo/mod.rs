@@ -129,7 +129,6 @@ impl<'a> ExcitonStates<'a> {
             for (idx, v) in vs.iter().enumerate() {
                 match basis.get(idx).unwrap() {
                     BasisState::LE(state) => {tr_dip += state.tr_dipole.scale(*v);},
-                    // _ =>{},
                     BasisState::CT(state) => {
                         let (i, j): (&Particle, &Particle) = (&state.electron, &state.hole);
                         let s_ij: ArrayView2<f64> = overlap.slice(s![i.monomer.slice.orb, j.monomer.slice.orb]);
