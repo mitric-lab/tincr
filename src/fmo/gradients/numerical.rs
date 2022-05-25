@@ -5,7 +5,7 @@
 //! Ridder's method as implemented in [ridders_method](crate::gradients::numerical::ridders_method)).
 //! In this way the analytic gradients can be tested.
 
-use crate::fmo::{Monomer, SuperSystem, ExcitedStateMonomerGradient, GroundStateGradient};
+use crate::fmo::{Monomer, SuperSystem, ExcitedStateMonomerGradient, GroundStateGradient, PairChargeTransfer, PairType, ChargeTransferPair};
 use ndarray::prelude::*;
 use crate::scc::scc_routine::RestrictedSCC;
 use crate::gradients::assert_deriv;
@@ -13,6 +13,7 @@ use crate::initialization::Atom;
 use crate::constants::BOHR_TO_ANGS;
 use std::net::UdpSocket;
 use std::time::Instant;
+use crate::properties::Properties;
 
 impl SuperSystem {
     pub fn monomer_orbital_energy_wrapper(&mut self, geometry: Array1<f64>) -> f64{
@@ -141,6 +142,118 @@ impl SuperSystem {
         self.run_scc();
 
         assert_deriv(self, SuperSystem::fmo_ct_energy_wrapper, SuperSystem::fmo_ct_gradient_wrapper, self.get_xyz(), 0.01, 1e-6);
+    }
+
+    pub fn new_fmo_ct_energy_wrapper(&mut self,geometry: Array1<f64>)->f64{
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.update_xyz(geometry);
+        self.prepare_scc();
+        self.run_scc();
+        for mol in self.monomers.iter_mut() {
+            mol.prepare_excited_gradient(&self.atoms[mol.slice.atom_as_range()]);
+        }
+        let monomer_index_i:usize = 0;
+        let monomer_index_j:usize = 1;
+        let m_h:&Monomer = &self.monomers[monomer_index_i];
+        let m_l:&Monomer = &self.monomers[monomer_index_j];
+        let type_ij: PairType = self.properties.type_of_pair(monomer_index_i, monomer_index_j);
+
+        // create CT states
+        let mut state_1 = PairChargeTransfer{
+            m_h:m_h,
+            m_l:m_l,
+            pair_type:type_ij,
+            properties:Properties::new(),
+        };
+        // prepare the TDA calculation of both states
+        state_1.prepare_ct_tda(
+            self.properties.gamma().unwrap(),
+            self.properties.gamma_lr().unwrap(),
+            self.properties.s().unwrap(),
+            &self.atoms
+        );
+        state_1.run_ct_tda(&self.atoms,10,150,1.0e-4);
+
+        let val:f64 = state_1.properties.ci_eigenvalue(0).unwrap();
+        // let val = self.exciton_hamiltonian_ct_test();
+        return val;
+    }
+
+    pub fn new_ct_gradient_wrapper(&mut self)->Array1<f64>{
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.prepare_scc();
+        self.run_scc();
+        for mol in self.monomers.iter_mut() {
+            mol.prepare_excited_gradient(&self.atoms[mol.slice.atom_as_range()]);
+        }
+        let monomer_index_i:usize = 0;
+        let monomer_index_j:usize = 1;
+
+        let m_h:&Monomer = &self.monomers[monomer_index_i];
+        let m_l:&Monomer = &self.monomers[monomer_index_j];
+        let type_ij: PairType = self.properties.type_of_pair(monomer_index_i, monomer_index_j);
+
+        // create CT states
+        let mut state_1 = PairChargeTransfer{
+            m_h:m_h,
+            m_l:m_l,
+            pair_type:type_ij,
+            properties:Properties::new(),
+        };
+        // prepare the TDA calculation of both states
+        state_1.prepare_ct_tda(
+            self.properties.gamma().unwrap(),
+            self.properties.gamma_lr().unwrap(),
+            self.properties.s().unwrap(),
+            &self.atoms
+        );
+        state_1.run_ct_tda(&self.atoms,10,150,1.0e-4);
+        let q_ov_1:ArrayView2<f64> = state_1.properties.q_ov().unwrap();
+
+        let tdm_1:ArrayView1<f64> = state_1.properties.ci_coefficient(0).unwrap();
+        let ct_1 = ChargeTransferPair{
+            m_h:m_h.index,
+            m_l:m_l.index,
+            state_index:0,
+            state_energy:state_1.properties.ci_eigenvalue(0).unwrap(),
+            eigenvectors: state_1.properties.tdm(0).unwrap().to_owned(),
+            q_tr: q_ov_1.dot(&tdm_1),
+            q_ov:q_ov_1.to_owned(),
+            tr_dipole: state_1.properties.tr_dipole(0).unwrap(),
+        };
+        let grad = self.new_charge_transfer_pair_gradient(&ct_1);
+
+        let mut full_gradient:Array1<f64> = Array1::zeros(self.atoms.len()*3);
+        full_gradient.slice_mut(s![m_h.slice.grad]).assign(&grad.slice(s![..m_h.n_atoms*3]));
+        full_gradient.slice_mut(s![m_l.slice.grad]).assign(&grad.slice(s![m_h.n_atoms*3..]));
+
+        return  full_gradient;
+    }
+
+    pub fn test_new_charge_transfer_gradient(&mut self){
+        self.properties.reset();
+        for mol in self.monomers.iter_mut() {
+            mol.properties.reset();
+        }
+        for pair in self.pairs.iter_mut() {
+            pair.properties.reset();
+        }
+        self.prepare_scc();
+        self.run_scc();
+
+        assert_deriv(self, SuperSystem::new_fmo_ct_energy_wrapper, SuperSystem::new_ct_gradient_wrapper, self.get_xyz(), 0.01, 1e-6);
     }
 
     pub fn fmo_le_energy_wrapper(&mut self,geometry: Array1<f64>)->f64{
