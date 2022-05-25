@@ -233,7 +233,11 @@ impl SuperSystem {
             q_ov:q_ov_1.to_owned(),
             tr_dipole: state_1.properties.tr_dipole(0).unwrap(),
         };
+        drop(m_h);
+        drop(m_l);
         let grad = self.new_charge_transfer_pair_gradient(&ct_1);
+        let m_h:&Monomer = &self.monomers[monomer_index_i];
+        let m_l:&Monomer = &self.monomers[monomer_index_j];
 
         let mut full_gradient:Array1<f64> = Array1::zeros(self.atoms.len()*3);
         full_gradient.slice_mut(s![m_h.slice.grad]).assign(&grad.slice(s![..m_h.n_atoms*3]));

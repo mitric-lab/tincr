@@ -17,7 +17,6 @@ impl SuperSystem{
         // get pair type
         let pair_type: PairType = self.properties.type_of_pair(ct_state.m_h, ct_state.m_l);
 
-
         let ct_gradient:Array1<f64> = if pair_type == PairType::Pair {
             // get pair index
             let pair_index: usize = self.properties.index_of_pair(ct_state.m_h, ct_state.m_l);
