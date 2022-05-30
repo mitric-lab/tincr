@@ -34,6 +34,10 @@ impl PairChargeTransfer<'_> {
             let gamma_lr:ArrayView2<f64> = g0_lr.slice(s![self.m_h.slice.atom,self.m_l.slice.atom]);
             self.properties.set_gamma_lr(gamma_lr.to_owned());
         }
+        else{
+            let gamma_lr:ArrayView2<f64> = g0_lr.slice(s![self.m_h.slice.atom,self.m_l.slice.atom]);
+            self.properties.set_gamma_lr(gamma_lr.to_owned());
+        }
 
         // The index of the HOMO (zero based).
         let homo: usize = occ_indices[occ_indices.len() - 1];

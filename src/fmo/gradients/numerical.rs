@@ -152,6 +152,9 @@ impl SuperSystem {
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
         }
+        for pair in self.esd_pairs.iter_mut() {
+            pair.properties.reset();
+        }
         self.update_xyz(geometry);
         self.prepare_scc();
         self.run_scc();
@@ -193,6 +196,9 @@ impl SuperSystem {
         for pair in self.pairs.iter_mut() {
             pair.properties.reset();
         }
+        for pair in self.esd_pairs.iter_mut() {
+            pair.properties.reset();
+        }
         self.prepare_scc();
         self.run_scc();
         for mol in self.monomers.iter_mut() {
@@ -230,7 +236,6 @@ impl SuperSystem {
             state_energy:state_1.properties.ci_eigenvalue(0).unwrap(),
             eigenvectors: state_1.properties.tdm(0).unwrap().to_owned(),
             q_tr: q_ov_1.dot(&tdm_1),
-            q_ov:q_ov_1.to_owned(),
             tr_dipole: state_1.properties.tr_dipole(0).unwrap(),
         };
         drop(m_h);

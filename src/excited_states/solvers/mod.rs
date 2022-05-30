@@ -202,54 +202,54 @@ impl DavidsonEngine for PairChargeTransfer<'_>{
         let mut two_el: Array2<f64> = 2.0 * q_ov.t().dot(&gamma.dot(&q_ov.dot(&compute_vectors)));
 
         // If long-range correction is requested the exchange part needs to be computed.
-        if self.pair_type == PairType::Pair {
-            // Reference to the transition charges between occupied-occupied orbitals.
-            let q_oo: ArrayView2<f64> = self.properties.q_oo().unwrap();
-            // Number of occupied orbitals.
-            let n_occ: usize = (q_oo.dim().1 as f64).sqrt() as usize;
-            // Reference to the transition charges between virtual-virtual orbitals.
-            let q_vv: ArrayView2<f64> = self.properties.q_vv().unwrap();
-            // Number of virtual orbitals.
-            let n_virt: usize = (q_vv.dim().1 as f64).sqrt() as usize;
-            // Reference to the screened Gamma matrix.
-            let gamma_lr: ArrayView2<f64> = self.properties.gamma_lr().unwrap();
-            // The contraction with the subpspace vectors is more complex than in the case
-            // of the Coulomb part.
-            // Contraction of the Gamma matrix with the o-o transition charges.
-            let gamma_oo: Array2<f64> = gamma_lr.t()
-                .dot(&q_oo)
-                .into_shape([natoms_l * n_occ, n_occ])
-                .unwrap();
-            // Initialization of the product of the exchange part with the subspace part.
-            let mut k_x: Array2<f64> = Array::zeros(two_el.raw_dim());
-            // Iteration over the subspace vectors.
-            for (i, (mut k, xi)) in k_x
-                .axis_iter_mut(Axis(1))
-                .zip(compute_vectors.axis_iter(Axis(1)))
-                .enumerate()
-            {
-                // The current vector reshaped into the form of n_occ, n_virt
-                let xi = xi.as_standard_layout().into_shape((n_occ, n_virt)).unwrap();
-                // The v-v transition have to be reshaped as well.
-                let q_vv_r = q_vv.into_shape((natoms_l * n_virt, n_virt)).unwrap();
-                // Contraction of the v-v transition charges with the subspace vector and the
-                // and the product of the Gamma matrix wit the o-o transition charges.
-                k.assign(
-                    // nocc, natoms*nocc
-                    &gamma_oo.t().dot(
-                        &xi.dot(&q_vv_r.t()) //xi: nocc, nvirt | qvvrT: nvirt, natoms*nvirt
-                            .into_shape((n_occ, natoms_l, n_virt))
-                            .unwrap()
-                            .permuted_axes([1, 0, 2]) // natoms, nocc, nvirt
-                            .as_standard_layout()
-                            .into_shape((natoms_l * n_occ, n_virt))
-                            .unwrap(),
-                    ).into_shape((n_occ*n_virt)).unwrap(),
-                );
-            }
-            // The product of the Exchange part with the subspace vector is added to the Coulomb part.
-            two_el = &two_el - &k_x;
+        // if self.pair_type == PairType::Pair {
+        // Reference to the transition charges between occupied-occupied orbitals.
+        let q_oo: ArrayView2<f64> = self.properties.q_oo().unwrap();
+        // Number of occupied orbitals.
+        let n_occ: usize = (q_oo.dim().1 as f64).sqrt() as usize;
+        // Reference to the transition charges between virtual-virtual orbitals.
+        let q_vv: ArrayView2<f64> = self.properties.q_vv().unwrap();
+        // Number of virtual orbitals.
+        let n_virt: usize = (q_vv.dim().1 as f64).sqrt() as usize;
+        // Reference to the screened Gamma matrix.
+        let gamma_lr: ArrayView2<f64> = self.properties.gamma_lr().unwrap();
+        // The contraction with the subpspace vectors is more complex than in the case
+        // of the Coulomb part.
+        // Contraction of the Gamma matrix with the o-o transition charges.
+        let gamma_oo: Array2<f64> = gamma_lr.t()
+            .dot(&q_oo)
+            .into_shape([natoms_l * n_occ, n_occ])
+            .unwrap();
+        // Initialization of the product of the exchange part with the subspace part.
+        let mut k_x: Array2<f64> = Array::zeros(two_el.raw_dim());
+        // Iteration over the subspace vectors.
+        for (i, (mut k, xi)) in k_x
+            .axis_iter_mut(Axis(1))
+            .zip(compute_vectors.axis_iter(Axis(1)))
+            .enumerate()
+        {
+            // The current vector reshaped into the form of n_occ, n_virt
+            let xi = xi.as_standard_layout().into_shape((n_occ, n_virt)).unwrap();
+            // The v-v transition have to be reshaped as well.
+            let q_vv_r = q_vv.into_shape((natoms_l * n_virt, n_virt)).unwrap();
+            // Contraction of the v-v transition charges with the subspace vector and the
+            // and the product of the Gamma matrix wit the o-o transition charges.
+            k.assign(
+                // nocc, natoms*nocc
+                &gamma_oo.t().dot(
+                    &xi.dot(&q_vv_r.t()) //xi: nocc, nvirt | qvvrT: nvirt, natoms*nvirt
+                        .into_shape((n_occ, natoms_l, n_virt))
+                        .unwrap()
+                        .permuted_axes([1, 0, 2]) // natoms, nocc, nvirt
+                        .as_standard_layout()
+                        .into_shape((natoms_l * n_occ, n_virt))
+                        .unwrap(),
+                ).into_shape((n_occ*n_virt)).unwrap(),
+            );
         }
+        // The product of the Exchange part with the subspace vector is added to the Coulomb part.
+        two_el = &two_el - &k_x;
+        // }
 
         //let new: Array2<f64> = fock + two_el;
         // The new products are saved in the cache.

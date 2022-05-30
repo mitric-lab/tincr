@@ -482,6 +482,18 @@ impl ESDPair {
             ]);
         }
 
+        // if the system contains a long-range corrected Gamma function the gamma matrix will be computed
+        if self.gammafunction_lc.is_some() {
+            let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+                self.gammafunction_lc.as_ref().unwrap(),
+                &atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_gamma_lr(gamma_lr);
+            self.properties.set_gamma_lr_ao(gamma_lr_ao);
+        }
+
         // this is also only needed in the first SCC calculation
         if !self.properties.contains_key("ref_density_matrix") {
             self.properties
@@ -665,6 +677,142 @@ impl ESDPair {
         }
         // only remove the large arrays not the energy or charges
         //self.properties.reset();
+        self.properties
+            .set_delta_dq(&dq - &self.properties.dq().unwrap());
+        self.properties.set_dq(dq);
+    }
+
+    pub fn run_scc_test_lc(&mut self, atoms: &[Atom], config: SccConfig) {
+        let scf_charge_conv: f64 = config.scf_charge_conv;
+        let scf_energy_conv: f64 = config.scf_energy_conv;
+        let max_iter: usize = config.scf_max_cycles;
+        let mut p: Array2<f64> = self.properties.take_p().unwrap();
+        let mut delta_p:Array2<f64> = Array2::zeros(p.raw_dim());
+        let mut dq: Array1<f64> = self.properties.dq().unwrap().to_owned();
+
+        // Anderson mixer
+        let mix_config:MixConfig = MixConfig::default();
+        let mut dim:usize = 0;
+        if self.gammafunction_lc.is_some(){
+            dim = self.n_orbs*self.n_orbs;
+        }
+        else{
+            dim = self.n_atoms;
+        }
+        let mut accel = mix_config.build_mixer(dim).unwrap();
+
+        let x: ArrayView2<f64> = self.properties.x().unwrap();
+        let s: ArrayView2<f64> = self.properties.s().unwrap();
+        let gamma: ArrayView2<f64> = self.properties.gamma().unwrap();
+        let h0: ArrayView2<f64> = self.properties.h0().unwrap();
+        let p0: ArrayView2<f64> = self.properties.p_ref().unwrap();
+        let mut last_energy: f64 = self.properties.last_energy().unwrap();
+        let f: &[f64] = self.properties.occupation().unwrap();
+        let v: ArrayView2<f64> = self.properties.v().unwrap();
+        let h_esp: Array2<f64> = &h0 + &v;
+        let mut dq_saved:Array2<f64> = Array2::zeros((self.n_atoms,max_iter));
+        let mut delta_dq_saved:Array2<f64> = Array2::zeros((self.n_orbs,max_iter));
+
+        'scf_loop: for iter in 0..max_iter {
+            let h_coul: Array2<f64> =
+                atomvec_to_aomat(gamma.dot(&dq).view(), self.n_orbs, &atoms) * &s * 0.5;
+            let mut h: Array2<f64> = h_coul + &h_esp;
+
+            if self.gammafunction_lc.is_some() && iter > 0 {
+                let h_x: Array2<f64> =
+                    lc_exact_exchange(s, self.properties.gamma_lr_ao().unwrap(), delta_p.view());
+                h = h + h_x;
+            }
+            let mut h_save:Array2<f64> = h.clone();
+
+            // H' = X^t.H.X
+            h = x.t().dot(&h).dot(&x);
+            let tmp: (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Upper).unwrap();
+            let orbe: Array1<f64> = tmp.0;
+            // C = X.C'
+            let orbs: Array2<f64> = x.dot(&tmp.1);
+
+            // calculate the density matrix
+            p = density_matrix(orbs.view(), &f[..]);
+
+            // Compute the difference density matrix. This will be mixed in case of long-range correction.
+            let dp:Array2<f64> = &p - &p0;
+
+            let dq_new:Array1<f64> = if self.gammafunction_lc.is_some() {
+                let dim:usize = self.n_orbs*self.n_orbs;
+                let dp_flat:ArrayView1<f64> = dp.view().into_shape(dim).unwrap();
+
+                delta_p = match iter{
+                    0 =>{
+                        accel.apply(Array1::zeros(dim).view(),dp_flat.view()).unwrap()
+                            .into_shape(p.raw_dim()).unwrap()
+                    },
+                    _ =>{
+                        let dp0_flat:ArrayView1<f64> = delta_p.view().into_shape(dim).unwrap();
+                        accel.apply(dp0_flat.view(),dp_flat.view()).unwrap()
+                            .into_shape(p.raw_dim()).unwrap()
+                    },
+                };
+                p = &delta_p + &p0;
+
+                // mulliken charges
+                mulliken_atomwise(delta_p.view(),s.view(),atoms,self.n_atoms)
+            }
+            else{
+                // mulliken charges
+                let dq1 = mulliken_atomwise(dp.view(),s.view(),atoms,self.n_atoms);
+                accel.apply(dq.view(),dq1.view()).unwrap()
+            };
+
+            // compute electronic energy
+            let mut scf_energy = get_electronic_energy_new(
+                p.view(),
+                h0.view(),
+                dq_new.view(),
+                self.properties.gamma().unwrap(),
+            );
+            if self.gammafunction_lc.is_some(){
+                scf_energy += calc_exchange(
+                    s.view(),
+                    self.properties.gamma_lr_ao().unwrap(),
+                    delta_p.view(),
+                );
+            }
+
+            let diff_dq_max: f64 = dq_new.root_mean_sq_err(&dq).unwrap();
+
+            // check if charge difference to the previous iteration is lower than 1e-5
+            let converged: bool = if (diff_dq_max  < scf_charge_conv)
+                && (last_energy - scf_energy).abs() < scf_energy_conv
+            {
+                true
+            } else {
+                false
+            };
+            last_energy = scf_energy;
+            dq = dq_new;
+
+            if converged {
+                let e_rep: f64 = get_repulsive_energy(&atoms, self.n_atoms, &self.vrep);
+                self.properties.set_last_energy(scf_energy + e_rep);
+                self.properties.set_p(p);
+                self.properties.set_orbs(orbs);
+                self.properties.set_orbe(orbe);
+                self.properties.set_h_coul_x(h_save);
+                break 'scf_loop;
+            }
+            if !converged && iter == max_iter-1{
+                println!("Iteration {}",iter);
+                println!("Monomer indices: {},{}",self.i,self.j);
+                let mut string:String= String::from("dq.npy");
+                write_npy(Path::new(&string), &dq_saved.view());
+                write_npy(Path::new(&String::from("delta_dq_saved.npy")), &delta_dq_saved.view());
+                panic!("Pair scc routine does not converge!");
+            }
+        }
+        // only remove the large arrays not the energy or charges
+        //self.properties.reset();
+
         self.properties
             .set_delta_dq(&dq - &self.properties.dq().unwrap());
         self.properties.set_dq(dq);
