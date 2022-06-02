@@ -107,6 +107,15 @@ fn default_a1() -> f64 {
 fn default_a2() -> f64 {
     A2_DISP_PARAM_OB2
 }
+fn default_active_space_le()->usize{
+    10
+}
+fn default_active_space_ct()->usize{
+    10
+}
+fn default_restrict_active_space()->bool{
+    true
+}
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
     return mol_config;
@@ -274,6 +283,12 @@ pub struct SlaterKosterConfig{
 
 #[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct LcmoConfig{
+    #[serde(default = "default_restrict_active_space")]
+    pub restrict_active_space:bool,
+    #[serde(default = "default_active_space_le")]
+    pub active_space_le:usize,
+    #[serde(default = "default_active_space_ct")]
+    pub active_space_ct:usize,
     #[serde(default = "default_n_le")]
     pub n_le: usize,
     #[serde(default = "default_n_holes")]

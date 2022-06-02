@@ -120,7 +120,8 @@ fn main() {
         // system.test_tda_lc_gradient();
         // system.optimize_cartesian(Some(0));w
         system.prepare_tda();
-        system.run_tda(config.excited.nstates, 450, 1e-5);
+        // system.tda_full_matrix();
+        system.run_tda(config.excited.nstates, 450, 1e-4);
         // system.ground_state_gradient(true);
         // system.prepare_excited_grad();
         // let grad_exc:Array1<f64> = system.tda_gradient_lc(0);
@@ -188,6 +189,9 @@ fn main() {
 
         system.prepare_scc();
         system.run_scc();
+        // let hamiltonian = system.build_lcmo_fock_matrix();
+        // system.properties.set_lcmo_fock(hamiltonian);
+        // system.test_new_charge_transfer_gradient();
         // system.create_exciton_hamiltonian();
         system.create_exciton_hamiltonian_new();
 

@@ -602,6 +602,9 @@ impl SuperSystem {
     pub fn le_ct_2e_new<'a>(&self, i: &'a LocallyExcited<'a>, j: &ChargeTransferPair) -> f64 {
         // Transition charges of LE state at monomer I.
         let qtrans_le: ArrayView1<f64> = i.q_trans.view();
+        let active_le:usize = self.config.lcmo.active_space_le;
+        let active_ct:usize = self.config.lcmo.active_space_ct;
+        let restrict_space:bool = self.config.lcmo.restrict_active_space;
 
         // calculate the gamma matrix between the three monomers
         let gamma = self.gamma_ab_c(j.m_h,j.m_l,i.monomer.index,LRC::OFF);
@@ -612,12 +615,23 @@ impl SuperSystem {
         let type_le_h:PairType = self.properties.type_of_pair(i.monomer.index,j.m_h);
         let type_le_l:PairType = self.properties.type_of_pair(i.monomer.index,j.m_l);
 
-        let exchange:f64 = if type_le_h == PairType::Pair || type_le_l == PairType::Pair{
+        // let exchange:f64 = if type_le_h == PairType::Pair || type_le_l == PairType::Pair{
+        let exchange:f64 = if type_le_h == PairType::Pair || type_le_l == PairType::Pair ||
+            type_le_h == PairType::None || type_le_l == PairType::None{
             let q_ij = if i.monomer.index == j.m_h{
                 let q_oo = i.monomer.properties.q_oo().unwrap();
                 let nocc:usize = i.occs.ncols();
-                let q_oo_3d:Array3<f64> =
-                    q_oo.into_shape([i.monomer.n_atoms,nocc,nocc]).unwrap().to_owned();
+                // let q_oo_3d:Array3<f64> =
+                //     q_oo.into_shape([i.monomer.n_atoms,nocc,nocc]).unwrap().to_owned();
+
+                let q_oo_3d = if restrict_space{
+                    let q_oo_3d:Array3<f64> =
+                        q_oo.into_shape([i.monomer.n_atoms,nocc,nocc]).unwrap().to_owned();
+                    q_oo_3d.slice(s![..,nocc-active_le..,nocc-active_ct..]).to_owned()
+                }else{
+                    q_oo.into_shape([i.monomer.n_atoms,nocc,nocc]).unwrap().to_owned()
+                };
+
                 q_oo_3d
             }
             else{
@@ -627,7 +641,14 @@ impl SuperSystem {
             let q_ab = if i.monomer.index == j.m_l{
                 let q_vv = i.monomer.properties.q_vv().unwrap();
                 let nvirt:usize = i.virts.ncols();
-                let q_vv_3d:Array3<f64> = q_vv.into_shape([i.monomer.n_atoms,nvirt,nvirt]).unwrap().to_owned();
+                // let q_vv_3d:Array3<f64> = q_vv.into_shape([i.monomer.n_atoms,nvirt,nvirt]).unwrap().to_owned();
+                let q_vv_3d = if restrict_space{
+                    let q_vv_3d:Array3<f64> = q_vv.into_shape([i.monomer.n_atoms,nvirt,nvirt]).unwrap().to_owned();
+                    q_vv_3d.slice(s![..,..active_le,..active_ct]).to_owned()
+                }else{
+                    q_vv.into_shape([i.monomer.n_atoms,nvirt,nvirt]).unwrap().to_owned()
+                };
+
                 q_vv_3d
             }
             else{
@@ -646,9 +667,25 @@ impl SuperSystem {
             };
 
             // Reference to the transition density matrix of I in MO basis.
-            let b_ia: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+            // let b_ia: ArrayView2<f64> = i.monomer.properties.tdm(i.n).unwrap();
+            let b_ia = if restrict_space{
+                let eigenvectors = i.monomer.properties.tdm(i.n).unwrap();
+                let noccs_le:usize = eigenvectors.dim().0;
+                let start:usize = noccs_le - active_le;
+                eigenvectors.slice(s![start..,..active_le]).to_owned()
+            }else{
+                i.monomer.properties.tdm(i.n).unwrap().to_owned()
+            };
+
             // Reference to the transition density matrix of J in MO basis.
-            let b_jb: &Array2<f64> = &j.eigenvectors;
+            let b_jb = if restrict_space{
+                let nocc:usize = self.monomers[j.m_h].properties.occ_indices().unwrap().len();
+                let start = nocc - active_ct;
+                j.eigenvectors.slice(s![start..,..active_ct])
+            }
+            else{
+                j.eigenvectors.view()
+            };
 
             // Some properties that are used specify the shapes.
             let n_atoms_ij:usize = q_ij.dim().0;
@@ -713,13 +750,30 @@ impl SuperSystem {
             .properties
             .type_of_pair(state_1.m_l, state_2.m_h);
 
+        let restrict_space:bool = self.config.lcmo.restrict_active_space;
+        let active_ct:usize = self.config.lcmo.active_space_ct;
+
         // calculate the exchange like integral in case one of the pair type is a real pair
-        let exchange:f64 = if type_hh == PairType::Pair || type_hl == PairType::Pair || type_lh == PairType::Pair || type_ll == PairType::Pair{
+        // let exchange:f64 = if type_hh == PairType::Pair || type_hl == PairType::Pair || type_lh == PairType::Pair || type_ll == PairType::Pair{
+        let exchange:f64 = if (type_hh == PairType::Pair && type_ll == PairType::Pair) ||
+            (type_hh == PairType::None && type_ll == PairType::None) ||
+            (type_hh == PairType::Pair && type_ll == PairType::None) ||
+            (type_hh == PairType::None && type_ll == PairType::Pair){
             let q_ij = if state_1.m_h == state_2.m_h{
                 let nocc:usize = self.monomers[state_1.m_h].properties.occ_indices().unwrap().len();
                 let q_oo = self.monomers[state_1.m_h].properties.q_oo().unwrap();
                 let n_atoms:usize = self.monomers[state_1.m_h].n_atoms;
-                let q_oo_3d:Array3<f64> = q_oo.into_shape([n_atoms,nocc,nocc]).unwrap().to_owned();
+                // let q_oo_3d:Array3<f64> = q_oo.into_shape([n_atoms,nocc,nocc]).unwrap().to_owned();
+
+                let q_oo_3d = if restrict_space{
+                    let q_oo_3d:Array3<f64> = q_oo.into_shape([n_atoms,nocc,nocc]).unwrap().to_owned();
+                    let start:usize = nocc-active_ct;
+                    q_oo_3d.slice(s![..,start..,start..]).to_owned()
+                }
+                else{
+                    q_oo.into_shape([n_atoms,nocc,nocc]).unwrap().to_owned()
+                };
+
                 q_oo_3d
             }
             else{
@@ -730,7 +784,16 @@ impl SuperSystem {
                 let nvirt:usize = self.monomers[state_1.m_h].properties.virt_indices().unwrap().len();
                 let q_vv = self.monomers[state_1.m_h].properties.q_vv().unwrap();
                 let n_atoms:usize = self.monomers[state_1.m_h].n_atoms;
-                let q_vv_3d:Array3<f64> = q_vv.into_shape([n_atoms,nvirt,nvirt]).unwrap().to_owned();
+                // let q_vv_3d:Array3<f64> = q_vv.into_shape([n_atoms,nvirt,nvirt]).unwrap().to_owned();
+
+                let q_vv_3d= if restrict_space{
+                    let q_vv_3d:Array3<f64> = q_vv.into_shape([n_atoms,nvirt,nvirt]).unwrap().to_owned();
+                    q_vv_3d.slice(s![..,..active_ct,..active_ct]).to_owned()
+                }
+                else{
+                    q_vv.into_shape([n_atoms,nvirt,nvirt]).unwrap().to_owned()
+                };
+
                 q_vv_3d
             }
             else{
@@ -748,10 +811,29 @@ impl SuperSystem {
                 self.gamma_ab_cd(state_1.m_h,state_2.m_h, state_1.m_l,state_2.m_l, LRC::ON)
             };
 
+            // // Reference to the transition density matrix of the CT 1
+            // let b_ia: &Array2<f64> = &state_1.eigenvectors;
+            // // Reference to the transition density matrix of the CT 2.
+            // let b_jb: &Array2<f64> = &state_2.eigenvectors;
+
             // Reference to the transition density matrix of the CT 1
-            let b_ia: &Array2<f64> = &state_1.eigenvectors;
+            let b_ia = if restrict_space{
+                let nocc:usize = self.monomers[state_1.m_h].properties.occ_indices().unwrap().len();
+                let start = nocc - active_ct;
+                state_1.eigenvectors.slice(s![start..,..active_ct])
+            }
+            else{
+                state_1.eigenvectors.view()
+            };
             // Reference to the transition density matrix of the CT 2.
-            let b_jb: &Array2<f64> = &state_2.eigenvectors;
+            let b_jb = if restrict_space{
+                let nocc:usize = self.monomers[state_2.m_h].properties.occ_indices().unwrap().len();
+                let start = nocc - active_ct;
+                state_2.eigenvectors.slice(s![start..,..active_ct])
+            }
+            else{
+                state_2.eigenvectors.view()
+            };
 
             // Some properties that are used specify the shapes.
             let n_atoms_ij:usize = q_ij.dim().0;
@@ -767,7 +849,7 @@ impl SuperSystem {
                 .as_standard_layout()
                 .into_shape((n_atoms_ij * n_j, n_i))
                 .unwrap()
-                .dot(b_ia)
+                .dot(&b_ia)
                 .into_shape((n_atoms_ij, n_j, n_a))
                 .unwrap()
                 .permuted_axes([0, 2, 1])

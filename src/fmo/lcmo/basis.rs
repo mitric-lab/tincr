@@ -481,6 +481,7 @@ impl SuperSystem {
             for (j, state_j) in states[i..].iter().enumerate() {
                 arr[j+i] = self.exciton_coupling(state_i, state_j);
             }
+            println!("column: {}",i);
             arr
         }).collect();
 
