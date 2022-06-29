@@ -219,6 +219,39 @@ impl<'a> ExcitonStates<'a> {
         println!("{}",txt);
     }
 
+    pub fn calculate_exciton_participation_numbers(&self)->Array1<f64>{
+        let mut participation_numbers:Array1<f64> = Array1::zeros(self.energies.raw_dim());
+
+        // Create the output for each exciton state.
+        for (n, (e, v)) in self.energies.iter().zip(self.coefficients.axis_iter(Axis(1))).enumerate() {
+            // Sort the indices by coefficients of the current eigenvector.
+            let sorted_indices: Vec<usize> = argsort_abs(v.view());
+
+            let mut amplitudes:Vec<f64> = Vec::new();
+
+            // Reverse the Iterator to write the largest amplitude first.
+            for i in sorted_indices.into_iter().rev() {
+                // Amplitude of the current transition.
+                let c: f64 = v[i].abs();
+
+                let state = self.basis.get(i).unwrap();
+                match state{
+                    BasisState::LE(ref a) =>{
+                        amplitudes.push(c);
+                    }
+                    BasisState::PairCT(ref a) =>{
+                    },
+                    BasisState::CT(ref a) =>{
+                    }
+                }
+            }
+
+            let amplitudes:Array1<f64> = Array::from(amplitudes);
+            participation_numbers[n] = amplitudes.sum().powi(2);
+        }
+        participation_numbers
+    }
+
 }
 
 impl Display for ExcitonStates<'_> {

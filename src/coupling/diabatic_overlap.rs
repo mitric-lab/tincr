@@ -87,6 +87,7 @@ impl SuperSystem {
                 println!("CT CT overlap");
                 self.diabatic_overlap_ct_ct(a, b)
             }
+            _ => {0.0}
         }
     }
 

@@ -1,6 +1,4 @@
-use crate::fmo::{
-    BasisState, ExcitedStateMonomerGradient, ExcitonStates, Monomer, PairType, SuperSystem,
-};
+use crate::fmo::{BasisState, ChargeTransferPair, ExcitedStateMonomerGradient, ExcitonStates, Monomer, PairType, SuperSystem};
 use crate::gradients::helpers::gradient_v_rep;
 use crate::initialization::{Atom, MO};
 use crate::utils::array_helper::argsort_abs;
@@ -163,6 +161,9 @@ impl SuperSystem {
                         gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
                         gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
                     }
+                },
+                _ =>{
+
                 }
             }
         }
@@ -289,6 +290,7 @@ impl SuperSystem {
 pub enum ReducedBasisState{
     LE(ReducedLE),
     CT(ReducedCT),
+    PairCT(ChargeTransferPair),
 }
 
 #[derive(Clone,Debug)]
@@ -326,6 +328,7 @@ impl Display for ReducedBasisState {
         match self {
             ReducedBasisState::LE(state) => write!(f, "{}", state),
             ReducedBasisState::CT(state) => write!(f, "{}", state),
+            ReducedBasisState::PairCT(state) => write!(f,"{}",state),
         }
     }
 }

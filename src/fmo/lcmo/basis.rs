@@ -481,7 +481,7 @@ impl SuperSystem {
             for (j, state_j) in states[i..].iter().enumerate() {
                 arr[j+i] = self.exciton_coupling(state_i, state_j);
             }
-            println!("column: {}",i);
+            // println!("column: {}",i);
             arr
         }).collect();
 
@@ -491,16 +491,16 @@ impl SuperSystem {
 
         println!("elapsed time 4 {}",timer.elapsed().as_secs_f64());
 
-        let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+        // let (energies, eigvectors): (Array1<f64>, Array2<f64>) = h.eigh(UPLO::Lower).unwrap();
+        // println!("elapsed time eigh 5 {}",timer.elapsed().as_secs_f64());
 
-        println!("elapsed time 5 {}",timer.elapsed().as_secs_f64());
-        // let diag = h.diag();
-        // h = &h + &h.t() - Array::from_diag(&diag);
-        // let nroots:usize = self.config.excited.nstates;
-        // let guess: Array2<f64> = initial_subspace(h.diag(), nroots);
-        // let davidson: Davidson = Davidson::new(&mut h, guess, nroots, 1e-4,100).unwrap();
-        // let energies = davidson.eigenvalues;
-        // let eigvectors = davidson.eigenvectors;
+        let diag = h.diag();
+        h = &h + &h.t() - Array::from_diag(&diag);
+        let nroots:usize = self.config.excited.nstates;
+        let guess: Array2<f64> = initial_subspace(h.diag(), nroots);
+        let davidson: Davidson = Davidson::new(&mut h, guess, nroots, 1e-4,100).unwrap();
+        let energies = davidson.eigenvalues;
+        let eigvectors = davidson.eigenvectors;
 
         write_npy("fmo_energies.npy",&energies);
 
@@ -523,6 +523,8 @@ impl SuperSystem {
                                          (energies.clone(), eigvectors.clone()), states.clone(),
                                          (n_occ, n_virt), orbs, self.properties.s().unwrap(),&self.atoms);
 
+        let participation_numbers:Array1<f64> = exciton.calculate_exciton_participation_numbers();
+        write_npy("participation_numbers.npy",&participation_numbers);
         exciton.spectrum_to_npy("lcmo_spec.npy");
         exciton.spectrum_to_txt("lcmo_spec.txt");
         // exciton.ntos_to_molden(&self.atoms, 1, "ntos_fmo.molden");

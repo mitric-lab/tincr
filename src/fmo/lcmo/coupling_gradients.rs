@@ -52,6 +52,7 @@ impl SuperSystem {
             (ReducedBasisState::CT(ref a), ReducedBasisState::CT(ref b)) => {
                 self.ct_ct_coupling_grad_new(a, b)
             }
+            _ =>{Array1::zeros(1) }
         }
     }
 

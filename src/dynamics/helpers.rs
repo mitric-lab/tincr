@@ -201,6 +201,7 @@ impl SuperSystem {
 
                         self.prepare_parallel_ct_gradient(monomer_i,monomer_j);
                     },
+                    _ =>{}
                 }
             }
         }
@@ -254,6 +255,7 @@ impl SuperSystem {
 
                         grad
                     },
+                    _ =>{Array1::zeros(1)}
                 }
             }
             else{
@@ -296,6 +298,7 @@ impl SuperSystem {
                         gradient.slice_mut(s![mol_i.slice.grad]).add_assign(&(coefficient *&array.slice(s![..mol_i.n_atoms*3])));
                         gradient.slice_mut(s![mol_j.slice.grad]).add_assign(&(coefficient *&array.slice(s![mol_i.n_atoms*3..])));
                     },
+                    _ =>{}
                 }
             }
         }

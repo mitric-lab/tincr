@@ -1,7 +1,7 @@
 use crate::coupling::helpers::get_sign_of_array;
 use crate::defaults;
 use crate::fmo::cis_gradient::{ReducedBasisState, ReducedCT, ReducedLE, ReducedParticle};
-use crate::fmo::{ESDPair, Monomer, Pair, PairType, SuperSystem};
+use crate::fmo::{ChargeTransferPair, ESDPair, Monomer, Pair, PairType, SuperSystem};
 use crate::initialization::parameters::SlaterKoster;
 use crate::initialization::{Atom, System};
 use crate::param::slako_transformations::{directional_cosines, slako_transformation};
@@ -144,6 +144,7 @@ impl SuperSystem {
                     //     // }
                     // }
                 },
+                _ =>{ }
             }
         }
     }
@@ -228,6 +229,7 @@ impl SuperSystem {
         match state {
             ReducedBasisState::LE(ref a) => self.scalar_coupling_le_gs(other, a, overlap, gs_old),
             ReducedBasisState::CT(ref a) => self.scalar_coupling_ct_gs_new(other, a, overlap, gs_old),
+            _ => {0.0},
         }
     }
 
@@ -667,6 +669,10 @@ impl SuperSystem {
             (ReducedBasisState::LE(ref a), ReducedBasisState::CT(ref b)) => 0.0,
             // coupling between CT and LE state.
             (ReducedBasisState::CT(ref a), ReducedBasisState::LE(ref b)) => 0.0,
+            // coupling between LE and CT state.
+            (ReducedBasisState::LE(ref a), ReducedBasisState::PairCT(ref b)) => 0.0,
+            // coupling between CT and LE state.
+            (ReducedBasisState::PairCT(ref a), ReducedBasisState::LE(ref b)) => 0.0,
             // coupling between CT and CT
             (ReducedBasisState::CT(ref a), ReducedBasisState::CT(ref b)) => {
                 // if (a.hole.m_index == b.hole.m_index && a.electron.m_index == b.electron.m_index)
@@ -685,6 +691,15 @@ impl SuperSystem {
                     0.0
                 }
             }
+            (ReducedBasisState::PairCT(ref a), ReducedBasisState::PairCT(ref b)) => {
+                if a.m_h == b.m_h && a.m_l == b.m_l{
+                    self.scalar_coupling_pair_ct_new(other,a,b,overlap)
+                }
+                else{
+                    0.0
+                }
+            },
+            _ => { 0.0 }
         }
     }
 
@@ -1228,6 +1243,71 @@ impl SuperSystem {
         }
 
         s_ci
+    }
+
+    pub fn scalar_coupling_pair_ct_new(
+        &self,
+        other: &Self,
+        state_new: &ChargeTransferPair,
+        state_old: &ChargeTransferPair,
+        overlap: ArrayView2<f64>,
+    ) -> f64 {
+        // get the monomers of the LE state of the new and old Supersystem
+        let m_new_hole: &Monomer = &self.monomers[state_new.m_h];
+        let m_new_elec: &Monomer = &self.monomers[state_new.m_l];
+        let m_old_hole: &Monomer = &other.monomers[state_old.m_h];
+        let m_old_elec: &Monomer = &other.monomers[state_old.m_l];
+
+        // dimension of the MO overlap matrix
+        let dim:usize = m_new_hole.n_orbs + m_new_elec.n_orbs;
+        // get the MO coefficients of the monomers
+        let orbs_h_new = m_new_hole.properties.orbs().unwrap();
+        let orbs_e_new = m_new_elec.properties.orbs().unwrap();
+        let orbs_h_old = m_old_hole.properties.orbs().unwrap();
+        let orbs_e_old = m_old_elec.properties.orbs().unwrap();
+
+        // prepare the MO overlap matrix
+        let mut s_mo:Array2<f64> = Array2::zeros([dim,dim]);
+        // fill the MO overlap matrix
+        s_mo.slice_mut(s![..m_new_hole.n_orbs, ..m_old_hole.n_orbs])
+            .assign(&orbs_h_new.t().dot(&overlap.slice(s![m_new_hole.slice.orb, m_new_hole.slice.orb]).dot(&orbs_h_old)));
+        s_mo.slice_mut(s![m_new_hole.n_orbs.., m_old_hole.n_orbs..])
+            .assign(&orbs_e_new.t().dot(&overlap.slice(s![m_new_elec.slice.orb, m_new_elec.slice.orb]).dot(&orbs_e_old)));
+        s_mo.slice_mut(s![..m_new_hole.n_orbs, m_old_hole.n_orbs..])
+            .assign(&orbs_h_new.t().dot(&overlap.slice(s![m_new_hole.slice.orb, m_new_elec.slice.orb]).dot(&orbs_e_old)));
+        s_mo.slice_mut(s![m_new_hole.n_orbs.., ..m_old_hole.n_orbs])
+            .assign(&orbs_e_new.t().dot(&overlap.slice(s![m_new_elec.slice.orb, m_new_hole.slice.orb]).dot(&orbs_h_old)));
+
+        // occupied and virtual indices
+        let nocc_j:usize = m_new_hole.properties.occ_indices().unwrap().len();
+        let nocc_i:usize = m_new_elec.properties.occ_indices().unwrap().len();
+        let nvirt_j:usize = m_new_hole.properties.virt_indices().unwrap().len();
+        let nvirt_i:usize = m_new_elec.properties.virt_indices().unwrap().len();
+        // number of orbitals
+        let norb_i:usize = nocc_i+nvirt_i;
+        let norb_j:usize = nocc_j+nvirt_j;
+        let nocc:usize = nocc_i + nocc_j;
+        let nvirt:usize = nvirt_i + nvirt_j;
+        // slice the MO overlap matrix
+        let mut s_mo_occ:Array2<f64> = Array2::zeros((nocc,nocc));
+        s_mo_occ.slice_mut(s![..nocc_j,..nocc_j]).assign(&s_mo.slice(s![..nocc_j,..nocc_j]));
+        s_mo_occ.slice_mut(s![nocc_j..,nocc_j..]).assign(&s_mo.slice(s![norb_j..norb_j+nocc_i,norb_j..norb_j+nocc_i]));
+        s_mo_occ.slice_mut(s![..nocc_j,nocc_j..]).assign(&s_mo.slice(s![..nocc_j,norb_j..norb_j+nocc_i]));
+        s_mo_occ.slice_mut(s![nocc_j..,..nocc_j]).assign(&s_mo.slice(s![norb_j..norb_j+nocc_i,..nocc_j]));
+
+        // write_npy("s_mo.npy",&s_mo);
+        // write_npy("s_mo_occ.npy",&s_mo_occ);
+
+        self.ci_overlap_ct_ct(
+            s_mo.view(),
+            s_mo_occ.view(),
+            state_new.eigenvectors.view(),
+            state_old.eigenvectors.view(),
+            nocc_j,
+            nvirt_j,
+            nocc_i,
+            nvirt_i
+        )
     }
 
     pub fn ci_overlap_gs_ct(
