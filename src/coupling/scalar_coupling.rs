@@ -92,9 +92,9 @@ impl SuperSystem {
     }
 
     pub fn scalar_coupling_align_coefficients(&mut self,signs:ArrayView1<f64>){
-        let basis_states = self.properties.basis_states().unwrap();
+        let mut basis_states = self.properties.basis_states().unwrap().to_owned();
 
-        for (idx, state) in basis_states.iter().enumerate(){
+        for (idx, state) in basis_states.iter_mut().enumerate(){
             match state{
                 ReducedBasisState::LE(ref state_a) => {
                     let mol:&mut Monomer = &mut self.monomers[state_a.monomer_index];
@@ -103,6 +103,9 @@ impl SuperSystem {
                     let ci_aligned:Array1<f64> = signs[idx+1] * &ci;
                     ci_full.slice_mut(s![..,state_a.state_index]).assign(&ci_aligned);
                     mol.properties.set_ci_coefficients(ci_full);
+                },
+                ReducedBasisState::PairCT(state_a) =>{
+                    state_a.eigenvectors = state_a.eigenvectors.clone() * signs[idx+1];
                 },
                 ReducedBasisState::CT(ref state_a) => {
                     // let (i, j): (&ReducedParticle, &ReducedParticle) = (&state_a.hole, &state_a.electron);
@@ -147,6 +150,7 @@ impl SuperSystem {
                 _ =>{ }
             }
         }
+        self.properties.set_basis_states(basis_states);
     }
 
     pub fn scalar_coupling_ci_overlaps(&self, other: &Self) -> (Array2<f64>,Array2<f64>) {
