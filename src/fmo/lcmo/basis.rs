@@ -228,7 +228,7 @@ impl SuperSystem {
                             state_energy:state_2.properties.ci_eigenvalue(n).unwrap(),
                             eigenvectors:state_2.properties.tdm(n).unwrap().to_owned(),
                             q_tr:q_ov_2.dot(&tdm_2),
-                            tr_dipole:state_1.properties.tr_dipole(n).unwrap(),
+                            tr_dipole:state_2.properties.tr_dipole(n).unwrap(),
                         };
 
                         states.push(BasisState::PairCT(ct_1));
