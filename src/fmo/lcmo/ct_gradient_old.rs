@@ -361,28 +361,33 @@ impl Monomer {
             );
             self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
         }
-        // prepare gamma and grad gamma AO matrix
-        let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
-            self.properties.gamma().unwrap(),
-            atoms,
-            self.n_orbs
-        );
-        let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-            &self.gammafunction,
-            atoms,
-            self.n_atoms,
-            self.n_orbs,
-        );
-        self.properties.set_grad_gamma(g1);
-        self.properties.set_gamma_ao(g0_ao);
-        self.properties.set_grad_gamma_ao(g1_ao);
+        if self.properties.gamma_ao().is_none(){
+            // prepare gamma and grad gamma AO matrix
+            let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+                self.properties.gamma().unwrap(),
+                atoms,
+                self.n_orbs
+            );
+            self.properties.set_gamma_ao(g0_ao);
+        }
+    
+        if self.properties.grad_gamma().is_none(){
+            let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                &self.gammafunction,
+                atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_grad_gamma(g1);
+            self.properties.set_grad_gamma_ao(g1_ao);
+        }
     }
 
     pub fn calculate_u_matrix(
         &self,
         atoms: &[Atom],
     )->Array3<f64>{
-        let timer: Instant = Instant::now();
+        // let timer: Instant = Instant::now();
         // derivative of H0 and S
         let (grad_s, grad_h0) = h0_and_s_gradients(&atoms, self.n_orbs, &self.slako);
 
@@ -513,7 +518,7 @@ impl Monomer {
         }
         // assert!(b_mat.abs_diff_eq(&b_mat_2,1.0e-11));
 
-        println!("Elapsed time calculate B matrix: {:>8.6}",timer.elapsed().as_secs_f64());
+        // println!("Elapsed time calculate B matrix: {:>8.6}",timer.elapsed().as_secs_f64());
 
         // calculate A_matrix ij,kl i = nvirt, j = nocc, k = nvirt, l = nocc
         // for the CPHF iterations
@@ -708,25 +713,25 @@ impl Monomer {
 
         let a_mat:Array2<f64> = a_matrix.into_shape([self.n_orbs*self.n_orbs,self.n_orbs*self.n_orbs]).unwrap();
 
-        println!("Elapsed time calculate A and B matrices: {:>8.6}",timer.elapsed().as_secs_f64());
-        drop(timer);
-        println!("Start iterative cphf routine");
-        let timer: Instant = Instant::now();
-        let u_mat_pople:Array3<f64> = solve_cphf_pople_test(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
-        println!("Elapsed time CPHF pople: {:>8.6}",timer.elapsed().as_secs_f64());
-        drop(timer);
-        let timer: Instant = Instant::now();
+        // println!("Elapsed time calculate A and B matrices: {:>8.6}",timer.elapsed().as_secs_f64());
+        // drop(timer);
+        // println!("Start iterative cphf routine");
+        // let timer: Instant = Instant::now();
+        // let u_mat_pople:Array3<f64> = solve_cphf_pople_test(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms);
+        // println!("Elapsed time CPHF pople: {:>8.6}",timer.elapsed().as_secs_f64());
+        // drop(timer);
+        // let timer: Instant = Instant::now();
         // let u_mat = solve_cphf_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms,grad_s.view(),orbs.view());
         let u_mat = solve_cphf_iterative_new(a_mat.view(),b_mat.view(),orbe.view(),nocc,nvirt,self.n_atoms,grad_s.view(),orbs.view());
-        println!("Elapsed time CPHF iterative: {:>8.6}",timer.elapsed().as_secs_f64());
-        drop(timer);
+        // println!("Elapsed time CPHF iterative: {:>8.6}",timer.elapsed().as_secs_f64());
+        // drop(timer);
         // println!(" ");
         // println!("U mat pople {}",u_mat_pople);
         // println!(" ");
         // println!("U mat{}",u_mat);
         // assert!(u_mat.abs_diff_eq(&u_mat_pople,1.0e-7));
 
-        return u_mat_pople;
+        return u_mat;
     }
 
     pub fn calculate_ct_fock_gradient(
@@ -1614,10 +1619,12 @@ fn solve_cphf_iterative_new(
     }
     let a_sliced:Array2<f64> = amat_new_3d.into_shape([n_orbs*n_orbs,nvirt*nocc]).unwrap();
 
-    // let timer: Instant = Instant::now();
+    // // let timer: Instant = Instant::now();
     // let u_vec:Vec<Array2<f64>> = (0..3*nat).into_par_iter().map(|nc|{
     //     let mut u_2d:Array2<f64> = u_mat.slice(s![nc,..,..]).to_owned();
     //     let b_2d:ArrayView2<f64> = bmat_new.slice(s![nc,..,..]);
+    //
+    //     let mut converged:bool = false;
     //     'cphf_loop: for it in 0..500{
     //         let u_prev:Array2<f64> = u_2d.clone();
     //         let a_term:Array2<f64> = a_sliced.dot(&u_prev.slice(s![nocc..,..nocc]).to_owned()
@@ -1628,9 +1635,13 @@ fn solve_cphf_iterative_new(
     //         let diff:Array2<f64> = (&u_prev.view() - &u_2d.view()).map(|val| val.abs());
     //         let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-9 {Some(item)} else {None}).collect();
     //         if not_converged.len() == 0{
-    //             println!("CPHF converged in {} Iterations.",it);
+    //             // println!("CPHF converged in {} Iterations.",it);
+    //             converged = true;
     //             break 'cphf_loop;
     //         }
+    //     }
+    //     if !converged{
+    //         println!("CPHF for nuclear coordinate {} did not converge!",nc);
     //     }
     //     u_2d
     // }).collect();
@@ -1645,6 +1656,7 @@ fn solve_cphf_iterative_new(
         let mut u_2d:Array2<f64> = u_mat.slice(s![nc,..,..]).to_owned();
         let b_2d:ArrayView2<f64> = bmat_new.slice(s![nc,..,..]);
 
+        let mut converged:bool = false;
         'cphf_loop: for it in 0..500{
             let u_prev:Array2<f64> = u_2d.clone();
 
@@ -1656,13 +1668,18 @@ fn solve_cphf_iterative_new(
             u_2d.slice_mut(s![..,..]).assign(&dampened);
 
             let diff:Array2<f64> = (&u_prev.view() - &u_2d.view()).map(|val| val.abs());
-            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-7 {Some(item)} else {None}).collect();
+            let not_converged:Vec<f64> = diff.iter().filter_map(|&item| if item > 1e-8 {Some(item)} else {None}).collect();
 
             if not_converged.len() == 0{
-                println!("CPHF converged in {} Iterations.",it);
+                // println!("CPHF converged in {} Iterations.",it);
+                converged = true;
                 break 'cphf_loop;
             }
         }
+        if !converged{
+            println!("CPHF for nuclear coordinate {} did not converge!",nc);
+        }
+
         u_mat.slice_mut(s![nc,..,..]).assign(&u_2d);
     }
 
@@ -1922,7 +1939,7 @@ pub fn solve_cphf_pople_test(
 
                 if not_converged.len() == 0{
                     converged = true;
-                    println!("Pople converged in {} iterations.", it);
+                    // println!("Pople converged in {} iterations.", it);
                     break 'cphf_loop;
                 }
             }

@@ -1,3 +1,27 @@
+use crate::scc::mixer::AAType;
+
+/// Default settings for Anderson Acceleration/Mixing
+pub const USE_AA: bool = true;
+pub const AA_MEMORY: usize = 6;
+pub const AA_TYPE: AAType = AAType::I;
+pub const AA_REGULARIZATION: f64 = 1e-3;
+pub const TOL_SAFEGUARD: f64 = 2.0;
+pub const AA_MAX_NORM: f64 = 1e10;
+
+// D3 Parameters for wB97X-D3(BJ)
+// Ref:  J. Chem. Theory Comput. 2018, 14, 11, 5725–5738
+pub const S6_DISP_PARAM: f64 = 1.000;
+pub const S8_DISP_PARAM: f64 = 0.2641;
+pub const A1_DISP_PARAM: f64 = 0.000;
+pub const A2_DISP_PARAM: f64 = 5.4959;
+
+pub const S6_DISP_PARAM_OB2: f64 = 1.000;
+pub const S8_DISP_PARAM_OB2: f64 = 0.010;
+pub const A1_DISP_PARAM_OB2: f64 = 0.497;
+pub const A2_DISP_PARAM_OB2: f64 = 3.622;
+
+pub const USE_DISPERSION:bool = false;
+
 // MOLECULE SPECIFICATION
 // charge of the molecule in a.u.
 pub const CHARGE: i8 = 0;

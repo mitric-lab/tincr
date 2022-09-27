@@ -4,13 +4,14 @@ pub mod basis;
 mod integrals;
 mod lcmo_trans_charges;
 mod utils;
-mod cis_gradient;
+pub mod cis_gradient;
 mod ct_gradient_old;
 mod le_gradient;
 mod coupling_gradients;
 mod helpers;
 mod numerical_coupling_gradient;
 mod cpcis;
+mod alternate_cphf;
 
 pub use basis::*;
 use ndarray::prelude::*;
@@ -24,6 +25,9 @@ use crate::excited_states::ExcitedState;
 use ndarray::Data;
 use ndarray_linalg::{Lapack, Scalar};
 use std::ops::AddAssign;
+use crate::fmo::helpers::get_pair_slice;
+use crate::fmo::lcmo::lcmo_trans_charges::q_pp;
+use crate::initialization::{Atom, get_xyz_2d};
 
 
 /// Structure that contains all necessary information to specify the excited states in
@@ -80,6 +84,7 @@ impl ExcitedState for ExcitonStates<'_> {
                         let particle_slice = state.electron.monomer.slice.virt_orb;
                         tdm.slice_mut(s![hole_slice, particle_slice])[[h_mo, e_mo]] += *c;
                     },
+                    _ => {},
                 }
             }
 
@@ -106,7 +111,7 @@ impl<'a> ExcitonStates<'a> {
 
     /// Create a type that contains all necessary information about all LCMO exciton states.
     pub fn new(e_tot: f64, eig: (Array1<f64>, Array2<f64>), basis: Vec<BasisState<'a>>, dim: (usize, usize),
-    orbs: Array2<f64>) -> Self {
+    orbs: Array2<f64>,overlap:ArrayView2<f64>,atoms:&[Atom]) -> Self {
 
         // The transition dipole moments and oscillator strengths need to be computed.
         let mut f: Array1<f64> = Array1::zeros([eig.0.len()]);
@@ -124,7 +129,23 @@ impl<'a> ExcitonStates<'a> {
             for (idx, v) in vs.iter().enumerate() {
                 match basis.get(idx).unwrap() {
                     BasisState::LE(state) => {tr_dip += state.tr_dipole.scale(*v);},
-                    BasisState::CT(_) => {},
+                    BasisState::CT(state) => {
+                        let (i, j): (&Particle, &Particle) = (&state.electron, &state.hole);
+                        let s_ij: ArrayView2<f64> = overlap.slice(s![i.monomer.slice.orb, j.monomer.slice.orb]);
+                        let q_ia: Array1<f64> = q_pp(&i, &j, s_ij.view());
+                        let pair_atoms: Vec<Atom> = get_pair_slice(
+                            &atoms,
+                            i.monomer.slice.atom_as_range(),
+                            j.monomer.slice.atom_as_range(),
+                        );
+                        let atoms_2d = get_xyz_2d(&pair_atoms);
+                        let dip = q_ia.dot(&atoms_2d);
+                        tr_dip += Vector3::new( dip[0], dip[1], dip[2]).scale(*v);
+                    },
+                    BasisState::PairCT(state) =>{
+                        tr_dip += state.tr_dipole.scale(*v);
+                    }
+                    _ =>{},
                 }
             }
             *fi = 2.0 / 3.0 * e * tr_dip.dot(&tr_dip);
@@ -196,6 +217,39 @@ impl<'a> ExcitonStates<'a> {
         txt += &format!("{:-^75} \n", "");
 
         println!("{}",txt);
+    }
+
+    pub fn calculate_exciton_participation_numbers(&self)->Array1<f64>{
+        let mut participation_numbers:Array1<f64> = Array1::zeros(self.energies.raw_dim());
+
+        // Create the output for each exciton state.
+        for (n, (e, v)) in self.energies.iter().zip(self.coefficients.axis_iter(Axis(1))).enumerate() {
+            // Sort the indices by coefficients of the current eigenvector.
+            let sorted_indices: Vec<usize> = argsort_abs(v.view());
+
+            let mut amplitudes:Vec<f64> = Vec::new();
+
+            // Reverse the Iterator to write the largest amplitude first.
+            for i in sorted_indices.into_iter().rev() {
+                // Amplitude of the current transition.
+                let c: f64 = v[i].abs();
+
+                let state = self.basis.get(i).unwrap();
+                match state{
+                    BasisState::LE(ref a) =>{
+                        amplitudes.push(c);
+                    }
+                    BasisState::PairCT(ref a) =>{
+                    },
+                    BasisState::CT(ref a) =>{
+                    }
+                }
+            }
+
+            let amplitudes:Array1<f64> = Array::from(amplitudes);
+            participation_numbers[n] = amplitudes.sum().powi(2);
+        }
+        participation_numbers
     }
 
 }

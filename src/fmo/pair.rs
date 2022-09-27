@@ -55,7 +55,7 @@ pub fn get_pair_type(mi_atoms: &[Atom], mj_atoms: &[Atom], vdw_scaling: f64) -> 
 
 /// Type that holds a fragment pair that use the ESD approximation. For this kind of pair no SCC
 /// calculation is required and therefore only a minimal amount of information is stored in this type.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct ESDPair {
     /// Index of the first monomer
     pub i: usize,
@@ -75,6 +75,8 @@ pub struct ESDPair {
     pub slako: SlaterKoster,
     /// Type of Gamma function. This can be either `Gaussian` or `Slater` type.
     pub gammafunction: GammaFunction,
+    /// Gamma function for the long-range correction. Only used if long-range correction is requested
+    pub gammafunction_lc: Option<GammaFunction>,
 }
 
 impl ESDPair {
@@ -88,6 +90,7 @@ impl ESDPair {
             vrep: monomer1.vrep.clone(),
             slako: monomer1.slako.clone(),
             gammafunction: monomer1.gammafunction.clone(),
+            gammafunction_lc: monomer1.gammafunction_lc.clone(),
         }
     }
 }
@@ -96,7 +99,7 @@ impl ESDPair {
 /// Type that holds a fragment pair that contains all data for the quantum chemical routines.
 /// For this type of pair full scc are implemented. This type is only used for FMO calculations
 /// and is a similar to the [Monomer] type that but holds less properties.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Pair {
     /// Index of the first monomer contained in the pair
     pub i: usize,
@@ -142,6 +145,28 @@ impl<'a> Add for &Monomer {
             gammafunction: self.gammafunction.clone(),
             gammafunction_lc: self.gammafunction_lc.clone()
         }
+    }
+}
+
+impl Pair {
+    pub fn set_mo_indices(&mut self, n_elec:usize) {
+        // get the indices of the occupied and virtual orbitals
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        (0..self.n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
+        self.properties.set_occ_indices(occ_indices);
+        self.properties.set_virt_indices(virt_indices);
+    }
+}
+
+impl ESDPair{
+    pub fn set_mo_indices(&mut self,n_elec:usize) {
+        // get the indices of the occupied and virtual orbitals
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        (0..self.n_orbs).for_each(|index| if index < (n_elec/2) {occ_indices.push(index)} else {virt_indices.push(index)});
+        self.properties.set_occ_indices(occ_indices);
+        self.properties.set_virt_indices(virt_indices);
     }
 }
 

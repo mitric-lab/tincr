@@ -1,13 +1,13 @@
-mod supersystem;
+pub mod supersystem;
 mod pair;
 mod monomer;
 mod fragmentation;
 //pub(crate) mod fmo_gradient;
 pub(crate) mod gradients;
 pub mod scc;
-mod helpers;
+pub mod helpers;
 mod coulomb_integrals;
-mod lcmo;
+pub mod lcmo;
 
 pub use gradients::*;
 pub use monomer::*;

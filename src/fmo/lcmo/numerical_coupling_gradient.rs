@@ -27,7 +27,7 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let val: f64 = self.exciton_le_le_coupling(0, 1, 1, 1);
+        let val: f64 = self.exciton_le_le_coupling(0, 1, 6,6);
         // println!("{}",val);
         return val.abs();
     }
@@ -46,7 +46,7 @@ impl SuperSystem {
         self.prepare_scc();
         self.run_scc();
 
-        let grad: Array1<f64> = self.exciton_le_le_coupling_gradient(0, 1, 1, 1);
+        let grad: Array1<f64> = self.exciton_le_le_coupling_gradient(0, 1, 6, 6);
         let mol_a: &Monomer = &self.monomers[0];
         let mol_b: &Monomer = &self.monomers[1];
 

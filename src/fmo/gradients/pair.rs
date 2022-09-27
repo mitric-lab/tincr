@@ -28,6 +28,7 @@ use std::iter::FromIterator;
 use std::ops::{AddAssign, SubAssign};
 use crate::utils::array_helper::ToOwnedF;
 use crate::gradients::helpers::f_lr;
+use crate::trans_charges;
 
 
 impl GroundStateGradient for Pair {
@@ -260,68 +261,292 @@ impl Pair{
         }
         // prepare the grad gamma_lr ao matrix
         if self.gammafunction_lc.is_some(){
-            // calculate the gamma gradient matrix in AO basis
-            let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-                self.gammafunction_lc.as_ref().unwrap(),
-                pair_atoms,
-                self.n_atoms,
-                self.n_orbs,
-            );
-            self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
+            if self.properties.grad_gamma_lr_ao().is_none(){
+                // calculate the gamma gradient matrix in AO basis
+                let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                    self.gammafunction_lc.as_ref().unwrap(),
+                    pair_atoms,
+                    self.n_atoms,
+                    self.n_orbs,
+                );
+                self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
+            }
 
-            let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
-                self.gammafunction_lc.as_ref().unwrap(),
-                pair_atoms,
-                self.n_atoms,
-                self.n_orbs,
-            );
-            self.properties.set_gamma_lr(gamma_lr);
-            self.properties.set_gamma_lr_ao(gamma_lr_ao);
+            if self.properties.gamma_lr_ao().is_none(){
+                let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+                    self.gammafunction_lc.as_ref().unwrap(),
+                    pair_atoms,
+                    self.n_atoms,
+                    self.n_orbs,
+                );
+                self.properties.set_gamma_lr(gamma_lr);
+                self.properties.set_gamma_lr_ao(gamma_lr_ao);
+            }
         }
         // prepare gamma and grad gamma AO matrix
-        let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
-            self.properties.gamma().unwrap(),
-            pair_atoms,
-            self.n_orbs
-        );
-        let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-            &self.gammafunction,
-            pair_atoms,
-            self.n_atoms,
-            self.n_orbs,
-        );
-        self.properties.set_grad_gamma(g1);
-        self.properties.set_gamma_ao(g0_ao);
-        self.properties.set_grad_gamma_ao(g1_ao);
+        if self.properties.gamma_ao().is_none(){
+            let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+                self.properties.gamma().unwrap(),
+                pair_atoms,
+                self.n_orbs
+            );
+            self.properties.set_gamma_ao(g0_ao);
+        }
+        if self.properties.grad_gamma_ao().is_none(){
+            let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                &self.gammafunction,
+                pair_atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_grad_gamma(g1);
+            self.properties.set_grad_gamma_ao(g1_ao);
+        }
 
         // derivative of H0 and S
-        let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
-        self.properties.set_grad_s(grad_s);
-        self.properties.set_grad_h0(grad_h0);
+        if self.properties.grad_s().is_none() || self.properties.grad_h0().is_none(){
+            let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
+            self.properties.set_grad_s(grad_s);
+            self.properties.set_grad_h0(grad_h0);
+        }
+
+        // check if occ and virt indices exist
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        if (self.properties.contains_key("occ_indices") == false) || (self.properties.contains_key("virt_indices") == true) {
+            // calculate the number of electrons
+            let n_elec: usize = pair_atoms.iter().fold(0, |n, atom| n + atom.n_elec);
+            // get the indices of the occupied and virtual orbitals
+            (0..self.n_orbs).for_each(|index| {
+                if index < (n_elec / 2) {
+                    occ_indices.push(index)
+                } else {
+                    virt_indices.push(index)
+                }
+            });
+
+            self.properties.set_occ_indices(occ_indices.clone());
+            self.properties.set_virt_indices(virt_indices.clone());
+        }
+        else{
+            occ_indices = self.properties.occ_indices().unwrap().to_vec();
+            virt_indices = self.properties.virt_indices().unwrap().to_vec();
+        }
+
+        if self.properties.q_ov().is_none(){
+            // calculate transition charges
+            let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
+                self.n_atoms,
+                pair_atoms,
+                self.properties.orbs().unwrap(),
+                self.properties.s().unwrap(),
+                &occ_indices,
+                &virt_indices,
+            );
+            self.properties.set_q_ov(tmp.0);
+            self.properties.set_q_oo(tmp.1);
+            self.properties.set_q_vv(tmp.2);
+        }
+    }
+
+    pub fn prepare_lcmo_gradient_parallel(&mut self,pair_atoms:&[Atom],m_i: &Monomer, m_j: &Monomer){
+        if self.properties.s().is_none() {
+            let mut s: Array2<f64> = Array2::zeros([self.n_orbs, self.n_orbs]);
+            let (s_ab, h0_ab): (Array2<f64>, Array2<f64>) = h0_and_s_ab(
+                m_i.n_orbs,
+                m_j.n_orbs,
+                &pair_atoms[0..m_i.n_atoms],
+                &pair_atoms[m_i.n_atoms..],
+                &m_i.slako,
+            );
+            let mu: usize = m_i.n_orbs;
+            s.slice_mut(s![0..mu, 0..mu])
+                .assign(&m_i.properties.s().unwrap());
+            s.slice_mut(s![mu.., mu..])
+                .assign(&m_j.properties.s().unwrap());
+            s.slice_mut(s![0..mu, mu..]).assign(&s_ab);
+            s.slice_mut(s![mu.., 0..mu]).assign(&s_ab.t());
+
+            self.properties.set_s(s);
+        }
+        // get the gamma matrix
+        if self.properties.gamma().is_none() {
+            let a: usize = m_i.n_atoms;
+            let mut gamma_pair: Array2<f64> = Array2::zeros([self.n_atoms, self.n_atoms]);
+            let gamma_ab: Array2<f64> = gamma_atomwise_ab(
+                &self.gammafunction,
+                &pair_atoms[0..m_i.n_atoms],
+                &pair_atoms[m_j.n_atoms..],
+                m_i.n_atoms,
+                m_j.n_atoms,
+            );
+            gamma_pair
+                .slice_mut(s![0..a, 0..a])
+                .assign(&m_i.properties.gamma().unwrap());
+            gamma_pair
+                .slice_mut(s![a.., a..])
+                .assign(&m_j.properties.gamma().unwrap());
+            gamma_pair.slice_mut(s![0..a, a..]).assign(&gamma_ab);
+            gamma_pair.slice_mut(s![a.., 0..a]).assign(&gamma_ab.t());
+
+            self.properties.set_gamma(gamma_pair);
+        }
+        // prepare the grad gamma_lr ao matrix
+        if self.gammafunction_lc.is_some(){
+            if self.properties.grad_gamma_lr_ao().is_none(){
+                // calculate the gamma gradient matrix in AO basis
+                let (g1_lr,g1_lr_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                    self.gammafunction_lc.as_ref().unwrap(),
+                    pair_atoms,
+                    self.n_atoms,
+                    self.n_orbs,
+                );
+                self.properties.set_grad_gamma_lr_ao(g1_lr_ao);
+            }
+
+            if self.properties.gamma_lr_ao().is_none(){
+                let (gamma_lr, gamma_lr_ao): (Array2<f64>, Array2<f64>) = gamma_ao_wise(
+                    self.gammafunction_lc.as_ref().unwrap(),
+                    pair_atoms,
+                    self.n_atoms,
+                    self.n_orbs,
+                );
+                self.properties.set_gamma_lr(gamma_lr);
+                self.properties.set_gamma_lr_ao(gamma_lr_ao);
+            }
+        }
+        // prepare gamma and grad gamma AO matrix
+        if self.properties.gamma_ao().is_none(){
+            let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+                self.properties.gamma().unwrap(),
+                pair_atoms,
+                self.n_orbs
+            );
+            self.properties.set_gamma_ao(g0_ao);
+        }
+        if self.properties.grad_gamma_ao().is_none(){
+            let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                &self.gammafunction,
+                pair_atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_grad_gamma(g1);
+            self.properties.set_grad_gamma_ao(g1_ao);
+        }
+
+        // derivative of H0 and S
+        if self.properties.grad_s().is_none() || self.properties.grad_h0().is_none(){
+            let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
+            self.properties.set_grad_s(grad_s);
+            self.properties.set_grad_h0(grad_h0);
+        }
+
+        // check if occ and virt indices exist
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        if (self.properties.contains_key("occ_indices") == false) || (self.properties.contains_key("virt_indices") == true) {
+            // calculate the number of electrons
+            let n_elec: usize = pair_atoms.iter().fold(0, |n, atom| n + atom.n_elec);
+            // get the indices of the occupied and virtual orbitals
+            (0..self.n_orbs).for_each(|index| {
+                if index < (n_elec / 2) {
+                    occ_indices.push(index)
+                } else {
+                    virt_indices.push(index)
+                }
+            });
+
+            self.properties.set_occ_indices(occ_indices.clone());
+            self.properties.set_virt_indices(virt_indices.clone());
+        }
+        else{
+            occ_indices = self.properties.occ_indices().unwrap().to_vec();
+            virt_indices = self.properties.virt_indices().unwrap().to_vec();
+        }
+
+        if self.properties.q_ov().is_none(){
+            // calculate transition charges
+            let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
+                self.n_atoms,
+                pair_atoms,
+                self.properties.orbs().unwrap(),
+                self.properties.s().unwrap(),
+                &occ_indices,
+                &virt_indices,
+            );
+            self.properties.set_q_ov(tmp.0);
+            self.properties.set_q_oo(tmp.1);
+            self.properties.set_q_vv(tmp.2);
+        }
     }
 }
 
 impl ESDPair{
     pub fn prepare_lcmo_gradient(&mut self,pair_atoms:&[Atom]){
         // prepare gamma and grad gamma AO matrix
-        let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
-            self.properties.gamma().unwrap(),
-            pair_atoms,
-            self.n_orbs
-        );
-        let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
-            &self.gammafunction,
-            pair_atoms,
-            self.n_atoms,
-            self.n_orbs,
-        );
-        self.properties.set_grad_gamma(g1);
-        self.properties.set_gamma_ao(g0_ao);
-        self.properties.set_grad_gamma_ao(g1_ao);
+        if self.properties.gamma_ao().is_none(){
+            let g0_ao:Array2<f64> = gamma_ao_wise_from_gamma_atomwise(
+                self.properties.gamma().unwrap(),
+                pair_atoms,
+                self.n_orbs
+            );
+            self.properties.set_gamma_ao(g0_ao);
+        }
+        if self.properties.grad_gamma_ao().is_none(){
+            let (g1,g1_ao): (Array3<f64>, Array3<f64>) = gamma_gradients_ao_wise(
+                &self.gammafunction,
+                pair_atoms,
+                self.n_atoms,
+                self.n_orbs,
+            );
+            self.properties.set_grad_gamma(g1);
+            self.properties.set_grad_gamma_ao(g1_ao);
+        }
 
         // derivative of H0 and S
-        let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
-        self.properties.set_grad_s(grad_s);
-        self.properties.set_grad_h0(grad_h0);
+        if self.properties.grad_s().is_none() || self.properties.grad_h0().is_none(){
+            let (grad_s, grad_h0) = h0_and_s_gradients(&pair_atoms, self.n_orbs, &self.slako);
+            self.properties.set_grad_s(grad_s);
+            self.properties.set_grad_h0(grad_h0);
+        }
+
+        // check if occ and virt indices exist
+        let mut occ_indices: Vec<usize> = Vec::new();
+        let mut virt_indices: Vec<usize> = Vec::new();
+        if (self.properties.contains_key("occ_indices") == false) || (self.properties.contains_key("virt_indices") == true) {
+            // calculate the number of electrons
+            let n_elec: usize = pair_atoms.iter().fold(0, |n, atom| n + atom.n_elec);
+            // get the indices of the occupied and virtual orbitals
+            (0..self.n_orbs).for_each(|index| {
+                if index < (n_elec / 2) {
+                    occ_indices.push(index)
+                } else {
+                    virt_indices.push(index)
+                }
+            });
+
+            self.properties.set_occ_indices(occ_indices.clone());
+            self.properties.set_virt_indices(virt_indices.clone());
+        }
+        else{
+            occ_indices = self.properties.occ_indices().unwrap().to_vec();
+            virt_indices = self.properties.virt_indices().unwrap().to_vec();
+        }
+
+        if self.properties.q_ov().is_none(){
+            // calculate transition charges
+            let tmp: (Array2<f64>, Array2<f64>, Array2<f64>) = trans_charges(
+                self.n_atoms,
+                pair_atoms,
+                self.properties.orbs().unwrap(),
+                self.properties.s().unwrap(),
+                &occ_indices,
+                &virt_indices,
+            );
+            self.properties.set_q_ov(tmp.0);
+            self.properties.set_q_oo(tmp.1);
+            self.properties.set_q_vv(tmp.2);
+        }
     }
 }

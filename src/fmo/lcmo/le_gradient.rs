@@ -51,6 +51,18 @@ impl SuperSystem {
         return val;
     }
 
+    pub fn exciton_le_gradient_without_davidson(&mut self, monomer_index: usize, state: usize) -> Array1<f64> {
+        // Reference to the atoms of the total system.
+        let atoms: &[Atom] = &self.atoms[..];
+        // get the monomer
+        let mol = &mut self.monomers[monomer_index];
+        // calculate the gradient
+        mol.prepare_excited_gradient(&atoms[mol.slice.atom_as_range()]);
+        let grad = mol.tda_gradient_lc(state);
+
+        return grad;
+    }
+
     pub fn exciton_le_gradient(&mut self, monomer_index: usize, state: usize) -> Array1<f64> {
         let lcmo_config: LcmoConfig = self.config.lcmo.clone();
         // Number of LE states per monomer.

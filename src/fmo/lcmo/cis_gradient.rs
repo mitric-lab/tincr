@@ -1,11 +1,10 @@
-use crate::fmo::{
-    BasisState, ExcitedStateMonomerGradient, ExcitonStates, Monomer, PairType, SuperSystem,
-};
+use crate::fmo::{BasisState, ChargeTransferPair, ExcitedStateMonomerGradient, ExcitonStates, Monomer, PairType, SuperSystem};
 use crate::gradients::helpers::gradient_v_rep;
 use crate::initialization::{Atom, MO};
 use crate::utils::array_helper::argsort_abs;
 use ndarray::prelude::*;
 use std::ops::AddAssign;
+use std::fmt::{Display, Formatter};
 
 impl SuperSystem {
     pub fn fmo_cis_gradient(&mut self, state: usize) -> Array1<f64> {
@@ -96,6 +95,7 @@ impl SuperSystem {
                         }));
                         // (vec![mo_i, mo_j], vec![index_i, index_j])
                     }
+                    _ =>{},
                 };
                 // let reduced_state: ReducedBasisState =
                 //     ReducedBasisState::new(energy_state, m_index, state_ind, c.powi(2));
@@ -161,6 +161,9 @@ impl SuperSystem {
                         gradient.slice_mut(s![atoms_slice_i]).add_assign(&grad_i);
                         gradient.slice_mut(s![atoms_slice_j]).add_assign(&grad_j);
                     }
+                },
+                _ =>{
+
                 }
             }
         }
@@ -283,11 +286,14 @@ impl SuperSystem {
 //     CT,
 // }
 
+#[derive(Clone,Debug)]
 pub enum ReducedBasisState{
     LE(ReducedLE),
     CT(ReducedCT),
+    PairCT(ChargeTransferPair),
 }
 
+#[derive(Clone,Debug)]
 pub struct ReducedLE{
     pub energy: f64,
     pub monomer_index: usize,
@@ -296,6 +302,7 @@ pub struct ReducedLE{
     pub homo:usize,
 }
 
+#[derive(Clone,Debug)]
 pub struct ReducedCT{
     pub energy: f64,
     pub hole:ReducedParticle,
@@ -303,13 +310,48 @@ pub struct ReducedCT{
     pub state_coefficient:f64,
 }
 
+#[derive(Clone,Debug)]
 pub struct ReducedParticle{
     pub m_index:usize,
     pub ct_index:usize,
     pub mo:ReducedMO,
 }
 
+#[derive(Clone,Debug)]
 pub struct ReducedMO{
     pub index:usize,
     pub c:Array1<f64>,
+}
+
+impl Display for ReducedBasisState {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            ReducedBasisState::LE(state) => write!(f, "{}", state),
+            ReducedBasisState::CT(state) => write!(f, "{}", state),
+            ReducedBasisState::PairCT(state) => write!(f,"{}",state),
+        }
+    }
+}
+
+impl Display for ReducedLE{
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "LE(S{}) on Frag. {:>4}",
+            self.state_index + 1,
+            self.monomer_index + 1
+        )
+    }
+}
+
+impl Display for ReducedCT{
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "CT: {} -> {}", self.hole, self.electron)
+    }
+}
+
+impl Display for ReducedParticle{
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(f, "Frag. {: >4}", self.m_index + 1)
+    }
 }

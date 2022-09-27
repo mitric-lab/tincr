@@ -6,6 +6,7 @@ use itertools::chain;
 use ndarray::prelude::*;
 use ndarray_linalg::{Eigh, Inverse, SymmetricSqrt, UPLO};
 use std::ops::AddAssign;
+use crate::fmo::helpers::get_pair_slice;
 
 impl SuperSystem {
     pub fn build_lcmo_fock_matrix(&mut self) -> Array2<f64> {
@@ -106,6 +107,39 @@ impl SuperSystem {
             fock.slice_mut(s![m_j.slice.orb, m_i.slice.orb])
                 .add_assign(&f_ba);
         }
+        // for esd_pair in self.esd_pairs.iter_mut() {
+        //     // Reference to monomer I.
+        //     let m_i: &Monomer = &self.monomers[esd_pair.i];
+        //     // Reference to monomer J.
+        //     let m_j: &Monomer = &self.monomers[esd_pair.j];
+        //
+        //     let pair_atoms: Vec<Atom> = get_pair_slice(
+        //         &self.atoms,
+        //         self.monomers[esd_pair.i].slice.atom_as_range(),
+        //         self.monomers[esd_pair.j].slice.atom_as_range(),
+        //     );
+        //     // do a scc calculation of the ESD pair
+        //     esd_pair.prepare_scc(&pair_atoms, m_i, m_j);
+        //     esd_pair.run_scc_test(&pair_atoms, self.config.scf);
+        //
+        //     // get overlap matrix
+        //     let s:ArrayView2<f64> = esd_pair.properties.s().unwrap();
+        //     // Reference to the MO coefficients of monomer I.
+        //     let orbs_i: ArrayView2<f64> = m_i.properties.orbs().unwrap();
+        //     // Reference to the MO coefficients of monomer J.
+        //     let orbs_j: ArrayView2<f64> = m_j.properties.orbs().unwrap();
+        //     // Reference to the MO coefficients of the pair IJ.
+        //     let orbs_ij: ArrayView2<f64> = esd_pair.properties.orbs().unwrap();
+        //
+        //     // Overlap between orbitals of monomer I and dimer IJ.
+        //     let s_pr: Array2<f64> = (orbs_i.t().dot(&s.slice(s![0..m_i.n_orbs, ..]))).dot(&orbs_ij);
+        //     // Overlap between orbitals of monomer J and dimer IJ.
+        //     let s_qr: Array2<f64> = (orbs_j.t().dot(&s.slice(s![m_i.n_orbs.., ..]))).dot(&orbs_ij);
+        //
+        //     // Save overlap between the monomers and the dimer
+        //     esd_pair.properties.set_overlap_i_ij(s_pr);
+        //     esd_pair.properties.set_overlap_j_ij(s_qr);
+        // }
         // The Fock matrix needs to be transformed by the Löwdin orthogonalization. Computation of
         // the matrix inverse of the total overlap is computationally demanding. Since the
         // total overlap matrix is almost diagonal, it can be approximated in first order by:

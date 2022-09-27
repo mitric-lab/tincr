@@ -8,9 +8,10 @@ use ndarray_linalg::{Inverse, Solve};
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
 use std::ops::SubAssign;
+use ndarray_linalg::{into_col,into_row};
 
 impl SuperSystem {
-    pub fn cpcis_routine(
+    pub fn cpcis_routine_inversion(
         &mut self,
         ind: usize,
         le_state: usize,
@@ -22,17 +23,6 @@ impl SuperSystem {
         let m_i: &mut Monomer = &mut self.monomers[ind];
         // get atoms
         let atoms: &[Atom] = &self.atoms[m_i.slice.atom_as_range()];
-        // create cpcis B matrix
-        let fock_derivative: Array3<f64> = m_i.fock_derivative(atoms, umat);
-
-        // output is [3*natoms,nvirt,nocc]
-        let cpcis_coefficients: Array3<f64> =
-            m_i.calculate_cpcis_terms(nocc, nvirt, umat, le_state, fock_derivative.view());
-        // switch axes 1 and 2
-        let cpcis_coefficients: Array3<f64> = cpcis_coefficients
-            .permuted_axes([0, 2, 1])
-            .as_standard_layout()
-            .to_owned();
 
         //Other version
         // create cpcis A matrix
@@ -51,16 +41,44 @@ impl SuperSystem {
             .unwrap();
         // solve the equation
         // sum_i,a A^-1_i,a,j,b B_i,a
-        let mut cpcis_coefficients_2: Array3<f64> = Array3::zeros([3 * m_i.n_atoms, nocc, nvirt]);
+        let mut cpcis_coefficients: Array3<f64> = Array3::zeros([3 * m_i.n_atoms, nocc, nvirt]);
         for nc in 0..3 * m_i.n_atoms {
             let tmp: Array1<f64> = a_inv.dot(&bmat_2d.slice(s![nc, ..]));
             // let tmp:Array1<f64> = bmat_2d.slice(s![nc,..]).dot(&a_inv);
-            cpcis_coefficients_2
+            cpcis_coefficients
                 .slice_mut(s![nc, .., ..])
                 .assign(&tmp.into_shape([nocc, nvirt]).unwrap());
         }
 
-        return cpcis_coefficients_2;
+        return cpcis_coefficients;
+    }
+
+    pub fn cpcis_routine_iterative(
+        &mut self,
+        ind: usize,
+        le_state: usize,
+        umat: ArrayView3<f64>,
+        nocc: usize,
+        nvirt: usize,
+    ) -> Array3<f64> {
+        // get mutable monomer I
+        let m_i: &mut Monomer = &mut self.monomers[ind];
+        // get atoms
+        let atoms: &[Atom] = &self.atoms[m_i.slice.atom_as_range()];
+
+        // create cpcis B matrix
+        let fock_derivative: Array3<f64> = m_i.fock_derivative(atoms, umat);
+
+        // output is [3*natoms,nvirt,nocc]
+        let cpcis_coefficients: Array3<f64> =
+            m_i.calculate_cpcis_terms(nocc, nvirt, umat, le_state, fock_derivative.view());
+        // switch axes 1 and 2
+        let cpcis_coefficients: Array3<f64> = cpcis_coefficients
+            .permuted_axes([0, 2, 1])
+            .as_standard_layout()
+            .to_owned();
+
+        return cpcis_coefficients;
     }
 }
 
@@ -236,8 +254,8 @@ impl Monomer {
             //     )).dot(&orbs_occ);
 
             let term_4:Array2<f64> = orbs_virt.t().dot(&(
-                (integrals_2d.dot(&(orbs_virt.dot(&cis_coeff.t()).dot(&dc_mo_o.t())).into_shape([self.n_orbs*self.n_orbs]).unwrap())
-                    + integrals_2d.dot(&(dc_mo_v.dot(&cis_coeff.t()).dot(&orbs_occ.t())).into_shape([self.n_orbs*self.n_orbs]).unwrap()))
+                (integrals_2d.dot(&(orbs_virt.dot(&cis_coeff).dot(&dc_mo_o.t())).into_shape([self.n_orbs*self.n_orbs]).unwrap())
+                    + integrals_2d.dot(&(dc_mo_v.dot(&cis_coeff).dot(&orbs_occ.t())).into_shape([self.n_orbs*self.n_orbs]).unwrap()))
                     .into_shape([self.n_orbs,self.n_orbs]).unwrap()
                     + &deriv_integral_cis_ao.slice(s![nc,..,..])
             )).dot(&orbs_occ);
@@ -253,9 +271,8 @@ impl Monomer {
         let fock_terms: Array2<f64> = orbs_virt
             .t()
             .dot(&fock_mat.dot(&orbs_virt))
-            .dot(&cis_coeff.t())
+            .dot(&cis_coeff)
             - cis_coeff
-                .t()
                 .dot(&orbs_occ.t().dot(&fock_mat.dot(&orbs_occ)));
 
         // let integrals_mo_2: Array4<f64> = integrals_2d
@@ -296,6 +313,17 @@ impl Monomer {
         //     .unwrap();
         // assert!(integrals_mo.abs_diff_eq(&integrals_mo_2,1e-9),"Integrals are different");
 
+        // let cis_der_old: Array3<f64> = solve_cpcis_iterative(
+        //     fock_terms.view(),
+        //     l_b.view(),
+        //     orbs_occ,
+        //     orbs_virt,
+        //     integrals_2d.view(),
+        //     cis_energy,
+        //     self.n_atoms,
+        //     nocc,
+        //     nvirt,
+        // );
         let cis_der: Array3<f64> = solve_cpcis_iterative_new(
             fock_terms.view(),
             l_b.view(),
@@ -305,6 +333,7 @@ impl Monomer {
             nocc,
             nvirt,
         );
+        // assert!(cis_der.abs_diff_eq(&cis_der_old,1e-9),"Matrices NOT equal!");
         // let cis_der_pople:Array3<f64> = solve_cpcis_pople_test(
         //     fock_terms.view(),
         //     l_b.view(),
@@ -354,41 +383,41 @@ impl Monomer {
 
         let integral: Array2<f64> = coulomb - exchange;
 
-        let qvo: Array2<f64> = qov
-            .clone()
-            .into_shape([self.n_atoms, n_occ, n_virt])
-            .unwrap()
-            .permuted_axes([0, 2, 1])
-            .as_standard_layout()
-            .to_owned()
-            .into_shape([self.n_atoms, n_virt * n_occ])
-            .unwrap();
-        let coulomb_2: Array2<f64> = 2.0 * qvo.t().dot(&gamma.dot(&qov));
-        let exchange_2: Array2<f64> = qvv
-            .t()
-            .dot(&gamma_lr.dot(&qoo))
-            .into_shape([n_virt, n_virt, n_occ, n_occ])
-            .unwrap()
-            .permuted_axes([0, 3, 2, 1])
-            .as_standard_layout()
-            .to_owned()
-            .into_shape([n_virt * n_occ, n_occ * n_virt])
-            .unwrap();
-
-        let integral_2: Array2<f64> = coulomb_2 - exchange_2;
-        let integral_2: Array2<f64> = integral_2
-            .into_shape([n_virt, n_occ, n_occ * n_virt])
-            .unwrap()
-            .permuted_axes([1, 0, 2])
-            .as_standard_layout()
-            .to_owned()
-            .into_shape([n_occ * n_virt, n_occ * n_virt])
-            .unwrap();
-
-        assert!(
-            integral.abs_diff_eq(&integral_2, 1e-10),
-            "Integrals are NOT equal!!"
-        );
+        // let qvo: Array2<f64> = qov
+        //     .clone()
+        //     .into_shape([self.n_atoms, n_occ, n_virt])
+        //     .unwrap()
+        //     .permuted_axes([0, 2, 1])
+        //     .as_standard_layout()
+        //     .to_owned()
+        //     .into_shape([self.n_atoms, n_virt * n_occ])
+        //     .unwrap();
+        // let coulomb_2: Array2<f64> = 2.0 * qvo.t().dot(&gamma.dot(&qov));
+        // let exchange_2: Array2<f64> = qvv
+        //     .t()
+        //     .dot(&gamma_lr.dot(&qoo))
+        //     .into_shape([n_virt, n_virt, n_occ, n_occ])
+        //     .unwrap()
+        //     .permuted_axes([0, 3, 2, 1])
+        //     .as_standard_layout()
+        //     .to_owned()
+        //     .into_shape([n_virt * n_occ, n_occ * n_virt])
+        //     .unwrap();
+        //
+        // let integral_2: Array2<f64> = coulomb_2 - exchange_2;
+        // let integral_2: Array2<f64> = integral_2
+        //     .into_shape([n_virt, n_occ, n_occ * n_virt])
+        //     .unwrap()
+        //     .permuted_axes([1, 0, 2])
+        //     .as_standard_layout()
+        //     .to_owned()
+        //     .into_shape([n_occ * n_virt, n_occ * n_virt])
+        //     .unwrap();
+        //
+        // assert!(
+        //     integral.abs_diff_eq(&integral_2, 1e-10),
+        //     "Integrals are NOT equal!!"
+        // );
 
         // get orbital energy differences - energy of the tda state
         let tda_energy = self.properties.ci_eigenvalue(le_state).unwrap();
@@ -399,32 +428,39 @@ impl Monomer {
             .into_shape([n_occ, n_virt])
             .unwrap();
 
-        let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
-        let mut coefficient_matrix: Array4<f64> = Array4::zeros((n_occ, n_virt, n_occ, n_virt));
-        for i in 0..n_occ {
-            for a in 0..n_virt {
-                for j in 0..n_occ {
-                    for b in 0..n_virt {
-                        let energy_term: f64 = if i == j && a == b {
-                            -tda_energy
-                            //orbe[a] - orbe[i] - tda_energy
-                        } else {
-                            0.0
-                        };
+        let omega:Array1<f64> = omega.to_owned() - tda_energy;
 
-                        coefficient_matrix[[i, a, j, b]] +=
-                            2.0 * tda_coeff[[i, a]] * tda_coeff[[j, b]] + energy_term;
-                    }
-                }
-            }
-        }
+        // let orbe: ArrayView1<f64> = self.properties.orbe().unwrap();
+        // let mut coefficient_matrix: Array4<f64> = Array4::zeros((n_occ, n_virt, n_occ, n_virt));
+        // for i in 0..n_occ {
+        //     for a in 0..n_virt {
+        //         for j in 0..n_occ {
+        //             for b in 0..n_virt {
+        //                 // let energy_term: f64 = if i == j && a == b {
+        //                 //     // -tda_energy
+        //                 //     // orbe[a] - orbe[i] - tda_energy
+        //                 // } else {
+        //                 //     0.0
+        //                 // };
+        //
+        //                 coefficient_matrix[[i, a, j, b]] +=
+        //                     2.0 * tda_coeff[[i, a]] * tda_coeff[[j, b]];// + energy_term;
+        //             }
+        //         }
+        //     }
+        // }
+        let coeff_1d:ArrayView1<f64> = tda_coeff.into_shape([n_occ*n_virt]).unwrap();
+        let coeff_arr:Array2<f64> = 2.0 *into_col(coeff_1d.to_owned()).dot(&into_row(coeff_1d.to_owned()));
+        // let coeff_arr:Array4<f64> = coeff_arr.into_shape([n_occ,n_virt,n_occ,n_virt]).unwrap();
+        // assert!(test.abs_diff_eq(&coefficient_matrix,1e-9),"tda coeffs not equal");
 
         // integral_2 + coefficient_matrix.into_shape([n_occ * n_virt, n_occ * n_virt]).unwrap()
-        Array2::from_diag(&omega)
-            + integral
-            + coefficient_matrix
-                .into_shape([n_occ * n_virt, n_occ * n_virt])
-                .unwrap()
+        // Array2::from_diag(&omega) +
+        //     integral
+        //     + coefficient_matrix
+        //         .into_shape([n_occ * n_virt, n_occ * n_virt])
+        //         .unwrap()
+        Array2::from_diag(&omega) + integral + coeff_arr
     }
 
     pub fn fock_derivative(&mut self, atoms: &[Atom], u_mat: ArrayView3<f64>) -> Array3<f64> {
@@ -1617,89 +1653,113 @@ fn solve_cpcis_iterative(
 ) -> Array3<f64> {
     let norbs: usize = nocc + nvirt;
     let mut cis_der: Array3<f64> = Array3::zeros((3 * n_atoms, nvirt, nocc));
-    // let mut cis_der:Array3<f64> = Array::random((3*n_atoms,nvirt,nocc), Uniform::new(0., 1.));
-    let mut iteration: usize = 0;
 
     let matrix: Array3<f64> = (&(-1.0 * &lb_term) + &fock_terms) / energy;
-    let integrals_mo: Array4<f64> = integrals_2d
-        .into_shape([norbs * norbs * norbs, norbs])
-        .unwrap()
-        .dot(&orbs_occ)
-        .into_shape([norbs, norbs, norbs, nocc])
-        .unwrap()
-        .permuted_axes([0, 1, 3, 2])
-        .as_standard_layout()
-        .to_owned()
-        .into_shape([norbs * norbs * nocc, norbs])
-        .unwrap()
-        .dot(&orbs_virt)
-        .into_shape([norbs, norbs, nocc, nvirt])
-        .unwrap()
-        .permuted_axes([0, 3, 2, 1])
-        .as_standard_layout()
-        .to_owned()
-        .into_shape([norbs * nvirt * nocc, norbs])
-        .unwrap()
-        .dot(&orbs_occ)
-        .into_shape([norbs, nvirt, nocc, nocc])
-        .unwrap()
-        .permuted_axes([3, 1, 2, 0])
-        .as_standard_layout()
-        .to_owned()
-        .into_shape([nocc * nvirt * nocc, norbs])
-        .unwrap()
-        .dot(&orbs_virt)
-        .into_shape([nocc, nvirt, nocc, nvirt])
-        .unwrap()
-        .permuted_axes([3, 0, 1, 2])
-        .as_standard_layout()
-        .to_owned();
-    let integrals_mo: Array2<f64> = integrals_mo
-        .into_shape([nvirt * nocc, nvirt * nocc])
-        .unwrap()
-        / energy;
+    // let integrals_mo: Array4<f64> = integrals_2d
+    //     .into_shape([norbs * norbs * norbs, norbs])
+    //     .unwrap()
+    //     .dot(&orbs_occ)
+    //     .into_shape([norbs, norbs, norbs, nocc])
+    //     .unwrap()
+    //     .permuted_axes([0, 1, 3, 2])
+    //     .as_standard_layout()
+    //     .to_owned()
+    //     .into_shape([norbs * norbs * nocc, norbs])
+    //     .unwrap()
+    //     .dot(&orbs_virt)
+    //     .into_shape([norbs, norbs, nocc, nvirt])
+    //     .unwrap()
+    //     .permuted_axes([0, 3, 2, 1])
+    //     .as_standard_layout()
+    //     .to_owned()
+    //     .into_shape([norbs * nvirt * nocc, norbs])
+    //     .unwrap()
+    //     .dot(&orbs_occ)
+    //     .into_shape([norbs, nvirt, nocc, nocc])
+    //     .unwrap()
+    //     .permuted_axes([3, 1, 2, 0])
+    //     .as_standard_layout()
+    //     .to_owned()
+    //     .into_shape([nocc * nvirt * nocc, norbs])
+    //     .unwrap()
+    //     .dot(&orbs_virt)
+    //     .into_shape([nocc, nvirt, nocc, nvirt])
+    //     .unwrap()
+    //     .permuted_axes([3, 0, 1, 2])
+    //     .as_standard_layout()
+    //     .to_owned();
+    // let integrals_mo: Array2<f64> = integrals_mo
+    //     .into_shape([nvirt * nocc, nvirt * nocc])
+    //     .unwrap()
+    //     / energy;
 
-    'cpcis_loop: for it in 0..500 {
-        let prev: Array3<f64> = cis_der.clone();
+    for nc in 0..3 * n_atoms {
+        let mut cis_der_2d: Array2<f64> = cis_der.slice(s![nc, .., ..]).to_owned();
+        let mat_2d: ArrayView2<f64> = matrix.slice(s![nc, .., ..]);
 
-        for nc in 0..3 * n_atoms {
-            // let term_1:Array2<f64> = &fock_terms - &lb_term.slice(s![nc,..,..]);
-            // let term_2:Array2<f64> = orbs_virt.t().dot(& (integrals_2d
-            //     .dot(&(orbs_virt.dot(&prev.slice(s![nc,..,..]).dot(&orbs_occ.t())))
-            //         .into_shape([norbs*norbs]).unwrap())).into_shape([norbs,norbs]).unwrap())
-            //     .dot(&orbs_occ);
-            //
-            // let new:Array2<f64> = &(0.2*&prev.slice(s![nc,..,..])) + &(0.8*(term_1+term_2)/energy);
-            // cis_der.slice_mut(s![nc,..,..]).assign(&new);
+        'cpcis_loop: for it in 0..200 {
+            let prev: Array2<f64> = cis_der_2d.clone();
+            let tmp_1 = integrals_2d
+                .dot(&(orbs_virt.dot(&prev.dot(&orbs_occ.t())))
+                    .into_shape([norbs*norbs]).unwrap());
+            let tmp:Array2<f64> = orbs_virt.t().dot(&tmp_1.into_shape([norbs,norbs]).unwrap())
+                .dot(&orbs_occ);
+            let new:Array2<f64> =  0.2*&prev + &(0.8*(tmp/energy + &mat_2d));
+            cis_der_2d = new;
 
-            let integrals_dot_coeff = integrals_mo.dot(
-                &prev
-                    .slice(s![nc, .., ..])
-                    .into_shape([nvirt * nocc])
-                    .unwrap(),
-            );
+            let diff: Array2<f64> = (&prev - &cis_der_2d.view()).map(|val| val.abs());
+            let not_converged: Vec<f64> = diff
+                .iter()
+                .filter_map(|&item| if item > 1e-9 { Some(item) } else { None })
+                .collect();
 
-            let term: Array2<f64> = &integrals_dot_coeff.into_shape([nvirt, nocc]).unwrap()
-                + &matrix.slice(s![nc, .., ..]);
-            let new: Array2<f64> = &(0.2 * &prev.slice(s![nc, .., ..])) + &(0.8 * term);
-            cis_der.slice_mut(s![nc, .., ..]).assign(&new);
+            if not_converged.len() == 0 {
+                println!("CPCIS converged in {} Iterations.", it);
+                break 'cpcis_loop;
+            }
         }
-
-        let diff: Array3<f64> = (&prev - &cis_der.view()).map(|val| val.abs());
-        let not_converged: Vec<f64> = diff
-            .iter()
-            .filter_map(|&item| if item > 1e-9 { Some(item) } else { None })
-            .collect();
-
-        if not_converged.len() == 0 {
-            println!("CPCIS converged in {} Iterations.", it);
-            break 'cpcis_loop;
-        }
-        iteration = it;
-        print!("{}", it);
+        cis_der.slice_mut(s![nc, .., ..]).assign(&cis_der_2d);
     }
-    println!(" ");
-    println!("Number of iterations {}", iteration);
+
+    // 'cpcis_loop: for it in 0..500 {
+    //     let prev: Array3<f64> = cis_der.clone();
+    //
+    //     for nc in 0..3 * n_atoms {
+    //         let term_1:Array2<f64> = &fock_terms - &lb_term.slice(s![nc,..,..]);
+    //         let term_2:Array2<f64> = orbs_virt.t().dot(& (integrals_2d
+    //             .dot(&(orbs_virt.dot(&prev.slice(s![nc,..,..]).dot(&orbs_occ.t())))
+    //                 .into_shape([norbs*norbs]).unwrap())).into_shape([norbs,norbs]).unwrap())
+    //             .dot(&orbs_occ);
+    //
+    //         let new:Array2<f64> = &(0.2*&prev.slice(s![nc,..,..])) + &(0.8*(term_1+term_2)/energy);
+    //         cis_der.slice_mut(s![nc,..,..]).assign(&new);
+    //
+    //         // let integrals_dot_coeff = integrals_mo.dot(
+    //         //     &prev
+    //         //         .slice(s![nc, .., ..])
+    //         //         .into_shape([nvirt * nocc])
+    //         //         .unwrap(),
+    //         // );
+    //         //
+    //         // let term: Array2<f64> = &integrals_dot_coeff.into_shape([nvirt, nocc]).unwrap()
+    //         //     + &matrix.slice(s![nc, .., ..]);
+    //         // let new: Array2<f64> = &(0.2 * &prev.slice(s![nc, .., ..])) + &(0.8 * term);
+    //         // cis_der.slice_mut(s![nc, .., ..]).assign(&new);
+    //     }
+    //
+    //     let diff: Array3<f64> = (&prev - &cis_der.view()).map(|val| val.abs());
+    //     let not_converged: Vec<f64> = diff
+    //         .iter()
+    //         .filter_map(|&item| if item > 1e-9 { Some(item) } else { None })
+    //         .collect();
+    //
+    //     if not_converged.len() == 0 {
+    //         println!("CPCIS converged in {} Iterations.", it);
+    //         break 'cpcis_loop;
+    //     }
+    //     iteration = it;
+    //     print!("{}", it);
+    // }
 
     return cis_der;
 }
@@ -1730,7 +1790,6 @@ fn solve_cpcis_iterative_new(
             let term: Array2<f64> =
                 &integrals_dot_coeff.into_shape([nvirt, nocc]).unwrap() + &mat_2d;
             let new: Array2<f64> = 0.2 * &prev + (0.8 * term);
-
             cis_der_2d = new;
 
             let diff: Array2<f64> = (&prev - &cis_der_2d.view()).map(|val| val.abs());
@@ -1779,7 +1838,7 @@ fn solve_cpcis_pople_test(
         saved_a_dot_b.push(first_term.clone());
 
         let mut converged: bool = false;
-        'cphf_loop: for it in 0..40 {
+        'cphf_loop: for it in 0..10 {
             let mut second_term: Array1<f64> = Array1::zeros(nvirt * nocc);
 
             // Gram Schmidt Orthogonalization

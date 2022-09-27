@@ -16,7 +16,7 @@ use toml;
 use crate::io::MoldenExporterBuilder;
 use ndarray::prelude::*;
 use crate::defaults::CONFIG_FILE_NAME;
-use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter,read_dynamic_input,create_dynamics_data};
+use crate::io::{Configuration, write_header, read_file_to_frame, read_input, MoldenExporter,read_dynamic_input,create_dynamics_data,read_dynamic_input_ehrenfest};
 use chemfiles::Frame;
 use crate::initialization::System;
 use crate::scc::scc_routine::RestrictedSCC;
@@ -35,7 +35,9 @@ use crate::excited_states::{orbe_differences, trans_charges, initial_subspace, P
 use crate::fmo::gradients::GroundStateGradient;
 use crate::fmo::SuperSystem;
 use std::fs::File;
-use ndarray_npy::write_npy;
+use ndarray_npy::{write_npy, NpzWriter};
+use crate::fmo::cis_gradient::ReducedBasisState;
+use rusty_dftd_lib;
 
 
 mod constants;
@@ -103,25 +105,158 @@ fn main() {
     let timer: Timer = Timer::start();
 
     // create config for the dynamic simulation
-    let dynamics_config:DynamicConfiguration = read_dynamic_input(&config);
+    // let dynamics_config:DynamicConfiguration = read_dynamic_input(&config);
 
     // Computations.
     // ................................................................
     if config.jobtype == "sp" {
         let mut system = System::from((frame, config.clone()));
         // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
-        // // create the struct which starts the dynamics
-        // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);
-        // dynamic.verlet_dynamics();
+        // create the struct which starts the dynamics
+        // let mut dynamic: Simulation = Simulation::new(&dynamics_data);
+        // dynamic.verlet_dynamics(&mut system);
         system.prepare_scc();
         system.run_scc();
-        system.test_tda_lc_gradient();
-        // system.optimize_cartesian(Some(1));
         // system.test_tda_lc_gradient();
-        // system.prepare_tda();
-        // system.run_tda(config.excited.nstates, 150, 1e-4);
+        // system.optimize_cartesian(Some(0));w
+        system.prepare_tda();
+        // system.tda_full_matrix();
+        system.run_tda(config.excited.nstates, 450, 1e-4);
+        // system.ground_state_gradient(true);
+        // system.prepare_excited_grad();
+        // let grad_exc:Array1<f64> = system.tda_gradient_lc(0);
+        // write_npy("dimer_gradient.npy",&grad_exc);
+
     } else if config.jobtype == "fmo" {
         let mut system = SuperSystem::from((frame, config.clone()));
+        // let n_monomer:usize = system.monomers.len();
+        // let dynamics_config:DynamicConfiguration = read_dynamic_input_ehrenfest(&config,n_monomer);
+        // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
+        // let mut dynamic: Simulation = Simulation::new(&dynamics_data);
+        // // dynamic.ehrenfest_dynamics(&mut system);
+        //
+        // // let mut npz = NpzWriter::new(File::create("arrays.npz").unwrap());
+        // // let mut npz_c = NpzWriter::new(File::create("c_arrays.npz").unwrap());
+        // // let mut npz_q = NpzWriter::new(File::create("qtrans_arrays.npz").unwrap());
+        // // let mut npz_mo = NpzWriter::new(File::create("mo_arrays.npz").unwrap());
+        // // let mut npz_h = NpzWriter::new(File::create("h_arrays.npz").unwrap());
+        // // let mut npz_x = NpzWriter::new(File::create("x_arrays.npz").unwrap());
+        // // let mut npz_sign = NpzWriter::new(File::create("sign_arrays.npz").unwrap());
+        // // let mut npz_sc = NpzWriter::new(File::create("sc_arrays.npz").unwrap());
+        // dynamic.initialize_ehrenfest(
+        //     &mut system,
+        //      // &mut npz,
+        //     // 0,
+        //     //  &mut npz_c,
+        // //     &mut npz_q,
+        // //     &mut npz_mo,
+        // //     &mut npz_h,
+        // //     &mut npz_x,
+        // //     &mut npz_sign,
+        // //     &mut npz_sc,
+        // );
+        // let old_system = system.clone();
+        // system.properties.set_old_supersystem(old_system);
+        // for step in 1..dynamic.config.nstep{
+        //     // println!(" ");
+        //     // let timer = Instant::now();
+        //     dynamic.ehrenfest_step(
+        //         &mut system,
+        //         // &mut npz,
+        //         step,
+        //         // &mut npz_c,
+        //         // &mut npz_q,
+        //         // &mut npz_mo,
+        //         // &mut npz_h,
+        //         // &mut npz_x,
+        //         // &mut npz_sign,
+        //         // &mut npz_sc,
+        //     );
+        //     let old_system = system.clone();
+        //     system.properties.set_old_supersystem(old_system);
+        //     // println!("Time Ehrenfest step {}",timer.elapsed().as_secs_f64());
+        // }
+        // dynamic.coeff_writer.finish();
+        // // npz.finish();
+        // // npz_c.finish();
+        // // npz_q.finish();
+        // // npz_mo.finish();
+        // // npz_h.finish();
+        // // npz_x.finish();
+        // // npz_sign.finish();
+        // // npz_sc.finish();
+
+
+        system.prepare_scc();
+        system.run_scc();
+        // let hamiltonian = system.build_lcmo_fock_matrix();
+        // system.properties.set_lcmo_fock(hamiltonian);
+        // system.test_new_charge_transfer_gradient();
+        // system.create_exciton_hamiltonian();
+        system.create_exciton_hamiltonian_new();
+
+
+
+        // system.prepare_scc();
+        // system.monomer_scc(system.config.scf.scf_max_cycles);
+        // println!("Test");
+        // let mo_coeff:Array2<f64> = system.monomers[0].properties.orbs().unwrap().to_owned();
+        // let h_mat:Array2<f64> = system.monomers[0].properties.h_coul_transformed().unwrap().to_owned();
+        //
+        // for i in 0..30{
+        //     for monomer in system.monomers.iter_mut(){
+        //         monomer.properties.set_n_virt(i);
+        //     }
+        //     println!("Iteration {}",i);
+        //     println!(" ");
+        //     for monomer in system.monomers.iter_mut() {
+        //         monomer.properties.reset();
+        //     }
+        //     // for pair in system.pairs.iter_mut() {
+        //     //     pair.properties.reset();
+        //     // }
+        //     // for esd_pair in system.esd_pairs.iter_mut() {
+        //     //     esd_pair.properties.reset();
+        //     // }
+        //     system.properties.reset();
+        //
+        //     system.prepare_scc();
+        //     let (energies,dq) = system.monomer_scc(system.config.scf.scf_max_cycles);
+        //     println!("energies {}",energies);
+        //
+        //     let mo:Array2<f64> = system.monomers[0].properties.orbs().unwrap().to_owned();
+        //     let h:Array2<f64> = system.monomers[0].properties.h_coul_transformed().unwrap().to_owned();
+        //     let diff:Array2<f64> = &mo_coeff - &mo;
+        //     for elem in diff.iter(){
+        //        if elem.abs() > 1.0e-8{
+        //            println!("MO coefficients deviate! {}",elem);
+        //        }
+        //     }
+        //     let diff_h:Array2<f64> = &h_mat - &h;
+        //     for elem in diff_h.iter(){
+        //        if elem.abs() > 1e-8{
+        //            println!("Hamiltonian deviates! {}",elem);
+        //        }
+        //     }
+        // }
+        // // println!("{}",mo_coeff);
+        // // println!("{}",h_mat);
+
+
+
+
+
+
+        // system.prepare_scc();
+        // system.run_scc();
+        // let diabatic_hamiltonian:Array2<f64> = system.create_diabatic_hamiltonian();
+        // let states = system.properties.basis_states().unwrap();
+        //
+        // for (idx,state) in states.iter().enumerate(){
+        //     println!("State {}: ",idx);
+        //     println!("{} \n",state);
+        // }
+
         // for atom in system.atoms.iter(){
         //     print!("{} \t",atom.name);
         //     for data in atom.xyz.iter(){
@@ -130,12 +265,15 @@ fn main() {
         //     println!(" ");
         // }
         // assert!(1==2);
-        // system.prepare_scc();
-        // system.run_scc();
-        // system.create_exciton_hamiltonian()
+        // system.test_diabatic_overlap();
+
+        // system.create_exciton_hamiltonian();
         // system.test_le_gradient();
-        system.test_ct_gradient();;
-        system.test_ct_ct_coupling_gradient();
+        // system.test_ct_gradient();
+        // system.test_numerical_ci_coeff_gradient(0,6);
+        // system.test_le_le_coupling_gradient();
+        // system.test_le_ct_coupling_gradient();
+        // system.test_ct_ct_coupling_gradient();
         // create the struct which starts the dynamics
         // let dynamics_data:SystemData = create_dynamics_data(&system.atoms,dynamics_config);
         // let mut dynamic: Simulation = Simulation::new(&dynamics_data,&mut system);

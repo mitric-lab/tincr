@@ -71,7 +71,7 @@ impl Davidson {
         let mut dim_sub: usize = dim_sub_origin;
 
         // The maximal possible subspace, before it will be collapsed.
-        let max_space: usize = 150;
+        let max_space: usize = 15*n_roots;
 
         // The initial information of the Davidson routine are printed.
         utils::print_davidson_init(max_iter, n_roots, tolerance);
@@ -190,9 +190,11 @@ impl Davidson {
         ritz_vectors: ArrayView2<f64>,
         nvalues: usize,
     ) -> Davidson {
+        let eigenvectors:Array2<f64> = ritz_vectors.slice(s![.., 0..nvalues]).as_standard_layout().to_owned();
+
         Davidson {
             eigenvalues: subspace_eigenvalues.slice(s![0..nvalues]).to_owned(),
-            eigenvectors: ritz_vectors.slice(s![.., 0..nvalues]).to_owned(),
+            eigenvectors: eigenvectors,
         }
     }
 }

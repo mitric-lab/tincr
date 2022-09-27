@@ -16,6 +16,10 @@ use std::path::Path;
 use std::ptr::eq;
 use std::collections::HashMap;
 use crate::constants;
+use crate::scc::mixer::{AAType, AndersonAccel,AndersonAccelBuilder};
+use crate::scc::mixer::anderson::*;
+use anyhow::{Context, Result};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 fn default_charge() -> i8 {
     CHARGE
@@ -90,6 +94,28 @@ fn default_n_particles() -> usize {
 fn default_use_mio() -> bool { USE_MIO }
 fn default_mio_directory() ->String { String::from( MIO_DIR ) }
 fn default_number_of_cores()->usize{1}
+fn default_use_dispersion()->bool{USE_DISPERSION}
+fn default_s6() -> f64 {
+    S6_DISP_PARAM_OB2
+}
+fn default_s8() -> f64 {
+    S8_DISP_PARAM_OB2
+}
+fn default_a1() -> f64 {
+    A1_DISP_PARAM_OB2
+}
+fn default_a2() -> f64 {
+    A2_DISP_PARAM_OB2
+}
+fn default_active_space_le()->usize{
+    10
+}
+fn default_active_space_ct()->usize{
+    10
+}
+fn default_restrict_active_space()->bool{
+    true
+}
 fn default_mol_config() -> MoleculeConfig {
     let mol_config: MoleculeConfig = toml::from_str("").unwrap();
     return mol_config;
@@ -123,6 +149,10 @@ fn default_lcmo_config()-> LcmoConfig{
     let config: LcmoConfig = toml::from_str("").unwrap();
     return config;
 }
+fn default_dispersion_config() -> DispersionConfig {
+    let disp_config: DispersionConfig = toml::from_str("").unwrap();
+    return disp_config;
+}
 
 #[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct Configuration {
@@ -130,10 +160,10 @@ pub struct Configuration {
     pub jobtype: String,
     #[serde(default = "default_use_fmo")]
     pub fmo: bool,
-    #[serde(default = "default_dispersion_correction")]
-    pub dispersion_correction: bool,
     #[serde(default = "default_verbose")]
     pub verbose: i8,
+    #[serde(default = "default_dispersion_config")]
+    pub dispersion: DispersionConfig,
     #[serde(default = "default_mol_config")]
     pub mol: MoleculeConfig,
     #[serde(default = "default_scc_config")]
@@ -195,6 +225,20 @@ pub struct SccConfig {
     pub electronic_temperature: f64,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+pub struct DispersionConfig {
+    #[serde(default = "default_use_dispersion")]
+    pub use_dispersion:bool,
+    #[serde(default = "default_s6")]
+    pub s6: f64,
+    #[serde(default = "default_s8")]
+    pub s8: f64,
+    #[serde(default = "default_a1")]
+    pub a1: f64,
+    #[serde(default = "default_a2")]
+    pub a2: f64,
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy,Debug)]
 pub struct OptConfig {
     #[serde(default = "default_geom_opt_max_cycles")]
@@ -239,6 +283,12 @@ pub struct SlaterKosterConfig{
 
 #[derive(Serialize, Deserialize, Clone,Debug)]
 pub struct LcmoConfig{
+    #[serde(default = "default_restrict_active_space")]
+    pub restrict_active_space:bool,
+    #[serde(default = "default_active_space_le")]
+    pub active_space_le:usize,
+    #[serde(default = "default_active_space_ct")]
+    pub active_space_ct:usize,
     #[serde(default = "default_n_le")]
     pub n_le: usize,
     #[serde(default = "default_n_holes")]
@@ -251,4 +301,51 @@ pub struct LcmoConfig{
 pub struct ParallelizationConfig{
     #[serde(default = "default_number_of_cores")]
     pub number_of_cores:usize,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
+pub struct MixConfig {
+    pub use_aa: bool,
+    pub memory: usize,
+    pub aa_type: AAType,
+    pub regularization: f64,
+    pub tol_safe: f64,
+    pub max_norm: f64,
+}
+
+impl MixConfig {
+    /// Initialize an instance of the Anderson Accelerator. The dimension `dim` specifies the
+    /// length of the vector that should be mixed. Further details are given in the Ac2O3 crate.
+    pub fn build_mixer(&self, dim: usize) -> Result<AndersonAccel> {
+        // In case that AA should not be used linear mixing/vanilla iterations will be used. This
+        // can be enabled by setting the memory of AndersonAccel to zero.
+        let memory = match self.use_aa {
+            true => self.memory,
+            false => 0,
+        };
+
+        AndersonAccelBuilder::default()
+            .dim(dim)
+            .memory(memory)
+            .aa_type(self.aa_type)
+            .regularization(self.regularization)
+            .safeguard_factor(self.tol_safe)
+            .max_weight_norm(self.max_norm)
+            .build()
+            .context("Could not intialize Anderson Acceleration instance")
+    }
+}
+
+impl Default for MixConfig {
+    fn default() -> Self {
+        Self {
+            use_aa: USE_AA,
+            memory: AA_MEMORY,
+            aa_type: AA_TYPE,
+            regularization: AA_REGULARIZATION,
+            tol_safe: TOL_SAFEGUARD,
+            max_norm: AA_MAX_NORM,
+        }
+    }
 }

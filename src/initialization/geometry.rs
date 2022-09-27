@@ -7,7 +7,8 @@ use nshare::RefNdarray1;
 pub fn get_xyz_2d(atoms: &[Atom]) -> Array2<f64> {
     let mut xyz: Array2<f64> = Array2::zeros([0, 3]);
     atoms.iter().for_each(|atom| {
-        xyz.push(Axis(0), atom.xyz.ref_ndarray1()).unwrap()
+        xyz.push(Axis(0), Array1::from_iter(atom.xyz.iter().cloned()).view())
+            .unwrap()
     });
     xyz
 }

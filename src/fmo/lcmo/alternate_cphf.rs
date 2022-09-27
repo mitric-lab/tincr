@@ -2,6 +2,7 @@ use crate::initialization::Atom;
 use crate::fmo::{Monomer, SuperSystem, ExcitedStateMonomerGradient};
 use ndarray::prelude::*;
 use ndarray_linalg::Inverse;
+use ndarray_linalg::{into_col,into_row};
 
 impl Monomer{
     pub fn mo_derivatives_maurice(&mut self,atoms:&[Atom])->Array3<f64>{
@@ -23,6 +24,8 @@ impl Monomer{
                 // contribution of the overlap derivatives
                 let s_term:Array1<f64> = -0.5 * pmat.t().dot(&ds.slice(s![nc,..,..])
                     .dot(&orbs.slice(s![..,orb_i])));
+                // let s_term:Array1<f64> = -0.5 * orbs.dot(&orbs.t().dot(&ds.slice(s![nc,..,..])
+                //     .dot(&orbs.slice(s![..,orb_i]))));
 
                 // contribution of the angular derivatives
                 let mut angular_term:Array1<f64> = Array1::zeros(self.n_orbs);
@@ -95,27 +98,44 @@ impl Monomer{
             }
         }
         let h_term:Array2<f64> = h_term.into_shape([nvirt*nocc,norbs*norbs]).unwrap();
-
-        // calculate term depending on PI_mu,nu,sig,la
-        let mut pi_term:Array6<f64> = Array6::zeros([nvirt,nocc,norbs,norbs,norbs,norbs]);
-
         let pmat_occ:Array2<f64> = orbs_occ.dot(&orbs_occ.t());
+
+        // // calculate term depending on PI_mu,nu,sig,la
+        // let mut pi_term:Array6<f64> = Array6::zeros([nvirt,nocc,norbs,norbs,norbs,norbs]);
+        // for a in 0..nvirt{
+        //     for i in 0..nocc{
+        //         for mu in 0..norbs{
+        //             for nu in 0..norbs{
+        //                 for sig in 0..norbs{
+        //                     for la in 0..norbs{
+        //                         let p_term:f64 = pmat_occ[[nu,la]];
+        //                         // pi_term[[a,i,mu,nu,sig,la]] = -2.0 * p_term *
+        //                         pi_term[[a,i,mu,sig,nu,la]] = -2.0 * p_term *
+        //                             (orbs_virt[[mu,a]] * orbs_occ[[sig,i]] +  orbs_occ[[mu,i]] * orbs_virt[[sig,a]]);
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+        // let pi_term:Array2<f64> = pi_term.into_shape([nvirt*nocc,norbs*norbs*norbs*norbs]).unwrap();
+
+        let mut pi_term:Array4<f64> = Array4::zeros([nvirt,nocc,norbs,norbs]);
         for a in 0..nvirt{
             for i in 0..nocc{
                 for mu in 0..norbs{
-                    for nu in 0..norbs{
-                        for sig in 0..norbs{
-                            for la in 0..norbs{
-                                let p_term:f64 = pmat_occ[[nu,la]];
-                                pi_term[[a,i,mu,nu,sig,la]] = -2.0 * p_term *
-                                    (orbs_virt[[mu,a]] * orbs_occ[[sig,i]] +  orbs_occ[[mu,i]] * orbs_virt[[sig,a]]);
-                            }
-                        }
+                    for sig in 0..norbs{
+                        pi_term[[a,i,mu,sig]] =
+                            (orbs_virt[[mu,a]] * orbs_occ[[sig,i]] +  orbs_occ[[mu,i]] * orbs_virt[[sig,a]]);
                     }
                 }
             }
         }
-        let pi_term:Array2<f64> = pi_term.into_shape([nvirt*nocc,norbs*norbs*norbs*norbs]).unwrap();
+        let pi_term:Array1<f64> = pi_term.into_shape([nvirt*nocc*norbs*norbs]).unwrap();
+        let pi_term:Array2<f64> = -2.0 * into_col(pi_term).dot(&into_row(pmat_occ.clone()
+            .into_shape([norbs*norbs]).unwrap()))
+            .into_shape([nvirt*nocc,norbs*norbs*norbs*norbs]).unwrap();
+        // assert!(test.abs_diff_eq(&pi_term,1e-9),"Pi terms NOT equal!");
 
         // calculate derivative term depending on S
         let fock_mat:ArrayView2<f64> = self.properties.h_coul_x().unwrap();
@@ -132,8 +152,8 @@ impl Monomer{
             self.properties.gamma_lr_ao().unwrap(),
             self.n_orbs,
         );
-        // integral 1 has shape : [nvirt, norbs, nocc, norbs] = [a, alpha, i, beta]
-        // integral 2 has shaoe: [nocc, norbs, nvirt, norbs] = [i, alpha, a, beta ]
+        // integral 1 has shape : [nvirt, nocc, norbs, norbs] = [a, i,alpha, beta]
+        // integral 2 has shaoe: [nocc, nvirt, norbs, norbs] = [i,a,alpha,beta ]
         let (integrals_1,integrals_2):(Array4<f64>,Array4<f64>)
             = integral_terms_s_contribution(
             orbs_occ,
@@ -152,7 +172,8 @@ impl Monomer{
                     for beta in 0..norbs{
                         let term_1:f64 = 2.0 * (fock_matmul_1[[alpha,i]] * orbs_virt[[beta,a]]
                             + fock_matmul_2[[alpha,a]] * orbs_virt[[beta,i]]);
-                        let term_2:f64 = 2.0 * (integrals_1[[a,alpha,i,beta]] + integrals_2[[i,alpha,a,beta]]);
+                        // let term_2:f64 = 2.0 * (integrals_1[[a,alpha,i,beta]] + integrals_2[[i,alpha,a,beta]]);
+                        let term_2:f64 = 2.0 * (integrals_1[[a,i,alpha,beta]] + integrals_2[[i,a,alpha,beta]]);
                         s_term[[a,i,alpha,beta]] = term_1 + term_2;
                     }
                 }
@@ -244,12 +265,12 @@ impl Monomer{
         let g0_lr:ArrayView2<f64> = self.properties.gamma_lr().unwrap();
 
         // pi_pqrs = 2.0 *(pr|qs) - (ps|qr)
-        // calculate pi_acik = 2.0 * (ai|ck) - (ak|ic)
-        // equals 2.0 * (vo|vo) - (vo|ov)
+        // calculate pi_acik = 2.0 * (ai|ck) - (ak|ci)
+        // equals 2.0 * (vo|vo) - (vo|vo)
         let coul:Array2<f64> = qvo.t().dot(&g0.dot(&qvo));
-        let exch:Array2<f64> = qvo.t().dot(&g0_lr.dot(&qov))
-            .into_shape([nvirt,nocc,nocc,nvirt]).unwrap()
-            .permuted_axes([0,2,3,1])
+        let exch:Array2<f64> = qvo.t().dot(&g0_lr.dot(&qvo))
+            .into_shape([nvirt,nocc,nvirt,nocc]).unwrap()
+            .permuted_axes([0,3,2,1])
             .as_standard_layout()
             .to_owned().into_shape([nvirt*nocc,nvirt*nocc]).unwrap();
         let integral_1:Array2<f64> = 2.0 * coul - exch;
@@ -288,29 +309,57 @@ fn integral_terms_s_contribution(
         .dot(&pmat_occ).into_shape([norbs,norbs,norbs,norbs]).unwrap()
         .permuted_axes([3,0,1,2]).as_standard_layout()
         .into_shape([norbs*norbs*norbs,norbs]).unwrap()
+        .dot(&pmat_full).into_shape([norbs,norbs,norbs,norbs]).unwrap()
+        .permuted_axes([3,0,1,2]).as_standard_layout()
+        .into_shape([norbs*norbs*norbs,norbs]).unwrap()
         .dot(&orbs_occ).into_shape([norbs,norbs,norbs,nocc]).unwrap()
         .permuted_axes([3,0,1,2]).as_standard_layout()
         .into_shape([nocc*norbs*norbs,norbs]).unwrap()
-        .dot(&pmat_full).into_shape([nocc,norbs,norbs,norbs]).unwrap()
+        .dot(&orbs_virt).into_shape([nocc,norbs,norbs,nvirt]).unwrap()
         .permuted_axes([3,0,1,2]).as_standard_layout()
-        .into_shape([norbs*nocc*norbs,norbs]).unwrap()
-        .dot(&orbs_virt).into_shape([norbs,nocc,norbs,nvirt]).unwrap()
-        .permuted_axes([3,0,1,2]).as_standard_layout() // [nvirt, norbs, nocc, norbs]
         .to_owned();
 
     let term_2:Array4<f64> = integrals.into_shape([norbs*norbs*norbs,norbs]).unwrap()
         .dot(&pmat_occ).into_shape([norbs,norbs,norbs,norbs]).unwrap()
         .permuted_axes([3,0,1,2]).as_standard_layout()
         .into_shape([norbs*norbs*norbs,norbs]).unwrap()
+        .dot(&pmat_full).into_shape([norbs,norbs,norbs,norbs]).unwrap()
+        .permuted_axes([3,0,1,2]).as_standard_layout()
+        .into_shape([norbs*norbs*norbs,norbs]).unwrap()
         .dot(&orbs_virt).into_shape([norbs,norbs,norbs,nvirt]).unwrap()
         .permuted_axes([3,0,1,2]).as_standard_layout()
         .into_shape([nvirt*norbs*norbs,norbs]).unwrap()
-        .dot(&pmat_full).into_shape([nvirt,norbs,norbs,norbs]).unwrap()
+        .dot(&orbs_occ).into_shape([nvirt,norbs,norbs,nocc]).unwrap()
         .permuted_axes([3,0,1,2]).as_standard_layout()
-        .into_shape([norbs*nvirt*norbs,norbs]).unwrap()
-        .dot(&orbs_occ).into_shape([norbs,nvirt,norbs,nocc]).unwrap()
-        .permuted_axes([3,0,1,2]).as_standard_layout() // [nocc, norbs, nvirt, norbs]
         .to_owned();
+
+    // let term_1:Array4<f64> = integrals.into_shape([norbs*norbs*norbs,norbs]).unwrap()
+    //     .dot(&pmat_occ).into_shape([norbs,norbs,norbs,norbs]).unwrap()
+    //     .permuted_axes([3,0,1,2]).as_standard_layout()
+    //     .into_shape([norbs*norbs*norbs,norbs]).unwrap()
+    //     .dot(&orbs_occ).into_shape([norbs,norbs,norbs,nocc]).unwrap()
+    //     .permuted_axes([3,0,1,2]).as_standard_layout()
+    //     .into_shape([nocc*norbs*norbs,norbs]).unwrap()
+    //     .dot(&pmat_full).into_shape([nocc,norbs,norbs,norbs]).unwrap()
+    //     .permuted_axes([3,0,1,2]).as_standard_layout()
+    //     .into_shape([norbs*nocc*norbs,norbs]).unwrap()
+    //     .dot(&orbs_virt).into_shape([norbs,nocc,norbs,nvirt]).unwrap()
+    //     .permuted_axes([3,0,1,2]).as_standard_layout() // [nvirt, norbs, nocc, norbs]
+    //     .to_owned();
+    //
+    // let term_2:Array4<f64> = integrals.into_shape([norbs*norbs*norbs,norbs]).unwrap()
+    //     .dot(&pmat_occ).into_shape([norbs,norbs,norbs,norbs]).unwrap()
+    //     .permuted_axes([3,0,1,2]).as_standard_layout()
+    //     .into_shape([norbs*norbs*norbs,norbs]).unwrap()
+    //     .dot(&orbs_virt).into_shape([norbs,norbs,norbs,nvirt]).unwrap()
+    //     .permuted_axes([3,0,1,2]).as_standard_layout()
+    //     .into_shape([nvirt*norbs*norbs,norbs]).unwrap()
+    //     .dot(&pmat_full).into_shape([nvirt,norbs,norbs,norbs]).unwrap()
+    //     .permuted_axes([3,0,1,2]).as_standard_layout()
+    //     .into_shape([norbs*nvirt*norbs,norbs]).unwrap()
+    //     .dot(&orbs_occ).into_shape([norbs,nvirt,norbs,nocc]).unwrap()
+    //     .permuted_axes([3,0,1,2]).as_standard_layout() // [nocc, norbs, nvirt, norbs]
+    //     .to_owned();
 
     return (term_1,term_2)
 }

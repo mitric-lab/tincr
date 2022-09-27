@@ -7,7 +7,7 @@ mod taker;
 pub mod base;
 mod getter;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Properties {
     map: HashMap<&'static str, Property>,
 }
@@ -29,7 +29,9 @@ impl Properties {
             "dq_alpha",
             "dq_beta",
             "delta_dq",
+            "diff_density_matrix",
             "mixer",
+            "accel",
             //"P",
             "gradH0",
             "gradS",
@@ -56,6 +58,7 @@ impl Properties {
             "tr_dipoles",
             "oscillator_strengths",
             "lcmo_fock",
+            "coupling_signs",
         ];
         for data_name in multi_dim_data.iter() {
             self.map.remove(*data_name);
@@ -79,6 +82,10 @@ impl Properties {
         for data_name in multi_dim_data.iter() {
             self.map.remove(*data_name);
         }
+    }
+
+    pub fn reset_supersystem(&mut self) {
+        self.map.remove("old_supersystem");
     }
 
     pub fn get(&self, name: &'static str) -> Option<&Property> {

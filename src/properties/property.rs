@@ -1,10 +1,12 @@
 use ndarray::prelude::*;
 use enum_as_inner::EnumAsInner;
-use crate::scc::mixer::BroydenMixer;
+use crate::scc::mixer::{AndersonAccel, BroydenMixer};
 use crate::excited_states::ProductCache;
 use hashbrown::HashMap;
 use crate::fmo::PairType;
 use crate::initialization::Atom;
+use crate::fmo::lcmo::cis_gradient::ReducedBasisState;
+use crate::fmo::SuperSystem;
 
 /// A `Property` is a piece of data that can be associated with an `Molecule` or
 /// `ElectronicData`. The idea of this enum is taken from Guillaume Fraux's (@Luthaf) Chemfiles
@@ -50,6 +52,7 @@ pub enum Property {
     /// Vector property of f64 type
     VecF64(Vec<f64>),
     VecAtom(Vec<Atom>),
+    VecBasis(Vec<ReducedBasisState>),
     /// Arraybase<f64, Ix1> property
     Array1(Array1<f64>),
     /// Arraybase<f64, Ix2> property
@@ -60,8 +63,11 @@ pub enum Property {
     Array2Bool(Array2<bool>),
     /// SCC Mixer property
     Mixer(BroydenMixer),
+    /// SCC Mixer property
+    Accel(AndersonAccel),
     /// Excited state product cache
     Cache(ProductCache),
+    SuperSystem(SuperSystem),
 }
 
 impl Default for Property {
@@ -109,6 +115,10 @@ impl From<Vec<usize>> for Property {
 
 impl From<Vec<f64>> for Property {
     fn from(value: Vec<f64>) -> Self {Property::VecF64(value)}
+}
+
+impl From<Vec<ReducedBasisState>> for Property {
+    fn from(value: Vec<ReducedBasisState>) -> Self {Property::VecBasis(value)}
 }
 
 impl<'a> From<&'_ str> for Property {
@@ -172,6 +182,16 @@ impl From<BroydenMixer> for Property {
     }
 }
 
+impl From<AndersonAccel> for Property {
+    fn from(value: AndersonAccel) -> Self {
+        Property::Accel(value)
+    }
+}
+
 impl From<ProductCache> for Property {
     fn from(value: ProductCache) -> Self {Property::Cache(value)}
+}
+
+impl From<SuperSystem> for Property {
+    fn from(value: SuperSystem) -> Self {Property::SuperSystem(value)}
 }

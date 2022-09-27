@@ -28,7 +28,7 @@ use rayon::prelude::IntoParallelRefMutIterator;
 use std::ops::SubAssign;
 use crate::utils::Timer;
 use log::info;
-use crate::fmo::scc::helpers::atomvec_to_aomat;
+use crate::fmo::scc::helpers::{atomvec_to_aomat, get_dispersion_energy};
 
 impl RestrictedSCC for SuperSystem {
     ///  To run the SCC calculation of the FMO [SuperSystem] the following properties need to be set:
@@ -66,6 +66,11 @@ impl RestrictedSCC for SuperSystem {
         let max_iter: usize = self.config.scf.scf_max_cycles;
         logging::fmo_scc_init(max_iter);
 
+        let mut e_disp: f64 = 0.0;
+        if self.config.dispersion.use_dispersion{
+            e_disp = get_dispersion_energy(&self.atoms, &self.config.dispersion);
+        }
+
         // Assembling of the energy following Eq. 11 in
         // https://pubs.acs.org/doi/pdf/10.1021/ct500489d
         // E = sum_I^N E_I^ + sum_(I>J)^N ( E_(IJ) - E_I - E_J ) + sum_(I>J)^(N) DeltaE_(IJ)^V
@@ -92,13 +97,13 @@ impl RestrictedSCC for SuperSystem {
         // println!("time esd {}",timer);
 
         // Sum up all the individual energies
-        let total_energy: f64 = monomer_energies + pair_energies + embedding + esd_pair_energies;
+        let total_energy: f64 = monomer_energies + pair_energies + embedding + esd_pair_energies +e_disp;
 
         // Save the charge differences of all monomers in the SuperSystem
         self.properties.set_dq(dq);
 
         // Print information of the SCC-routine
-        logging::fmo_scc_end(timer, monomer_energies, pair_energies, embedding, esd_pair_energies);
+        logging::fmo_scc_end(timer, monomer_energies, pair_energies, embedding, esd_pair_energies, e_disp);
 
         self.properties.set_last_energy(total_energy);
         // Return the energy

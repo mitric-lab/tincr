@@ -7,6 +7,8 @@ use hashbrown::HashMap;
 use crate::excited_states::ProductCache;
 use nalgebra::Vector3;
 use crate::initialization::Atom;
+use crate::fmo::cis_gradient::ReducedBasisState;
+use crate::fmo::SuperSystem;
 
 impl Properties {
     pub fn old_atoms(&self) -> Option<&[Atom]> {
@@ -128,8 +130,17 @@ impl Properties {
     pub fn tdm(&self, idx:usize) -> Option<ArrayView2<f64>> {
         let n_occ: usize = self.occ_indices().unwrap().len();
         let n_virt: usize = self.virt_indices().unwrap().len();
+        let n_states:usize = self.ci_eigenvalues().unwrap().len();
         match self.get("ci_coefficients") {
-            Some(value) => Some(value.as_array2().unwrap().column(idx).into_shape([n_occ, n_virt]).unwrap()),
+            Some(value) => Some(
+                value
+                    .as_array2()
+                    .unwrap()
+                    .view()
+                    .into_shape([n_occ,n_virt,n_states])
+                    .unwrap()
+                    .slice_move(s![.., .., idx]),
+            ),
             _ => None,
         }
     }
@@ -611,6 +622,14 @@ impl Properties {
         }
     }
 
+    /// Get the transformed-Hamiltonian, which is required for the ground state gradient
+    pub fn h_coul_transformed(&self) ->Option<ArrayView2<f64>>{
+        match self.get("h_coul_transformed"){
+            Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
     /// Returns a reference to the difference of the excitation vectors
     pub fn xmy(&self) -> Option<ArrayView3<f64>> {
         match self.get("xmy") {
@@ -648,6 +667,41 @@ impl Properties {
     pub fn s_j_ij(&self)->Option<ArrayView2<f64>>{
         match self.get("s_j_ij"){
             Some(value) => Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    pub fn basis_states(&self)->Option<&[ReducedBasisState]>{
+        match self.get("basis_states"){
+            Some(value) => Some(value.as_vec_basis().unwrap()),
+            _ => None,
+        }
+    }
+
+    pub fn last_scalar_coupling(&self)->Option<ArrayView2<f64>>{
+        match self.get("last_scalar_coupling"){
+            Some(value) =>Some(value.as_array2().unwrap().view()),
+            _ => None,
+        }
+    }
+
+    pub fn old_supersystem(&self)->Option<&SuperSystem>{
+        match self.get("old_supersystem"){
+            Some(value) =>Some(value.as_super_system().unwrap()),
+            _ =>None,
+        }
+    }
+
+    pub fn aligned_pair(&self)->bool{
+        match self.get("aligned_pair"){
+            Some(value) =>(*value.as_bool().unwrap()),
+            _ =>false,
+        }
+    }
+
+    pub fn coupling_signs(&self) -> Option<ArrayView1<f64>> {
+        match self.get("coupling_signs") {
+            Some(value) => Some(value.as_array1().unwrap().view()),
             _ => None,
         }
     }

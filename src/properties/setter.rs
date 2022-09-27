@@ -2,10 +2,12 @@ use ndarray::prelude::*;
 use crate::properties::property::Property;
 use hashbrown::HashMap;
 use crate::fmo::PairType;
-use crate::scc::mixer::BroydenMixer;
+use crate::scc::mixer::{AndersonAccel, BroydenMixer};
 use crate::properties::Properties;
 use crate::excited_states::ProductCache;
 use crate::initialization::{MO, Atom};
+use crate::fmo::cis_gradient::ReducedBasisState;
+use crate::fmo::SuperSystem;
 
 
 impl Properties {
@@ -85,6 +87,11 @@ impl Properties {
     /// Set the scc mixer
     pub fn set_mixer(&mut self, mixer: BroydenMixer) {
         self.set("mixer", Property::from(mixer))
+    }
+
+    /// Set the scc mixer
+    pub fn set_accel(&mut self, accel: AndersonAccel) {
+        self.set("accel", Property::from(accel))
     }
 
     /// Set the atomic numbers
@@ -310,6 +317,14 @@ impl Properties {
         )
     }
 
+    /// Set the transformed Hamiltonian, which is required for the ground state gradient
+    pub fn set_h_coul_transformed(&mut self,h:Array2<f64>){
+        self.set(
+            "h_coul_transformed",
+            Property::from(h),
+        )
+    }
+
     /// set the sum of the excitation vectors x and y
     pub fn set_xpy(&mut self, xpy:Array3<f64>){
         self.set(
@@ -347,6 +362,41 @@ impl Properties {
         self.set(
             "s_j_ij",
             Property::from(s_j_ij),
+        )
+    }
+
+    pub fn set_basis_states(&mut self, basis:Vec<ReducedBasisState>){
+        self.set(
+            "basis_states",
+            Property::from(basis),
+        )
+    }
+
+    pub fn set_last_scalar_coupling(&mut self,sci:Array2<f64>){
+        self.set(
+            "last_scalar_coupling",
+            Property::from(sci),
+        )
+    }
+
+    pub fn set_old_supersystem(&mut self, supersystem:SuperSystem){
+        self.set(
+            "old_supersystem",
+            Property::from(supersystem),
+        )
+    }
+
+    pub fn set_aligned_pair(&mut self,boolean:bool){
+        self.set(
+            "aligned_pair",
+            Property::from(boolean),
+        )
+    }
+
+    pub fn set_coupling_signs(&mut self,arr:Array1<f64>){
+        self.set(
+            "coupling_signs",
+            Property::from(arr),
         )
     }
 }
